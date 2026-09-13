@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.4.8
+
+- Fix: la risposta 302 di GitHub arrivava correttamente ma esp_http_client_get_header() non trovava l'header Location dopo esp_http_client_perform() (confermato su hardware: "Redirect (status 302) senza header Location"). L'header ora viene catturato durante la ricezione, tramite il gestore eventi HTTP_EVENT_ON_HEADER, non piu' letto a posteriori.
+
 ## 1.4.7
 
 - Fix: la connessione WiFi entrava in un ciclo continuo di connessione/disconnessione ogni 2-3s, mai stabile - confermato su hardware (stati auth->assoc->run->init ripetuti). Causa: un riconnessione immediata e senza pausa dentro il gestore eventi ad ogni disconnessione, in competizione col ritentativo gia' gestito da net_manager_task. Rimossa - ora solo net_manager_task ritenta, con timeout pieno. Aggiunto anche il log del motivo di ogni disconnessione WiFi per diagnosi future.

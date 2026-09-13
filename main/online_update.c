@@ -4,6 +4,7 @@
 #include "settings.h"
 
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 
 #include "esp_log.h"
@@ -15,17 +16,32 @@
 static const char *TAG = "online_update";
 
 // Accumula il corpo della risposta HTTP (il manifest JSON, sempre
-// piccolo) in un buffer a dimensione fissa fornito dal chiamante.
+// piccolo) in un buffer a dimensione fissa fornito dal chiamante, e
+// l'header Location se presente. Quest'ultimo va catturato qui, non con
+// esp_http_client_get_header() dopo esp_http_client_perform(): confermato
+// su hardware reale che quella chiamata non trova l'header su una
+// risposta 302 di GitHub nonostante l'header sia effettivamente presente
+// (la richiesta funziona, arriva un 302 genuino - solo la lettura post
+// hoc dell'header fallisce).
 typedef struct {
     char *buf;
     size_t size;
     size_t used;
+    char location[256];
 } http_download_ctx_t;
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 {
     http_download_ctx_t *ctx = (http_download_ctx_t *) evt->user_data;
-    if (evt->event_id == HTTP_EVENT_ON_DATA && ctx && ctx->used + 1 < ctx->size) {
+    if (!ctx) {
+        return ESP_OK;
+    }
+    if (evt->event_id == HTTP_EVENT_ON_HEADER) {
+        if (evt->header_key && strcasecmp(evt->header_key, "Location") == 0 && evt->header_value) {
+            strncpy(ctx->location, evt->header_value, sizeof(ctx->location) - 1);
+            ctx->location[sizeof(ctx->location) - 1] = '\0';
+        }
+    } else if (evt->event_id == HTTP_EVENT_ON_DATA && ctx->used + 1 < ctx->size) {
         size_t space = ctx->size - ctx->used - 1;
         size_t n = (size_t) evt->data_len < space ? (size_t) evt->data_len : space;
         memcpy(ctx->buf + ctx->used, evt->data, n);
@@ -64,7 +80,7 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
         esp_http_client_config_t config = {
             .url = current_url,
             .method = use_head ? HTTP_METHOD_HEAD : HTTP_METHOD_GET,
-            .event_handler = (body_buf && !use_head) ? http_event_handler : NULL,
+            .event_handler = http_event_handler,
             .user_data = &ctx,
             .crt_bundle_attach = esp_crt_bundle_attach,
             .timeout_ms = 10000,
@@ -73,29 +89,24 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
         esp_http_client_handle_t client = esp_http_client_init(&config);
         esp_err_t err = esp_http_client_perform(client);
         int status = esp_http_client_get_status_code(client);
+        esp_http_client_cleanup(client);
 
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "Richiesta a %s fallita: %s", current_url, esp_err_to_name(err));
-            esp_http_client_cleanup(client);
             return -1;
         }
 
         if (status >= 300 && status < 400) {
-            char *location = NULL;
-            esp_err_t herr = esp_http_client_get_header(client, "Location", &location);
-            if (herr != ESP_OK || !location) {
+            if (ctx.location[0] == '\0') {
                 ESP_LOGW(TAG, "Redirect (status %d) senza header Location", status);
-                esp_http_client_cleanup(client);
                 return status;
             }
-            strncpy(current_url, location, sizeof(current_url) - 1);
+            strncpy(current_url, ctx.location, sizeof(current_url) - 1);
             current_url[sizeof(current_url) - 1] = '\0';
-            esp_http_client_cleanup(client);
             ESP_LOGI(TAG, "Redirect (hop %d) -> %s", hop + 1, current_url);
             continue;
         }
 
-        esp_http_client_cleanup(client);
         if (out_final_url) {
             strncpy(out_final_url, current_url, out_final_url_size - 1);
             out_final_url[out_final_url_size - 1] = '\0';
