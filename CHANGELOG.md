@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.6.3
+
+- Aggiunto stato della connessione al caster NTRIP, ben visibile in cima alla scheda Stato: CONNESSO/NON CONNESSO (colorato), da quanto tempo, numero di riconnessioni dal boot e motivo dell'ultimo errore (DNS, connessione rifiutata, caster che ha chiuso, ecc.) - prima non c'era nessuna visibilita' su questo, solo log interni. Funziona sia in modalita' base (upload RTCM) sia rover (download RTCM), tracciato nel modulo condiviso `status.c`.
+- Fix critico (confermato su hardware reale: crash/riavvio in loop appena provava a connettersi al caster): lo stack dei task NTRIP (4096 byte) andava in overflow proprio nel nuovo codice di tracciamento stato aggiunto sopra, in particolare al fallimento della DNS lookup - portato a 8192 byte per entrambi i task (base e rover), stesso margine gia' usato altrove nel progetto per problemi analoghi.
+
 ## 1.6.2
 
 - Aggiunto uso CPU (per core, con barra colorata) e memoria (libera, minima mai raggiunta, totale, PSRAM se presente) nella scheda Stato. Nuovo modulo `sys_stats.c`, basato sul tempo di esecuzione del task IDLE di ciascun core (richiede `CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS`, overhead trascurabile). La percentuale CPU compare dal secondo aggiornamento in poi (serve un campione di riferimento).

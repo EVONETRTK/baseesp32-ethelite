@@ -47,6 +47,20 @@
 
 <div id="page-status" class="page active">
   <fieldset>
+    <legend>Connessione NTRIP (caster)</legend>
+    <dl class="kv">
+      <dt>Stato</dt><dd id="ntrip-status">-</dd>
+      <dt id="ntrip-since-label">Connesso da</dt><dd id="ntrip-since">-</dd>
+      <dt>Riconnessioni dal boot</dt><dd id="ntrip-count">-</dd>
+      <dt>Ultimo errore</dt><dd id="ntrip-error">-</dd>
+    </dl>
+    <small class="hint">
+      In modalita' base indica se il flusso RTCM generato da questa stazione arriva al caster;
+      in modalita' rover se le correzioni RTCM stanno arrivando dal caster a questo ricevitore.
+    </small>
+  </fieldset>
+
+  <fieldset>
     <legend>Stato</legend>
     <dl class="kv">
       <dt>Matricola</dt><dd id="st-serial">-</dd>
@@ -423,6 +437,8 @@ async function loadStatus() {
       ? new Date(s.last_rtcm_us / 1000).toLocaleTimeString()
       : 'mai';
 
+    renderNtripStatus(s);
+
     renderCpuBar('cpu0-bar', 'cpu0-text', s.cpu0_percent, 'Core 0');
     renderCpuBar('cpu1-bar', 'cpu1-text', s.cpu1_percent, 'Core 1');
     document.getElementById('st-heap-free').textContent = formatBytes(s.free_heap_bytes);
@@ -557,6 +573,41 @@ function renderCpuBar(barId, textId, percent, label) {
 // veri e propri, gli altri sono un fix "normale" (utile ma senza le
 // precisioni centimetriche che giustificano l'uso di questa scheda).
 const FIX_QUALITY_COLOR = { 4: '#16a34a', 5: '#d97706', 1: '#2563eb', 2: '#2563eb', 3: '#2563eb' };
+
+function formatElapsed(seconds) {
+  if (seconds < 60) return Math.round(seconds) + ' s';
+  if (seconds < 3600) return Math.round(seconds / 60) + ' min';
+  return Math.round(seconds / 3600) + ' h';
+}
+
+function renderNtripStatus(s) {
+  const statusEl = document.getElementById('ntrip-status');
+  const sinceLabelEl = document.getElementById('ntrip-since-label');
+  const sinceEl = document.getElementById('ntrip-since');
+  const countEl = document.getElementById('ntrip-count');
+  const errorEl = document.getElementById('ntrip-error');
+
+  countEl.textContent = s.ntrip_connect_count ?? 0;
+  errorEl.textContent = s.ntrip_last_error || '-';
+
+  if (s.ntrip_connected) {
+    statusEl.textContent = 'CONNESSO';
+    statusEl.style.color = '#16a34a';
+    statusEl.style.fontWeight = '600';
+    sinceLabelEl.textContent = 'Connesso da';
+    sinceEl.textContent = s.ntrip_connected_since_us
+      ? formatElapsed((s.now_us - s.ntrip_connected_since_us) / 1e6)
+      : '-';
+  } else {
+    statusEl.textContent = 'NON CONNESSO';
+    statusEl.style.color = '#dc2626';
+    statusEl.style.fontWeight = '600';
+    sinceLabelEl.textContent = 'Disconnesso da';
+    sinceEl.textContent = s.ntrip_last_disconnect_us
+      ? formatElapsed((s.now_us - s.ntrip_last_disconnect_us) / 1e6)
+      : 'mai connesso dal boot';
+  }
+}
 
 function renderFixStatus(s) {
   const qualityEl = document.getElementById('fix-quality');

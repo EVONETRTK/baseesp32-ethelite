@@ -121,11 +121,17 @@ void app_main(void)
         // iOS/qualunque piattaforma resta il broadcast UDP via WiFi/Ethernet.
         xTaskCreate(gnss_nmea_reader_task, "nmea_reader", 4096,
                     (void *)(intptr_t) s_gnss_uart_num, 6, NULL);
-        xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 4096,
+        // 4096 andava in overflow su hardware reale in ntrip_rover_connect()
+        // esattamente al fallimento della DNS lookup (getaddrinfo() e'
+        // gia' di per se' pesante di stack su lwIP) - confermato dopo aver
+        // aggiunto le chiamate a status_ntrip_note_disconnected() (v1.6.3),
+        // che hanno fatto traboccare un margine gia' stretto. Stesso motivo
+        // gia' incontrato piu' volte in questo progetto per altri task.
+        xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
                     (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
     } else {
         rtcm_stream = xStreamBufferCreate(4096, 1);
         xTaskCreate(gnss_uart_task, "gnss_uart", 4096, NULL, 10, NULL);
-        xTaskCreate(ntrip_client_task, "ntrip_client", 4096, rtcm_stream, 5, NULL);
+        xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
     }
 }

@@ -183,6 +183,18 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "net", net_status_str(status_get_net()));
     cJSON_AddNumberToObject(root, "rtcm_bytes", status_get_rtcm_total_bytes());
     cJSON_AddNumberToObject(root, "last_rtcm_us", (double) status_get_last_rtcm_time_us());
+
+    ntrip_conn_status_t ntrip = status_ntrip_get();
+    cJSON_AddBoolToObject(root, "ntrip_connected", ntrip.connected);
+    cJSON_AddNumberToObject(root, "ntrip_connected_since_us", (double) ntrip.connected_since_us);
+    cJSON_AddNumberToObject(root, "ntrip_last_disconnect_us", (double) ntrip.last_disconnect_us);
+    cJSON_AddNumberToObject(root, "ntrip_connect_count", ntrip.connect_count);
+    cJSON_AddStringToObject(root, "ntrip_last_error", ntrip.last_error);
+    // Tempo del dispositivo (dal boot, stessa base di ntrip_connected_since_us
+    // e last_disconnect_us) al momento di generare questa risposta - permette
+    // al browser di calcolare "da quanto" senza affidarsi al proprio
+    // orologio (che non ha comunque relazione con l'uptime del dispositivo).
+    cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
     cJSON_AddStringToObject(root, "gnss_chip", gnss_chip_str(s.gnss_chip));
     cJSON_AddStringToObject(root, "device_mode", device_mode_str(s.device_mode));
     cJSON_AddStringToObject(root, "network_mode", network_mode_str(s.network_mode));

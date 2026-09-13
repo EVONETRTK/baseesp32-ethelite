@@ -38,6 +38,7 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     struct addrinfo *res = NULL;
     if (getaddrinfo(settings->ntrip_host, port_str, &hints, &res) != 0 || res == NULL) {
         ESP_LOGE(TAG, "DNS lookup fallita per %s", settings->ntrip_host);
+        status_ntrip_note_disconnected("DNS lookup fallita");
         return -1;
     }
 
@@ -45,6 +46,7 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     if (sock < 0) {
         ESP_LOGE(TAG, "Creazione socket fallita: errno %d", errno);
         freeaddrinfo(res);
+        status_ntrip_note_disconnected("Creazione socket fallita");
         return -1;
     }
 
@@ -52,6 +54,9 @@ static int ntrip_rover_connect(const app_settings_t *settings)
         ESP_LOGE(TAG, "Connessione a %s:%d fallita: errno %d", settings->ntrip_host, settings->ntrip_port, errno);
         close(sock);
         freeaddrinfo(res);
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Connessione al caster fallita (errno %d)", errno);
+        status_ntrip_note_disconnected(msg);
         return -1;
     }
     freeaddrinfo(res);
@@ -77,6 +82,7 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     if (send(sock, req, req_len, 0) != req_len) {
         ESP_LOGE(TAG, "Invio richiesta NTRIP GET fallito: errno %d", errno);
         close(sock);
+        status_ntrip_note_disconnected("Invio richiesta fallito");
         return -1;
     }
 
@@ -85,17 +91,22 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     if (r <= 0) {
         ESP_LOGE(TAG, "Nessuna risposta dal caster");
         close(sock);
+        status_ntrip_note_disconnected("Nessuna risposta dal caster");
         return -1;
     }
     resp[r] = '\0';
     if (strncmp(resp, "ICY 200", 7) != 0 && strncmp(resp, "HTTP/1.1 200", 12) != 0) {
         ESP_LOGE(TAG, "Caster ha rifiutato la richiesta rover: %s", resp);
         close(sock);
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Caster ha rifiutato la richiesta: %.50s", resp);
+        status_ntrip_note_disconnected(msg);
         return -1;
     }
 
     ESP_LOGI(TAG, "Rover connesso al caster %s:%d mountpoint /%s",
              settings->ntrip_host, settings->ntrip_port, settings->ntrip_mountpoint);
+    status_ntrip_note_connected();
     return sock;
 }
 
@@ -132,9 +143,13 @@ void ntrip_rover_client_task(void *arg)
                 status_note_rtcm_bytes((uint32_t) n);
             } else if (n == 0) {
                 ESP_LOGW(TAG, "Caster ha chiuso la connessione");
+                status_ntrip_note_disconnected("Caster ha chiuso la connessione");
                 break;
             } else {
                 ESP_LOGW(TAG, "recv fallita, riconnessione: errno %d", errno);
+                char msg[128];
+                snprintf(msg, sizeof(msg), "Ricezione dati fallita, riconnessione (errno %d)", errno);
+                status_ntrip_note_disconnected(msg);
                 break;
             }
         }

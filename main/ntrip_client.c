@@ -8,6 +8,7 @@
 
 #include "ntrip_client.h"
 #include "settings.h"
+#include "status.h"
 
 static const char *TAG = "ntrip_client";
 
@@ -27,6 +28,7 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
     int err = getaddrinfo(settings->ntrip_host, port_str, &hints, &res);
     if (err != 0 || res == NULL) {
         ESP_LOGE(TAG, "DNS lookup fallita per %s: %d", settings->ntrip_host, err);
+        status_ntrip_note_disconnected("DNS lookup fallita");
         return -1;
     }
 
@@ -34,6 +36,7 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
     if (sock < 0) {
         ESP_LOGE(TAG, "Creazione socket fallita: errno %d", errno);
         freeaddrinfo(res);
+        status_ntrip_note_disconnected("Creazione socket fallita");
         return -1;
     }
 
@@ -41,6 +44,9 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
         ESP_LOGE(TAG, "Connessione a %s:%d fallita: errno %d", settings->ntrip_host, settings->ntrip_port, errno);
         close(sock);
         freeaddrinfo(res);
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Connessione al caster fallita (errno %d)", errno);
+        status_ntrip_note_disconnected(msg);
         return -1;
     }
     freeaddrinfo(res);
@@ -54,6 +60,7 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
     if (send(sock, req, req_len, 0) != req_len) {
         ESP_LOGE(TAG, "Invio handshake NTRIP fallito: errno %d", errno);
         close(sock);
+        status_ntrip_note_disconnected("Invio handshake fallito");
         return -1;
     }
 
@@ -62,17 +69,22 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
     if (r <= 0) {
         ESP_LOGE(TAG, "Nessuna risposta dal caster");
         close(sock);
+        status_ntrip_note_disconnected("Nessuna risposta dal caster");
         return -1;
     }
     resp[r] = '\0';
     if (strncmp(resp, "ICY 200", 7) != 0 && strncmp(resp, "OK", 2) != 0) {
         ESP_LOGE(TAG, "Caster ha rifiutato la connessione sorgente: %s", resp);
         close(sock);
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Caster ha rifiutato la connessione: %.50s", resp);
+        status_ntrip_note_disconnected(msg);
         return -1;
     }
 
     ESP_LOGI(TAG, "Connesso al caster %s:%d mountpoint /%s",
              settings->ntrip_host, settings->ntrip_port, settings->ntrip_mountpoint);
+    status_ntrip_note_connected();
     return sock;
 }
 
@@ -97,6 +109,9 @@ void ntrip_client_task(void *arg)
             int sent = send(sock, buf, len, 0);
             if (sent < 0) {
                 ESP_LOGW(TAG, "Invio fallito, riconnessione: errno %d", errno);
+                char msg[128];
+                snprintf(msg, sizeof(msg), "Invio dati fallito, riconnessione (errno %d)", errno);
+                status_ntrip_note_disconnected(msg);
                 break;
             }
         }
