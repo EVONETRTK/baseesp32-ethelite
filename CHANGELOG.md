@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.10
+
+- Nessun cambio funzionale: build di test per verificare su hardware reale il download/installazione completo dopo il fix del redirect (1.5.9), a partire da un dispositivo gia' su 1.5.9.
+
 ## 1.5.9
 
 - Fix (causa esatta confermata dal log): "Aggiornamento fallito, avvio del download non riuscito" - la risoluzione dell'URL finale del firmware usava una richiesta HEAD, ma l'endpoint di redirect degli asset di GitHub Releases risponde "404 File not found" a una HEAD pur reindirizzando correttamente con GET (confermato su hardware: "Hop 2 esito: status=404" seguito da "esp_https_ota: File not found(404)"). Sostituita con una GET con header "Range: bytes=0-0", che ottiene lo stesso risultato (nessun corpo scaricato inutilmente) senza l'errore.
