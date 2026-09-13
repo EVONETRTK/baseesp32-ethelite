@@ -40,6 +40,7 @@
   <button type="button" data-page="page-signals">Segnali</button>
   <button type="button" data-page="page-hardware">Hardware</button>
   <button type="button" data-page="page-firmware">Firmware</button>
+  <button type="button" data-page="page-log">Log</button>
 </nav>
 
 <form id="cfg-form">
@@ -342,6 +343,18 @@
 <button type="submit" class="action">Salva e riavvia</button>
 </form>
 
+<div id="page-log" class="page">
+  <fieldset>
+    <legend>Log recenti</legend>
+    <small class="hint">
+      Ultime righe di log conservate in memoria dall'ultimo riavvio (si perdono al riavvio) -
+      utile per capire cosa succede senza collegare un cavo USB/seriale.
+    </small>
+    <button type="button" class="action secondary" id="log-refresh-btn" style="margin-top:.6rem">Aggiorna</button>
+    <pre id="log-view" style="margin-top:.6rem; max-height:60vh; overflow:auto; background:#111827; color:#e5e7eb; padding:.6rem; border-radius:6px; font-size:.78rem; white-space:pre-wrap; word-break:break-all;">-</pre>
+  </fieldset>
+</div>
+
 <div id="save-msg"></div>
 
 <script>
@@ -351,8 +364,28 @@ document.querySelectorAll('nav.tabs button').forEach((btn) => {
     document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById(btn.dataset.page).classList.add('active');
+    if (btn.dataset.page === 'page-log') {
+      loadLog();
+    }
   });
 });
+
+// I log arrivano come testo grezzo (non JSON) - piu' semplice sia lato
+// firmware (nessuna escape/quoting da gestire) sia qui, dove basta uno
+// strip dei codici colore ANSI (pensati per un terminale seriale, non per
+// una pagina web) prima di mostrarli in un <pre>.
+async function loadLog() {
+  const view = document.getElementById('log-view');
+  try {
+    const r = await fetch('/api/log');
+    const text = await r.text();
+    view.textContent = text.replace(/\x1b\[[0-9;]*m/g, '') || '(nessun log ancora disponibile)';
+    view.scrollTop = view.scrollHeight;
+  } catch (e) {
+    view.textContent = 'Errore di comunicazione col dispositivo';
+  }
+}
+document.getElementById('log-refresh-btn').addEventListener('click', loadLog);
 
 async function loadStatus() {
   try {

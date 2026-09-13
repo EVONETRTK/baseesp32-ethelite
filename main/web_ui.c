@@ -5,6 +5,7 @@
 #include "sd_update.h"
 #include "online_update.h"
 #include "status.h"
+#include "log_buffer.h"
 #include "gnss_signal.h"
 #include "gnss_fix.h"
 #include "wifi_link.h"
@@ -740,6 +741,21 @@ static esp_err_t ota_progress_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t log_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    static char buf[8192]; // static: troppo grande per lo stack del task httpd
+    size_t n = log_buffer_read(buf, sizeof(buf) - 1);
+    buf[n] = '\0';
+
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    httpd_resp_sendstr(req, buf);
+    return ESP_OK;
+}
+
 static esp_err_t reboot_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -755,7 +771,7 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 void web_ui_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 14; // default 8, non basta piu' con gli endpoint OTA/WiFi aggiunti
+    config.max_uri_handlers = 15; // default 8, non basta piu' con gli endpoint OTA/WiFi/log aggiunti
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne
@@ -782,6 +798,7 @@ void web_ui_start(void)
     httpd_uri_t ota_progress_uri = { .uri = "/api/ota/progress", .method = HTTP_GET, .handler = ota_progress_get_handler };
     httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
     httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
+    httpd_uri_t log_uri        = { .uri = "/api/log", .method = HTTP_GET, .handler = log_get_handler };
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
@@ -795,6 +812,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &ota_check_uri);
     httpd_register_uri_handler(server, &ota_apply_uri);
     httpd_register_uri_handler(server, &ota_progress_uri);
+    httpd_register_uri_handler(server, &log_uri);
 
     ESP_LOGI(TAG, "Server web di gestione avviato");
 }

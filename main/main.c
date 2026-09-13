@@ -12,6 +12,7 @@
 #include "version.h"
 #include "settings.h"
 #include "status.h"
+#include "log_buffer.h"
 #include "status_led.h"
 #include "oled_display.h"
 #include "reset_button.h"
@@ -73,6 +74,8 @@ static void gnss_uart_task(void *arg)
 
 void app_main(void)
 {
+    log_buffer_init(); // il prima possibile, per non perdere i log di avvio
+
     ESP_LOGI(TAG, "EVONETRTK firmware v%s", FIRMWARE_VERSION);
 
     esp_err_t nvs_err = nvs_flash_init();

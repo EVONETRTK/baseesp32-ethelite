@@ -8,6 +8,7 @@ idf_component_register(
         "eth_link.c"
         "settings.c"
         "status.c"
+        "log_buffer.c"
         "gnss_driver.c"
         "gnss_ubx.c"
         "gnss_unicore.c"
