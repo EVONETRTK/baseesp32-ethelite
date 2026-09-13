@@ -882,27 +882,40 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('wifi-test-btn').addEventListener('click', async () => {
+// Durante il tentativo la radio deve spostarsi sul canale della rete di
+// destinazione per autenticarsi, il che puo' disturbare momentaneamente il
+// collegamento della pagina stessa (sempre sull'AP di setup, canale 1) -
+// confermato su hardware reale ("spesso si blocca" durante il test). Un
+// singolo fetch() che aspetta fino a 15s puo' restare sospeso per sempre
+// se la disconnessione capita proprio in quel momento - si passa quindi a
+// interrogare l'esito periodicamente, tollerando qualche fallimento di
+// rete transitorio invece di arrendersi al primo.
+async function pollWifiTestProgress() {
   const msg = document.getElementById('wifi-test-msg');
   const barTrack = document.getElementById('wifi-test-bar-track');
   const barFill = document.getElementById('wifi-test-bar-fill');
-  const f = document.getElementById('cfg-form');
-  const ssid = f.wifi_ssid.value;
-  const password = f.wifi_password.value;
-  if (!ssid) {
-    msg.textContent = 'Inserisci prima un SSID (o cercalo con "Cerca reti WiFi")';
-    return;
-  }
-  barTrack.style.display = 'none';
-  msg.style.color = '';
-  msg.style.fontWeight = '';
-  msg.textContent = 'Connessione in corso (fino a 15s)...';
-  try {
-    const r = await fetch('/api/wifi/test-connect', {
-      method: 'POST',
-      body: JSON.stringify({ ssid, password }),
-    });
-    const s = await r.json();
+  let consecutiveFailures = 0;
+  const poll = async () => {
+    let s;
+    try {
+      const r = await fetch('/api/wifi/test-progress');
+      s = await r.json();
+      consecutiveFailures = 0;
+    } catch (e) {
+      consecutiveFailures++;
+      if (consecutiveFailures >= 15) {
+        msg.style.color = '#dc2626';
+        msg.style.fontWeight = '600';
+        msg.textContent = 'Connessione alla pagina persa durante il test - ricarica la pagina per verificare lo stato.';
+        return;
+      }
+      setTimeout(poll, 1000);
+      return;
+    }
+    if (!s.done) {
+      setTimeout(poll, 800);
+      return;
+    }
     if (!s.connected) {
       msg.style.color = '#dc2626';
       msg.style.fontWeight = '600';
@@ -925,6 +938,30 @@ document.getElementById('wifi-test-btn').addEventListener('click', async () => {
     } catch (e) {
       // segnale non disponibile, non blocca la conferma di connessione
     }
+  };
+  poll();
+}
+
+document.getElementById('wifi-test-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('wifi-test-msg');
+  const barTrack = document.getElementById('wifi-test-bar-track');
+  const f = document.getElementById('cfg-form');
+  const ssid = f.wifi_ssid.value;
+  const password = f.wifi_password.value;
+  if (!ssid) {
+    msg.textContent = 'Inserisci prima un SSID (o cercalo con "Cerca reti WiFi")';
+    return;
+  }
+  barTrack.style.display = 'none';
+  msg.style.color = '';
+  msg.style.fontWeight = '';
+  msg.textContent = 'Connessione in corso (fino a 15s)...';
+  try {
+    await fetch('/api/wifi/test-connect', {
+      method: 'POST',
+      body: JSON.stringify({ ssid, password }),
+    });
+    pollWifiTestProgress();
   } catch (e) {
     msg.style.color = '#dc2626';
     msg.style.fontWeight = '600';

@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.7.1
+
+- Fix (confermato su hardware reale: "spesso si blocca" durante il test WiFi): il pulsante "Connetti (senza riavviare)" bloccava l'intero server web fino a 15s in attesa dell'esito - durante il tentativo la radio deve spostarsi sul canale della rete di destinazione per autenticarsi, il che puo' disturbare momentaneamente il collegamento della pagina stessa (sempre sull'AP di setup, canale 1); se capitava proprio in quel momento, la richiesta restava sospesa a tempo indeterminato senza nessun errore visibile. Il test ora gira in un task separato (stesso schema gia' usato per l'aggiornamento online), con la pagina che interroga l'esito periodicamente e tollera qualche fallimento di rete transitorio invece di restare bloccata in attesa di un'unica risposta.
+
 ## 1.7.0
 
 - Aggiunto avviso email e/o WhatsApp quando la connessione al caster NTRIP resta interrotta oltre una soglia configurabile (default 15 minuti), piu' un secondo avviso quando torna a funzionare - pensato per una base lasciata incustodita in campo. Email via client SMTP minimale integrato (SMTPS, AUTH LOGIN - va bene Gmail con una password per le app); WhatsApp tramite il servizio gratuito di terze parti CallMeBot. Nuova sezione "Avviso caster disconnesso" nella scheda Sicurezza, con un pulsante "Invia avviso di prova" che usa subito i valori del form senza dover salvare prima. Nuovo modulo `alerts.c`.

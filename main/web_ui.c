@@ -25,6 +25,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 
 static const char *TAG = "web_ui";
 
@@ -601,6 +602,49 @@ static esp_err_t ota_sd_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Stato del test di connessione WiFi in corso, letto dalla UI web mentre
+// il tentativo gira in background - vedi wifi_test_connect_task() sotto
+// per il motivo per cui non gira piu' direttamente nel task del server web.
+typedef struct {
+    bool running;
+    bool done;
+    bool connected; // valido solo se done == true
+} wifi_test_status_t;
+
+static SemaphoreHandle_t s_wifi_test_mutex;
+static wifi_test_status_t s_wifi_test_status;
+
+typedef struct {
+    char ssid[33];
+    char password[65];
+} wifi_test_task_ctx_t;
+
+static void wifi_test_connect_task(void *arg)
+{
+    wifi_test_task_ctx_t *ctx = (wifi_test_task_ctx_t *) arg;
+
+    bool connected = wifi_link_connect_with(ctx->ssid, ctx->password, 15000);
+    if (connected) {
+        app_settings_t s = settings_get();
+        strncpy(s.wifi_ssid, ctx->ssid, sizeof(s.wifi_ssid) - 1);
+        s.wifi_ssid[sizeof(s.wifi_ssid) - 1] = '\0';
+        strncpy(s.wifi_password, ctx->password, sizeof(s.wifi_password) - 1);
+        s.wifi_password[sizeof(s.wifi_password) - 1] = '\0';
+        settings_save(&s);
+        status_set_net(NET_STATUS_WIFI);
+        ESP_LOGI(TAG, "Connesso, credenziali salvate automaticamente");
+    }
+
+    xSemaphoreTake(s_wifi_test_mutex, portMAX_DELAY);
+    s_wifi_test_status.running = false;
+    s_wifi_test_status.done = true;
+    s_wifi_test_status.connected = connected;
+    xSemaphoreGive(s_wifi_test_mutex);
+
+    free(ctx);
+    vTaskDelete(NULL);
+}
+
 static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -654,22 +698,57 @@ static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
     }
     cJSON_Delete(root);
 
-    ESP_LOGI(TAG, "Test connessione WiFi a '%s' richiesto dalla UI web", ssid);
-    bool connected = wifi_link_connect_with(ssid, password, 15000);
+    // Avviato in un task separato invece di bloccare qui fino a 15s: il
+    // tentativo obbliga la radio a spostarsi sul canale della rete di
+    // destinazione per autenticarsi, il che puo' disturbare momentaneamente
+    // il collegamento della pagina stessa (sempre sull'AP di setup, canale
+    // 1) - confermato su hardware reale ("spesso si blocca" durante il
+    // test). Se il server web resta bloccato proprio in quel momento, la
+    // richiesta HTTP puo' restare sospesa indefinitamente lato browser.
+    if (!s_wifi_test_mutex) {
+        s_wifi_test_mutex = xSemaphoreCreateMutex();
+    }
+    xSemaphoreTake(s_wifi_test_mutex, portMAX_DELAY);
+    s_wifi_test_status = (wifi_test_status_t){ .running = true };
+    xSemaphoreGive(s_wifi_test_mutex);
 
-    if (connected) {
-        app_settings_t s = settings_get();
-        strncpy(s.wifi_ssid, ssid, sizeof(s.wifi_ssid) - 1);
-        s.wifi_ssid[sizeof(s.wifi_ssid) - 1] = '\0';
-        strncpy(s.wifi_password, password, sizeof(s.wifi_password) - 1);
-        s.wifi_password[sizeof(s.wifi_password) - 1] = '\0';
-        settings_save(&s);
-        status_set_net(NET_STATUS_WIFI);
-        ESP_LOGI(TAG, "Connesso, credenziali salvate automaticamente");
+    wifi_test_task_ctx_t *ctx = calloc(1, sizeof(wifi_test_task_ctx_t));
+    if (!ctx) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria esaurita");
+        return ESP_FAIL;
+    }
+    strncpy(ctx->ssid, ssid, sizeof(ctx->ssid) - 1);
+    strncpy(ctx->password, password, sizeof(ctx->password) - 1);
+
+    ESP_LOGI(TAG, "Test connessione WiFi a '%s' avviato in background", ssid);
+    if (xTaskCreate(wifi_test_connect_task, "wifi_test", 4096, ctx, 5, NULL) != pdPASS) {
+        free(ctx);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "avvio task fallito");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t wifi_test_progress_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    wifi_test_status_t st = {0};
+    if (s_wifi_test_mutex) {
+        xSemaphoreTake(s_wifi_test_mutex, portMAX_DELAY);
+        st = s_wifi_test_status;
+        xSemaphoreGive(s_wifi_test_mutex);
     }
 
     cJSON *resp = cJSON_CreateObject();
-    cJSON_AddBoolToObject(resp, "connected", connected);
+    cJSON_AddBoolToObject(resp, "running", st.running);
+    cJSON_AddBoolToObject(resp, "done", st.done);
+    cJSON_AddBoolToObject(resp, "connected", st.connected);
     char *json = cJSON_PrintUnformatted(resp);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, json);
@@ -898,7 +977,7 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 void web_ui_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 16; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi aggiunti
+    config.max_uri_handlers = 17; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi aggiunti
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne
@@ -925,12 +1004,14 @@ void web_ui_start(void)
     httpd_uri_t ota_progress_uri = { .uri = "/api/ota/progress", .method = HTTP_GET, .handler = ota_progress_get_handler };
     httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
     httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
+    httpd_uri_t wifi_test_progress_uri = { .uri = "/api/wifi/test-progress", .method = HTTP_GET, .handler = wifi_test_progress_get_handler };
     httpd_uri_t log_uri        = { .uri = "/api/log", .method = HTTP_GET, .handler = log_get_handler };
     httpd_uri_t alerts_test_uri = { .uri = "/api/alerts/test", .method = HTTP_POST, .handler = alerts_test_post_handler };
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);
+    httpd_register_uri_handler(server, &wifi_test_progress_uri);
     httpd_register_uri_handler(server, &status_uri);
     httpd_register_uri_handler(server, &signals_uri);
     httpd_register_uri_handler(server, &settings_uri);
