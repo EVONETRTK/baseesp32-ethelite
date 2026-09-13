@@ -8,12 +8,76 @@
 #include <stdio.h>
 
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
 #include "esp_crt_bundle.h"
 #include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 
 static const char *TAG = "online_update";
+
+// Stato di avanzamento del download/applicazione, letto dalla UI web con
+// online_update_get_progress() mentre online_update_apply_async() gira in
+// un task separato - protetto da mutex perche' scritto dal task di
+// aggiornamento e letto dal task del server web in parallelo.
+static SemaphoreHandle_t s_progress_mutex;
+static online_update_progress_t s_progress;
+
+static void progress_lock_init(void)
+{
+    if (!s_progress_mutex) {
+        s_progress_mutex = xSemaphoreCreateMutex();
+    }
+}
+
+static void progress_reset(void)
+{
+    progress_lock_init();
+    xSemaphoreTake(s_progress_mutex, portMAX_DELAY);
+    s_progress = (online_update_progress_t){ .running = true, .percent = -1, .bytes_total = -1 };
+    xSemaphoreGive(s_progress_mutex);
+}
+
+static void progress_set_bytes(int read, int total)
+{
+    xSemaphoreTake(s_progress_mutex, portMAX_DELAY);
+    s_progress.bytes_read = read;
+    s_progress.bytes_total = total;
+    s_progress.percent = (total > 0) ? (int) ((int64_t) read * 100 / total) : -1;
+    xSemaphoreGive(s_progress_mutex);
+}
+
+static void progress_finish(bool ok, const char *msg)
+{
+    progress_lock_init();
+    xSemaphoreTake(s_progress_mutex, portMAX_DELAY);
+    s_progress.running = false;
+    s_progress.done = true;
+    s_progress.ok = ok;
+    if (ok) {
+        s_progress.percent = 100;
+    }
+    if (msg) {
+        strncpy(s_progress.message, msg, sizeof(s_progress.message) - 1);
+        s_progress.message[sizeof(s_progress.message) - 1] = '\0';
+    }
+    xSemaphoreGive(s_progress_mutex);
+}
+
+online_update_progress_t online_update_get_progress(void)
+{
+    if (!s_progress_mutex) {
+        return (online_update_progress_t){0};
+    }
+    online_update_progress_t copy;
+    xSemaphoreTake(s_progress_mutex, portMAX_DELAY);
+    copy = s_progress;
+    xSemaphoreGive(s_progress_mutex);
+    return copy;
+}
 
 // Accumula il corpo della risposta HTTP (il manifest JSON, sempre
 // piccolo) in un buffer a dimensione fissa fornito dal chiamante, e
@@ -219,13 +283,28 @@ bool online_update_check(char *out_version, size_t out_version_size,
 #undef SET_MSG
 }
 
+// Passato a esp_https_ota_begin(): applica lo stesso fix gia' confermato
+// necessario in http_fetch_following_redirects() sopra (Accept-Encoding:
+// identity). esp_https_ota() usa un client HTTP interno che non condivide
+// codice con quella funzione, quindi senza questo header rischia lo stesso
+// problema di contenuto compresso non atteso - qui pero' scriverebbe i
+// byte (sbagliati) direttamente sulla partizione OTA, con l'immagine che
+// fallisce la validazione invece di un JSON illeggibile.
+static esp_err_t ota_http_client_init_cb(esp_http_client_handle_t http_client)
+{
+    esp_http_client_set_header(http_client, "Accept-Encoding", "identity");
+    return ESP_OK;
+}
+
 bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg_size)
 {
 #define SET_MSG(...) do { if (out_msg) snprintf(out_msg, out_msg_size, __VA_ARGS__); } while (0)
+#define FAIL(...) do { SET_MSG(__VA_ARGS__); progress_finish(false, out_msg); return false; } while (0)
+
+    progress_reset();
 
     if (!firmware_url || strlen(firmware_url) == 0) {
-        SET_MSG("Nessun indirizzo del firmware da scaricare");
-        return false;
+        FAIL("Nessun indirizzo del firmware da scaricare");
     }
 
     // Risolve prima eventuali redirect (es. GitHub Releases "latest") a
@@ -241,8 +320,7 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
     int status = http_fetch_following_redirects(firmware_url, true, resolved_url, sizeof(resolved_url), NULL, 0);
     if (status < 0) {
         ESP_LOGW(TAG, "Impossibile risolvere l'URL del firmware: errore di trasporto");
-        SET_MSG("Indirizzo del firmware non raggiungibile");
-        return false;
+        FAIL("Indirizzo del firmware non raggiungibile");
     }
     ESP_LOGI(TAG, "URL firmware risolto (status=%d): %.100s", status, resolved_url);
 
@@ -256,18 +334,79 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
     };
     esp_https_ota_config_t ota_config = {
         .http_config = &http_config,
+        .http_client_init_cb = ota_http_client_init_cb,
     };
 
-    ESP_LOGI(TAG, "Download aggiornamento online da %s...", resolved_url);
-    esp_err_t err = esp_https_ota(&ota_config);
+    esp_https_ota_handle_t handle = NULL;
+    esp_err_t err = esp_https_ota_begin(&ota_config, &handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Aggiornamento online fallito: %s", esp_err_to_name(err));
-        SET_MSG("Aggiornamento fallito, firmware attuale non modificato");
-        return false;
+        ESP_LOGE(TAG, "esp_https_ota_begin fallito: %s", esp_err_to_name(err));
+        FAIL("Aggiornamento fallito, avvio del download non riuscito");
+    }
+
+    // Dimensione totale nota dal Content-Length della risposta, se il CDN
+    // la fornisce - usata solo per calcolare la percentuale mostrata nella
+    // UI web; -1 (sconosciuta) non blocca comunque il download.
+    int total = esp_https_ota_get_image_size(handle);
+    ESP_LOGI(TAG, "Download aggiornamento online da %s (dimensione %s: %d byte)...",
+             resolved_url, total > 0 ? "nota" : "sconosciuta", total);
+
+    // API "a passi" invece della singola esp_https_ota(): permette di
+    // leggere quanti byte sono stati scaricati mano a mano
+    // (esp_https_ota_get_image_len_read()) e pubblicarli in s_progress per
+    // la barra di avanzamento nella UI web, cosa impossibile con la
+    // chiamata bloccante unica usata in precedenza.
+    while (1) {
+        err = esp_https_ota_perform(handle);
+        if (err != ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
+            break;
+        }
+        progress_set_bytes(esp_https_ota_get_image_len_read(handle), total);
+    }
+
+    if (err != ESP_OK || !esp_https_ota_is_complete_data_received(handle)) {
+        ESP_LOGE(TAG, "Aggiornamento online fallito: download incompleto (perform=%s)", esp_err_to_name(err));
+        esp_https_ota_abort(handle);
+        FAIL("Aggiornamento fallito, download interrotto prima della fine");
+    }
+
+    esp_err_t finish_err = esp_https_ota_finish(handle);
+    if (finish_err != ESP_OK) {
+        ESP_LOGE(TAG, "Aggiornamento online fallito: immagine non valida (finish=%s)", esp_err_to_name(finish_err));
+        FAIL("Aggiornamento fallito, immagine ricevuta non valida");
     }
 
     SET_MSG("Aggiornamento scaricato e applicato, riavvio...");
+    progress_finish(true, out_msg);
     return true;
 
+#undef FAIL
 #undef SET_MSG
+}
+
+static void online_update_apply_task(void *arg)
+{
+    char *url = (char *) arg;
+    char msg[96] = {0};
+    bool ok = online_update_apply(url, msg, sizeof(msg));
+    free(url);
+    if (ok) {
+        ESP_LOGI(TAG, "Firmware aggiornato online, riavvio in corso");
+        vTaskDelay(pdMS_TO_TICKS(500));
+        esp_restart();
+    }
+    vTaskDelete(NULL);
+}
+
+void online_update_apply_async(const char *firmware_url)
+{
+    char *url_copy = strdup(firmware_url ? firmware_url : "");
+    // Stack allineato a quello gia' necessario per lo stesso lavoro (TLS +
+    // scrittura flash) quando girava dentro il task del server web (vedi
+    // web_ui_start(), stack_size 10240 con la stessa motivazione).
+    if (xTaskCreate(online_update_apply_task, "ota_apply", 10240, url_copy, tskIDLE_PRIORITY + 5, NULL) != pdPASS) {
+        free(url_copy);
+        progress_reset();
+        progress_finish(false, "Impossibile avviare il task di aggiornamento");
+    }
 }

@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.7
+
+- Aggiunta barra di avanzamento (percentuale + KB scaricati) durante il download/installazione dell'aggiornamento online - prima la pagina restava bloccata in attesa senza nessuna indicazione, ora l'installazione gira in un task separato e la UI interroga lo stato ogni 800ms.
+- Fix probabile della causa di "Aggiornamento fallito" sull'installazione online (non ancora confermato su hardware): applicato anche qui lo stesso fix "Accept-Encoding: identity" gia' confermato necessario per il controllo versione (1.5.4), perche' esp_https_ota() usa un client HTTP interno che non condivide quel fix - un'immagine ricevuta compressa verrebbe scritta cosi' com'e' e fallirebbe la validazione. Il messaggio d'errore ora distingue anche un download interrotto da un'immagine ricevuta ma non valida.
+
 ## 1.5.6
 
 - Nessun cambio funzionale: build di test per verificare il download/installazione reale (non solo il controllo) dell'aggiornamento online, dopo che v1.5.5 ha risolto la catena di controllo.

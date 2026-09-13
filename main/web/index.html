@@ -319,6 +319,9 @@
     <small class="hint">Lascia vuoto per disattivare. Va salvato dal pulsante "Salva e riavvia" qui sotto.</small>
     <button type="button" class="action" id="fw-online-btn" style="margin-top:.8rem">Controlla aggiornamenti online</button>
     <div id="fw-online-msg" class="hint" style="margin-top:.6rem"></div>
+    <div id="fw-online-bar-track" class="sig-bar-track" style="display:none">
+      <div id="fw-online-bar-fill" class="sig-bar-fill" style="width:0%"></div>
+    </div>
   </fieldset>
 </div>
 
@@ -644,8 +647,52 @@ document.getElementById('wifi-test-btn').addEventListener('click', async () => {
   }
 });
 
+function pollOtaProgress() {
+  const msg = document.getElementById('fw-online-msg');
+  const barTrack = document.getElementById('fw-online-bar-track');
+  const barFill = document.getElementById('fw-online-bar-fill');
+  const poll = async () => {
+    let s;
+    try {
+      const r = await fetch('/api/ota/progress');
+      s = await r.json();
+    } catch (e) {
+      // Il dispositivo puo' smettere di rispondere proprio perche' sta
+      // riavviando dopo un aggiornamento riuscito (visto gia' il done:true
+      // qui sotto prima che accada) - non e' trattato come un errore.
+      return;
+    }
+    if (s.percent !== null && s.percent >= 0) {
+      barTrack.style.display = 'block';
+      barFill.style.width = s.percent + '%';
+      barFill.style.background = colorForPct(s.percent);
+      msg.textContent = 'Download in corso: ' + s.percent + '% (' +
+        Math.round(s.bytes_read / 1024) + ' / ' + Math.round(s.bytes_total / 1024) + ' KB)';
+    } else if (s.bytes_read > 0) {
+      barTrack.style.display = 'none';
+      msg.textContent = 'Download in corso: ' + Math.round(s.bytes_read / 1024) + ' KB...';
+    }
+    if (s.done) {
+      msg.style.color = s.ok ? '#16a34a' : '#dc2626';
+      msg.style.fontWeight = '600';
+      msg.textContent = s.message || (s.ok ? 'Completato' : 'Fallito');
+      if (s.ok) {
+        barFill.style.width = '100%';
+        barFill.style.background = colorForPct(100);
+      }
+      return; // niente altro poll
+    }
+    setTimeout(poll, 800);
+  };
+  poll();
+}
+
 document.getElementById('fw-online-btn').addEventListener('click', async () => {
   const msg = document.getElementById('fw-online-msg');
+  const barTrack = document.getElementById('fw-online-bar-track');
+  barTrack.style.display = 'none';
+  msg.style.color = '';
+  msg.style.fontWeight = '';
   msg.textContent = 'Controllo aggiornamenti online...';
   try {
     const r = await fetch('/api/ota/check-online', { method: 'POST' });
@@ -661,13 +708,12 @@ document.getElementById('fw-online-btn').addEventListener('click', async () => {
     if (!confirm('Installare la versione ' + s.version + '?')) {
       return;
     }
-    msg.textContent = 'Download e installazione in corso, puo\' richiedere qualche minuto...';
-    const r2 = await fetch('/api/ota/apply-online', {
+    msg.textContent = 'Avvio download...';
+    await fetch('/api/ota/apply-online', {
       method: 'POST',
       body: JSON.stringify({ url: s.url }),
     });
-    const s2 = await r2.json();
-    msg.textContent = s2.message || '-';
+    pollOtaProgress();
   } catch (e) {
     msg.textContent = 'Errore di comunicazione col dispositivo';
   }

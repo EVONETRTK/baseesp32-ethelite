@@ -689,23 +689,39 @@ static esp_err_t ota_apply_online_post_handler(httpd_req_t *req)
     url[sizeof(url) - 1] = '\0';
     cJSON_Delete(root);
 
-    char msg[96] = {0};
-    bool ok = online_update_apply(url, msg, sizeof(msg));
+    // Avviato in un task separato: il download+applicazione puo' richiedere
+    // decine di secondi, e serve poter interrogare l'avanzamento
+    // (/api/ota/progress) mentre e' in corso invece di restare bloccati in
+    // attesa di questa risposta HTTP fino alla fine.
+    online_update_apply_async(url);
+    ESP_LOGI(TAG, "Aggiornamento online avviato in background");
 
-    cJSON *resp = cJSON_CreateObject();
-    cJSON_AddBoolToObject(resp, "ok", ok);
-    cJSON_AddStringToObject(resp, "message", msg);
-    char *json = cJSON_PrintUnformatted(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"Avviato\"}");
+    return ESP_OK;
+}
+
+static esp_err_t ota_progress_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    online_update_progress_t p = online_update_get_progress();
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "running", p.running);
+    cJSON_AddBoolToObject(root, "done", p.done);
+    cJSON_AddBoolToObject(root, "ok", p.ok);
+    cJSON_AddNumberToObject(root, "percent", p.percent);
+    cJSON_AddNumberToObject(root, "bytes_read", p.bytes_read);
+    cJSON_AddNumberToObject(root, "bytes_total", p.bytes_total);
+    cJSON_AddStringToObject(root, "message", p.message);
+    char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(resp);
-
-    if (ok) {
-        ESP_LOGI(TAG, "Firmware aggiornato online, riavvio in corso");
-        vTaskDelay(pdMS_TO_TICKS(300));
-        esp_restart();
-    }
+    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -724,7 +740,7 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 void web_ui_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 12; // default 8, non basta piu' con gli endpoint OTA aggiunti
+    config.max_uri_handlers = 14; // default 8, non basta piu' con gli endpoint OTA/WiFi aggiunti
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne
@@ -748,6 +764,7 @@ void web_ui_start(void)
     httpd_uri_t ota_sd_uri     = { .uri = "/api/ota/sd-update", .method = HTTP_POST, .handler = ota_sd_post_handler };
     httpd_uri_t ota_check_uri  = { .uri = "/api/ota/check-online", .method = HTTP_POST, .handler = ota_check_online_post_handler };
     httpd_uri_t ota_apply_uri  = { .uri = "/api/ota/apply-online", .method = HTTP_POST, .handler = ota_apply_online_post_handler };
+    httpd_uri_t ota_progress_uri = { .uri = "/api/ota/progress", .method = HTTP_GET, .handler = ota_progress_get_handler };
     httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
     httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
 
@@ -762,6 +779,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &ota_sd_uri);
     httpd_register_uri_handler(server, &ota_check_uri);
     httpd_register_uri_handler(server, &ota_apply_uri);
+    httpd_register_uri_handler(server, &ota_progress_uri);
 
     ESP_LOGI(TAG, "Server web di gestione avviato");
 }
