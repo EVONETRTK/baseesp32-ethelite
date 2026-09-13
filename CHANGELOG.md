@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.4
+
+- Fix: i 457 byte ricevuti dal CDN di GitHub Releases risultavano vuoti/non leggibili come testo - probabile contenuto compresso (gzip) che esp_http_client non decomprime da solo. Aggiunto header "Accept-Encoding: identity" per richiedere esplicitamente contenuto non compresso.
+
 ## 1.5.3
 
 - Fix (finalmente confermato con la causa esatta): il CDN di GitHub Releases (release-assets.githubusercontent.com) restituisce a volte uno status HTTP non valido (es. 618) pur trasferendo il contenuto correttamente (457 byte ricevuti, coerenti col file reale, nessun errore di trasporto) - probabile limite del parser dello status in esp_http_client su questo servizio. Non ci si affida piu' allo status come unico segnale: se il contenuto ricevuto e' JSON valido (per il manifest) o la risoluzione dell'URL non ha avuto errori di trasporto (per il download), si procede comunque.

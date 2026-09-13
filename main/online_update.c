@@ -99,6 +99,13 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
                  current_url, strlen(current_url) > 100 ? "..." : "");
 
         esp_http_client_handle_t client = esp_http_client_init(&config);
+        // Il CDN di GitHub Releases risponde a volte con corpo compresso
+        // (gzip) anche senza che il client lo richieda - esp_http_client
+        // non lo decomprime da solo, risultato: byte ricevuti coerenti
+        // in numero ma illeggibili come testo (confermato su hardware:
+        // 457 byte "ricevuti" ma vuoti/non stampabili). Si richiede
+        // esplicitamente contenuto non compresso.
+        esp_http_client_set_header(client, "Accept-Encoding", "identity");
         esp_err_t err = esp_http_client_perform(client);
         int status = esp_http_client_get_status_code(client);
         int64_t content_len = esp_http_client_get_content_length(client);
