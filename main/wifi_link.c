@@ -133,3 +133,47 @@ bool wifi_link_get_rssi(int8_t *rssi)
     *rssi = info.rssi;
     return true;
 }
+
+#define WIFI_SCAN_MAX_RAW 32
+
+size_t wifi_link_scan(wifi_scan_result_t *out, size_t max_results)
+{
+    wifi_scan_config_t scan_cfg = { .show_hidden = false };
+    if (esp_wifi_scan_start(&scan_cfg, true) != ESP_OK) {
+        ESP_LOGW(TAG, "Scansione WiFi fallita");
+        return 0;
+    }
+
+    uint16_t num = WIFI_SCAN_MAX_RAW;
+    wifi_ap_record_t raw[WIFI_SCAN_MAX_RAW];
+    if (esp_wifi_scan_get_ap_records(&num, raw) != ESP_OK) {
+        return 0;
+    }
+
+    // Dedup per SSID (piu' access point/mesh possono trasmettere lo
+    // stesso nome su canali diversi) tenendo il segnale migliore,
+    // risultato ordinato per segnale decrescente come restituito da
+    // esp_wifi_scan_get_ap_records().
+    size_t count = 0;
+    for (uint16_t i = 0; i < num && count < max_results; i++) {
+        if (raw[i].ssid[0] == '\0') {
+            continue; // rete nascosta, show_hidden=false ma per sicurezza
+        }
+        bool dup = false;
+        for (size_t j = 0; j < count; j++) {
+            if (strcmp(out[j].ssid, (const char *) raw[i].ssid) == 0) {
+                dup = true;
+                break;
+            }
+        }
+        if (dup) {
+            continue;
+        }
+        strncpy(out[count].ssid, (const char *) raw[i].ssid, sizeof(out[count].ssid) - 1);
+        out[count].ssid[sizeof(out[count].ssid) - 1] = '\0';
+        out[count].rssi = raw[i].rssi;
+        out[count].secure = (raw[i].authmode != WIFI_AUTH_OPEN);
+        count++;
+    }
+    return count;
+}

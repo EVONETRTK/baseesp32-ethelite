@@ -472,6 +472,34 @@ static esp_err_t ota_sd_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    wifi_scan_result_t results[16];
+    size_t n = wifi_link_scan(results, 16);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *networks = cJSON_CreateArray();
+    for (size_t i = 0; i < n; i++) {
+        cJSON *net = cJSON_CreateObject();
+        cJSON_AddStringToObject(net, "ssid", results[i].ssid);
+        cJSON_AddNumberToObject(net, "rssi", results[i].rssi);
+        cJSON_AddBoolToObject(net, "secure", results[i].secure);
+        cJSON_AddItemToArray(networks, net);
+    }
+    cJSON_AddItemToObject(root, "networks", networks);
+
+    char *json = cJSON_PrintUnformatted(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
 static esp_err_t ota_check_online_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -587,8 +615,10 @@ void web_ui_start(void)
     httpd_uri_t ota_sd_uri     = { .uri = "/api/ota/sd-update", .method = HTTP_POST, .handler = ota_sd_post_handler };
     httpd_uri_t ota_check_uri  = { .uri = "/api/ota/check-online", .method = HTTP_POST, .handler = ota_check_online_post_handler };
     httpd_uri_t ota_apply_uri  = { .uri = "/api/ota/apply-online", .method = HTTP_POST, .handler = ota_apply_online_post_handler };
+    httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
 
     httpd_register_uri_handler(server, &index_uri);
+    httpd_register_uri_handler(server, &wifi_scan_uri);
     httpd_register_uri_handler(server, &status_uri);
     httpd_register_uri_handler(server, &signals_uri);
     httpd_register_uri_handler(server, &settings_uri);

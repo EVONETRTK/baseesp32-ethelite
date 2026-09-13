@@ -25,3 +25,17 @@ esp_netif_t *wifi_link_get_ap_netif(void);
 // RSSI (dBm) dell'access point a cui la station e' connessa. Ritorna
 // false se non connessa.
 bool wifi_link_get_rssi(int8_t *rssi);
+
+typedef struct {
+    char ssid[33];
+    int8_t rssi;
+    bool secure; // false = rete aperta, senza password
+} wifi_scan_result_t;
+
+// Scansione WiFi bloccante (qualche secondo): copia fino a max_results
+// reti trovate in out, deduplicate per SSID (tenendo il segnale
+// migliore) e ordinate per segnale decrescente. Ritorna quante ne ha
+// copiate. Interrompe brevemente il traffico AP durante la scansione -
+// accettabile per un'azione di configurazione manuale, non da chiamare
+// periodicamente.
+size_t wifi_link_scan(wifi_scan_result_t *out, size_t max_results);
