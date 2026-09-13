@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.14
+
+- Nessun cambio funzionale: build di test per verificare su hardware reale che la barra mostri l'esito corretto dopo il fix del riavvio (1.5.13), a partire da un dispositivo gia' su 1.5.13.
+
 ## 1.5.13
 
 - Fix (causa reale della barra ancora bloccata, confermato su hardware: aggiornamento riuscito - versione nuova visibile dopo aver ricaricato la pagina a mano - ma la barra ferma): dopo il riavvio il nuovo avvio del firmware riparte con uno stato di avanzamento "vuoto" identico a quello di "mai avviato" (running e done entrambi false) - se la richiesta della pagina web riesce comunque contro il server appena ripartito, invece di fallire come previsto, il codice non se ne accorgeva e restava in attesa per sempre. Ora, se si era visto un download realmente in corso e poi lo stato torna improvvisamente "vuoto" senza mai essere passato da "completato", viene trattato come un riavvio riuscito allo stesso modo di una connessione persa (verifica automatica della versione via /api/status).
