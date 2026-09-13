@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.3
+
+- Fix (finalmente confermato con la causa esatta): il CDN di GitHub Releases (release-assets.githubusercontent.com) restituisce a volte uno status HTTP non valido (es. 618) pur trasferendo il contenuto correttamente (457 byte ricevuti, coerenti col file reale, nessun errore di trasporto) - probabile limite del parser dello status in esp_http_client su questo servizio. Non ci si affida piu' allo status come unico segnale: se il contenuto ricevuto e' JSON valido (per il manifest) o la risoluzione dell'URL non ha avuto errori di trasporto (per il download), si procede comunque.
+
 ## 1.5.2
 
 - Diagnostica: lo status 618 (non standard) sul controllo aggiornamenti online si ripresenta nonostante il fix dei buffer - aggiunto log dettagliato di ogni hop (URL, esito, lunghezza contenuto, header Location) per capire esattamente dove/come accade, indipendentemente da quando si legge il log.

@@ -154,15 +154,25 @@ bool online_update_check(char *out_version, size_t out_version_size,
 
     char manifest[512] = {0};
     int status = http_fetch_following_redirects(settings.ota_update_url, false, NULL, 0, manifest, sizeof(manifest));
+    ESP_LOGI(TAG, "Esito finale: status=%d, %d byte ricevuti", status, (int) strlen(manifest));
 
-    if (status != 200) {
-        ESP_LOGW(TAG, "Controllo aggiornamenti fallito: status=%d", status);
+    // Non ci si affida allo status HTTP come unico segnale di successo:
+    // confermato su hardware reale che il CDN di GitHub Releases
+    // (release-assets.githubusercontent.com) puo' restituire un codice
+    // non valido/non standard (es. 618) pur avendo trasferito il
+    // contenuto correttamente (byte ricevuti coerenti col file reale,
+    // err di trasporto ESP_OK) - probabile limite del parser dello status
+    // in esp_http_client su risposte di questo servizio specifico. Se il
+    // corpo e' JSON valido lo consideriamo comunque un successo.
+    if (strlen(manifest) == 0) {
+        ESP_LOGW(TAG, "Controllo aggiornamenti fallito: nessun contenuto ricevuto (status=%d)", status);
         SET_MSG("Impossibile raggiungere l'indirizzo di aggiornamento configurato");
         return false;
     }
 
     cJSON *root = cJSON_Parse(manifest);
     if (!root) {
+        ESP_LOGW(TAG, "Risposta non valida (status=%d): %.100s", status, manifest);
         SET_MSG("Risposta non valida (JSON) dal server di aggiornamento");
         return false;
     }
@@ -214,13 +224,19 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
     // mano con una HEAD, cosi' esp_https_ota() sotto riceve gia' l'URL
     // finale e non deve seguirne lui stesso (stesso motivo del redirect
     // manuale in online_update_check() sopra).
+    // Non ci si affida allo status HTTP (vedi il commento in
+    // online_update_check() sopra: il CDN di GitHub Releases puo'
+    // restituire uno status non valido pur avendo risposto correttamente)
+    // - un errore di trasporto (return -1) resta l'unico segnale di
+    // fallimento affidabile qui.
     char resolved_url[MAX_URL_LEN];
     int status = http_fetch_following_redirects(firmware_url, true, resolved_url, sizeof(resolved_url), NULL, 0);
-    if (status != 200) {
-        ESP_LOGW(TAG, "Impossibile risolvere l'URL del firmware: status=%d", status);
+    if (status < 0) {
+        ESP_LOGW(TAG, "Impossibile risolvere l'URL del firmware: errore di trasporto");
         SET_MSG("Indirizzo del firmware non raggiungibile");
         return false;
     }
+    ESP_LOGI(TAG, "URL firmware risolto (status=%d): %.100s", status, resolved_url);
 
     esp_http_client_config_t http_config = {
         .url = resolved_url,
