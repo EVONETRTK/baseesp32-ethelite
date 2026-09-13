@@ -25,8 +25,9 @@ idf_component_register(
         "ota_update.c"
         "sd_update.c"
         "online_update.c"
+        "alerts.c"
         "web_ui.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "web/index.html"
-    REQUIRES nvs_flash esp_wifi esp_netif esp_event driver json esp_http_server esp_modem mbedtls esp_timer esp_eth led_strip esp_driver_i2c app_update fatfs sdmmc esp_driver_sdspi esp_http_client esp_https_ota mdns esp_driver_tsens
+    REQUIRES nvs_flash esp_wifi esp_netif esp_event driver json esp_http_server esp_modem mbedtls esp_timer esp_eth led_strip esp_driver_i2c app_update fatfs sdmmc esp_driver_sdspi esp_http_client esp_https_ota mdns esp_driver_tsens esp-tls
 )

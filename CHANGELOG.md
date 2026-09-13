@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.7.0
+
+- Aggiunto avviso email e/o WhatsApp quando la connessione al caster NTRIP resta interrotta oltre una soglia configurabile (default 15 minuti), piu' un secondo avviso quando torna a funzionare - pensato per una base lasciata incustodita in campo. Email via client SMTP minimale integrato (SMTPS, AUTH LOGIN - va bene Gmail con una password per le app); WhatsApp tramite il servizio gratuito di terze parti CallMeBot. Nuova sezione "Avviso caster disconnesso" nella scheda Sicurezza, con un pulsante "Invia avviso di prova" che usa subito i valori del form senza dover salvare prima. Nuovo modulo `alerts.c`.
+- **Nota**: questa versione aggiunge nuovi campi a `app_settings_t` - come per ogni cambio di questo tipo, la configurazione salvata (WiFi, NTRIP, ecc.) viene reimpostata ai default al primo avvio con questo firmware e va reinserita.
+
 ## 1.6.6
 
 - Aggiunta temperatura interna del chip nella scheda Stato (sezione Sistema), colorata (verde sotto 50°C, arancione 50-70°C, rosso oltre 70°C) - soglie puramente indicative per capire a colpo d'occhio se il dispositivo si sta scaldando piu' del normale (es. sole diretto su una custodia chiusa in campo), non un limite di sicurezza del chip. Usa il sensore di temperatura interno dell'ESP32-S3 (`sys_stats.c`, componente `esp_driver_tsens`).

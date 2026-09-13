@@ -11,6 +11,7 @@
 #include "gnss_fix.h"
 #include "wifi_link.h"
 #include "cellular_link.h"
+#include "alerts.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -210,6 +211,17 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "firmware_version", FIRMWARE_VERSION);
     cJSON_AddStringToObject(root, "ota_update_url", s.ota_update_url);
     cJSON_AddNumberToObject(root, "nmea_udp_port", s.nmea_udp_port);
+
+    cJSON_AddBoolToObject(root, "alert_enable", s.alert_enable);
+    cJSON_AddNumberToObject(root, "alert_threshold_min", s.alert_threshold_min);
+    cJSON_AddStringToObject(root, "alert_smtp_host", s.alert_smtp_host);
+    cJSON_AddNumberToObject(root, "alert_smtp_port", s.alert_smtp_port);
+    cJSON_AddStringToObject(root, "alert_smtp_user", s.alert_smtp_user);
+    cJSON_AddStringToObject(root, "alert_email_to", s.alert_email_to);
+    cJSON_AddStringToObject(root, "alert_whatsapp_phone", s.alert_whatsapp_phone);
+    // alert_smtp_password e alert_whatsapp_apikey non vengono mai
+    // restituiti (come ntrip_password sopra) - solo scrivibili dalla UI,
+    // mai riletti.
     // Bluetooth Classic (SPP) non disponibile su ESP32-S3 (solo BLE, non
     // implementata su questa scheda) - i campi bt_* non vengono inviati.
 
@@ -397,6 +409,26 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_field(root, "admin_code", s.admin_code, sizeof(s.admin_code));
     copy_field(root, "device_serial", s.device_serial, sizeof(s.device_serial));
     copy_field(root, "ota_update_url", s.ota_update_url, sizeof(s.ota_update_url));
+    copy_field(root, "alert_smtp_host", s.alert_smtp_host, sizeof(s.alert_smtp_host));
+    copy_field(root, "alert_smtp_user", s.alert_smtp_user, sizeof(s.alert_smtp_user));
+    copy_field(root, "alert_smtp_password", s.alert_smtp_password, sizeof(s.alert_smtp_password));
+    copy_field(root, "alert_email_to", s.alert_email_to, sizeof(s.alert_email_to));
+    copy_field(root, "alert_whatsapp_phone", s.alert_whatsapp_phone, sizeof(s.alert_whatsapp_phone));
+    copy_field(root, "alert_whatsapp_apikey", s.alert_whatsapp_apikey, sizeof(s.alert_whatsapp_apikey));
+
+    cJSON *alert_enable_item = cJSON_GetObjectItemCaseSensitive(root, "alert_enable");
+    if (alert_enable_item && cJSON_IsBool(alert_enable_item)) {
+        s.alert_enable = cJSON_IsTrue(alert_enable_item);
+    }
+    cJSON *alert_threshold_item = cJSON_GetObjectItemCaseSensitive(root, "alert_threshold_min");
+    if (alert_threshold_item && cJSON_IsNumber(alert_threshold_item) && alert_threshold_item->valueint > 0) {
+        s.alert_threshold_min = (uint16_t) alert_threshold_item->valueint;
+    }
+    cJSON *alert_smtp_port_item = cJSON_GetObjectItemCaseSensitive(root, "alert_smtp_port");
+    if (alert_smtp_port_item && cJSON_IsNumber(alert_smtp_port_item) &&
+        alert_smtp_port_item->valueint > 0 && alert_smtp_port_item->valueint <= 65535) {
+        s.alert_smtp_port = (uint16_t) alert_smtp_port_item->valueint;
+    }
 
     cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "ntrip_port");
     if (port_item && cJSON_IsNumber(port_item) && port_item->valueint > 0 && port_item->valueint <= 65535) {
@@ -788,6 +820,69 @@ static esp_err_t log_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t alerts_test_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    // Usa i valori correnti del form (non serve averli gia' salvati, stesso
+    // principio del pulsante "Connetti" del WiFi) - un campo assente/vuoto
+    // nel corpo mantiene il valore gia' salvato (vedi copy_field()).
+    app_settings_t s = settings_get();
+
+    if (req->content_len > 0) {
+        if (req->content_len > 1024) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo troppo grande");
+            return ESP_FAIL;
+        }
+        char *buf = malloc(req->content_len + 1);
+        if (!buf) {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria esaurita");
+            return ESP_FAIL;
+        }
+        int received = 0;
+        while (received < req->content_len) {
+            int r = httpd_req_recv(req, buf + received, req->content_len - received);
+            if (r <= 0) {
+                free(buf);
+                httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+                return ESP_FAIL;
+            }
+            received += r;
+        }
+        buf[received] = '\0';
+        cJSON *root = cJSON_Parse(buf);
+        free(buf);
+        if (root) {
+            copy_field(root, "alert_smtp_host", s.alert_smtp_host, sizeof(s.alert_smtp_host));
+            copy_field(root, "alert_smtp_user", s.alert_smtp_user, sizeof(s.alert_smtp_user));
+            copy_field(root, "alert_smtp_password", s.alert_smtp_password, sizeof(s.alert_smtp_password));
+            copy_field(root, "alert_email_to", s.alert_email_to, sizeof(s.alert_email_to));
+            copy_field(root, "alert_whatsapp_phone", s.alert_whatsapp_phone, sizeof(s.alert_whatsapp_phone));
+            copy_field(root, "alert_whatsapp_apikey", s.alert_whatsapp_apikey, sizeof(s.alert_whatsapp_apikey));
+            cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "alert_smtp_port");
+            if (port_item && cJSON_IsNumber(port_item) && port_item->valueint > 0 && port_item->valueint <= 65535) {
+                s.alert_smtp_port = (uint16_t) port_item->valueint;
+            }
+            cJSON_Delete(root);
+        }
+    }
+
+    char msg[256] = {0};
+    bool ok = alerts_send_test(&s, msg, sizeof(msg));
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    cJSON_AddStringToObject(resp, "message", msg);
+    char *json = cJSON_PrintUnformatted(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(resp);
+    return ESP_OK;
+}
+
 static esp_err_t reboot_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -803,7 +898,7 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 void web_ui_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 15; // default 8, non basta piu' con gli endpoint OTA/WiFi/log aggiunti
+    config.max_uri_handlers = 16; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi aggiunti
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne
@@ -831,6 +926,7 @@ void web_ui_start(void)
     httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
     httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
     httpd_uri_t log_uri        = { .uri = "/api/log", .method = HTTP_GET, .handler = log_get_handler };
+    httpd_uri_t alerts_test_uri = { .uri = "/api/alerts/test", .method = HTTP_POST, .handler = alerts_test_post_handler };
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
@@ -845,6 +941,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &ota_apply_uri);
     httpd_register_uri_handler(server, &ota_progress_uri);
     httpd_register_uri_handler(server, &log_uri);
+    httpd_register_uri_handler(server, &alerts_test_uri);
 
     ESP_LOGI(TAG, "Server web di gestione avviato");
 }

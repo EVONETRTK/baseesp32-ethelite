@@ -51,6 +51,9 @@ static void apply_defaults(void)
     s_settings.ntrip_port = CONFIG_BASEESP32_NTRIP_PORT;
     strncpy(s_settings.ntrip_mountpoint, CONFIG_BASEESP32_NTRIP_MOUNTPOINT, sizeof(s_settings.ntrip_mountpoint) - 1);
     strncpy(s_settings.ota_update_url, CONFIG_BASEESP32_OTA_UPDATE_URL, sizeof(s_settings.ota_update_url) - 1);
+    s_settings.alert_enable = false;
+    s_settings.alert_threshold_min = 15;
+    s_settings.alert_smtp_port = 465;
     s_settings.gnss_chip = GNSS_CHIP_UBLOX;
     s_settings.device_mode = DEVICE_MODE_BASE;
     s_settings.network_mode = NETWORK_MODE_BOTH;

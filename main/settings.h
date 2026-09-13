@@ -98,6 +98,22 @@ typedef struct {
     // per l'aggiornamento "online" - tipicamente un asset di una release
     // GitHub. Vuoto = funzione non configurata/disattivata.
     char ota_update_url[128];
+
+    // Avviso (email e/o WhatsApp) quando la connessione al caster NTRIP
+    // resta giu' oltre alert_threshold_min minuti - pensato per una base
+    // lasciata incustodita in campo, dove nessuno se ne accorgerebbe
+    // altrimenti finche' non si notano problemi sul rover. Un canale resta
+    // disattivato se i suoi campi sono vuoti (basta configurarne uno solo,
+    // o entrambi).
+    bool alert_enable;
+    uint16_t alert_threshold_min;   // minuti di disconnessione prima di avvisare
+    char alert_smtp_host[64];
+    uint16_t alert_smtp_port;       // 465 = SMTPS (TLS implicito), tipico per invio autenticato
+    char alert_smtp_user[64];       // anche mittente ("From") e utente per l'autenticazione
+    char alert_smtp_password[64];
+    char alert_email_to[64];
+    char alert_whatsapp_phone[24];  // con prefisso internazionale, es. "391234567890" (CallMeBot)
+    char alert_whatsapp_apikey[16];
 } app_settings_t;
 
 // Carica la configurazione da NVS; se assente o non valida usa i default

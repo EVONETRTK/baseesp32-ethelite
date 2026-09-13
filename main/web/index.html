@@ -212,6 +212,41 @@
     <label>Matricola<input name="device_serial" placeholder="es. EVONETRTK-0001"></label>
     <small class="hint">Per default e' lo stesso numero del nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428") - puoi sostituirlo con un tuo codice se preferisci un altro sistema di tracciamento.</small>
   </fieldset>
+
+  <fieldset>
+    <legend>Avviso caster disconnesso</legend>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="alert_enable" type="checkbox" style="width:auto; margin:0">
+      Avvisami se la connessione al caster resta interrotta troppo a lungo
+    </label>
+    <label>Minuti di disconnessione prima di avvisare<input name="alert_threshold_min" type="number" min="1"></label>
+    <small class="hint">
+      Pensato per una base lasciata incustodita in campo: un avviso quando la connessione NTRIP
+      resta giu' (e uno quando torna a funzionare). Basta configurare almeno un canale qui sotto,
+      email e WhatsApp insieme oppure uno solo.
+    </small>
+
+    <label style="margin-top:.8rem">Server SMTP (email)<input name="alert_smtp_host" placeholder="es. smtp.gmail.com"></label>
+    <label>Porta SMTP<input name="alert_smtp_port" type="number" min="1" max="65535" placeholder="465"></label>
+    <label>Utente/mittente<input name="alert_smtp_user" placeholder="es. tuonome@gmail.com"></label>
+    <label>Password (password per le app, non quella dell'account)<input name="alert_smtp_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label>Destinatario avviso<input name="alert_email_to" placeholder="es. tuonome@gmail.com"></label>
+    <small class="hint">
+      Con Gmail serve una "password per le app" (myaccount.google.com/apppasswords), non la password
+      normale dell'account - richiede la verifica in due passaggi attiva.
+    </small>
+
+    <label style="margin-top:.8rem">Numero WhatsApp (con prefisso internazionale)<input name="alert_whatsapp_phone" placeholder="es. 391234567890"></label>
+    <label>API key CallMeBot<input name="alert_whatsapp_apikey" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <small class="hint">
+      Via <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener">CallMeBot</a>,
+      un servizio gratuito di terze parti (non ufficiale WhatsApp) - il numero va registrato una
+      tantum inviando un messaggio al loro bot per ottenere la propria API key.
+    </small>
+
+    <button type="button" class="action secondary" id="alert-test-btn" style="margin-top:.8rem">Invia avviso di prova</button>
+    <div id="alert-test-msg" class="hint" style="margin-top:.4rem"></div>
+  </fieldset>
 </div>
 
 <div id="page-signals" class="page">
@@ -422,6 +457,36 @@ async function loadLog() {
 }
 document.getElementById('log-refresh-btn').addEventListener('click', loadLog);
 
+document.getElementById('alert-test-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('alert-test-msg');
+  const f = document.getElementById('cfg-form');
+  msg.style.color = '';
+  msg.style.fontWeight = '';
+  msg.textContent = 'Invio in corso (puo\' richiedere qualche secondo)...';
+  try {
+    const r = await fetch('/api/alerts/test', {
+      method: 'POST',
+      body: JSON.stringify({
+        alert_smtp_host: f.alert_smtp_host.value,
+        alert_smtp_port: Number(f.alert_smtp_port.value) || undefined,
+        alert_smtp_user: f.alert_smtp_user.value,
+        alert_smtp_password: f.alert_smtp_password.value,
+        alert_email_to: f.alert_email_to.value,
+        alert_whatsapp_phone: f.alert_whatsapp_phone.value,
+        alert_whatsapp_apikey: f.alert_whatsapp_apikey.value,
+      }),
+    });
+    const s = await r.json();
+    msg.style.color = s.ok ? '#16a34a' : '#dc2626';
+    msg.style.fontWeight = '600';
+    msg.textContent = s.message || (s.ok ? 'Riuscito' : 'Fallito');
+  } catch (e) {
+    msg.style.color = '#dc2626';
+    msg.style.fontWeight = '600';
+    msg.textContent = 'Errore di comunicazione col dispositivo';
+  }
+});
+
 async function loadStatus() {
   try {
     const r = await fetch('/api/status');
@@ -483,6 +548,13 @@ async function loadStatus() {
       f.oled_is_sh1106.value = s.oled_is_sh1106 ? 'true' : 'false';
       f.oled_flip_h.checked = !!s.oled_flip_h;
       f.oled_flip_v.checked = !!s.oled_flip_v;
+      f.alert_enable.checked = !!s.alert_enable;
+      f.alert_threshold_min.value = s.alert_threshold_min || 15;
+      f.alert_smtp_host.value = s.alert_smtp_host || '';
+      f.alert_smtp_port.value = s.alert_smtp_port || 465;
+      f.alert_smtp_user.value = s.alert_smtp_user || '';
+      f.alert_email_to.value = s.alert_email_to || '';
+      f.alert_whatsapp_phone.value = s.alert_whatsapp_phone || '';
       updateOledAddrHex();
     }
   } catch (e) {
@@ -712,6 +784,9 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
   data.oled_flip_h = f.oled_flip_h.checked;
   data.oled_flip_v = f.oled_flip_v.checked;
   data.cellular_is_sim868 = (data.cellular_is_sim868 === 'true');
+  data.alert_enable = f.alert_enable.checked;
+  data.alert_threshold_min = Number(data.alert_threshold_min);
+  data.alert_smtp_port = Number(data.alert_smtp_port);
 
   const msg = document.getElementById('save-msg');
   msg.textContent = 'Salvataggio...';

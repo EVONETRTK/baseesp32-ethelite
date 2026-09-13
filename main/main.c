@@ -26,6 +26,7 @@
 #include "gnss_nmea_reader.h"
 #include "ntrip_client.h"
 #include "ntrip_rover_client.h"
+#include "alerts.h"
 
 static const char *TAG = "main";
 
@@ -134,4 +135,6 @@ void app_main(void)
         xTaskCreate(gnss_uart_task, "gnss_uart", 4096, NULL, 10, NULL);
         xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
     }
+
+    alerts_start();
 }
