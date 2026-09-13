@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.4.3
+
+- Barra del segnale WiFi (colorata, rosso/giallo/verde) aggiunta anche nella scheda Stato, sempre visibile appena aperta la pagina - prima era solo nella scheda Segnali.
+
 ## 1.4.2
 
 - Fix: "Controlla aggiornamenti online" falliva con "esp-tls: Failed to create socket" - il limite globale di socket lwIP (10 di default) era gia' quasi saturo tra server web, trasmissione UDP NMEA e client NTRIP. Alzato a 16.
