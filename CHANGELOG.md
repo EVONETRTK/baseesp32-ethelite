@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.8
+
+- Nessun cambio funzionale: build di test per verificare su hardware reale il download/installazione con la nuova barra di avanzamento (1.5.7), a partire da un dispositivo gia' aggiornato a 1.5.7.
+
 ## 1.5.7
 
 - Aggiunta barra di avanzamento (percentuale + KB scaricati) durante il download/installazione dell'aggiornamento online - prima la pagina restava bloccata in attesa senza nessuna indicazione, ora l'installazione gira in un task separato e la UI interroga lo stato ogni 800ms.
