@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.5
+
+- Fix (vera causa, confermata dal log completo): l'URL firmato finale include anche un token JWT lungo, per un totale ben oltre i 600 byte gia' aumentati - confermato troncato a meta' del JWT nel log, producendo una richiesta malformata verso il CDN. Buffer URL portato a 1536 byte.
+
 ## 1.5.4
 
 - Fix: i 457 byte ricevuti dal CDN di GitHub Releases risultavano vuoti/non leggibili come testo - probabile contenuto compresso (gzip) che esp_http_client non decomprime da solo. Aggiunto header "Accept-Encoding: identity" per richiedere esplicitamente contenuto non compresso.

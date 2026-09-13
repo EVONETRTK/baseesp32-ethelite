@@ -23,12 +23,13 @@ static const char *TAG = "online_update";
 // risposta 302 di GitHub nonostante l'header sia effettivamente presente
 // (la richiesta funziona, arriva un 302 genuino - solo la lettura post
 // hoc dell'header fallisce).
-// 600 byte: gli URL firmati verso cui GitHub reindirizza (Azure Blob
-// Storage, con token SAS nella query string) sono lunghi diverse
-// centinaia di caratteri - un buffer da 256 li tronca a meta',
-// confermato su hardware reale (richiesta corrotta con la URL tagliata,
-// status di risposta non valido).
-#define MAX_URL_LEN 600
+// Gli URL firmati verso cui GitHub reindirizza (Azure Blob Storage, con
+// token SAS + un JWT completo nella query string) sono MOLTO piu' lunghi
+// del previsto - confermato su hardware reale che perfino 600 byte li
+// troncano a meta' del JWT, producendo una richiesta malformata (status
+// di risposta non valido, corpo vuoto/illeggibile). 1536 da margine
+// ampio anche per URL insolitamente lunghi.
+#define MAX_URL_LEN 1536
 
 typedef struct {
     char *buf;
