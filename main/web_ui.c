@@ -684,6 +684,13 @@ void web_ui_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_uri_handlers = 12; // default 8, non basta piu' con gli endpoint OTA aggiunti
+    // Il default (4096 byte) va in overflow quando un handler fa una
+    // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
+    // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne
+    // serva per gestire richieste normali - confermato da un crash reale
+    // su hardware (stessa causa, in un task diverso, del fix allo stack
+    // del task "main" durante l'init WiFi fatto in precedenza).
+    config.stack_size = 10240;
 
     httpd_handle_t server = NULL;
     if (httpd_start(&server, &config) != ESP_OK) {

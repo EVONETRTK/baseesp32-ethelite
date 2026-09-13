@@ -86,6 +86,9 @@
     <label>Password<input name="wifi_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <button type="button" class="action" id="wifi-test-btn" style="margin-top:.6rem">Connetti (senza riavviare)</button>
     <div id="wifi-test-msg" class="hint" style="margin-top:.4rem"></div>
+    <div id="wifi-test-bar-track" class="sig-bar-track" style="display:none; margin-top:.4rem">
+      <div id="wifi-test-bar-fill" class="sig-bar-fill" style="width:0%"></div>
+    </div>
     <small class="hint">
       Prova subito la connessione con questo SSID/password, senza dover salvare e riavviare
       per scoprire se sono giusti. Se funziona, viene salvata automaticamente.
@@ -420,9 +423,18 @@ function rssiToPercent(dbm, min, max) {
   return Math.max(0, Math.min(100, ((dbm - min) / (max - min)) * 100));
 }
 
+function colorForPct(pct) {
+  if (pct === null) return '#c5c9d0';
+  if (pct < 33) return '#dc2626';  // rosso: segnale debole
+  if (pct < 66) return '#d97706';  // giallo/arancio: medio
+  return '#16a34a';                // verde: buono
+}
+
 function setSignalBar(barId, textId, dbm, min, max, label) {
   const pct = rssiToPercent(dbm, min, max);
-  document.getElementById(barId).style.width = (pct === null ? 0 : pct) + '%';
+  const bar = document.getElementById(barId);
+  bar.style.width = (pct === null ? 0 : pct) + '%';
+  bar.style.background = colorForPct(pct);
   document.getElementById(textId).textContent = (dbm === null || dbm === undefined)
     ? (label + ': non disponibile')
     : (label + ': ' + dbm + ' dBm');
@@ -574,6 +586,8 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
 
 document.getElementById('wifi-test-btn').addEventListener('click', async () => {
   const msg = document.getElementById('wifi-test-msg');
+  const barTrack = document.getElementById('wifi-test-bar-track');
+  const barFill = document.getElementById('wifi-test-bar-fill');
   const f = document.getElementById('cfg-form');
   const ssid = f.wifi_ssid.value;
   const password = f.wifi_password.value;
@@ -581,6 +595,7 @@ document.getElementById('wifi-test-btn').addEventListener('click', async () => {
     msg.textContent = 'Inserisci prima un SSID (o cercalo con "Cerca reti WiFi")';
     return;
   }
+  barTrack.style.display = 'none';
   msg.textContent = 'Connessione in corso (fino a 15s)...';
   try {
     const r = await fetch('/api/wifi/test-connect', {
@@ -588,9 +603,24 @@ document.getElementById('wifi-test-btn').addEventListener('click', async () => {
       body: JSON.stringify({ ssid, password }),
     });
     const s = await r.json();
-    msg.textContent = s.connected
-      ? 'Connesso! Salvato automaticamente, nessun riavvio necessario.'
-      : 'Connessione fallita - verifica password/segnale (nessuna modifica salvata)';
+    if (!s.connected) {
+      msg.textContent = 'Connessione fallita - verifica password/segnale (nessuna modifica salvata)';
+      return;
+    }
+    msg.textContent = 'Connesso! Salvato automaticamente, nessun riavvio necessario.';
+    try {
+      const r2 = await fetch('/api/signals');
+      const s2 = await r2.json();
+      const pct = rssiToPercent(s2.wifi_rssi_dbm, -90, -30);
+      if (pct !== null) {
+        barTrack.style.display = 'block';
+        barFill.style.width = pct + '%';
+        barFill.style.background = colorForPct(pct);
+        msg.textContent += ' Segnale: ' + s2.wifi_rssi_dbm + ' dBm.';
+      }
+    } catch (e) {
+      // segnale non disponibile, non blocca la conferma di connessione
+    }
   } catch (e) {
     msg.textContent = 'Errore di comunicazione col dispositivo';
   }
