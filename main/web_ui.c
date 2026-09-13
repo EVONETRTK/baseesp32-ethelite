@@ -62,9 +62,17 @@ static bool check_auth(httpd_req_t *req)
 
 static esp_err_t require_auth(httpd_req_t *req)
 {
+    // Copre in un colpo solo tutte le richieste protette (ogni handler
+    // eccetto index_get_handler chiama questa funzione per prima cosa):
+    // conferma se una richiesta arriva davvero al dispositivo, cosa non
+    // ovvia dal solo log applicativo dato che molti handler non
+    // scrivono nulla quando vanno a buon fine.
+    ESP_LOGI(TAG, "Richiesta %s %s", http_method_str(req->method), req->uri);
+
     if (check_auth(req)) {
         return ESP_OK;
     }
+    ESP_LOGW(TAG, "Autenticazione fallita per %s", req->uri);
     httpd_resp_set_status(req, "401 Unauthorized");
     httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"EVONETRTK\"");
     httpd_resp_send(req, NULL, 0);
