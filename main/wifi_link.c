@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "freertos/event_groups.h"
 
 #include "esp_log.h"
@@ -138,9 +139,23 @@ bool wifi_link_get_rssi(int8_t *rssi)
 
 size_t wifi_link_scan(wifi_scan_result_t *out, size_t max_results)
 {
+    // net_manager_task tenta la connessione in background in continuo
+    // finche' non c'e' un WiFi configurato che funziona (riprova ogni
+    // 10-15s) - una scansione manuale puo' andare in conflitto con un
+    // tentativo di connessione gia' in corso (il driver WiFi non accetta
+    // scan+connect contemporanei sulla stessa interfaccia). Il conflitto
+    // e' transitorio: un paio di tentativi con una breve pausa bastano.
     wifi_scan_config_t scan_cfg = { .show_hidden = false };
-    if (esp_wifi_scan_start(&scan_cfg, true) != ESP_OK) {
-        ESP_LOGW(TAG, "Scansione WiFi fallita");
+    esp_err_t scan_err = ESP_FAIL;
+    for (int attempt = 0; attempt < 3; attempt++) {
+        scan_err = esp_wifi_scan_start(&scan_cfg, true);
+        if (scan_err == ESP_OK) {
+            break;
+        }
+        ESP_LOGW(TAG, "Scansione WiFi fallita (tentativo %d/3): %s", attempt + 1, esp_err_to_name(scan_err));
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    if (scan_err != ESP_OK) {
         return 0;
     }
 
