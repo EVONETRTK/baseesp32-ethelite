@@ -12,6 +12,7 @@ idf_component_register(
         "gnss_ubx.c"
         "gnss_unicore.c"
         "gnss_signal.c"
+        "gnss_fix.c"
         "gnss_nmea_reader.c"
         "nmea_udp_broadcast.c"
         "ntrip_rover_client.c"

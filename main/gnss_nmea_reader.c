@@ -1,6 +1,7 @@
 #include "gnss_nmea_reader.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_signal.h"
+#include "gnss_fix.h"
 #include "ntrip_rover_client.h"
 
 #include <string.h>
@@ -35,6 +36,7 @@ void gnss_nmea_reader_task(void *arg)
                     // (3 char), es. "$GPGGA"/"$GNGGA"/"$GPGSV"...
                     if (memcmp(&line[3], "GGA", 3) == 0) {
                         ntrip_rover_client_forward_gga(line, line_len);
+                        gnss_fix_parse_gga(line);
                     } else if (memcmp(&line[3], "GSV", 3) == 0) {
                         gnss_signal_parse_gsv(line);
                     }

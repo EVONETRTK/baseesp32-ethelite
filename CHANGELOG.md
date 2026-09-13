@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.6.0
+
+- Aggiunto stato del fix GNSS/RTK in tempo reale: tipo di fix (RTK fisso/float/GPS/DGPS/nessun fix, colorato rosso/blu/arancione/verde), satelliti usati nel fix, HDOP, eta' delle correzioni RTCM ed eta' dell'ultimo fix ricevuto - un riepilogo rapido nella scheda Stato e i dettagli completi nella scheda Segnali. Letto dalle sentenze $xxGGA gia' in transito verso il client NTRIP rover (nuovo modulo `gnss_fix.c`), nessun impatto sul percorso dati esistente. Come per il grafico satelliti, popolato solo in modalita' rover mentre il ricevitore trasmette NMEA.
+
 ## 1.5.14
 
 - Nessun cambio funzionale: build di test per verificare su hardware reale che la barra mostri l'esito corretto dopo il fix del riavvio (1.5.13), a partire da un dispositivo gia' su 1.5.13.

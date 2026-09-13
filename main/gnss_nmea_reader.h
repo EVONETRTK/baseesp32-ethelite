@@ -8,7 +8,8 @@
 //    come AgOpenGPS/AgIO;
 //  - inoltro delle righe $GxGGA al client NTRIP rover
 //    (ntrip_rover_client_forward_gga), per rimandare la posizione al
-//    caster;
+//    caster, e aggiornamento dello stato del fix (gnss_fix_parse_gga),
+//    per la scheda Stato della UI web;
 //  - aggiornamento dello stato satelliti dalle righe $GxGSV
 //    (gnss_signal_parse_gsv), per il grafico segnali nella UI.
 // arg = uart_port_t incapsulato come (void *)(intptr_t) uart_num.

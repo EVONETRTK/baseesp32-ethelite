@@ -20,6 +20,7 @@
 #include "ota_update.h"
 #include "gnss_driver.h"
 #include "gnss_signal.h"
+#include "gnss_fix.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_nmea_reader.h"
 #include "ntrip_client.h"
@@ -83,6 +84,7 @@ void app_main(void)
 
     settings_init();
     gnss_signal_init();
+    gnss_fix_init();
 
     status_led_start();
     oled_display_start();

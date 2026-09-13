@@ -54,6 +54,7 @@
       <dt>Rete attiva</dt><dd id="st-net">-</dd>
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
       <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
+      <dt>Fix RTK</dt><dd id="st-fix">-</dd>
       <dt>Indirizzo fisso</dt><dd id="st-mdns">-</dd>
     </dl>
     <small class="hint">
@@ -178,6 +179,19 @@
 </div>
 
 <div id="page-signals" class="page">
+  <fieldset>
+    <legend>Fix GNSS (RTK)</legend>
+    <dl class="kv">
+      <dt>Stato fix</dt><dd id="fix-quality">-</dd>
+      <dt>Satelliti usati nel fix</dt><dd id="fix-sats">-</dd>
+      <dt>HDOP</dt><dd id="fix-hdop">-</dd>
+      <dt>Eta' correzioni RTCM</dt><dd id="fix-diffage">-</dd>
+      <dt>Altitudine</dt><dd id="fix-alt">-</dd>
+      <dt>Ultimo fix</dt><dd id="fix-age">-</dd>
+    </dl>
+    <small class="hint">Dati letti dalle sentenze $xxGGA emesse dal GNSS - popolato solo in modalita' rover, mentre il ricevitore trasmette NMEA.</small>
+  </fieldset>
+
   <fieldset>
     <legend>Satelliti GNSS (C/N0 per satellite)</legend>
     <canvas id="sat-chart" width="620" height="180"></canvas>
@@ -452,6 +466,38 @@ function setSignalBar(barId, textId, dbm, min, max, label) {
     : (label + ': ' + dbm + ' dBm');
 }
 
+// Colore per qualita' di fix NMEA (campo GGA): 4/5 sono i due stati RTK
+// veri e propri, gli altri sono un fix "normale" (utile ma senza le
+// precisioni centimetriche che giustificano l'uso di questa scheda).
+const FIX_QUALITY_COLOR = { 4: '#16a34a', 5: '#d97706', 1: '#2563eb', 2: '#2563eb', 3: '#2563eb' };
+
+function renderFixStatus(s) {
+  const qualityEl = document.getElementById('fix-quality');
+  const satsEl = document.getElementById('fix-sats');
+  const hdopEl = document.getElementById('fix-hdop');
+  const diffAgeEl = document.getElementById('fix-diffage');
+  const altEl = document.getElementById('fix-alt');
+  const ageEl = document.getElementById('fix-age');
+  const stFixEl = document.getElementById('st-fix');
+
+  if (!s.gnss_fix_valid) {
+    const txt = 'Nessun dato ricevuto';
+    [qualityEl, stFixEl].forEach((el) => { el.textContent = txt; el.style.color = ''; el.style.fontWeight = ''; });
+    satsEl.textContent = hdopEl.textContent = diffAgeEl.textContent = altEl.textContent = ageEl.textContent = '-';
+    return;
+  }
+
+  const color = FIX_QUALITY_COLOR[s.gnss_fix_quality] || '#dc2626';
+  const label = (s.gnss_fix_quality_str || '-').toUpperCase();
+  [qualityEl, stFixEl].forEach((el) => { el.textContent = label; el.style.color = color; el.style.fontWeight = '600'; });
+
+  satsEl.textContent = s.gnss_satellites_used;
+  hdopEl.textContent = s.gnss_hdop >= 0 ? s.gnss_hdop.toFixed(1) : '-';
+  diffAgeEl.textContent = s.gnss_diff_age_s >= 0 ? (s.gnss_diff_age_s.toFixed(0) + ' s') : 'nessuna correzione RTCM';
+  altEl.textContent = s.gnss_altitude_m > -9000 ? (s.gnss_altitude_m.toFixed(1) + ' m') : '-';
+  ageEl.textContent = s.gnss_fix_age_s.toFixed(0) + ' s fa';
+}
+
 async function loadSignals() {
   try {
     const r = await fetch('/api/signals');
@@ -462,6 +508,7 @@ async function loadSignals() {
     setSignalBar('st-wifi-sig-bar', 'st-wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
     document.getElementById('cell-operator').textContent = s.cellular_operator || 'non registrato';
     document.getElementById('cell-tech').textContent = s.cellular_tech || '-';
+    renderFixStatus(s);
   } catch (e) {
     // pagina segnali non visibile o rete assente: si ritenta al giro dopo
   }

@@ -6,6 +6,7 @@
 #include "online_update.h"
 #include "status.h"
 #include "gnss_signal.h"
+#include "gnss_fix.h"
 #include "wifi_link.h"
 #include "cellular_link.h"
 
@@ -15,6 +16,7 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "cJSON.h"
 #include "mbedtls/base64.h"
 
@@ -243,6 +245,19 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
         cJSON_AddItemToArray(sats, sat);
     }
     cJSON_AddItemToObject(root, "satellites", sats);
+
+    gnss_fix_status_t fix = gnss_fix_get_status();
+    cJSON_AddBoolToObject(root, "gnss_fix_valid", fix.valid);
+    if (fix.valid) {
+        cJSON_AddNumberToObject(root, "gnss_fix_quality", fix.quality);
+        cJSON_AddStringToObject(root, "gnss_fix_quality_str", gnss_fix_quality_str(fix.quality));
+        cJSON_AddNumberToObject(root, "gnss_satellites_used", fix.satellites_used);
+        cJSON_AddNumberToObject(root, "gnss_hdop", fix.hdop);
+        cJSON_AddNumberToObject(root, "gnss_altitude_m", fix.altitude_m);
+        cJSON_AddNumberToObject(root, "gnss_diff_age_s", fix.diff_age_s);
+        double fix_age_s = (esp_timer_get_time() - fix.last_update_us) / 1e6;
+        cJSON_AddNumberToObject(root, "gnss_fix_age_s", fix_age_s);
+    }
 
     int8_t wifi_rssi;
     if (wifi_link_get_rssi(&wifi_rssi)) {
