@@ -95,10 +95,23 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
             .buffer_size = 2048,    // margine per intestazioni lunghe (URL firmati con token SAS)
             .buffer_size_tx = 2048,
         };
+        ESP_LOGI(TAG, "Hop %d: %s %.100s%s", hop + 1, use_head ? "HEAD" : "GET",
+                 current_url, strlen(current_url) > 100 ? "..." : "");
+
         esp_http_client_handle_t client = esp_http_client_init(&config);
         esp_err_t err = esp_http_client_perform(client);
         int status = esp_http_client_get_status_code(client);
+        int64_t content_len = esp_http_client_get_content_length(client);
         esp_http_client_cleanup(client);
+
+        // Log incondizionato ad ogni hop (successo o no), non solo sul
+        // fallimento finale: senza questo, una cattura del log che parte
+        // a meta' sequenza mostra solo l'ultimo esito senza il contesto
+        // di come ci si e' arrivati (successo/fallimento precedenti,
+        // quanti hop, redirect trovati o no).
+        ESP_LOGI(TAG, "Hop %d esito: err=%s status=%d content_len=%lld location=%s",
+                 hop + 1, esp_err_to_name(err), status, (long long) content_len,
+                 ctx.location[0] ? ctx.location : "(assente)");
 
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "Richiesta a %s fallita: %s", current_url, esp_err_to_name(err));

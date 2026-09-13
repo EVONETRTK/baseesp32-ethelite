@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.2
+
+- Diagnostica: lo status 618 (non standard) sul controllo aggiornamenti online si ripresenta nonostante il fix dei buffer - aggiunto log dettagliato di ogni hop (URL, esito, lunghezza contenuto, header Location) per capire esattamente dove/come accade, indipendentemente da quando si legge il log.
+
 ## 1.5.1
 
 - Aggiunto mDNS: la scheda e' ora raggiungibile anche con un nome fisso (es. http://EVONETRTK-893428.local) invece del solo indirizzo IP, che cambia a seconda della rete a cui ci si collega (AP di setup vs rete WiFi di casa). Mostrato nella scheda Stato.
