@@ -22,6 +22,14 @@ typedef struct {
 
 static app_settings_t s_settings;
 
+static void format_mac_serial(char *out, size_t out_size)
+{
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    snprintf(out, out_size, "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
 static void apply_defaults(void)
 {
     memset(&s_settings, 0, sizeof(s_settings));
@@ -79,6 +87,12 @@ static void apply_defaults(void)
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     snprintf(s_settings.ap_ssid, sizeof(s_settings.ap_ssid), "EVONETRTK-%02X%02X%02X", mac[3], mac[4], mac[5]);
+    // Matricola di default = MAC di fabbrica per esteso, un identificativo
+    // hardware unico gia' disponibile senza doverlo assegnare a mano -
+    // resta comunque sovrascrivibile dalla UI web. Vedi anche
+    // settings_init() sotto per i dispositivi gia' provvisti di una
+    // configurazione salvata precedente a questo campo.
+    format_mac_serial(s_settings.device_serial, sizeof(s_settings.device_serial));
     strncpy(s_settings.ap_password, "baseesp32setup", sizeof(s_settings.ap_password) - 1);
     strncpy(s_settings.admin_code, "1234", sizeof(s_settings.admin_code) - 1);
 }
@@ -100,6 +114,13 @@ void settings_init(void)
 
     if (err == ESP_OK && len == sizeof(stored) && stored.magic == CFG_MAGIC) {
         s_settings = stored.s;
+        // Migrazione per dispositivi gia' configurati prima dell'aggiunta
+        // del default automatico sopra: una matricola mai impostata
+        // resterebbe altrimenti vuota per sempre (il default si applica
+        // solo quando non c'e' nessuna configurazione salvata in NVS).
+        if (s_settings.device_serial[0] == '\0') {
+            format_mac_serial(s_settings.device_serial, sizeof(s_settings.device_serial));
+        }
         ESP_LOGI(TAG, "Configurazione caricata da NVS (AP=%s)", s_settings.ap_ssid);
     } else {
         ESP_LOGW(TAG, "Configurazione NVS assente/non valida, uso i default di Kconfig");

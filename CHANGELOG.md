@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.6.4
+
+- La Matricola ora ha come default il MAC address di fabbrica del chip (identificativo hardware unico), invece di restare vuota - resta comunque modificabile dalla UI web con un proprio codice. Applicato anche ai dispositivi gia' configurati in precedenza (migrazione automatica al primo avvio con questo firmware, solo se il campo era ancora vuoto).
+
 ## 1.6.3
 
 - Aggiunto stato della connessione al caster NTRIP, ben visibile in cima alla scheda Stato: CONNESSO/NON CONNESSO (colorato), da quanto tempo, numero di riconnessioni dal boot e motivo dell'ultimo errore (DNS, connessione rifiutata, caster che ha chiuso, ecc.) - prima non c'era nessuna visibilita' su questo, solo log interni. Funziona sia in modalita' base (upload RTCM) sia rover (download RTCM), tracciato nel modulo condiviso `status.c`.
