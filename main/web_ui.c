@@ -60,6 +60,30 @@ static bool check_auth(httpd_req_t *req)
     return strcmp((const char *) decoded, expected) == 0;
 }
 
+// Cookie di sessione: il popup Basic Auth del browser non viene ricordato
+// in modo affidabile su tutti i browser/situazioni (es. passando tra
+// l'IP dell'AP 192.168.4.1 e quello della rete di casa, il browser li
+// tratta come siti diversi e chiede di nuovo le credenziali). Dopo un
+// primo accesso riuscito via Basic Auth, impostiamo un cookie che vale
+// da solo per ~30 giorni sullo stesso indirizzo, senza dover reinserire
+// nulla.
+#define AUTH_COOKIE_NAME "evonetrtk_auth"
+#define AUTH_COOKIE_MAX_AGE_S (30 * 24 * 3600)
+
+static bool check_auth_cookie(httpd_req_t *req, const app_settings_t *s)
+{
+    if (strlen(s->admin_code) == 0) {
+        return true;
+    }
+    char cookie_hdr[160];
+    if (httpd_req_get_hdr_value_str(req, "Cookie", cookie_hdr, sizeof(cookie_hdr)) != ESP_OK) {
+        return false;
+    }
+    char expected[160];
+    snprintf(expected, sizeof(expected), AUTH_COOKIE_NAME "=%s", s->admin_code);
+    return strstr(cookie_hdr, expected) != NULL;
+}
+
 static esp_err_t require_auth(httpd_req_t *req)
 {
     // Copre in un colpo solo tutte le richieste protette (ogni handler
@@ -69,9 +93,26 @@ static esp_err_t require_auth(httpd_req_t *req)
     // scrivono nulla quando vanno a buon fine.
     ESP_LOGI(TAG, "Richiesta %s %s", http_method_str(req->method), req->uri);
 
-    if (check_auth(req)) {
+    app_settings_t s = settings_get();
+
+    if (check_auth_cookie(req, &s)) {
         return ESP_OK;
     }
+
+    if (check_auth(req)) {
+        // Autenticato via Basic Auth: imposta anche il cookie di sessione
+        // cosi' le richieste successive non lo richiedono piu'. Buffer
+        // "static": il server web qui gestisce una richiesta alla volta
+        // (nessun worker parallelo configurato), il valore resta valido
+        // fino a quando httpd_resp_send* viene chiamato piu' avanti nello
+        // stesso handler che ha invocato questa funzione.
+        static char cookie_val[192];
+        snprintf(cookie_val, sizeof(cookie_val), AUTH_COOKIE_NAME "=%s; Max-Age=%d; Path=/",
+                 s.admin_code, AUTH_COOKIE_MAX_AGE_S);
+        httpd_resp_set_hdr(req, "Set-Cookie", cookie_val);
+        return ESP_OK;
+    }
+
     ESP_LOGW(TAG, "Autenticazione fallita per %s", req->uri);
     httpd_resp_set_status(req, "401 Unauthorized");
     httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"EVONETRTK\"");

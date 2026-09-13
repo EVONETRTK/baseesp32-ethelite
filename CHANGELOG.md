@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.0
+
+- Login della pagina web ora "ricordato" con un cookie di sessione (~30 giorni) dopo il primo accesso, invece di affidarsi solo alla cache del popup Basic Auth del browser - utile soprattutto passando tra l'IP dell'AP e quello della rete di casa, prima trattati come siti diversi con richiesta di credenziali separata.
+
 ## 1.4.9
 
 - Fix: i redirect ora funzionano (confermato: 2 hop seguiti correttamente fino al CDN di GitHub), ma l'URL finale firmato (token SAS, molto lungo) veniva troncato dai buffer da 256 byte, causando una richiesta corrotta. Buffer portati a 600 byte, piu' margine sui buffer HTTP interni (2048 byte).
