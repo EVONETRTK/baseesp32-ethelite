@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.1
+
+- Aggiunto mDNS: la scheda e' ora raggiungibile anche con un nome fisso (es. http://EVONETRTK-893428.local) invece del solo indirizzo IP, che cambia a seconda della rete a cui ci si collega (AP di setup vs rete WiFi di casa). Mostrato nella scheda Stato.
+
 ## 1.5.0
 
 - Login della pagina web ora "ricordato" con un cookie di sessione (~30 giorni) dopo il primo accesso, invece di affidarsi solo alla cache del popup Basic Auth del browser - utile soprattutto passando tra l'IP dell'AP e quello della rete di casa, prima trattati come siti diversi con richiesta di credenziali separata.

@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_event.h"
+#include "mdns.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -86,6 +87,23 @@ void net_manager_start(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    // Un nome fisso (es. http://EVONETRTK-893428.local) invece del solo
+    // IP - utile perche' l'indirizzo cambia a seconda della rete a cui ci
+    // si collega (AP di setup isolato vs rete di casa) e puo' comunque
+    // variare nel tempo (DHCP). Derivato dall'SSID dell'AP: gia' unico
+    // per dispositivo (suffisso dal MAC), cosi' piu' basi/rover sulla
+    // stessa rete non si scontrano.
+    app_settings_t settings = settings_get();
+    esp_err_t mdns_err = mdns_init();
+    if (mdns_err == ESP_OK) {
+        mdns_hostname_set(settings.ap_ssid);
+        mdns_instance_name_set("EVONETRTK RTK base/rover");
+        mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
+        ESP_LOGI(TAG, "mDNS attivo: raggiungibile anche su http://%s.local", settings.ap_ssid);
+    } else {
+        ESP_LOGW(TAG, "Init mDNS fallita: %s", esp_err_to_name(mdns_err));
+    }
 
     // wifi_link_init() porta su anche l'AP di setup, sempre attivo: non
     // blocchiamo l'avvio in attesa di WiFi/GPRS, il resto del firmware

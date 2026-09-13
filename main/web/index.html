@@ -54,7 +54,12 @@
       <dt>Rete attiva</dt><dd id="st-net">-</dd>
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
       <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
+      <dt>Indirizzo fisso</dt><dd id="st-mdns">-</dd>
     </dl>
+    <small class="hint">
+      L'indirizzo fisso funziona solo dallo stesso dispositivo/rete a cui la scheda e' collegata
+      in quel momento (AP di setup o rete WiFi di casa) - non serve piu' ricordare l'IP.
+    </small>
     <label style="margin-top:.8rem">Segnale WiFi</label>
     <div class="sig-bar-track"><div class="sig-bar-fill" id="st-wifi-sig-bar" style="width:0%"></div></div>
     <small class="hint" id="st-wifi-sig-text">-</small>
@@ -339,6 +344,7 @@ async function loadStatus() {
 
     document.getElementById('st-serial').textContent = s.device_serial || '(non impostata)';
     document.getElementById('st-version').textContent = s.firmware_version || '-';
+    document.getElementById('st-mdns').textContent = s.ap_ssid ? ('http://' + s.ap_ssid + '.local') : '-';
     document.getElementById('fw-current-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
     document.getElementById('st-net').textContent = s.net;
