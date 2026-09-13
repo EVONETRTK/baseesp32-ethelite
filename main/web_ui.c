@@ -6,6 +6,7 @@
 #include "online_update.h"
 #include "status.h"
 #include "log_buffer.h"
+#include "sys_stats.h"
 #include "gnss_signal.h"
 #include "gnss_fix.h"
 #include "wifi_link.h"
@@ -218,6 +219,22 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "oled_is_sh1106", s.oled_is_sh1106);
     cJSON_AddBoolToObject(root, "oled_flip_h", s.oled_flip_h);
     cJSON_AddBoolToObject(root, "oled_flip_v", s.oled_flip_v);
+
+    sys_stats_t stats = sys_stats_get();
+    cJSON_AddNumberToObject(root, "free_heap_bytes", stats.free_heap_bytes);
+    cJSON_AddNumberToObject(root, "min_free_heap_bytes", stats.min_free_heap_bytes);
+    cJSON_AddNumberToObject(root, "total_heap_bytes", stats.total_heap_bytes);
+    cJSON_AddBoolToObject(root, "psram_present", stats.psram_present);
+    if (stats.psram_present) {
+        cJSON_AddNumberToObject(root, "free_psram_bytes", stats.free_psram_bytes);
+        cJSON_AddNumberToObject(root, "total_psram_bytes", stats.total_psram_bytes);
+    }
+    if (stats.cpu0_percent >= 0) {
+        cJSON_AddNumberToObject(root, "cpu0_percent", stats.cpu0_percent);
+    }
+    if (stats.cpu1_percent >= 0) {
+        cJSON_AddNumberToObject(root, "cpu1_percent", stats.cpu1_percent);
+    }
 
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");

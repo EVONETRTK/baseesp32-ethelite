@@ -72,6 +72,26 @@
       piattaforma incluso iOS.
     </small>
   </fieldset>
+
+  <fieldset>
+    <legend>Sistema</legend>
+    <label>CPU core 0</label>
+    <div class="sig-bar-track"><div class="sig-bar-fill" id="cpu0-bar" style="width:0%"></div></div>
+    <small class="hint" id="cpu0-text">-</small>
+    <label style="margin-top:.6rem">CPU core 1</label>
+    <div class="sig-bar-track"><div class="sig-bar-fill" id="cpu1-bar" style="width:0%"></div></div>
+    <small class="hint" id="cpu1-text">-</small>
+    <dl class="kv" style="margin-top:.6rem">
+      <dt>Memoria libera</dt><dd id="st-heap-free">-</dd>
+      <dt>Memoria minima mai raggiunta</dt><dd id="st-heap-min">-</dd>
+      <dt>Memoria totale</dt><dd id="st-heap-total">-</dd>
+      <dt>PSRAM</dt><dd id="st-psram">-</dd>
+    </dl>
+    <small class="hint">
+      "Memoria minima mai raggiunta" e' il punto piu' basso toccato dalla memoria libera dall'ultimo
+      riavvio - se scende vicino a zero nel tempo e' indice di una perdita di memoria (memory leak).
+    </small>
+  </fieldset>
   <button type="button" class="action secondary" id="reboot-btn">Riavvia dispositivo</button>
 </div>
 
@@ -402,6 +422,16 @@ async function loadStatus() {
     document.getElementById('st-last').textContent = s.last_rtcm_us
       ? new Date(s.last_rtcm_us / 1000).toLocaleTimeString()
       : 'mai';
+
+    renderCpuBar('cpu0-bar', 'cpu0-text', s.cpu0_percent, 'Core 0');
+    renderCpuBar('cpu1-bar', 'cpu1-text', s.cpu1_percent, 'Core 1');
+    document.getElementById('st-heap-free').textContent = formatBytes(s.free_heap_bytes);
+    document.getElementById('st-heap-min').textContent = formatBytes(s.min_free_heap_bytes);
+    document.getElementById('st-heap-total').textContent = formatBytes(s.total_heap_bytes);
+    document.getElementById('st-psram').textContent = s.psram_present
+      ? (formatBytes(s.free_psram_bytes) + ' libera / ' + formatBytes(s.total_psram_bytes) + ' totale')
+      : 'non presente';
+
     const f = document.getElementById('cfg-form');
     if (!f.dataset.touched) {
       f.wifi_ssid.value = s.wifi_ssid || '';
@@ -497,6 +527,30 @@ function setSignalBar(barId, textId, dbm, min, max, label) {
   document.getElementById(textId).textContent = (dbm === null || dbm === undefined)
     ? (label + ': non disponibile')
     : (label + ': ' + dbm + ' dBm');
+}
+
+function formatBytes(n) {
+  if (n === null || n === undefined) return '-';
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+
+// Colore per l'uso CPU: qui, a differenza di un segnale radio, un valore
+// ALTO e' quello da segnalare (rosso), non uno basso - percentuale
+// invertita rispetto a colorForPct() prima di passargliela.
+function renderCpuBar(barId, textId, percent, label) {
+  const bar = document.getElementById(barId);
+  const text = document.getElementById(textId);
+  if (percent === null || percent === undefined) {
+    bar.style.width = '0%';
+    bar.style.background = colorForPct(null);
+    text.textContent = label + ': in attesa del secondo campione...';
+    return;
+  }
+  bar.style.width = percent + '%';
+  bar.style.background = colorForPct(100 - percent);
+  text.textContent = label + ': ' + percent.toFixed(0) + '%';
 }
 
 // Colore per qualita' di fix NMEA (campo GGA): 4/5 sono i due stati RTK

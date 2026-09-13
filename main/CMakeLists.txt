@@ -9,6 +9,7 @@ idf_component_register(
         "settings.c"
         "status.c"
         "log_buffer.c"
+        "sys_stats.c"
         "gnss_driver.c"
         "gnss_ubx.c"
         "gnss_unicore.c"

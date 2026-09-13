@@ -43,3 +43,9 @@ CONFIG_LWIP_MAX_SOCKETS=16
 # default. Stesso valore usato dagli esempi ufficiali di esp_modem che
 # inizializzano il modem/mbedtls direttamente in app_main.
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# Serve per calcolare l'uso CPU per core mostrato nella scheda Stato
+# (sys_stats.c, basato sul tempo di esecuzione del task IDLE di ciascun
+# core) - overhead trascurabile (solo un contatore aggiornato nel loop
+# idle), nessun impatto sulle prestazioni.
+CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y

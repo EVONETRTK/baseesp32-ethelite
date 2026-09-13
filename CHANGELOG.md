@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.6.2
+
+- Aggiunto uso CPU (per core, con barra colorata) e memoria (libera, minima mai raggiunta, totale, PSRAM se presente) nella scheda Stato. Nuovo modulo `sys_stats.c`, basato sul tempo di esecuzione del task IDLE di ciascun core (richiede `CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS`, overhead trascurabile). La percentuale CPU compare dal secondo aggiornamento in poi (serve un campione di riferimento).
+
 ## 1.6.1
 
 - Aggiunta scheda "Log" nella UI web: ultime righe di log (fino a 8KB, dall'avvio) leggibili dal browser senza bisogno di un cavo USB/seriale, utile soprattutto sul campo. Nuovo modulo `log_buffer.c` che intercetta i log ESP-IDF gia' in transito verso la UART (che continuano a funzionare come sempre) e ne tiene una copia in un buffer circolare in RAM.
