@@ -96,6 +96,7 @@
     <div class="sig-bar-track"><div class="sig-bar-fill" id="cpu1-bar" style="width:0%"></div></div>
     <small class="hint" id="cpu1-text">-</small>
     <dl class="kv" style="margin-top:.6rem">
+      <dt>Temperatura chip</dt><dd id="st-temp">-</dd>
       <dt>Memoria libera</dt><dd id="st-heap-free">-</dd>
       <dt>Memoria minima mai raggiunta</dt><dd id="st-heap-min">-</dd>
       <dt>Memoria totale</dt><dd id="st-heap-total">-</dd>
@@ -441,6 +442,7 @@ async function loadStatus() {
 
     renderCpuBar('cpu0-bar', 'cpu0-text', s.cpu0_percent, 'Core 0');
     renderCpuBar('cpu1-bar', 'cpu1-text', s.cpu1_percent, 'Core 1');
+    renderChipTemp(s.chip_temp_c);
     document.getElementById('st-heap-free').textContent = formatBytes(s.free_heap_bytes);
     document.getElementById('st-heap-min').textContent = formatBytes(s.min_free_heap_bytes);
     document.getElementById('st-heap-total').textContent = formatBytes(s.total_heap_bytes);
@@ -567,6 +569,29 @@ function renderCpuBar(barId, textId, percent, label) {
   bar.style.width = percent + '%';
   bar.style.background = colorForPct(100 - percent);
   text.textContent = label + ': ' + percent.toFixed(0) + '%';
+}
+
+// Soglie qualitative (non un limite di sicurezza del chip, che regge
+// temperature ben piu' alte) - servono solo a capire a colpo d'occhio se
+// il dispositivo si sta scaldando piu' del normale, es. per il sole diretto
+// su una custodia chiusa in campo.
+function renderChipTemp(celsius) {
+  const el = document.getElementById('st-temp');
+  if (celsius === null || celsius === undefined) {
+    el.textContent = 'non disponibile';
+    el.style.color = '';
+    el.style.fontWeight = '';
+    return;
+  }
+  el.textContent = celsius.toFixed(1) + ' °C';
+  el.style.fontWeight = '600';
+  if (celsius < 50) {
+    el.style.color = '#16a34a';
+  } else if (celsius < 70) {
+    el.style.color = '#d97706';
+  } else {
+    el.style.color = '#dc2626';
+  }
 }
 
 // Colore per qualita' di fix NMEA (campo GGA): 4/5 sono i due stati RTK

@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.6.6
+
+- Aggiunta temperatura interna del chip nella scheda Stato (sezione Sistema), colorata (verde sotto 50°C, arancione 50-70°C, rosso oltre 70°C) - soglie puramente indicative per capire a colpo d'occhio se il dispositivo si sta scaldando piu' del normale (es. sole diretto su una custodia chiusa in campo), non un limite di sicurezza del chip. Usa il sensore di temperatura interno dell'ESP32-S3 (`sys_stats.c`, componente `esp_driver_tsens`).
+
 ## 1.6.5
 
 - La Matricola di default ora usa lo stesso numero breve gia' mostrato nel nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428"), invece del MAC per esteso introdotto nella 1.6.4 - stesso identificativo in entrambi i punti della UI invece di due formati diversi. Migrazione automatica anche per i dispositivi gia' passati alla 1.6.4.

@@ -12,6 +12,7 @@ typedef struct {
     uint32_t total_psram_bytes;
     float cpu0_percent;           // -1 se non ancora disponibile (serve un secondo campione)
     float cpu1_percent;           // -1 se non ancora disponibile o scheda mono-core
+    float chip_temp_c;            // temperatura interna del chip (°C), -1000 se il sensore non e' disponibile
 } sys_stats_t;
 
 // Legge lo stato corrente di memoria e uso CPU. L'uso CPU e' calcolato come

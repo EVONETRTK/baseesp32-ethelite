@@ -247,6 +247,9 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     if (stats.cpu1_percent >= 0) {
         cJSON_AddNumberToObject(root, "cpu1_percent", stats.cpu1_percent);
     }
+    if (stats.chip_temp_c > -1000) {
+        cJSON_AddNumberToObject(root, "chip_temp_c", stats.chip_temp_c);
+    }
 
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");

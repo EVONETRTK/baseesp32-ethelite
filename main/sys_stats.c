@@ -5,6 +5,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/temperature_sensor.h"
 
 typedef struct {
     bool have_baseline;
@@ -51,6 +52,34 @@ static float compute_cpu_percent(int core_idx, TaskHandle_t idle_handle, int64_t
     return result;
 }
 
+static temperature_sensor_handle_t s_tsens;
+static bool s_tsens_init_failed;
+
+// Installa/abilita il sensore di temperatura interno al primo utilizzo -
+// intervallo 20-100 C (precisione dichiarata +-2 C), un buon compromesso
+// per un dispositivo che puo' scaldarsi in una custodia chiusa al sole,
+// senza restringere troppo il range per un chip che in condizioni normali
+// lavora gia' oltre la temperatura ambiente.
+static float read_chip_temp_c(void)
+{
+    if (s_tsens_init_failed) {
+        return -1000;
+    }
+    if (!s_tsens) {
+        temperature_sensor_config_t config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
+        if (temperature_sensor_install(&config, &s_tsens) != ESP_OK ||
+            temperature_sensor_enable(s_tsens) != ESP_OK) {
+            s_tsens_init_failed = true;
+            return -1000;
+        }
+    }
+    float celsius = -1000;
+    if (temperature_sensor_get_celsius(s_tsens, &celsius) != ESP_OK) {
+        return -1000;
+    }
+    return celsius;
+}
+
 sys_stats_t sys_stats_get(void)
 {
     sys_stats_t s = {0};
@@ -69,6 +98,8 @@ sys_stats_t sys_stats_get(void)
     int64_t now = esp_timer_get_time();
     s.cpu0_percent = compute_cpu_percent(0, xTaskGetIdleTaskHandleForCore(0), now);
     s.cpu1_percent = compute_cpu_percent(1, xTaskGetIdleTaskHandleForCore(1), now);
+
+    s.chip_temp_c = read_chip_temp_c();
 
     return s;
 }
