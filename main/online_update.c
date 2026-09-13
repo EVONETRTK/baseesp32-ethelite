@@ -24,7 +24,7 @@ static const char *TAG = "online_update";
 // un task separato - protetto da mutex perche' scritto dal task di
 // aggiornamento e letto dal task del server web in parallelo.
 static SemaphoreHandle_t s_progress_mutex;
-static online_update_progress_t s_progress;
+static online_update_progress_t s_progress = { .percent = -1, .bytes_total = -1 };
 
 static void progress_lock_init(void)
 {

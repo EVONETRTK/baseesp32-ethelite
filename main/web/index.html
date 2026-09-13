@@ -688,19 +688,32 @@ function pollOtaProgress(targetVersion) {
   const msg = document.getElementById('fw-online-msg');
   const barTrack = document.getElementById('fw-online-bar-track');
   const barFill = document.getElementById('fw-online-bar-fill');
-  let gotAnyResponse = false;
+  let sawRunning = false;
   const poll = async () => {
     let s;
     try {
       const r = await fetch('/api/ota/progress');
       s = await r.json();
-      gotAnyResponse = true;
     } catch (e) {
-      if (gotAnyResponse) {
+      if (sawRunning) {
         waitForRebootAndVerify(targetVersion);
       } else {
         setTimeout(poll, 800); // non ancora partito (task appena avviato), ritenta
       }
+      return;
+    }
+    if (s.running) {
+      sawRunning = true;
+    } else if (sawRunning && !s.done) {
+      // Era in corso (running true), ora risulta di nuovo "mai avviato"
+      // (running e done entrambi false) senza essere mai passato da
+      // done:true - il dispositivo si e' riavviato in una nuova immagine
+      // che riparte da zero, perdendo lo stato del task precedente, prima
+      // che arrivasse l'ultima risposta "completato" (confermato su
+      // hardware reale: la richiesta HTTP puo' riuscire comunque, contro
+      // un server web appena ripartito, invece di fallire come atteso) -
+      // stesso trattamento di una connessione caduta.
+      waitForRebootAndVerify(targetVersion);
       return;
     }
     if (s.percent !== null && s.percent >= 0) {
