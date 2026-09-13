@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.4.7
+
+- Fix: la connessione WiFi entrava in un ciclo continuo di connessione/disconnessione ogni 2-3s, mai stabile - confermato su hardware (stati auth->assoc->run->init ripetuti). Causa: un riconnessione immediata e senza pausa dentro il gestore eventi ad ogni disconnessione, in competizione col ritentativo gia' gestito da net_manager_task. Rimossa - ora solo net_manager_task ritenta, con timeout pieno. Aggiunto anche il log del motivo di ogni disconnessione WiFi per diagnosi future.
+
 ## 1.4.6
 
 - Fix: "Controlla aggiornamenti online" falliva sempre con status 302 - confermato su hardware ("err=ESP_FAIL status=302"): il redirect automatico di esp_http_client verso gli URL "latest" di GitHub Releases non funzionava in modo affidabile. Ora i redirect vengono seguiti manualmente (fino a 3 hop), sia per il manifest sia per il file .bin prima di passarlo a esp_https_ota().

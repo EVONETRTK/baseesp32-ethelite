@@ -21,7 +21,6 @@ static const char *TAG = "wifi_link";
 
 static EventGroupHandle_t s_events;
 static volatile bool s_connected = false;
-static volatile bool s_should_reconnect = false;
 static esp_netif_t *s_sta_netif = NULL;
 static esp_netif_t *s_ap_netif = NULL;
 // Serializza i tentativi di connessione: net_manager_task ne fa uno in
@@ -35,11 +34,15 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                 int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        wifi_event_sta_disconnected_t *disc = (wifi_event_sta_disconnected_t *) event_data;
+        ESP_LOGW(TAG, "STA disconnessa, motivo=%d", disc ? disc->reason : -1);
         s_connected = false;
         xEventGroupClearBits(s_events, WIFI_CONNECTED_BIT);
-        if (s_should_reconnect) {
-            esp_wifi_connect();
-        }
+        // Il ritentativo e' compito di net_manager_task (poll ogni 3s +
+        // connect con timeout pieno): riconnettersi qui a raffica su ogni
+        // disconnessione, senza alcuna pausa, causava un ciclo continuo
+        // auth->assoc->run->init ogni ~2-3s confermato su hardware reale,
+        // mai abbastanza stabile da completare l'handshake.
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG, "STA IP ottenuto: " IPSTR, IP2STR(&event->ip_info.ip));
@@ -100,7 +103,6 @@ void wifi_link_init(void)
 static bool do_connect_locked(uint32_t timeout_ms)
 {
     xEventGroupClearBits(s_events, WIFI_CONNECTED_BIT);
-    s_should_reconnect = true;
 
     esp_err_t err = esp_wifi_connect();
     if (err != ESP_OK) {
@@ -148,7 +150,6 @@ bool wifi_link_connect_with(const char *ssid, const char *password, uint32_t tim
 
 void wifi_link_disconnect(void)
 {
-    s_should_reconnect = false;
     esp_wifi_disconnect();
     s_connected = false;
 }
