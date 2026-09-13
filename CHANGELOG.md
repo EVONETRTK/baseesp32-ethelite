@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.4.6
+
+- Fix: "Controlla aggiornamenti online" falliva sempre con status 302 - confermato su hardware ("err=ESP_FAIL status=302"): il redirect automatico di esp_http_client verso gli URL "latest" di GitHub Releases non funzionava in modo affidabile. Ora i redirect vengono seguiti manualmente (fino a 3 hop), sia per il manifest sia per il file .bin prima di passarlo a esp_https_ota().
+
 ## 1.4.5
 
 - Fix: il pulsante "Connetti" WiFi andava in timeout (15s) senza mai completarsi se la scheda era gia' connessa a un'altra rete - il driver WiFi rifiuta una nuova connessione senza prima disconnettersi esplicitamente da quella attuale. Confermato su hardware ("sta is connected, disconnect before connecting to new ap").

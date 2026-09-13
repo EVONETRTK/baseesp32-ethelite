@@ -35,6 +35,78 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
+#define MAX_REDIRECTS 3
+
+// Esegue una richiesta seguendo manualmente fino a MAX_REDIRECTS
+// redirect (header Location) - il redirect automatico di
+// esp_http_client si e' dimostrato inaffidabile su hardware reale verso
+// gli URL "latest" di GitHub Releases (confermato: "err=ESP_FAIL
+// status=302" nonostante disable_auto_redirect non fosse impostato).
+// use_head = true evita di scaricare il corpo quando serve solo risolvere
+// l'URL finale (es. prima di passarlo a esp_https_ota()). Se body_buf non
+// e' NULL, vi copia il corpo della risposta finale. out_final_url (se non
+// NULL) riceve l'URL della risposta finale. Ritorna lo status HTTP finale,
+// o <0 in caso di errore di rete.
+static int http_fetch_following_redirects(const char *url, bool use_head,
+                                           char *out_final_url, size_t out_final_url_size,
+                                           char *body_buf, size_t body_buf_size)
+{
+    char current_url[256];
+    strncpy(current_url, url, sizeof(current_url) - 1);
+    current_url[sizeof(current_url) - 1] = '\0';
+
+    for (int hop = 0; hop < MAX_REDIRECTS; hop++) {
+        http_download_ctx_t ctx = { .buf = body_buf, .size = body_buf_size, .used = 0 };
+        if (body_buf) {
+            body_buf[0] = '\0';
+        }
+
+        esp_http_client_config_t config = {
+            .url = current_url,
+            .method = use_head ? HTTP_METHOD_HEAD : HTTP_METHOD_GET,
+            .event_handler = (body_buf && !use_head) ? http_event_handler : NULL,
+            .user_data = &ctx,
+            .crt_bundle_attach = esp_crt_bundle_attach,
+            .timeout_ms = 10000,
+            .disable_auto_redirect = true,
+        };
+        esp_http_client_handle_t client = esp_http_client_init(&config);
+        esp_err_t err = esp_http_client_perform(client);
+        int status = esp_http_client_get_status_code(client);
+
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "Richiesta a %s fallita: %s", current_url, esp_err_to_name(err));
+            esp_http_client_cleanup(client);
+            return -1;
+        }
+
+        if (status >= 300 && status < 400) {
+            char *location = NULL;
+            esp_err_t herr = esp_http_client_get_header(client, "Location", &location);
+            if (herr != ESP_OK || !location) {
+                ESP_LOGW(TAG, "Redirect (status %d) senza header Location", status);
+                esp_http_client_cleanup(client);
+                return status;
+            }
+            strncpy(current_url, location, sizeof(current_url) - 1);
+            current_url[sizeof(current_url) - 1] = '\0';
+            esp_http_client_cleanup(client);
+            ESP_LOGI(TAG, "Redirect (hop %d) -> %s", hop + 1, current_url);
+            continue;
+        }
+
+        esp_http_client_cleanup(client);
+        if (out_final_url) {
+            strncpy(out_final_url, current_url, out_final_url_size - 1);
+            out_final_url[out_final_url_size - 1] = '\0';
+        }
+        return status;
+    }
+
+    ESP_LOGW(TAG, "Troppi redirect (>%d) per %s", MAX_REDIRECTS, url);
+    return -1;
+}
+
 bool online_update_check(char *out_version, size_t out_version_size,
                           char *out_url, size_t out_url_size,
                           char *out_msg, size_t out_msg_size)
@@ -48,22 +120,10 @@ bool online_update_check(char *out_version, size_t out_version_size,
     }
 
     char manifest[512] = {0};
-    http_download_ctx_t ctx = { .buf = manifest, .size = sizeof(manifest), .used = 0 };
+    int status = http_fetch_following_redirects(settings.ota_update_url, false, NULL, 0, manifest, sizeof(manifest));
 
-    esp_http_client_config_t config = {
-        .url = settings.ota_update_url,
-        .event_handler = http_event_handler,
-        .user_data = &ctx,
-        .crt_bundle_attach = esp_crt_bundle_attach,
-        .timeout_ms = 10000,
-    };
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    esp_err_t err = esp_http_client_perform(client);
-    int status = esp_http_client_get_status_code(client);
-    esp_http_client_cleanup(client);
-
-    if (err != ESP_OK || status != 200) {
-        ESP_LOGW(TAG, "Controllo aggiornamenti fallito: err=%s status=%d", esp_err_to_name(err), status);
+    if (status != 200) {
+        ESP_LOGW(TAG, "Controllo aggiornamenti fallito: status=%d", status);
         SET_MSG("Impossibile raggiungere l'indirizzo di aggiornamento configurato");
         return false;
     }
@@ -117,8 +177,20 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
         return false;
     }
 
+    // Risolve prima eventuali redirect (es. GitHub Releases "latest") a
+    // mano con una HEAD, cosi' esp_https_ota() sotto riceve gia' l'URL
+    // finale e non deve seguirne lui stesso (stesso motivo del redirect
+    // manuale in online_update_check() sopra).
+    char resolved_url[256];
+    int status = http_fetch_following_redirects(firmware_url, true, resolved_url, sizeof(resolved_url), NULL, 0);
+    if (status != 200) {
+        ESP_LOGW(TAG, "Impossibile risolvere l'URL del firmware: status=%d", status);
+        SET_MSG("Indirizzo del firmware non raggiungibile");
+        return false;
+    }
+
     esp_http_client_config_t http_config = {
-        .url = firmware_url,
+        .url = resolved_url,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .timeout_ms = 30000,
         .keep_alive_enable = true,
@@ -127,7 +199,7 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
         .http_config = &http_config,
     };
 
-    ESP_LOGI(TAG, "Download aggiornamento online da %s...", firmware_url);
+    ESP_LOGI(TAG, "Download aggiornamento online da %s...", resolved_url);
     esp_err_t err = esp_https_ota(&ota_config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Aggiornamento online fallito: %s", esp_err_to_name(err));
