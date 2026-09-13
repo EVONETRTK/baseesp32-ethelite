@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.6.5
+
+- La Matricola di default ora usa lo stesso numero breve gia' mostrato nel nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428"), invece del MAC per esteso introdotto nella 1.6.4 - stesso identificativo in entrambi i punti della UI invece di due formati diversi. Migrazione automatica anche per i dispositivi gia' passati alla 1.6.4.
+
 ## 1.6.4
 
 - La Matricola ora ha come default il MAC address di fabbrica del chip (identificativo hardware unico), invece di restare vuota - resta comunque modificabile dalla UI web con un proprio codice. Applicato anche ai dispositivi gia' configurati in precedenza (migrazione automatica al primo avvio con questo firmware, solo se il campo era ancora vuoto).

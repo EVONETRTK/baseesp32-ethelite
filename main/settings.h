@@ -51,9 +51,9 @@ typedef struct {
     char ap_password[65];
     char admin_code[33];      // protegge la UI web (HTTP Basic Auth, utente fisso "admin")
     // Matricola assegnata all'unita' fisica (tracciamento/assistenza) - per
-    // default il MAC address di fabbrica del chip (identificativo unico
-    // reale, diverso dal solo suffisso usato per l'SSID), sovrascrivibile
-    // dalla UI web con un proprio codice se lo si preferisce.
+    // default lo stesso suffisso (3 byte del MAC di fabbrica) gia' usato
+    // per l'SSID dell'AP di setup (es. "EVONETRTK-893428" -> "893428"),
+    // sovrascrivibile dalla UI web con un proprio codice se lo si preferisce.
     char device_serial[33];
     uint16_t nmea_udp_port;   // porta broadcast UDP per NMEA (rover), es. per AgOpenGPS/AgIO
 

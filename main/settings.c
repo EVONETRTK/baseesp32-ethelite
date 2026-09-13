@@ -22,12 +22,15 @@ typedef struct {
 
 static app_settings_t s_settings;
 
+// Stessi 3 byte finali del MAC gia' usati per il suffisso dell'SSID
+// dell'AP di setup (es. "EVONETRTK-893428" -> "893428") - stesso numero
+// mostrato in due punti diversi della UI invece di due identificativi
+// diversi da mettere in relazione a mano.
 static void format_mac_serial(char *out, size_t out_size)
 {
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    snprintf(out, out_size, "%02X:%02X:%02X:%02X:%02X:%02X",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    snprintf(out, out_size, "%02X%02X%02X", mac[3], mac[4], mac[5]);
 }
 
 static void apply_defaults(void)
@@ -87,11 +90,11 @@ static void apply_defaults(void)
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     snprintf(s_settings.ap_ssid, sizeof(s_settings.ap_ssid), "EVONETRTK-%02X%02X%02X", mac[3], mac[4], mac[5]);
-    // Matricola di default = MAC di fabbrica per esteso, un identificativo
-    // hardware unico gia' disponibile senza doverlo assegnare a mano -
-    // resta comunque sovrascrivibile dalla UI web. Vedi anche
-    // settings_init() sotto per i dispositivi gia' provvisti di una
-    // configurazione salvata precedente a questo campo.
+    // Matricola di default = stesso suffisso usato sopra per l'SSID
+    // dell'AP, per non avere due identificativi diversi da mettere in
+    // relazione a mano - resta comunque sovrascrivibile dalla UI web.
+    // Vedi anche settings_init() sotto per i dispositivi gia' provvisti di
+    // una configurazione salvata precedente a questo campo.
     format_mac_serial(s_settings.device_serial, sizeof(s_settings.device_serial));
     strncpy(s_settings.ap_password, "baseesp32setup", sizeof(s_settings.ap_password) - 1);
     strncpy(s_settings.admin_code, "1234", sizeof(s_settings.admin_code) - 1);
@@ -118,7 +121,15 @@ void settings_init(void)
         // del default automatico sopra: una matricola mai impostata
         // resterebbe altrimenti vuota per sempre (il default si applica
         // solo quando non c'e' nessuna configurazione salvata in NVS).
-        if (s_settings.device_serial[0] == '\0') {
+        // Aggiorna anche il formato "MAC per esteso" generato da una
+        // primissima versione di questo stesso default (17 caratteri con
+        // ':' in quarta posizione, es. "7C:2C:67:89:34:28") al formato
+        // breve attuale - riconoscibile perche' nessun utente scriverebbe
+        // a mano proprio quel formato, quindi e' sicuramente un valore
+        // generato in automatico, non una matricola scelta a mano.
+        bool looks_like_old_full_mac = strlen(s_settings.device_serial) == 17 &&
+                                        s_settings.device_serial[2] == ':';
+        if (s_settings.device_serial[0] == '\0' || looks_like_old_full_mac) {
             format_mac_serial(s_settings.device_serial, sizeof(s_settings.device_serial));
         }
         ESP_LOGI(TAG, "Configurazione caricata da NVS (AP=%s)", s_settings.ap_ssid);
