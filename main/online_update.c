@@ -130,12 +130,19 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 // esp_http_client si e' dimostrato inaffidabile su hardware reale verso
 // gli URL "latest" di GitHub Releases (confermato: "err=ESP_FAIL
 // status=302" nonostante disable_auto_redirect non fosse impostato).
-// use_head = true evita di scaricare il corpo quando serve solo risolvere
-// l'URL finale (es. prima di passarlo a esp_https_ota()). Se body_buf non
-// e' NULL, vi copia il corpo della risposta finale. out_final_url (se non
-// NULL) riceve l'URL della risposta finale. Ritorna lo status HTTP finale,
-// o <0 in caso di errore di rete.
-static int http_fetch_following_redirects(const char *url, bool use_head,
+// minimal_range = true evita di scaricare il corpo intero quando serve solo
+// risolvere l'URL finale (es. prima di passarlo a esp_https_ota()) - NON
+// si puo' usare HEAD per questo: confermato su hardware reale che
+// l'endpoint di redirect degli asset di GitHub Releases
+// (/releases/download/TAG/file) risponde "404 File not found" a una
+// richiesta HEAD, pur reindirizzando correttamente con GET (lo stesso
+// metodo gia' usato con successo per il manifest JSON). Si usa quindi
+// sempre GET, con un header Range che limita il trasferimento a un solo
+// byte quando non serve il corpo.
+// Se body_buf non e' NULL, vi copia il corpo della risposta finale.
+// out_final_url (se non NULL) riceve l'URL della risposta finale. Ritorna
+// lo status HTTP finale, o <0 in caso di errore di rete.
+static int http_fetch_following_redirects(const char *url, bool minimal_range,
                                            char *out_final_url, size_t out_final_url_size,
                                            char *body_buf, size_t body_buf_size)
 {
@@ -151,7 +158,7 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
 
         esp_http_client_config_t config = {
             .url = current_url,
-            .method = use_head ? HTTP_METHOD_HEAD : HTTP_METHOD_GET,
+            .method = HTTP_METHOD_GET,
             .event_handler = http_event_handler,
             .user_data = &ctx,
             .crt_bundle_attach = esp_crt_bundle_attach,
@@ -160,7 +167,7 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
             .buffer_size = 2048,    // margine per intestazioni lunghe (URL firmati con token SAS)
             .buffer_size_tx = 2048,
         };
-        ESP_LOGI(TAG, "Hop %d: %s %.100s%s", hop + 1, use_head ? "HEAD" : "GET",
+        ESP_LOGI(TAG, "Hop %d: GET%s %.100s%s", hop + 1, minimal_range ? " (range 0-0)" : "",
                  current_url, strlen(current_url) > 100 ? "..." : "");
 
         esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -171,6 +178,9 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
         // 457 byte "ricevuti" ma vuoti/non stampabili). Si richiede
         // esplicitamente contenuto non compresso.
         esp_http_client_set_header(client, "Accept-Encoding", "identity");
+        if (minimal_range) {
+            esp_http_client_set_header(client, "Range", "bytes=0-0");
+        }
         esp_err_t err = esp_http_client_perform(client);
         int status = esp_http_client_get_status_code(client);
         int64_t content_len = esp_http_client_get_content_length(client);
@@ -308,9 +318,10 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
     }
 
     // Risolve prima eventuali redirect (es. GitHub Releases "latest") a
-    // mano con una HEAD, cosi' esp_https_ota() sotto riceve gia' l'URL
-    // finale e non deve seguirne lui stesso (stesso motivo del redirect
-    // manuale in online_update_check() sopra).
+    // mano (range minimo, non HEAD - vedi commento su
+    // http_fetch_following_redirects() sopra), cosi' esp_https_ota() sotto
+    // riceve gia' l'URL finale e non deve seguirne lui stesso (stesso
+    // motivo del redirect manuale in online_update_check() sopra).
     // Non ci si affida allo status HTTP (vedi il commento in
     // online_update_check() sopra: il CDN di GitHub Releases puo'
     // restituire uno status non valido pur avendo risposto correttamente)
