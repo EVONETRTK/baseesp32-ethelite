@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.4.9
+
+- Fix: i redirect ora funzionano (confermato: 2 hop seguiti correttamente fino al CDN di GitHub), ma l'URL finale firmato (token SAS, molto lungo) veniva troncato dai buffer da 256 byte, causando una richiesta corrotta. Buffer portati a 600 byte, piu' margine sui buffer HTTP interni (2048 byte).
+
 ## 1.4.8
 
 - Fix: la risposta 302 di GitHub arrivava correttamente ma esp_http_client_get_header() non trovava l'header Location dopo esp_http_client_perform() (confermato su hardware: "Redirect (status 302) senza header Location"). L'header ora viene catturato durante la ricezione, tramite il gestore eventi HTTP_EVENT_ON_HEADER, non piu' letto a posteriori.

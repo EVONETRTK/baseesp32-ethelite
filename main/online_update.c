@@ -23,11 +23,18 @@ static const char *TAG = "online_update";
 // risposta 302 di GitHub nonostante l'header sia effettivamente presente
 // (la richiesta funziona, arriva un 302 genuino - solo la lettura post
 // hoc dell'header fallisce).
+// 600 byte: gli URL firmati verso cui GitHub reindirizza (Azure Blob
+// Storage, con token SAS nella query string) sono lunghi diverse
+// centinaia di caratteri - un buffer da 256 li tronca a meta',
+// confermato su hardware reale (richiesta corrotta con la URL tagliata,
+// status di risposta non valido).
+#define MAX_URL_LEN 600
+
 typedef struct {
     char *buf;
     size_t size;
     size_t used;
-    char location[256];
+    char location[MAX_URL_LEN];
 } http_download_ctx_t;
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
@@ -67,7 +74,7 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
                                            char *out_final_url, size_t out_final_url_size,
                                            char *body_buf, size_t body_buf_size)
 {
-    char current_url[256];
+    char current_url[MAX_URL_LEN];
     strncpy(current_url, url, sizeof(current_url) - 1);
     current_url[sizeof(current_url) - 1] = '\0';
 
@@ -85,6 +92,8 @@ static int http_fetch_following_redirects(const char *url, bool use_head,
             .crt_bundle_attach = esp_crt_bundle_attach,
             .timeout_ms = 10000,
             .disable_auto_redirect = true,
+            .buffer_size = 2048,    // margine per intestazioni lunghe (URL firmati con token SAS)
+            .buffer_size_tx = 2048,
         };
         esp_http_client_handle_t client = esp_http_client_init(&config);
         esp_err_t err = esp_http_client_perform(client);
@@ -192,7 +201,7 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
     // mano con una HEAD, cosi' esp_https_ota() sotto riceve gia' l'URL
     // finale e non deve seguirne lui stesso (stesso motivo del redirect
     // manuale in online_update_check() sopra).
-    char resolved_url[256];
+    char resolved_url[MAX_URL_LEN];
     int status = http_fetch_following_redirects(firmware_url, true, resolved_url, sizeof(resolved_url), NULL, 0);
     if (status != 200) {
         ESP_LOGW(TAG, "Impossibile risolvere l'URL del firmware: status=%d", status);
@@ -205,6 +214,8 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
         .crt_bundle_attach = esp_crt_bundle_attach,
         .timeout_ms = 30000,
         .keep_alive_enable = true,
+        .buffer_size = 2048,
+        .buffer_size_tx = 2048,
     };
     esp_https_ota_config_t ota_config = {
         .http_config = &http_config,
