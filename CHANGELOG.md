@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.6
+
+- Nessun cambio funzionale: build di test per verificare il download/installazione reale (non solo il controllo) dell'aggiornamento online, dopo che v1.5.5 ha risolto la catena di controllo.
+
 ## 1.5.5
 
 - Fix (vera causa, confermata dal log completo): l'URL firmato finale include anche un token JWT lungo, per un totale ben oltre i 600 byte gia' aumentati - confermato troncato a meta' del JWT nel log, producendo una richiesta malformata verso il CDN. Buffer URL portato a 1536 byte.
