@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>baseesp32</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 680px; margin: 1.5rem auto; padding: 0 1rem; background:#f6f7f9; color:#1a1a1a; }
+  h1 { font-size: 1.3rem; margin-bottom: .8rem; }
+  nav.tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom: 1rem; }
+  nav.tabs button { padding:.5rem .9rem; border:1px solid #c5c9d0; background:#fff; border-radius:6px; cursor:pointer; font-size:.9rem; }
+  nav.tabs button.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+  .page { display:none; }
+  .page.active { display:block; }
+  fieldset { border: 1px solid #d0d3d8; border-radius: 8px; margin-bottom: 1.2rem; padding: 1rem; background: #fff; }
+  legend { font-weight: 600; padding: 0 .4rem; }
+  label { display:block; margin-top:.6rem; font-size:.9rem; color:#333; }
+  input, select { width:100%; padding:.5rem; margin-top:.2rem; box-sizing:border-box; border:1px solid #c5c9d0; border-radius:6px; font-size:1rem; }
+  button.action { padding:.6rem 1.2rem; border:none; border-radius:6px; background:#2563eb; color:#fff; font-size:1rem; cursor:pointer; margin-top:1rem; }
+  button.secondary { background:#6b7280; margin-left:.5rem; }
+  dl.kv { display:grid; grid-template-columns:auto 1fr; gap:.3rem .8rem; margin:0; font-size:.9rem; }
+  dl.kv dt { color:#666; }
+  #save-msg { margin-top:.6rem; font-size:.9rem; }
+  small.hint { display:block; color:#888; margin-top:.2rem; }
+  .sig-bar-track { background:#e5e7eb; border-radius:4px; height:10px; overflow:hidden; margin-top:.3rem; }
+  .sig-bar-fill { background:#2563eb; height:100%; }
+  canvas#sat-chart { width:100%; height:180px; background:#fff; border:1px solid #d0d3d8; border-radius:8px; }
+  .legend-dot { display:inline-block; width:.7rem; height:.7rem; border-radius:50%; margin-right:.3rem; vertical-align:middle; }
+  .legend-row { font-size:.85rem; margin-top:.4rem; }
+</style>
+</head>
+<body>
+<h1>baseesp32 &mdash; EVONETRTK</h1>
+
+<nav class="tabs">
+  <button type="button" data-page="page-status" class="active">Stato</button>
+  <button type="button" data-page="page-network">Rete</button>
+  <button type="button" data-page="page-gnss">GNSS &amp; NTRIP</button>
+  <button type="button" data-page="page-security">Sicurezza</button>
+  <button type="button" data-page="page-signals">Segnali</button>
+  <button type="button" data-page="page-hardware">Hardware</button>
+</nav>
+
+<form id="cfg-form">
+
+<div id="page-status" class="page active">
+  <fieldset>
+    <legend>Stato</legend>
+    <dl class="kv">
+      <dt>Modalita'</dt><dd id="st-mode">-</dd>
+      <dt>Rete attiva</dt><dd id="st-net">-</dd>
+      <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
+      <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
+    </dl>
+    <small class="hint">
+      Questa scheda (ESP32-S3) non ha Bluetooth Classic (solo BLE, non
+      implementata): l'uscita dati per AgOpenGPS/AgIO in modalita' rover
+      e' solo broadcast UDP via WiFi/Ethernet, funziona su qualunque
+      piattaforma incluso iOS.
+    </small>
+  </fieldset>
+  <button type="button" class="action secondary" id="reboot-btn">Riavvia dispositivo</button>
+</div>
+
+<div id="page-network" class="page">
+  <fieldset>
+    <legend>Connettivita'</legend>
+    <label>Connettivita' da usare
+      <select name="network_mode">
+        <option value="both">WiFi con fallback cellulare (consigliato)</option>
+        <option value="wifi">Solo WiFi (ignora il modem cellulare anche se collegato)</option>
+        <option value="cellular">Solo cellulare (ignora il WiFi station)</option>
+      </select>
+      <small class="hint">L'AP di setup di questa pagina resta sempre attivo in ogni caso. L'Ethernet, se abilitata via menuconfig, e' indipendente da questa scelta.</small>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>WiFi</legend>
+    <label>SSID<input name="wifi_ssid"></label>
+    <label>Password<input name="wifi_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Rete cellulare (slot LTE)</legend>
+    <label>Modulo modem montato
+      <select name="cellular_is_sim868">
+        <option value="false">SIM7600X</option>
+        <option value="true">SIM868</option>
+      </select>
+      <small class="hint">Stesso slot/pin fisici, ma sequenza di accensione e comandi AT diversi secondo il modulo.</small>
+    </label>
+    <label>APN operatore SIM<input name="cellular_apn"></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Rete di setup (AP di questo dispositivo)</legend>
+    <label>SSID AP<input name="ap_ssid"></label>
+    <label>Password AP<input name="ap_password" type="password" placeholder="lascia vuoto per non modificare">
+      <small class="hint">Minimo 8 caratteri. Se l'AP non ha mai avuto una password impostata, resta aperto.</small>
+    </label>
+  </fieldset>
+</div>
+
+<div id="page-gnss" class="page">
+  <fieldset>
+    <legend>Modalita' operativa</legend>
+    <label>Funzione del dispositivo
+      <select name="device_mode">
+        <option value="base">Base (invia correzioni RTCM3 al caster)</option>
+        <option value="rover">Rover (riceve correzioni RTCM3 dal caster)</option>
+      </select>
+    </label>
+    <label>Chip GNSS collegato
+      <select name="gnss_chip">
+        <option value="ublox">u-blox (es. ZED-F9P)</option>
+        <option value="unicore">Unicore (es. UM980/UM982)</option>
+      </select>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Caster EVONETRTK (NTRIP)</legend>
+    <label>Host<input name="ntrip_host"></label>
+    <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
+    <label>Mountpoint<input name="ntrip_mountpoint"></label>
+    <label>Username <small class="hint">(solo modalita' rover)</small><input name="ntrip_username"></label>
+    <label>Password / codice sorgente<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Uscita dati per software di guida (solo modalita' rover)</legend>
+    <label>Porta UDP broadcast NMEA<input name="nmea_udp_port" type="number" min="1" max="65535"></label>
+    <small class="hint">
+      In modalita' rover, ogni riga NMEA emessa dal GNSS (posizione, satelliti, ecc.) viene
+      trasmessa in broadcast UDP su questa porta, su tutte le reti attive (AP di setup, WiFi,
+      Ethernet se abilitata) - per software come AgOpenGPS/AgIO. Verifica che la porta
+      corrisponda a quella configurata lato AgIO.
+    </small>
+  </fieldset>
+</div>
+
+<div id="page-security" class="page">
+  <fieldset>
+    <legend>Sicurezza</legend>
+    <label>Codice di accesso a questa pagina<input name="admin_code" type="password" placeholder="lascia vuoto per non modificare">
+      <small class="hint">Utente "admin", protegge tutta questa interfaccia. Default di fabbrica: 1234 - cambialo alla prima configurazione.</small>
+    </label>
+  </fieldset>
+</div>
+
+<div id="page-signals" class="page">
+  <fieldset>
+    <legend>Satelliti GNSS (C/N0 per satellite)</legend>
+    <canvas id="sat-chart" width="620" height="180"></canvas>
+    <div class="legend-row">
+      <span class="legend-dot" style="background:#2563eb"></span>GPS
+      <span class="legend-dot" style="background:#dc2626; margin-left:.8rem"></span>GLONASS
+      <span class="legend-dot" style="background:#16a34a; margin-left:.8rem"></span>Galileo
+      <span class="legend-dot" style="background:#d97706; margin-left:.8rem"></span>BeiDou
+      <span class="legend-dot" style="background:#6b7280; margin-left:.8rem"></span>altro
+    </div>
+    <small class="hint">Dati letti dalle sentenze $xxGSV emesse dal GNSS - popolato solo in modalita' rover, mentre il ricevitore trasmette NMEA.</small>
+  </fieldset>
+
+  <fieldset>
+    <legend>Qualita' delle connessioni</legend>
+    <label>WiFi (RSSI)</label>
+    <div class="sig-bar-track"><div class="sig-bar-fill" id="wifi-sig-bar" style="width:0%"></div></div>
+    <small class="hint" id="wifi-sig-text">-</small>
+
+    <label style="margin-top:1rem">Cellulare (RSSI)</label>
+    <div class="sig-bar-track"><div class="sig-bar-fill" id="cell-sig-bar" style="width:0%"></div></div>
+    <small class="hint" id="cell-sig-text">-</small>
+    <dl class="kv" style="margin-top:.6rem">
+      <dt>Operatore</dt><dd id="cell-operator">-</dd>
+      <dt>Tecnologia</dt><dd id="cell-tech">-</dd>
+    </dl>
+    <small class="hint">
+      Il modem attuale (SIM868) supporta solo 2G (GSM/EDGE) - non ha hardware 3G/4G/5G.
+      Il campo "Tecnologia" e' comunque generico e mostrera' automaticamente 3G/4G/5G se in
+      futuro si passa a un modem piu' recente basato sullo stesso framework.
+    </small>
+  </fieldset>
+</div>
+
+<div id="page-hardware" class="page">
+  <fieldset>
+    <legend>Antenna GNSS (u-blox/Unicore)</legend>
+    <label>UART ESP32
+      <select name="gnss_uart_num">
+        <option value="0">UART0</option>
+        <option value="1">UART1</option>
+        <option value="2">UART2</option>
+      </select>
+    </label>
+    <label>GPIO TX (ESP32 &rarr; GNSS)<input name="gnss_uart_tx_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO RX (GNSS &rarr; ESP32, riceve RTCM3)<input name="gnss_uart_rx_pin" type="number" min="-1" max="48"></label>
+    <label>Baud rate<input name="gnss_uart_baud" type="number" min="4800"></label>
+    <small class="hint">Pin verso il modulo GNSS esterno - variano per installazione. Richiede un riavvio per applicarsi.</small>
+  </fieldset>
+
+  <fieldset>
+    <legend>LED RGB (opzionale)</legend>
+    <label>Tipo di LED
+      <select name="rgb_led_mode">
+        <option value="none">Nessuno</option>
+        <option value="ws2812">WS2812 / NeoPixel (1 pin dati)</option>
+        <option value="pwm3">3 pin separati R/G/B (PWM)</option>
+      </select>
+    </label>
+    <label>GPIO dati WS2812<input name="rgb_led_ws2812_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Rosso (PWM)<input name="rgb_led_pwm_r_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Verde (PWM)<input name="rgb_led_pwm_g_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Blu (PWM)<input name="rgb_led_pwm_b_pin" type="number" min="-1" max="48"></label>
+    <label style="display:flex; align-items:center; gap:.4rem">
+      <input name="rgb_led_pwm_active_low" type="checkbox" style="width:auto; margin:0">
+      Logica invertita (catodo comune verso i GPIO)
+    </label>
+    <small class="hint">-1 su un pin = non usato/non applicabile al tipo scelto. Richiede un riavvio.</small>
+  </fieldset>
+
+  <fieldset>
+    <legend>Display OLED (opzionale, 128x64 I2C)</legend>
+    <label>Controller
+      <select name="oled_is_sh1106">
+        <option value="false">SSD1306 (tipico nei moduli da 0,96")</option>
+        <option value="true">SH1106 (tipico nei moduli da 1,3")</option>
+      </select>
+      <small class="hint">Se l'immagine esce distorta o scorretta, prova a cambiare questa scelta.</small>
+    </label>
+    <label>GPIO SDA<input name="oled_sda_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO SCL<input name="oled_scl_pin" type="number" min="-1" max="48"></label>
+    <label>Indirizzo I2C (decimale)<input name="oled_i2c_addr" type="number" min="1" max="255"></label>
+    <small class="hint" id="oled-addr-hex"></small>
+    <small class="hint">
+      Indirizzo tipico 60 (0x3C, esadecimale); alcuni cloni rispondono su 61 (0x3D). -1 su SDA/SCL
+      = display non presente. All'avvio mostra "EVONET RTK" per qualche secondo, poi alterna stato
+      dispositivo, satelliti per costellazione e segnale cellulare/WiFi. Richiede un riavvio.
+    </small>
+    <label style="display:flex; align-items:center; gap:.4rem; margin-top:.8rem">
+      <input name="oled_flip_h" type="checkbox" style="width:auto; margin:0">
+      Testo/immagine a specchio (inverti orizzontale)
+    </label>
+    <label style="display:flex; align-items:center; gap:.4rem">
+      <input name="oled_flip_v" type="checkbox" style="width:auto; margin:0">
+      Display sottosopra (inverti verticale)
+    </label>
+    <small class="hint">
+      L'orientamento dipende da come il singolo modulo e' cablato internamente - non c'e' un
+      valore giusto universale, prova e guarda il risultato. Richiede un riavvio.
+    </small>
+  </fieldset>
+</div>
+
+<button type="submit" class="action">Salva e riavvia</button>
+</form>
+
+<div id="save-msg"></div>
+
+<script>
+document.querySelectorAll('nav.tabs button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.page).classList.add('active');
+  });
+});
+
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const s = await r.json();
+
+    document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
+    document.getElementById('st-net').textContent = s.net;
+    document.getElementById('st-bytes').textContent = s.rtcm_bytes;
+    document.getElementById('st-last').textContent = s.last_rtcm_us
+      ? new Date(s.last_rtcm_us / 1000).toLocaleTimeString()
+      : 'mai';
+    const f = document.getElementById('cfg-form');
+    if (!f.dataset.touched) {
+      f.wifi_ssid.value = s.wifi_ssid || '';
+      f.cellular_apn.value = s.cellular_apn || '';
+      f.cellular_is_sim868.value = s.cellular_is_sim868 ? 'true' : 'false';
+      f.ntrip_host.value = s.ntrip_host || '';
+      f.ntrip_port.value = s.ntrip_port || '';
+      f.ntrip_mountpoint.value = s.ntrip_mountpoint || '';
+      f.ntrip_username.value = s.ntrip_username || '';
+      f.nmea_udp_port.value = s.nmea_udp_port || '';
+      f.gnss_chip.value = s.gnss_chip || 'ublox';
+      f.device_mode.value = s.device_mode || 'base';
+      f.network_mode.value = s.network_mode || 'both';
+      f.ap_ssid.value = s.ap_ssid || '';
+
+      f.gnss_uart_num.value = s.gnss_uart_num ?? 2;
+      f.gnss_uart_tx_pin.value = s.gnss_uart_tx_pin ?? -1;
+      f.gnss_uart_rx_pin.value = s.gnss_uart_rx_pin ?? -1;
+      f.gnss_uart_baud.value = s.gnss_uart_baud ?? 115200;
+      f.rgb_led_mode.value = s.rgb_led_mode || 'none';
+      f.rgb_led_ws2812_pin.value = s.rgb_led_ws2812_pin ?? -1;
+      f.rgb_led_pwm_r_pin.value = s.rgb_led_pwm_r_pin ?? -1;
+      f.rgb_led_pwm_g_pin.value = s.rgb_led_pwm_g_pin ?? -1;
+      f.rgb_led_pwm_b_pin.value = s.rgb_led_pwm_b_pin ?? -1;
+      f.rgb_led_pwm_active_low.checked = !!s.rgb_led_pwm_active_low;
+      f.oled_sda_pin.value = s.oled_sda_pin ?? -1;
+      f.oled_scl_pin.value = s.oled_scl_pin ?? -1;
+      f.oled_i2c_addr.value = s.oled_i2c_addr ?? 60;
+      f.oled_is_sh1106.value = s.oled_is_sh1106 ? 'true' : 'false';
+      f.oled_flip_h.checked = !!s.oled_flip_h;
+      f.oled_flip_v.checked = !!s.oled_flip_v;
+      updateOledAddrHex();
+    }
+  } catch (e) {
+    document.getElementById('st-net').textContent = 'errore lettura stato';
+  }
+}
+
+const SAT_COLORS = { GP: '#2563eb', GL: '#dc2626', GA: '#16a34a', GB: '#d97706' };
+
+function drawSatChart(sats) {
+  const canvas = document.getElementById('sat-chart');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  if (!sats.length) {
+    ctx.fillStyle = '#999';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Nessun dato satellitare (serve modalita\' rover con GNSS collegato)', w / 2, h / 2);
+    return;
+  }
+
+  sats.sort((a, b) => (a.constellation + a.prn).localeCompare(b.constellation + b.prn));
+
+  const maxSnr = 55;
+  const baseline = h - 18;
+  const gap = 4;
+  const barW = Math.max(6, Math.floor(w / sats.length) - gap);
+
+  sats.forEach((sat, i) => {
+    const x = i * (barW + gap) + gap;
+    const barH = Math.max(2, Math.min(baseline - 4, (sat.snr / maxSnr) * (baseline - 4)));
+    ctx.fillStyle = SAT_COLORS[sat.constellation] || '#6b7280';
+    ctx.fillRect(x, baseline - barH, barW, barH);
+    ctx.fillStyle = '#333';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(sat.prn), x + barW / 2, h - 6);
+  });
+}
+
+function rssiToPercent(dbm, min, max) {
+  if (dbm === null || dbm === undefined) return null;
+  return Math.max(0, Math.min(100, ((dbm - min) / (max - min)) * 100));
+}
+
+function setSignalBar(barId, textId, dbm, min, max, label) {
+  const pct = rssiToPercent(dbm, min, max);
+  document.getElementById(barId).style.width = (pct === null ? 0 : pct) + '%';
+  document.getElementById(textId).textContent = (dbm === null || dbm === undefined)
+    ? (label + ': non disponibile')
+    : (label + ': ' + dbm + ' dBm');
+}
+
+async function loadSignals() {
+  try {
+    const r = await fetch('/api/signals');
+    const s = await r.json();
+    drawSatChart(s.satellites || []);
+    setSignalBar('wifi-sig-bar', 'wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
+    setSignalBar('cell-sig-bar', 'cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
+    document.getElementById('cell-operator').textContent = s.cellular_operator || 'non registrato';
+    document.getElementById('cell-tech').textContent = s.cellular_tech || '-';
+  } catch (e) {
+    // pagina segnali non visibile o rete assente: si ritenta al giro dopo
+  }
+}
+
+document.getElementById('cfg-form').addEventListener('input', (ev) => {
+  ev.currentTarget.dataset.touched = '1';
+});
+
+function updateOledAddrHex() {
+  const f = document.getElementById('cfg-form');
+  const n = Number(f.oled_i2c_addr.value);
+  document.getElementById('oled-addr-hex').textContent = Number.isFinite(n)
+    ? ('Equivale a 0x' + n.toString(16).toUpperCase())
+    : '';
+}
+document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', updateOledAddrHex);
+
+document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const data = Object.fromEntries(new FormData(f).entries());
+  data.ntrip_port = Number(data.ntrip_port);
+  data.nmea_udp_port = Number(data.nmea_udp_port);
+  data.gnss_uart_num = Number(data.gnss_uart_num);
+  data.gnss_uart_tx_pin = Number(data.gnss_uart_tx_pin);
+  data.gnss_uart_rx_pin = Number(data.gnss_uart_rx_pin);
+  data.gnss_uart_baud = Number(data.gnss_uart_baud);
+  data.rgb_led_ws2812_pin = Number(data.rgb_led_ws2812_pin);
+  data.rgb_led_pwm_r_pin = Number(data.rgb_led_pwm_r_pin);
+  data.rgb_led_pwm_g_pin = Number(data.rgb_led_pwm_g_pin);
+  data.rgb_led_pwm_b_pin = Number(data.rgb_led_pwm_b_pin);
+  data.rgb_led_pwm_active_low = f.rgb_led_pwm_active_low.checked;
+  data.oled_sda_pin = Number(data.oled_sda_pin);
+  data.oled_scl_pin = Number(data.oled_scl_pin);
+  data.oled_i2c_addr = Number(data.oled_i2c_addr);
+  data.oled_is_sh1106 = (data.oled_is_sh1106 === 'true');
+  data.oled_flip_h = f.oled_flip_h.checked;
+  data.oled_flip_v = f.oled_flip_v.checked;
+  data.cellular_is_sim868 = (data.cellular_is_sim868 === 'true');
+
+  const msg = document.getElementById('save-msg');
+  msg.textContent = 'Salvataggio...';
+  try {
+    const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
+    if (!r.ok) throw new Error('errore server');
+    msg.textContent = 'Salvato. Riavvio in corso, la pagina potrebbe non rispondere per qualche secondo...';
+    await fetch('/api/reboot', { method: 'POST' });
+  } catch (e) {
+    msg.textContent = 'Errore nel salvataggio';
+  }
+});
+
+document.getElementById('reboot-btn').addEventListener('click', async () => {
+  document.getElementById('save-msg').textContent = 'Riavvio...';
+  try { await fetch('/api/reboot', { method: 'POST' }); } catch (e) {}
+});
+
+loadStatus();
+loadSignals();
+setInterval(loadStatus, 5000);
+setInterval(loadSignals, 3000);
+</script>
+</body>
+</html>

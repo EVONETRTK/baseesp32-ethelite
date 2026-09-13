@@ -1,0 +1,302 @@
+menu "baseesp32-ethelite Configuration"
+
+    config BASEESP32_WIFI_SSID
+        string "WiFi SSID"
+        default "myssid"
+
+    config BASEESP32_WIFI_PASSWORD
+        string "WiFi Password"
+        default "mypassword"
+
+    config BASEESP32_NTRIP_HOST
+        string "EVONETRTK caster host"
+        default "caster.example.com"
+
+    config BASEESP32_NTRIP_PORT
+        int "EVONETRTK caster port"
+        default 2101
+
+    config BASEESP32_NTRIP_MOUNTPOINT
+        string "NTRIP mountpoint (nome base)"
+        default "BASE01"
+
+    config BASEESP32_NTRIP_PASSWORD
+        string "NTRIP source password"
+        default ""
+
+    config BASEESP32_GNSS_UART_NUM
+        int "GNSS UART port number"
+        default 2
+
+    config BASEESP32_GNSS_UART_TX_PIN
+        int "GNSS UART TX GPIO (ESP32 -> GNSS)"
+        default 42
+        help
+            Valore dal repository ufficiale LilyGO (LilyGo-Modem-Series,
+            utilities.h, blocco LILYGO_T_ETH_ELITE, GPS_TX_PIN) - il pin
+            pensato dalla scheda stessa per un ricevitore GPS/GNSS esterno,
+            non un pin scelto arbitrariamente.
+
+    config BASEESP32_GNSS_UART_RX_PIN
+        int "GNSS UART RX GPIO (GNSS -> ESP32, riceve RTCM3)"
+        default 39
+        help
+            Valore dal repository ufficiale (GPS_RX_PIN), stessa fonte del
+            campo TX sopra.
+
+    config BASEESP32_GNSS_UART_BAUD
+        int "GNSS UART baud rate"
+        default 115200
+
+    config BASEESP32_WIFI_CONNECT_TIMEOUT_MS
+        int "Timeout tentativo WiFi (ms) prima del fallback su GPRS"
+        default 15000
+
+    config BASEESP32_CELLULAR_ENABLE
+        bool "Abilita fallback cellulare via modem SIM7600X se il WiFi non e' disponibile"
+        default y
+
+    config BASEESP32_CELLULAR_APN
+        string "APN dell'operatore SIM"
+        default "internet"
+        depends on BASEESP32_CELLULAR_ENABLE
+
+    config BASEESP32_CELLULAR_MODEM_IS_SIM868
+        bool "Modulo montato nello slot LTE e' un SIM868 invece di SIM7600X"
+        default y
+        depends on BASEESP32_CELLULAR_ENABLE
+        help
+            Lo slot LTE della T-ETH-Elite e' elettricamente lo stesso (pin
+            TX/RX/PWRKEY/DTR fissi) per qualunque shield compatibile ci si
+            innesti, ma profilo AT e sequenza di accensione cambiano
+            secondo il modulo fisico. SIM7600X e' l'hardware scelto per
+            questo progetto (default a lungo termine); SIM868 e' qui solo
+            per riutilizzare/testare il modulo del progetto gemello
+            baseesp32/T-Internet-COM, li' risultato difettoso hardware (due
+            SIM diverse, stesso fallimento) - utile verificare se il
+            difetto era del modulo stesso o dello slot di quella scheda.
+            Impostabile anche dalla UI web (scheda Rete) senza ricompilare.
+
+    config BASEESP32_CELLULAR_UART_NUM
+        int "UART verso il modem SIM7600X"
+        default 1
+        depends on BASEESP32_CELLULAR_ENABLE
+
+    config BASEESP32_CELLULAR_UART_TX_PIN
+        int "GPIO TX verso il modem (ESP32 -> modem)"
+        default 6
+        depends on BASEESP32_CELLULAR_ENABLE
+        help
+            Valore preso dal repository ufficiale LilyGO
+            (Xinyuan-LilyGO/LilyGo-Modem-Series, utilities.h, blocco
+            LILYGO_T_ETH_ELITE, MODEM_TX_PIN) per lo shield LTE H744-02
+            sulla T-ETH-Elite. Mai verificato su hardware reale: il modulo
+            SIM7600X fisico non era ancora disponibile al momento di
+            scrivere questo firmware.
+
+    config BASEESP32_CELLULAR_UART_RX_PIN
+        int "GPIO RX dal modem (modem -> ESP32)"
+        default 4
+        depends on BASEESP32_CELLULAR_ENABLE
+        help
+            Valore dal repository ufficiale (MODEM_RX_PIN), stesse
+            avvertenze del campo TX sopra.
+
+    config BASEESP32_CELLULAR_UART_BAUD
+        int "Baud rate UART modem"
+        default 115200
+        depends on BASEESP32_CELLULAR_ENABLE
+
+    config BASEESP32_CELLULAR_PWRKEY_PIN
+        int "GPIO collegato a PWRKEY del modem (-1 se non usato)"
+        default 3
+        depends on BASEESP32_CELLULAR_ENABLE
+        help
+            Valore dal repository ufficiale (BOARD_PWRKEY_PIN per
+            LILYGO_T_ETH_ELITE). La sequenza di accensione (basso, 100ms,
+            alto, 500ms, basso, poi fino a 15s di attesa) e' specifica per
+            il SIM7600 - vedi cellular_link.c.
+
+    config BASEESP32_CELLULAR_DTR_PIN
+        int "GPIO DTR verso il modem (-1 se non usato)"
+        default 5
+        depends on BASEESP32_CELLULAR_ENABLE
+        help
+            Valore dal repository ufficiale (MODEM_DTR_PIN). Tenuto basso
+            all'avvio per evitare che il modem entri in sleep - segnale
+            che il modem SIM868 della T-Internet-COM non usava.
+
+    config BASEESP32_NET_RETRY_DELAY_MS
+        int "Attesa (ms) prima di ritentare dopo che ne' WiFi ne' cellulare sono disponibili"
+        default 10000
+
+    config BASEESP32_LED_NET_PIN
+        int "GPIO del LED di stato rete (-1 per disabilitare)"
+        default 38
+        help
+            Acceso fisso quando WiFi o cellulare sono connessi,
+            lampeggiante lento mentre il dispositivo cerca una rete.
+            Default 38: il LED integrato nella T-ETH-Elite (BOARD_LED_PIN
+            nel repository ufficiale), attivo alto.
+
+    config BASEESP32_LED_DATA_PIN
+        int "GPIO del LED di attivita' dati RTCM (-1 per disabilitare)"
+        default -1
+        help
+            Lampeggia ad ogni pacchetto RTCM3 inviato (base) o ricevuto
+            (rover) dalla/verso il caster. Nessun secondo LED integrato
+            noto su questa scheda: serve un LED esterno se abilitato.
+
+    config BASEESP32_LED_ACTIVE_LOW
+        bool "LED con logica attiva-bassa (catodo verso il GPIO)"
+        default n
+        help
+            Il LED integrato della T-ETH-Elite e' attivo ALTO (LED_ON =
+            HIGH nel repository ufficiale): lasciare disattivato per il
+            default (GPIO38). Attivare solo per un LED esterno con logica
+            invertita.
+
+    config BASEESP32_RGB_WS2812_PIN
+        int "GPIO dati verso un LED RGB WS2812/NeoPixel (-1 se non presente)"
+        default -1
+        help
+            Solo default iniziale: tipo di LED RGB, pin e colori si
+            impostano poi dalla UI web (scheda Hardware), non serve
+            ricompilare per cambiarli.
+
+    config BASEESP32_RGB_PWM_R_PIN
+        int "GPIO canale rosso di un LED RGB a 3 pin PWM (-1 se non presente)"
+        default -1
+
+    config BASEESP32_RGB_PWM_G_PIN
+        int "GPIO canale verde di un LED RGB a 3 pin PWM (-1 se non presente)"
+        default -1
+
+    config BASEESP32_RGB_PWM_B_PIN
+        int "GPIO canale blu di un LED RGB a 3 pin PWM (-1 se non presente)"
+        default -1
+
+    config BASEESP32_OLED_SDA_PIN
+        int "GPIO SDA verso un display OLED SSD1306 128x64 (-1 se non presente)"
+        default 17
+        help
+            Default = BOARD_SDA_PIN dal repository ufficiale LilyGO
+            (LilyGo-Modem-Series, utilities.h, blocco LILYGO_T_ETH_ELITE):
+            il bus I2C effettivamente instradato su questa scheda, non un
+            pin scelto arbitrariamente. Pin comunque impostabili dalla UI
+            web (scheda Hardware) senza ricompilare, se il proprio display
+            va cablato diversamente. Se presente, il display alterna a
+            rotazione stato dispositivo/satelliti per costellazione/segnale
+            cellulare e WiFi - stesse informazioni gia' su web e LED RGB,
+            utili pero' sul campo senza dover aprire la UI dal telefono.
+            Un display non collegato non causa problemi: l'init I2C fallisce
+            silenziosamente (timeout brevi in avvio) e il task del display
+            resta semplicemente inattivo.
+
+    config BASEESP32_OLED_SCL_PIN
+        int "GPIO SCL verso il display OLED (-1 se non presente)"
+        default 18
+        help
+            Default = BOARD_SCL_PIN dal repository ufficiale, stessa fonte
+            del campo SDA sopra.
+
+    config BASEESP32_OLED_I2C_ADDR
+        hex "Indirizzo I2C del display OLED"
+        default 0x3C
+        help
+            0x3C e' il default sulla stragrande maggioranza dei moduli
+            SSD1306/SH1106; alcuni cloni rispondono su 0x3D.
+
+    config BASEESP32_OLED_FLIP_H
+        bool "Testo/grafica del display OLED a specchio in orizzontale (inverti)"
+        default n
+        help
+            L'orientamento (comando SSD1306/SH1106 "segment remap")
+            dipende da come il singolo modulo ha cablato SEG al vetro -
+            varia da produttore a produttore, non c'e' un valore giusto
+            universale, va provato guardando il display. Impostabile anche
+            dalla UI web (scheda Hardware) senza ricompilare.
+
+    config BASEESP32_OLED_FLIP_V
+        bool "Display OLED sottosopra (inverti scansione verticale)"
+        default y
+        help
+            Stesso discorso di FLIP_H ma per la direzione di scansione COM
+            (display capovolto invece che a specchio in orizzontale).
+
+    config BASEESP32_OLED_CONTROLLER_SH1106
+        bool "Il display OLED monta un controller SH1106 (tipico nei moduli da 1,3\") invece di SSD1306"
+        default y
+        help
+            I moduli OLED da 0,96" montano quasi sempre un controller
+            SSD1306; quelli da 1,3" quasi sempre un SH1106 (RAM interna
+            132x64, comandi di indirizzamento colonna/pagina diversi da
+            SSD1306, non basta trattarli allo stesso modo). Impostabile
+            anche dalla UI web (scheda Hardware) senza ricompilare - se
+            l'immagine esce distorta o scorretta, provare a cambiare
+            questa opzione.
+
+    config BASEESP32_RESET_BUTTON_PIN
+        int "GPIO del pulsante di reset configurazione (-1 per disabilitare)"
+        default -1
+        help
+            Pulsante verso massa (GND) con pull-up interno abilitato dal
+            firmware: tenendolo premuto per BASEESP32_RESET_BUTTON_HOLD_MS
+            la configurazione salvata in NVS viene cancellata e il
+            dispositivo riparte con i default di fabbrica.
+
+    config BASEESP32_RESET_BUTTON_HOLD_MS
+        int "Tempo di pressione (ms) per attivare il reset configurazione"
+        default 5000
+
+    config BASEESP32_ETHERNET_ENABLE
+        bool "Abilita interfaccia Ethernet (chip W5500 via SPI)"
+        default n
+        help
+            A differenza della T-Internet-COM (PHY LAN8720 via RMII, pin
+            dati fissati dall'hardware ESP32), qui il W5500 comunica via
+            SPI: tutti i pin sotto sono liberamente configurabili, presi
+            dal repository ufficiale LilyGO (LilyGo-Modem-Series,
+            utilities.h, blocco LILYGO_T_ETH_ELITE) ma mai verificati su
+            hardware reale in questo progetto. Disabilitato di default
+            finche' non testato.
+
+    config BASEESP32_ETH_SPI_MISO_PIN
+        int "GPIO MISO verso il W5500"
+        default 47
+        depends on BASEESP32_ETHERNET_ENABLE
+
+    config BASEESP32_ETH_SPI_MOSI_PIN
+        int "GPIO MOSI verso il W5500"
+        default 21
+        depends on BASEESP32_ETHERNET_ENABLE
+
+    config BASEESP32_ETH_SPI_SCLK_PIN
+        int "GPIO SCLK verso il W5500"
+        default 48
+        depends on BASEESP32_ETHERNET_ENABLE
+
+    config BASEESP32_ETH_SPI_CS_PIN
+        int "GPIO CS (chip select) verso il W5500"
+        default 45
+        depends on BASEESP32_ETHERNET_ENABLE
+
+    config BASEESP32_ETH_SPI_INT_PIN
+        int "GPIO INT (interrupt) verso il W5500"
+        default 14
+        depends on BASEESP32_ETHERNET_ENABLE
+
+    config BASEESP32_ETH_PHY_RST_PIN
+        int "GPIO reset del W5500 (-1 se non collegato)"
+        default -1
+        depends on BASEESP32_ETHERNET_ENABLE
+        help
+            Sullo shield ufficiale non risulta un pin di reset dedicato
+            per il W5500 (ETH_RST_PIN = -1 nel repository ufficiale).
+
+    config BASEESP32_ETH_PHY_ADDR
+        int "Indirizzo del W5500"
+        default 1
+        depends on BASEESP32_ETHERNET_ENABLE
+
+endmenu

@@ -1,0 +1,26 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "ntrip_client.c"
+        "net_manager.c"
+        "wifi_link.c"
+        "cellular_link.c"
+        "eth_link.c"
+        "settings.c"
+        "status.c"
+        "gnss_driver.c"
+        "gnss_ubx.c"
+        "gnss_unicore.c"
+        "gnss_signal.c"
+        "gnss_nmea_reader.c"
+        "nmea_udp_broadcast.c"
+        "ntrip_rover_client.c"
+        "status_led.c"
+        "rgb_led.c"
+        "oled_display.c"
+        "reset_button.c"
+        "web_ui.c"
+    INCLUDE_DIRS "."
+    EMBED_TXTFILES "web/index.html"
+    REQUIRES nvs_flash esp_wifi esp_netif esp_event driver json esp_http_server esp_modem mbedtls esp_timer esp_eth led_strip esp_driver_i2c
+)

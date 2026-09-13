@@ -1,0 +1,31 @@
+# Il supporto PPP di lwIP e' disattivato di default in ESP-IDF ma serve a
+# cellular_link.c (ESP_NETIF_DEFAULT_PPP(), usato per il dial-up dati via
+# SIM7600X attraverso esp_modem). Valori ripresi dall'esempio ufficiale
+# pppos_client di esp_modem (stessi usati con successo sul progetto
+# gemello baseesp32/T-Internet-COM).
+CONFIG_LWIP_PPP_SUPPORT=y
+CONFIG_LWIP_PPP_NOTIFY_PHASE_SUPPORT=y
+CONFIG_LWIP_PPP_PAP_SUPPORT=y
+CONFIG_LWIP_PPP_CHAP_SUPPORT=y
+CONFIG_LWIP_TCPIP_TASK_STACK_SIZE=4096
+CONFIG_LWIP_PPP_ENABLE_IPV6=n
+
+
+# Scheda con 16MB di flash reali (ESP32-S3R8): partizione app allargata a
+# 2MB (vedi partitions.csv) - qui non serve la partizione da 4MB del
+# progetto gemello perche' questa scheda non ha Bluetooth Classic (solo
+# BLE, non implementata), quindi niente stack Bluedroid pesante da
+# ospitare.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+
+# Il default (3584 byte) va in overflow: app_main() chiama net_manager_start()
+# che esegue esp_wifi_init()/wifi_link_init() (WiFi+mbedtls) in modo sincrono
+# sullo stack del task "main", prima ancora di creare net_manager_task -
+# confermato da un crash reale su hardware (T-ETH-Elite) con lo stack
+# default. Stesso valore usato dagli esempi ufficiali di esp_modem che
+# inizializzano il modem/mbedtls direttamente in app_main.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
