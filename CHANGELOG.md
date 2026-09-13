@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.12
+
+- Nessun cambio funzionale: build di test per verificare su hardware reale che la barra di avanzamento mostri l'esito corretto (non piu' bloccata) dopo un aggiornamento riuscito, a partire da un dispositivo gia' su 1.5.11.
+
 ## 1.5.11
 
 - Fix reale trovato: l'aggiornamento online in realta' funzionava gia' (confermato su hardware: il dispositivo si riavviava correttamente sulla nuova versione) - il problema era che l'asset del firmware sulle release GitHub non si chiamava mai davvero "firmware.bin" come da URL previsto (era rimasto "baseesp32-ethelite.bin", il nome del file locale: la sintassi `file#nome` di `gh release create` imposta solo un'etichetta visualizzata, non il nome scaricabile) - `firmware.bin` era un 404 reale su ogni release pubblicata finora. Da qui in avanti l'asset viene rinominato localmente prima della pubblicazione.
