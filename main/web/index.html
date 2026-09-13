@@ -600,6 +600,8 @@ document.getElementById('wifi-test-btn').addEventListener('click', async () => {
     return;
   }
   barTrack.style.display = 'none';
+  msg.style.color = '';
+  msg.style.fontWeight = '';
   msg.textContent = 'Connessione in corso (fino a 15s)...';
   try {
     const r = await fetch('/api/wifi/test-connect', {
@@ -608,10 +610,14 @@ document.getElementById('wifi-test-btn').addEventListener('click', async () => {
     });
     const s = await r.json();
     if (!s.connected) {
-      msg.textContent = 'Connessione fallita - verifica password/segnale (nessuna modifica salvata)';
+      msg.style.color = '#dc2626';
+      msg.style.fontWeight = '600';
+      msg.textContent = 'NON connesso - verifica password/segnale (nessuna modifica salvata)';
       return;
     }
-    msg.textContent = 'Connesso! Salvato automaticamente, nessun riavvio necessario.';
+    msg.style.color = '#16a34a';
+    msg.style.fontWeight = '600';
+    msg.textContent = 'CONNESSO - salvato automaticamente, nessun riavvio necessario.';
     try {
       const r2 = await fetch('/api/signals');
       const s2 = await r2.json();
@@ -626,6 +632,8 @@ document.getElementById('wifi-test-btn').addEventListener('click', async () => {
       // segnale non disponibile, non blocca la conferma di connessione
     }
   } catch (e) {
+    msg.style.color = '#dc2626';
+    msg.style.fontWeight = '600';
     msg.textContent = 'Errore di comunicazione col dispositivo';
   }
 });
@@ -657,6 +665,27 @@ document.getElementById('fw-online-btn').addEventListener('click', async () => {
   } catch (e) {
     msg.textContent = 'Errore di comunicazione col dispositivo';
   }
+});
+
+// Pulsante "Mostra/Nascondi" aggiunto automaticamente ad ogni campo
+// password della pagina - utile per verificare cosa si e' digitato prima
+// di salvare, specie con tastiere/autocorrezione poco affidabili.
+document.querySelectorAll('input[type="password"]').forEach((input) => {
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.textContent = 'Mostra';
+  toggleBtn.className = 'action secondary';
+  toggleBtn.style.cssText = 'margin-top:.3rem; padding:.3rem .6rem; font-size:.8rem;';
+  toggleBtn.addEventListener('click', () => {
+    if (input.type === 'password') {
+      input.type = 'text';
+      toggleBtn.textContent = 'Nascondi';
+    } else {
+      input.type = 'password';
+      toggleBtn.textContent = 'Mostra';
+    }
+  });
+  input.insertAdjacentElement('afterend', toggleBtn);
 });
 
 loadStatus();
