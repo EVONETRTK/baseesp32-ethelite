@@ -480,6 +480,83 @@ static esp_err_t ota_sd_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    if (req->content_len <= 0 || req->content_len > 256) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo non valido");
+        return ESP_FAIL;
+    }
+
+    char buf[257];
+    int received = 0;
+    while (received < req->content_len) {
+        int r = httpd_req_recv(req, buf + received, req->content_len - received);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+            return ESP_FAIL;
+        }
+        received += r;
+    }
+    buf[received] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON non valido");
+        return ESP_FAIL;
+    }
+    cJSON *ssid_item = cJSON_GetObjectItemCaseSensitive(root, "ssid");
+    if (!ssid_item || !cJSON_IsString(ssid_item) || strlen(ssid_item->valuestring) == 0) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "SSID mancante");
+        return ESP_FAIL;
+    }
+
+    char ssid[33];
+    strncpy(ssid, ssid_item->valuestring, sizeof(ssid) - 1);
+    ssid[sizeof(ssid) - 1] = '\0';
+
+    // Password vuota/assente = mantieni quella gia' salvata per questo
+    // SSID (stessa convenzione dei campi password nel resto della UI) -
+    // utile per ritestare una rete gia' configurata senza riscriverla.
+    char password[65];
+    cJSON *pass_item = cJSON_GetObjectItemCaseSensitive(root, "password");
+    if (pass_item && cJSON_IsString(pass_item) && strlen(pass_item->valuestring) > 0) {
+        strncpy(password, pass_item->valuestring, sizeof(password) - 1);
+        password[sizeof(password) - 1] = '\0';
+    } else {
+        app_settings_t existing = settings_get();
+        strncpy(password, existing.wifi_password, sizeof(password) - 1);
+        password[sizeof(password) - 1] = '\0';
+    }
+    cJSON_Delete(root);
+
+    ESP_LOGI(TAG, "Test connessione WiFi a '%s' richiesto dalla UI web", ssid);
+    bool connected = wifi_link_connect_with(ssid, password, 15000);
+
+    if (connected) {
+        app_settings_t s = settings_get();
+        strncpy(s.wifi_ssid, ssid, sizeof(s.wifi_ssid) - 1);
+        s.wifi_ssid[sizeof(s.wifi_ssid) - 1] = '\0';
+        strncpy(s.wifi_password, password, sizeof(s.wifi_password) - 1);
+        s.wifi_password[sizeof(s.wifi_password) - 1] = '\0';
+        settings_save(&s);
+        status_set_net(NET_STATUS_WIFI);
+        ESP_LOGI(TAG, "Connesso, credenziali salvate automaticamente");
+    }
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "connected", connected);
+    char *json = cJSON_PrintUnformatted(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(resp);
+    return ESP_OK;
+}
+
 static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -624,9 +701,11 @@ void web_ui_start(void)
     httpd_uri_t ota_check_uri  = { .uri = "/api/ota/check-online", .method = HTTP_POST, .handler = ota_check_online_post_handler };
     httpd_uri_t ota_apply_uri  = { .uri = "/api/ota/apply-online", .method = HTTP_POST, .handler = ota_apply_online_post_handler };
     httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
+    httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
+    httpd_register_uri_handler(server, &wifi_test_uri);
     httpd_register_uri_handler(server, &status_uri);
     httpd_register_uri_handler(server, &signals_uri);
     httpd_register_uri_handler(server, &settings_uri);

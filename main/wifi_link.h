@@ -12,6 +12,12 @@ void wifi_link_init(void);
 // all'ottenimento di un IP. Ritorna true se connesso.
 bool wifi_link_connect(uint32_t timeout_ms);
 
+// Come wifi_link_connect(), ma applica prima SSID/password forniti (non
+// quelli gia' salvati in settings) - permette alla UI web di testare una
+// rete subito, senza dover salvare e riavviare il dispositivo per
+// scoprire se le credenziali sono giuste.
+bool wifi_link_connect_with(const char *ssid, const char *password, uint32_t timeout_ms);
+
 // Ferma il WiFi (usato prima di passare al fallback cellulare).
 void wifi_link_disconnect(void);
 

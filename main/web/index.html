@@ -84,6 +84,12 @@
     <button type="button" class="action secondary" id="wifi-scan-btn" style="margin-top:.6rem">Cerca reti WiFi</button>
     <div id="wifi-scan-results" style="margin-top:.4rem"></div>
     <label>Password<input name="wifi_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <button type="button" class="action" id="wifi-test-btn" style="margin-top:.6rem">Connetti (senza riavviare)</button>
+    <div id="wifi-test-msg" class="hint" style="margin-top:.4rem"></div>
+    <small class="hint">
+      Prova subito la connessione con questo SSID/password, senza dover salvare e riavviare
+      per scoprire se sono giusti. Se funziona, viene salvata automaticamente.
+    </small>
   </fieldset>
 
   <fieldset>
@@ -563,6 +569,30 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
     });
   } catch (e) {
     results.textContent = 'Errore durante la ricerca reti';
+  }
+});
+
+document.getElementById('wifi-test-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('wifi-test-msg');
+  const f = document.getElementById('cfg-form');
+  const ssid = f.wifi_ssid.value;
+  const password = f.wifi_password.value;
+  if (!ssid) {
+    msg.textContent = 'Inserisci prima un SSID (o cercalo con "Cerca reti WiFi")';
+    return;
+  }
+  msg.textContent = 'Connessione in corso (fino a 15s)...';
+  try {
+    const r = await fetch('/api/wifi/test-connect', {
+      method: 'POST',
+      body: JSON.stringify({ ssid, password }),
+    });
+    const s = await r.json();
+    msg.textContent = s.connected
+      ? 'Connesso! Salvato automaticamente, nessun riavvio necessario.'
+      : 'Connessione fallita - verifica password/segnale (nessuna modifica salvata)';
+  } catch (e) {
+    msg.textContent = 'Errore di comunicazione col dispositivo';
   }
 });
 
