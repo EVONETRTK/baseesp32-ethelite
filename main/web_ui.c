@@ -1,5 +1,9 @@
 #include "web_ui.h"
+#include "version.h"
 #include "settings.h"
+#include "ota_update.h"
+#include "sd_update.h"
+#include "online_update.h"
 #include "status.h"
 #include "gnss_signal.h"
 #include "wifi_link.h"
@@ -62,7 +66,7 @@ static esp_err_t require_auth(httpd_req_t *req)
         return ESP_OK;
     }
     httpd_resp_set_status(req, "401 Unauthorized");
-    httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"baseesp32\"");
+    httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"EVONETRTK\"");
     httpd_resp_send(req, NULL, 0);
     return ESP_FAIL;
 }
@@ -137,6 +141,9 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "ntrip_mountpoint", s.ntrip_mountpoint);
     cJSON_AddStringToObject(root, "ntrip_username", s.ntrip_username);
     cJSON_AddStringToObject(root, "ap_ssid", s.ap_ssid);
+    cJSON_AddStringToObject(root, "device_serial", s.device_serial);
+    cJSON_AddStringToObject(root, "firmware_version", FIRMWARE_VERSION);
+    cJSON_AddStringToObject(root, "ota_update_url", s.ota_update_url);
     cJSON_AddNumberToObject(root, "nmea_udp_port", s.nmea_udp_port);
     // Bluetooth Classic (SPP) non disponibile su ESP32-S3 (solo BLE, non
     // implementata su questa scheda) - i campi bt_* non vengono inviati.
@@ -291,6 +298,8 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_field(root, "ap_ssid", s.ap_ssid, sizeof(s.ap_ssid));
     copy_field(root, "ap_password", s.ap_password, sizeof(s.ap_password));
     copy_field(root, "admin_code", s.admin_code, sizeof(s.admin_code));
+    copy_field(root, "device_serial", s.device_serial, sizeof(s.device_serial));
+    copy_field(root, "ota_update_url", s.ota_update_url, sizeof(s.ota_update_url));
 
     cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "ntrip_port");
     if (port_item && cJSON_IsNumber(port_item) && port_item->valueint > 0 && port_item->valueint <= 65535) {
@@ -389,6 +398,163 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Contesto per ota_read_from_http(): legge dal corpo della richiesta HTTP
+// finche' non sono stati consumati tutti i content_len byte annunciati.
+typedef struct {
+    httpd_req_t *req;
+    int remaining;
+} http_ota_ctx_t;
+
+static int ota_read_from_http(void *ctx_ptr, uint8_t *buf, size_t max_len)
+{
+    http_ota_ctx_t *ctx = (http_ota_ctx_t *) ctx_ptr;
+    if (ctx->remaining <= 0) {
+        return 0;
+    }
+    size_t to_read = max_len < (size_t) ctx->remaining ? max_len : (size_t) ctx->remaining;
+    int r = httpd_req_recv(ctx->req, (char *) buf, to_read);
+    if (r <= 0) {
+        return -1;
+    }
+    ctx->remaining -= r;
+    return r;
+}
+
+static esp_err_t ota_upload_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    if (req->content_len <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo mancante");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Aggiornamento firmware ricevuto dal browser (%d byte)...", req->content_len);
+
+    http_ota_ctx_t ctx = { .req = req, .remaining = req->content_len };
+    esp_err_t err = ota_update_apply(ota_read_from_http, &ctx);
+    if (err != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "aggiornamento fallito, immagine non applicata");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    ESP_LOGI(TAG, "Firmware aggiornato, riavvio in corso");
+    vTaskDelay(pdMS_TO_TICKS(300));
+    esp_restart();
+    return ESP_OK;
+}
+
+static esp_err_t ota_sd_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    char msg[96] = {0};
+    bool applied = sd_update_check_and_apply(msg, sizeof(msg));
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "applied", applied);
+    cJSON_AddStringToObject(root, "message", msg);
+    char *json = cJSON_PrintUnformatted(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(root);
+
+    if (applied) {
+        ESP_LOGI(TAG, "Firmware aggiornato da microSD, riavvio in corso");
+        vTaskDelay(pdMS_TO_TICKS(300));
+        esp_restart();
+    }
+    return ESP_OK;
+}
+
+static esp_err_t ota_check_online_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    char version[32] = {0};
+    char url[128] = {0};
+    char msg[96] = {0};
+    bool available = online_update_check(version, sizeof(version), url, sizeof(url), msg, sizeof(msg));
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "available", available);
+    cJSON_AddStringToObject(root, "version", version);
+    cJSON_AddStringToObject(root, "url", url);
+    cJSON_AddStringToObject(root, "message", msg);
+    char *json = cJSON_PrintUnformatted(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
+static esp_err_t ota_apply_online_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    if (req->content_len <= 0 || req->content_len > 512) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo non valido");
+        return ESP_FAIL;
+    }
+
+    char buf[513];
+    int received = 0;
+    while (received < req->content_len) {
+        int r = httpd_req_recv(req, buf + received, req->content_len - received);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+            return ESP_FAIL;
+        }
+        received += r;
+    }
+    buf[received] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON non valido");
+        return ESP_FAIL;
+    }
+    cJSON *url_item = cJSON_GetObjectItemCaseSensitive(root, "url");
+    if (!url_item || !cJSON_IsString(url_item)) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "campo \"url\" mancante");
+        return ESP_FAIL;
+    }
+
+    char url[128];
+    strncpy(url, url_item->valuestring, sizeof(url) - 1);
+    url[sizeof(url) - 1] = '\0';
+    cJSON_Delete(root);
+
+    char msg[96] = {0};
+    bool ok = online_update_apply(url, msg, sizeof(msg));
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    cJSON_AddStringToObject(resp, "message", msg);
+    char *json = cJSON_PrintUnformatted(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(resp);
+
+    if (ok) {
+        ESP_LOGI(TAG, "Firmware aggiornato online, riavvio in corso");
+        vTaskDelay(pdMS_TO_TICKS(300));
+        esp_restart();
+    }
+    return ESP_OK;
+}
+
 static esp_err_t reboot_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -404,6 +570,7 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 void web_ui_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.max_uri_handlers = 12; // default 8, non basta piu' con gli endpoint OTA aggiunti
 
     httpd_handle_t server = NULL;
     if (httpd_start(&server, &config) != ESP_OK) {
@@ -411,17 +578,25 @@ void web_ui_start(void)
         return;
     }
 
-    httpd_uri_t index_uri    = { .uri = "/",              .method = HTTP_GET,  .handler = index_get_handler };
-    httpd_uri_t status_uri   = { .uri = "/api/status",     .method = HTTP_GET,  .handler = status_get_handler };
-    httpd_uri_t signals_uri  = { .uri = "/api/signals",    .method = HTTP_GET,  .handler = signals_get_handler };
-    httpd_uri_t settings_uri = { .uri = "/api/settings",   .method = HTTP_POST, .handler = settings_post_handler };
-    httpd_uri_t reboot_uri   = { .uri = "/api/reboot",     .method = HTTP_POST, .handler = reboot_post_handler };
+    httpd_uri_t index_uri      = { .uri = "/",              .method = HTTP_GET,  .handler = index_get_handler };
+    httpd_uri_t status_uri     = { .uri = "/api/status",     .method = HTTP_GET,  .handler = status_get_handler };
+    httpd_uri_t signals_uri    = { .uri = "/api/signals",    .method = HTTP_GET,  .handler = signals_get_handler };
+    httpd_uri_t settings_uri   = { .uri = "/api/settings",   .method = HTTP_POST, .handler = settings_post_handler };
+    httpd_uri_t reboot_uri     = { .uri = "/api/reboot",     .method = HTTP_POST, .handler = reboot_post_handler };
+    httpd_uri_t ota_upload_uri = { .uri = "/api/ota/upload",    .method = HTTP_POST, .handler = ota_upload_post_handler };
+    httpd_uri_t ota_sd_uri     = { .uri = "/api/ota/sd-update", .method = HTTP_POST, .handler = ota_sd_post_handler };
+    httpd_uri_t ota_check_uri  = { .uri = "/api/ota/check-online", .method = HTTP_POST, .handler = ota_check_online_post_handler };
+    httpd_uri_t ota_apply_uri  = { .uri = "/api/ota/apply-online", .method = HTTP_POST, .handler = ota_apply_online_post_handler };
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &status_uri);
     httpd_register_uri_handler(server, &signals_uri);
     httpd_register_uri_handler(server, &settings_uri);
     httpd_register_uri_handler(server, &reboot_uri);
+    httpd_register_uri_handler(server, &ota_upload_uri);
+    httpd_register_uri_handler(server, &ota_sd_uri);
+    httpd_register_uri_handler(server, &ota_check_uri);
+    httpd_register_uri_handler(server, &ota_apply_uri);
 
     ESP_LOGI(TAG, "Server web di gestione avviato");
 }

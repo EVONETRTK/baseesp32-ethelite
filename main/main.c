@@ -9,6 +9,7 @@
 #include "driver/uart.h"
 
 #include "sdkconfig.h"
+#include "version.h"
 #include "settings.h"
 #include "status.h"
 #include "status_led.h"
@@ -16,12 +17,15 @@
 #include "reset_button.h"
 #include "net_manager.h"
 #include "web_ui.h"
+#include "ota_update.h"
 #include "gnss_driver.h"
 #include "gnss_signal.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_nmea_reader.h"
 #include "ntrip_client.h"
 #include "ntrip_rover_client.h"
+
+static const char *TAG = "main";
 
 #define UART_RX_BUF_SIZE 1024
 
@@ -68,6 +72,8 @@ static void gnss_uart_task(void *arg)
 
 void app_main(void)
 {
+    ESP_LOGI(TAG, "EVONETRTK firmware v%s", FIRMWARE_VERSION);
+
     esp_err_t nvs_err = nvs_flash_init();
     if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -88,6 +94,13 @@ void app_main(void)
     net_manager_start();
     nmea_udp_broadcast_init();
     web_ui_start();
+
+    // A questo punto AP di setup e server web sono su: il firmware si e'
+    // dimostrato funzionante quanto basta per essere raggiungibile e
+    // riconfigurabile. Confermalo al bootloader cosi' un aggiornamento
+    // riuscito non torni indietro da solo al riavvio successivo (il
+    // rollback automatico scatta solo per immagini mai confermate).
+    ota_update_mark_valid();
 
     app_settings_t settings = settings_get();
     gnss_uart_init(&settings);

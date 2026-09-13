@@ -39,6 +39,7 @@ static void apply_defaults(void)
     strncpy(s_settings.ntrip_host, CONFIG_BASEESP32_NTRIP_HOST, sizeof(s_settings.ntrip_host) - 1);
     s_settings.ntrip_port = CONFIG_BASEESP32_NTRIP_PORT;
     strncpy(s_settings.ntrip_mountpoint, CONFIG_BASEESP32_NTRIP_MOUNTPOINT, sizeof(s_settings.ntrip_mountpoint) - 1);
+    strncpy(s_settings.ota_update_url, CONFIG_BASEESP32_OTA_UPDATE_URL, sizeof(s_settings.ota_update_url) - 1);
     s_settings.gnss_chip = GNSS_CHIP_UBLOX;
     s_settings.device_mode = DEVICE_MODE_BASE;
     s_settings.network_mode = NETWORK_MODE_BOTH;
@@ -77,7 +78,7 @@ static void apply_defaults(void)
 
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    snprintf(s_settings.ap_ssid, sizeof(s_settings.ap_ssid), "baseesp32-%02X%02X%02X", mac[3], mac[4], mac[5]);
+    snprintf(s_settings.ap_ssid, sizeof(s_settings.ap_ssid), "EVONETRTK-%02X%02X%02X", mac[3], mac[4], mac[5]);
     strncpy(s_settings.ap_password, "baseesp32setup", sizeof(s_settings.ap_password) - 1);
     strncpy(s_settings.admin_code, "1234", sizeof(s_settings.admin_code) - 1);
 }

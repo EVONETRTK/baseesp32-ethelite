@@ -50,6 +50,11 @@ typedef struct {
     char ap_ssid[33];
     char ap_password[65];
     char admin_code[33];      // protegge la UI web (HTTP Basic Auth, utente fisso "admin")
+    // Matricola assegnata all'unita' fisica (tracciamento/assistenza) -
+    // distinta dal suffisso MAC gia' usato per l'SSID (quello e'
+    // automatico/tecnico, questo e' un identificativo scelto da chi
+    // installa/produce il dispositivo). Vuota di default.
+    char device_serial[33];
     uint16_t nmea_udp_port;   // porta broadcast UDP per NMEA (rover), es. per AgOpenGPS/AgIO
 
     // Pin verso il modulo GNSS esterno (u-blox/Unicore): configurabili a
@@ -88,6 +93,11 @@ typedef struct {
     // "a specchio" (orizzontale), flip_v un display sottosopra (verticale).
     bool oled_flip_h;
     bool oled_flip_v;
+
+    // URL di un piccolo manifest JSON ({"version":"x.y.z","url":"..."})
+    // per l'aggiornamento "online" - tipicamente un asset di una release
+    // GitHub. Vuoto = funzione non configurata/disattivata.
+    char ota_update_url[128];
 } app_settings_t;
 
 // Carica la configurazione da NVS; se assente o non valida usa i default

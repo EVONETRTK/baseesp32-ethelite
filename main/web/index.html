@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>baseesp32</title>
+<title>EVONETRTK</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 680px; margin: 1.5rem auto; padding: 0 1rem; background:#f6f7f9; color:#1a1a1a; }
   h1 { font-size: 1.3rem; margin-bottom: .8rem; }
@@ -30,7 +30,7 @@
 </style>
 </head>
 <body>
-<h1>baseesp32 &mdash; EVONETRTK</h1>
+<h1>EVONETRTK</h1>
 
 <nav class="tabs">
   <button type="button" data-page="page-status" class="active">Stato</button>
@@ -39,6 +39,7 @@
   <button type="button" data-page="page-security">Sicurezza</button>
   <button type="button" data-page="page-signals">Segnali</button>
   <button type="button" data-page="page-hardware">Hardware</button>
+  <button type="button" data-page="page-firmware">Firmware</button>
 </nav>
 
 <form id="cfg-form">
@@ -47,6 +48,8 @@
   <fieldset>
     <legend>Stato</legend>
     <dl class="kv">
+      <dt>Matricola</dt><dd id="st-serial">-</dd>
+      <dt>Versione firmware</dt><dd id="st-version">-</dd>
       <dt>Modalita'</dt><dd id="st-mode">-</dd>
       <dt>Rete attiva</dt><dd id="st-net">-</dd>
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
@@ -147,6 +150,12 @@
       <small class="hint">Utente "admin", protegge tutta questa interfaccia. Default di fabbrica: 1234 - cambialo alla prima configurazione.</small>
     </label>
   </fieldset>
+
+  <fieldset>
+    <legend>Identificazione dispositivo</legend>
+    <label>Matricola<input name="device_serial" placeholder="es. EVONETRTK-0001"></label>
+    <small class="hint">Identificativo assegnato a questa unita' fisica (tracciamento/assistenza) - a differenza del nome della rete WiFi, non e' generato automaticamente.</small>
+  </fieldset>
 </div>
 
 <div id="page-signals" class="page">
@@ -177,9 +186,9 @@
       <dt>Tecnologia</dt><dd id="cell-tech">-</dd>
     </dl>
     <small class="hint">
-      Il modem attuale (SIM868) supporta solo 2G (GSM/EDGE) - non ha hardware 3G/4G/5G.
-      Il campo "Tecnologia" e' comunque generico e mostrera' automaticamente 3G/4G/5G se in
-      futuro si passa a un modem piu' recente basato sullo stesso framework.
+      Con il modulo SIM868 selezionato in Rete, il campo "Tecnologia" mostrera' solo 2G
+      (GSM/EDGE) - e' l'hardware del modulo stesso a non avere 3G/4G/5G. Passando a SIM7600X
+      comparira' automaticamente la tecnologia reale (fino a 4G), stesso codice di lettura.
     </small>
   </fieldset>
 </div>
@@ -253,6 +262,47 @@
   </fieldset>
 </div>
 
+<div id="page-firmware" class="page">
+  <fieldset>
+    <legend>Aggiornamento firmware</legend>
+    <dl class="kv">
+      <dt>Versione attuale</dt><dd id="fw-current-version">-</dd>
+    </dl>
+    <label>File firmware (.bin)<input type="file" id="fw-file" accept=".bin"></label>
+    <button type="button" class="action" id="fw-upload-btn">Carica e aggiorna</button>
+    <div id="fw-progress" class="hint" style="margin-top:.6rem"></div>
+    <small class="hint">
+      Carica il file .bin compilato per questa scheda. Il dispositivo scrive la nuova immagine
+      su una partizione separata da quella in uso: se qualcosa va storto (immagine corrotta,
+      crash all'avvio) il dispositivo torna da solo alla versione precedente funzionante al
+      riavvio successivo - non serve un cavo USB per ripristinarlo, e si puo' sempre ritentare
+      l'upload. Non spegnere/scollegare il dispositivo durante il caricamento.
+    </small>
+  </fieldset>
+
+  <fieldset>
+    <legend>Aggiornamento da microSD</legend>
+    <p style="font-size:.9rem; margin-top:0">
+      Copia <code>firmware.bin</code> e <code>firmware.json</code> (contenente <code>{"version":"x.y.z"}</code>)
+      nella radice di una microSD, inseriscila nel lettore integrato e premi il pulsante -
+      utile senza connessione di rete. Se la versione sulla scheda non e' piu' recente di
+      quella attuale non succede nulla.
+    </p>
+    <button type="button" class="action" id="fw-sd-btn">Controlla e aggiorna da SD</button>
+    <div id="fw-sd-msg" class="hint" style="margin-top:.6rem"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Aggiornamento online</legend>
+    <label>Indirizzo manifest (JSON con versione e link al .bin)
+      <input name="ota_update_url" placeholder="es. https://github.com/utente/repo/releases/latest/download/version.json">
+    </label>
+    <small class="hint">Lascia vuoto per disattivare. Va salvato dal pulsante "Salva e riavvia" qui sotto.</small>
+    <button type="button" class="action" id="fw-online-btn" style="margin-top:.8rem">Controlla aggiornamenti online</button>
+    <div id="fw-online-msg" class="hint" style="margin-top:.6rem"></div>
+  </fieldset>
+</div>
+
 <button type="submit" class="action">Salva e riavvia</button>
 </form>
 
@@ -273,6 +323,9 @@ async function loadStatus() {
     const r = await fetch('/api/status');
     const s = await r.json();
 
+    document.getElementById('st-serial').textContent = s.device_serial || '(non impostata)';
+    document.getElementById('st-version').textContent = s.firmware_version || '-';
+    document.getElementById('fw-current-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
     document.getElementById('st-net').textContent = s.net;
     document.getElementById('st-bytes').textContent = s.rtcm_bytes;
@@ -293,6 +346,7 @@ async function loadStatus() {
       f.device_mode.value = s.device_mode || 'base';
       f.network_mode.value = s.network_mode || 'both';
       f.ap_ssid.value = s.ap_ssid || '';
+      f.device_serial.value = s.device_serial || '';
 
       f.gnss_uart_num.value = s.gnss_uart_num ?? 2;
       f.gnss_uart_tx_pin.value = s.gnss_uart_tx_pin ?? -1;
@@ -307,6 +361,7 @@ async function loadStatus() {
       f.oled_sda_pin.value = s.oled_sda_pin ?? -1;
       f.oled_scl_pin.value = s.oled_scl_pin ?? -1;
       f.oled_i2c_addr.value = s.oled_i2c_addr ?? 60;
+      f.ota_update_url.value = s.ota_update_url || '';
       f.oled_is_sh1106.value = s.oled_is_sh1106 ? 'true' : 'false';
       f.oled_flip_h.checked = !!s.oled_flip_h;
       f.oled_flip_v.checked = !!s.oled_flip_v;
@@ -430,6 +485,80 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
 document.getElementById('reboot-btn').addEventListener('click', async () => {
   document.getElementById('save-msg').textContent = 'Riavvio...';
   try { await fetch('/api/reboot', { method: 'POST' }); } catch (e) {}
+});
+
+document.getElementById('fw-upload-btn').addEventListener('click', () => {
+  const fileInput = document.getElementById('fw-file');
+  const progress = document.getElementById('fw-progress');
+  const file = fileInput.files[0];
+  if (!file) {
+    progress.textContent = 'Seleziona prima un file .bin';
+    return;
+  }
+  if (!confirm('Caricare "' + file.name + '" (' + Math.round(file.size / 1024) + ' KB) e riavviare con la nuova versione?')) {
+    return;
+  }
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/ota/upload');
+  xhr.upload.addEventListener('progress', (ev) => {
+    if (ev.lengthComputable) {
+      progress.textContent = 'Caricamento: ' + Math.round((ev.loaded / ev.total) * 100) + '%';
+    }
+  });
+  xhr.addEventListener('load', () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      progress.textContent = 'Aggiornamento applicato, riavvio in corso... la pagina potrebbe non rispondere per qualche secondo.';
+    } else {
+      progress.textContent = 'Errore: aggiornamento non applicato (immagine non valida o scrittura fallita). Il firmware attuale resta attivo, puoi ritentare.';
+    }
+  });
+  xhr.addEventListener('error', () => {
+    progress.textContent = 'Errore di rete durante il caricamento. Puoi ritentare, il firmware attuale resta attivo.';
+  });
+  progress.textContent = 'Caricamento: 0%';
+  xhr.send(file);
+});
+
+document.getElementById('fw-sd-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('fw-sd-msg');
+  msg.textContent = 'Controllo scheda SD...';
+  try {
+    const r = await fetch('/api/ota/sd-update', { method: 'POST' });
+    const s = await r.json();
+    msg.textContent = s.message || '-';
+  } catch (e) {
+    msg.textContent = 'Errore di comunicazione col dispositivo';
+  }
+});
+
+document.getElementById('fw-online-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('fw-online-msg');
+  msg.textContent = 'Controllo aggiornamenti online...';
+  try {
+    const r = await fetch('/api/ota/check-online', { method: 'POST' });
+    const s = await r.json();
+    msg.textContent = s.message || '-';
+    if (!s.available) {
+      return;
+    }
+    if (!s.url) {
+      msg.textContent += ' (manifest senza campo "url", impossibile scaricare)';
+      return;
+    }
+    if (!confirm('Installare la versione ' + s.version + '?')) {
+      return;
+    }
+    msg.textContent = 'Download e installazione in corso, puo\' richiedere qualche minuto...';
+    const r2 = await fetch('/api/ota/apply-online', {
+      method: 'POST',
+      body: JSON.stringify({ url: s.url }),
+    });
+    const s2 = await r2.json();
+    msg.textContent = s2.message || '-';
+  } catch (e) {
+    msg.textContent = 'Errore di comunicazione col dispositivo';
+  }
 });
 
 loadStatus();

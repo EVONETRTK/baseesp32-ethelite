@@ -19,8 +19,11 @@ idf_component_register(
         "rgb_led.c"
         "oled_display.c"
         "reset_button.c"
+        "ota_update.c"
+        "sd_update.c"
+        "online_update.c"
         "web_ui.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "web/index.html"
-    REQUIRES nvs_flash esp_wifi esp_netif esp_event driver json esp_http_server esp_modem mbedtls esp_timer esp_eth led_strip esp_driver_i2c
+    REQUIRES nvs_flash esp_wifi esp_netif esp_event driver json esp_http_server esp_modem mbedtls esp_timer esp_eth led_strip esp_driver_i2c app_update fatfs sdmmc esp_driver_sdspi esp_http_client esp_https_ota
 )

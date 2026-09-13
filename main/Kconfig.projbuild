@@ -20,6 +20,16 @@ menu "baseesp32-ethelite Configuration"
         string "NTRIP mountpoint (nome base)"
         default "BASE01"
 
+    config BASEESP32_OTA_UPDATE_URL
+        string "URL manifest per l'aggiornamento firmware online"
+        default "https://github.com/EVONETRTK/baseesp32-ethelite/releases/latest/download/version.json"
+        help
+            Un piccolo JSON ({"version":"x.y.z","url":"..."}) pubblicato
+            come asset di una release GitHub - il dispositivo lo confronta
+            con la propria versione quando si preme "Controlla
+            aggiornamenti online" nella UI web. Impostabile anche da li'
+            senza ricompilare; vuoto per disattivare la funzione.
+
     config BASEESP32_NTRIP_PASSWORD
         string "NTRIP source password"
         default ""
@@ -235,6 +245,28 @@ menu "baseesp32-ethelite Configuration"
             anche dalla UI web (scheda Hardware) senza ricompilare - se
             l'immagine esce distorta o scorretta, provare a cambiare
             questa opzione.
+
+    config BASEESP32_SD_MISO_PIN
+        int "GPIO MISO verso il lettore microSD integrato"
+        default 9
+        help
+            Pin del lettore microSD della T-ETH-Elite, dal repository
+            ufficiale LilyGO (LilyGo-Modem-Series, utilities.h, blocco
+            LILYGO_T_ETH_ELITE: SPI_MISO_PIN/SD_MISO_PIN). Fisso dalla
+            scheda - a differenza dei pin GNSS/RGB/OLED non ha senso
+            renderlo configurabile dalla UI web.
+
+    config BASEESP32_SD_MOSI_PIN
+        int "GPIO MOSI verso il lettore microSD"
+        default 11
+
+    config BASEESP32_SD_SCLK_PIN
+        int "GPIO SCLK verso il lettore microSD"
+        default 10
+
+    config BASEESP32_SD_CS_PIN
+        int "GPIO CS verso il lettore microSD"
+        default 12
 
     config BASEESP32_RESET_BUTTON_PIN
         int "GPIO del pulsante di reset configurazione (-1 per disabilitare)"
