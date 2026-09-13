@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.4.5
+
+- Fix: il pulsante "Connetti" WiFi andava in timeout (15s) senza mai completarsi se la scheda era gia' connessa a un'altra rete - il driver WiFi rifiuta una nuova connessione senza prima disconnettersi esplicitamente da quella attuale. Confermato su hardware ("sta is connected, disconnect before connecting to new ap").
+
 ## 1.4.4
 
 - Esito del pulsante "Connetti" WiFi ora colorato e in maiuscolo (verde CONNESSO / rosso NON connesso), piu' facile da notare a colpo d'occhio.

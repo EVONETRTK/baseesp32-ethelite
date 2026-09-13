@@ -125,6 +125,16 @@ bool wifi_link_connect_with(const char *ssid, const char *password, uint32_t tim
 {
     xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
 
+    // Il driver rifiuta esp_wifi_connect() se la STA e' gia' connessa a
+    // un'altra rete ("sta is connected, disconnect before connecting to
+    // new ap", confermato su hardware reale con "Connetti" mentre gia'
+    // agganciati a una rete precedente) - va scollegata esplicitamente
+    // prima di provare la nuova.
+    if (s_connected) {
+        esp_wifi_disconnect();
+        s_connected = false;
+    }
+
     wifi_config_t sta_config = { 0 };
     strncpy((char *) sta_config.sta.ssid, ssid, sizeof(sta_config.sta.ssid) - 1);
     strncpy((char *) sta_config.sta.password, password, sizeof(sta_config.sta.password) - 1);
