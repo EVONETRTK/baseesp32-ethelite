@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.4.2
+
+- Fix: "Controlla aggiornamenti online" falliva con "esp-tls: Failed to create socket" - il limite globale di socket lwIP (10 di default) era gia' quasi saturo tra server web, trasmissione UDP NMEA e client NTRIP. Alzato a 16.
+
 ## 1.4.1
 
 - Fix critico: "Controlla aggiornamenti online" faceva andare in crash/riavvio la scheda (stack del task del server web troppo piccolo per l'handshake HTTPS verso GitHub) - portato a 10240 byte, stessa causa del fix precedente sullo stack del task main. Aggiunte anche barre colorate (rosso/giallo/verde) per l'intensita' del segnale, incluso subito dopo "Connetti" in Rete.

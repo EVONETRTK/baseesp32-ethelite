@@ -29,6 +29,13 @@ CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
 # non puo' restare bloccato da un aggiornamento andato male.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
+# Default 10: gia' quasi saturo solo col server web (fino a 7 socket
+# aperti contemporaneamente) piu' la trasmissione UDP NMEA e i tentativi
+# del client NTRIP - non restava spazio per aprire un socket in piu' per
+# l'aggiornamento online (HTTPS verso GitHub), confermato su hardware
+# reale ("esp-tls: Failed to create socket"). Alzato per dare margine.
+CONFIG_LWIP_MAX_SOCKETS=16
+
 # Il default (3584 byte) va in overflow: app_main() chiama net_manager_start()
 # che esegue esp_wifi_init()/wifi_link_init() (WiFi+mbedtls) in modo sincrono
 # sullo stack del task "main", prima ancora di creare net_manager_task -
