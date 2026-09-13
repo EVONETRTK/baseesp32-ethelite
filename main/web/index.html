@@ -647,19 +647,60 @@ document.getElementById('wifi-test-btn').addEventListener('click', async () => {
   }
 });
 
-function pollOtaProgress() {
+// Dopo un aggiornamento riuscito il dispositivo si riavvia da solo pochi
+// centesimi di secondo dopo l'ultima risposta "done" - una singola
+// richiesta di poll puo' arrivare proprio mentre il riavvio e' in corso e
+// non ricevere mai risposta. Invece di lasciare la barra bloccata
+// all'ultima percentuale vista (confermato su hardware reale), si passa a
+// interrogare /api/status finche' il dispositivo torna raggiungibile, poi
+// si confronta la versione con quella attesa per dare un esito reale.
+async function waitForRebootAndVerify(targetVersion) {
+  const msg = document.getElementById('fw-online-msg');
+  msg.style.color = '';
+  msg.style.fontWeight = '';
+  msg.textContent = 'Connessione persa - probabile riavvio dopo l\'aggiornamento, verifica in corso...';
+  for (let i = 0; i < 30; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const r = await fetch('/api/status');
+      const s = await r.json();
+      if (s.firmware_version === targetVersion) {
+        msg.style.color = '#16a34a';
+        msg.style.fontWeight = '600';
+        msg.textContent = 'Aggiornamento completato e verificato (versione ' + s.firmware_version + ').';
+      } else {
+        msg.style.color = '#dc2626';
+        msg.style.fontWeight = '600';
+        msg.textContent = 'Dispositivo di nuovo raggiungibile ma con versione ' + s.firmware_version +
+          ' invece di ' + targetVersion + ' - probabile aggiornamento non riuscito.';
+      }
+      return;
+    } catch (e) {
+      // ancora irraggiungibile, ritenta
+    }
+  }
+  msg.style.color = '#dc2626';
+  msg.style.fontWeight = '600';
+  msg.textContent = 'Dispositivo non piu\' raggiungibile dopo l\'aggiornamento - ricarica la pagina per verificare manualmente (potrebbe aver cambiato indirizzo).';
+}
+
+function pollOtaProgress(targetVersion) {
   const msg = document.getElementById('fw-online-msg');
   const barTrack = document.getElementById('fw-online-bar-track');
   const barFill = document.getElementById('fw-online-bar-fill');
+  let gotAnyResponse = false;
   const poll = async () => {
     let s;
     try {
       const r = await fetch('/api/ota/progress');
       s = await r.json();
+      gotAnyResponse = true;
     } catch (e) {
-      // Il dispositivo puo' smettere di rispondere proprio perche' sta
-      // riavviando dopo un aggiornamento riuscito (visto gia' il done:true
-      // qui sotto prima che accada) - non e' trattato come un errore.
+      if (gotAnyResponse) {
+        waitForRebootAndVerify(targetVersion);
+      } else {
+        setTimeout(poll, 800); // non ancora partito (task appena avviato), ritenta
+      }
       return;
     }
     if (s.percent !== null && s.percent >= 0) {
@@ -713,7 +754,7 @@ document.getElementById('fw-online-btn').addEventListener('click', async () => {
       method: 'POST',
       body: JSON.stringify({ url: s.url }),
     });
-    pollOtaProgress();
+    pollOtaProgress(s.version);
   } catch (e) {
     msg.textContent = 'Errore di comunicazione col dispositivo';
   }

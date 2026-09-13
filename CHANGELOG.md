@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.5.11
+
+- Fix reale trovato: l'aggiornamento online in realta' funzionava gia' (confermato su hardware: il dispositivo si riavviava correttamente sulla nuova versione) - il problema era che l'asset del firmware sulle release GitHub non si chiamava mai davvero "firmware.bin" come da URL previsto (era rimasto "baseesp32-ethelite.bin", il nome del file locale: la sintassi `file#nome` di `gh release create` imposta solo un'etichetta visualizzata, non il nome scaricabile) - `firmware.bin` era un 404 reale su ogni release pubblicata finora. Da qui in avanti l'asset viene rinominato localmente prima della pubblicazione.
+- Fix UI: la barra di avanzamento restava bloccata all'ultima percentuale vista se il dispositivo si riavviava (con successo) prima che il browser ricevesse l'ultima risposta "completato" - confermato su hardware reale ("bloccato a 55%" con aggiornamento in realta' riuscito). Ora, se la connessione cade dopo che il download era gia' partito, la pagina interroga automaticamente lo stato del dispositivo ogni 2s finche' non torna raggiungibile, confrontando la versione per dare un esito reale invece di restare bloccata.
+
 ## 1.5.10
 
 - Nessun cambio funzionale: build di test per verificare su hardware reale il download/installazione completo dopo il fix del redirect (1.5.9), a partire da un dispositivo gia' su 1.5.9.
