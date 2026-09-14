@@ -936,7 +936,15 @@ static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
     strncpy(ctx->password, password, sizeof(ctx->password) - 1);
 
     ESP_LOGI(TAG, "Test connessione WiFi a '%s' avviato in background", ssid);
-    if (xTaskCreate(wifi_test_connect_task, "wifi_test", 4096, ctx, 5, NULL) != pdPASS) {
+    // 4096 non bastava piu': causava uno stack overflow reale (confermato
+    // su hardware, log seriale) proprio nel momento in cui una connessione
+    // riusciva e la funzione chiamava settings_save() subito dopo - il
+    // crash interrompeva il salvataggio prima di nvs_commit(), quindi le
+    // credenziali digitate non venivano MAI persistite: la causa vera
+    // dietro "il dispositivo non ricorda piu' la password del WiFi".
+    // Stessa causa/fix gia' visto altrove in questo progetto (stack
+    // troppo piccolo per un task che finisce per fare I/O NVS + log).
+    if (xTaskCreate(wifi_test_connect_task, "wifi_test", 8192, ctx, 5, NULL) != pdPASS) {
         free(ctx);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "avvio task fallito");
         return ESP_FAIL;

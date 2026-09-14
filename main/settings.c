@@ -235,6 +235,15 @@ app_settings_t settings_get(void)
 
 esp_err_t settings_save(const app_settings_t *s)
 {
+    // Diagnostica per capire se un valore gia' scorretto arriva fin qui
+    // (bug a monte, nella UI/nel parsing del form) o se si corrompe dopo
+    // (bug nel giro di scrittura/lettura NVS) - lasciato attivo in modo
+    // permanente, costa una sola riga di log per ogni salvataggio (azione
+    // rara, non nel percorso critico).
+    ESP_LOGI(TAG, "Salvataggio impostazioni: wifi_ssid='%s' (len %d) ap_ssid='%s' gnss_uart_num=%d gnss_uart_baud=%d sizeof=%u",
+             s->wifi_ssid, (int) strlen(s->wifi_ssid), s->ap_ssid, s->gnss_uart_num, s->gnss_uart_baud,
+             (unsigned) sizeof(*s));
+
     s_settings = *s;
 
     stored_cfg_t stored = { .magic = CFG_MAGIC, .s = s_settings };
@@ -250,5 +259,24 @@ esp_err_t settings_save(const app_settings_t *s)
         err = nvs_commit(h);
     }
     nvs_close(h);
+    ESP_LOGI(TAG, "Scrittura NVS completata: %s (%u byte scritti)", esp_err_to_name(err), (unsigned) sizeof(stored));
+
+    // Rilettura immediata di verifica (stessa diagnostica di sopra) -
+    // conferma se quanto e' stato appena scritto combacia con quanto si
+    // rilegge subito dopo, per escludere un problema nel giro di
+    // scrittura/lettura NVS invece che nei dati arrivati a questa funzione.
+    nvs_handle_t hv;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &hv) == ESP_OK) {
+        stored_cfg_t verify;
+        size_t len = sizeof(verify);
+        if (nvs_get_blob(hv, NVS_KEY_CFG, &verify, &len) == ESP_OK) {
+            ESP_LOGI(TAG, "Verifica rilettura: %u byte, wifi_ssid='%s' ap_ssid='%s' gnss_uart_num=%d gnss_uart_baud=%d",
+                     (unsigned) len, verify.s.wifi_ssid, verify.s.ap_ssid, verify.s.gnss_uart_num, verify.s.gnss_uart_baud);
+        } else {
+            ESP_LOGW(TAG, "Verifica rilettura fallita");
+        }
+        nvs_close(hv);
+    }
+
     return err;
 }
