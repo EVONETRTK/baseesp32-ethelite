@@ -16,6 +16,7 @@
 #include "ntrip_caster_server.h"
 #include "geo_convert.h"
 #include "ppp_log.h"
+#include "fw_archive.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -740,6 +741,82 @@ static esp_err_t ota_sd_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t fw_archive_list_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    fw_archive_entry_t entries[16];
+    size_t n = fw_archive_list(entries, sizeof(entries) / sizeof(entries[0]));
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *arr = cJSON_CreateArray();
+    for (size_t i = 0; i < n; i++) {
+        cJSON_AddItemToArray(arr, cJSON_CreateString(entries[i].filename));
+    }
+    cJSON_AddItemToObject(root, "files", arr);
+    char *json = cJSON_PrintUnformatted(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
+static esp_err_t fw_archive_apply_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    if (req->content_len <= 0 || req->content_len > 256) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo non valido");
+        return ESP_FAIL;
+    }
+    char buf[257];
+    int received = 0;
+    while (received < req->content_len) {
+        int r = httpd_req_recv(req, buf + received, req->content_len - received);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+            return ESP_FAIL;
+        }
+        received += r;
+    }
+    buf[received] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    cJSON *filename_item = root ? cJSON_GetObjectItemCaseSensitive(root, "filename") : NULL;
+    if (!filename_item || !cJSON_IsString(filename_item)) {
+        if (root) cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "nome file mancante");
+        return ESP_FAIL;
+    }
+    char filename[32];
+    strncpy(filename, filename_item->valuestring, sizeof(filename) - 1);
+    filename[sizeof(filename) - 1] = '\0';
+    cJSON_Delete(root);
+
+    char msg[96] = {0};
+    bool applied = fw_archive_apply(filename, msg, sizeof(msg));
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "applied", applied);
+    cJSON_AddStringToObject(resp, "message", msg);
+    char *json = cJSON_PrintUnformatted(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(resp);
+
+    if (applied) {
+        ESP_LOGW(TAG, "Firmware ripristinato manualmente da archivio SD, riavvio in corso");
+        vTaskDelay(pdMS_TO_TICKS(300));
+        esp_restart();
+    }
+    return ESP_OK;
+}
+
 // Stato del test di connessione WiFi in corso, letto dalla UI web mentre
 // il tentativo gira in background - vedi wifi_test_connect_task() sotto
 // per il motivo per cui non gira piu' direttamente nel task del server web.
@@ -1172,7 +1249,7 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 void web_ui_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 20; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi/PPP aggiunti
+    config.max_uri_handlers = 22; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi/PPP/archivio aggiunti
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne
@@ -1205,6 +1282,8 @@ void web_ui_start(void)
     httpd_uri_t ppp_log_start_uri = { .uri = "/api/ppp-log/start", .method = HTTP_POST, .handler = ppp_log_start_post_handler };
     httpd_uri_t ppp_log_stop_uri  = { .uri = "/api/ppp-log/stop",  .method = HTTP_POST, .handler = ppp_log_stop_post_handler };
     httpd_uri_t ppp_log_dl_uri    = { .uri = "/api/ppp-log/download", .method = HTTP_GET, .handler = ppp_log_download_get_handler };
+    httpd_uri_t fw_archive_list_uri  = { .uri = "/api/firmware-archive/list",  .method = HTTP_GET,  .handler = fw_archive_list_get_handler };
+    httpd_uri_t fw_archive_apply_uri = { .uri = "/api/firmware-archive/apply", .method = HTTP_POST, .handler = fw_archive_apply_post_handler };
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
@@ -1224,6 +1303,8 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &ppp_log_start_uri);
     httpd_register_uri_handler(server, &ppp_log_stop_uri);
     httpd_register_uri_handler(server, &ppp_log_dl_uri);
+    httpd_register_uri_handler(server, &fw_archive_list_uri);
+    httpd_register_uri_handler(server, &fw_archive_apply_uri);
 
     ESP_LOGI(TAG, "Server web di gestione avviato");
 }

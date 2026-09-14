@@ -2,7 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
-## 1.16.2
+## 1.17.0
+
+- **Archivio firmware su SD** (`main/fw_archive.c`): ad ogni aggiornamento applicato (da browser, SD o online/automatico) il dispositivo salva da solo su `/sdcard/firmware/` una copia della versione appena sostituita, tenendo le ultime 2. Nuova sezione "Archivio firmware" nella pagina Firmware per ripristinare manualmente una qualunque versione archiviata, ignorando deliberatamente il controllo versione (a differenza degli aggiornamenti normali) - per i casi in cui un problema si scopre solo dopo piu' aggiornamenti, oltre il singolo passo gia' coperto dal rollback automatico del bootloader. Mai automatico, richiede sempre un'azione esplicita con conferma.
+- **Log diagnostici persistenti su SD** (`main/diag_log.c`): oltre al buffer in RAM (8KB, perso al riavvio) gia' esistente, ogni sessione di avvio scrive ora il proprio log anche su `/sdcard/diag_logs/` (un file per avvio, rotazione tra 5, tetto ~200KB ciascuno) - utile per diagnosticare un problema successo quando nessuno era collegato alla pagina web. Scarico non bloccante e periodico (ogni 30s), monta la SD solo per la durata dello scarico per non bloccare le altre funzioni che la usano.
 
 - Diagnosticato un problema reale di connettivita' WiFi segnalato dall'utente: il log seriale ha mostrato che il nome della rete AP di setup, l'host del caster NTRIP e i pin UART del GNSS salvati risultavano vuoti/non validi nella configurazione caricata da NVS (la causa originaria non e' stata individuata con certezza nonostante l'analisi - non sembra riconducibile ai fix di persistenza gia' fatti in 1.13.2/1.14.0, che restano corretti). Aggiunta una rete di sicurezza aggiuntiva in `settings_init()`: se il nome o la password della rete AP risultano vuoti, vengono rigenerati (stesso meccanismo gia' esistente per la matricola), cosi' il dispositivo non diventa mai irraggiungibile per questo motivo specifico. Cancellata la NVS del dispositivo di test per ripartire da una configurazione pulita - richiede una riconfigurazione completa da parte dell'utente.
 

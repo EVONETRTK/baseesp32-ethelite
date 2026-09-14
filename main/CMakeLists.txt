@@ -33,6 +33,8 @@ idf_component_register(
         "geo_convert.c"
         "ppp_log.c"
         "auto_update.c"
+        "fw_archive.c"
+        "diag_log.c"
         "web_ui.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "web/index.html"

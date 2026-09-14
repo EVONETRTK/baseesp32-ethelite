@@ -1,4 +1,5 @@
 #include "ota_update.h"
+#include "fw_archive.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,6 +13,12 @@ static const char *TAG = "ota_update";
 
 esp_err_t ota_update_apply(ota_read_fn_t read_cb, void *ctx)
 {
+    // Best-effort, non blocca l'aggiornamento se la SD non e' disponibile
+    // (vedi fw_archive.h) - salva il firmware ATTUALE prima che questa
+    // funzione lo sovrascriva, cosi' resta un ripristino manuale possibile
+    // anche a distanza di piu' aggiornamenti.
+    fw_archive_save_current();
+
     const esp_partition_t *target = esp_ota_get_next_update_partition(NULL);
     if (!target) {
         ESP_LOGE(TAG, "Nessuna partizione OTA disponibile");

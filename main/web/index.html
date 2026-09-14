@@ -528,6 +528,19 @@
   </fieldset>
 
   <fieldset>
+    <legend>🗄️ Archivio firmware (ripristino manuale)</legend>
+    <small class="hint">
+      Ad ogni aggiornamento applicato, il dispositivo salva da solo su SD una copia della versione
+      appena sostituita (le ultime 2). Da qui puoi ripristinarne manualmente una, anche se non e' la
+      versione precedente immediata - utile se un problema con una versione nuova si scopre solo dopo
+      diversi aggiornamenti. A differenza degli aggiornamenti normali, questo <strong>ignora il
+      controllo versione</strong> (puo' anche tornare indietro): usalo solo se sai cosa stai facendo.
+    </small>
+    <div id="fw-archive-list" style="margin-top:.6rem">Caricamento elenco...</div>
+    <div id="fw-archive-msg" class="hint" style="margin-top:.6rem"></div>
+  </fieldset>
+
+  <fieldset>
     <legend>🌍 Aggiornamento online</legend>
     <label>Indirizzo manifest (JSON con versione e link al .bin)
       <input name="ota_update_url" placeholder="es. https://github.com/utente/repo/releases/latest/download/version.json">
@@ -1493,8 +1506,61 @@ document.querySelectorAll('input[type="password"]').forEach((input) => {
   input.insertAdjacentElement('afterend', toggleBtn);
 });
 
+async function loadFwArchive() {
+  const listEl = document.getElementById('fw-archive-list');
+  if (!listEl) {
+    return;
+  }
+  try {
+    const r = await fetch('/api/firmware-archive/list');
+    const s = await r.json();
+    const files = s.files || [];
+    if (files.length === 0) {
+      listEl.textContent = 'Nessuna versione archiviata ancora (si popola al primo aggiornamento applicato).';
+      return;
+    }
+    listEl.innerHTML = '';
+    files.forEach((name) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.4rem 0; border-bottom:1px solid #eee';
+      const label = document.createElement('span');
+      label.textContent = name;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'action secondary';
+      btn.style.marginTop = '0';
+      btn.textContent = 'Ripristina';
+      btn.addEventListener('click', () => applyFwArchive(name));
+      row.appendChild(label);
+      row.appendChild(btn);
+      listEl.appendChild(row);
+    });
+  } catch (e) {
+    listEl.textContent = 'Errore nel caricamento dell\'elenco.';
+  }
+}
+
+async function applyFwArchive(filename) {
+  if (!confirm('Ripristinare "' + filename + '"? Il controllo versione viene ignorato (puo\' anche tornare indietro), il dispositivo si riavvia subito dopo.')) {
+    return;
+  }
+  const msg = document.getElementById('fw-archive-msg');
+  msg.textContent = 'Ripristino in corso...';
+  try {
+    const r = await fetch('/api/firmware-archive/apply', {
+      method: 'POST',
+      body: JSON.stringify({ filename }),
+    });
+    const s = await r.json();
+    msg.textContent = s.message || (s.applied ? 'Ripristinato.' : 'Ripristino fallito.');
+  } catch (e) {
+    msg.textContent = 'Errore di comunicazione con il dispositivo.';
+  }
+}
+
 loadStatus();
 loadSignals();
+loadFwArchive();
 setInterval(loadStatus, 5000);
 setInterval(loadSignals, 3000);
 </script>

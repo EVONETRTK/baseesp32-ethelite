@@ -1,6 +1,16 @@
 #pragma once
 
 #include <stddef.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/stream_buffer.h"
+
+// Registra uno stream buffer aggiuntivo su cui inoltrare (in copia, non
+// bloccante: righe perse se il buffer e' pieno, senza impatto sul log
+// principale su UART/RAM) ogni riga di log gia' intercettata da questo
+// modulo - usato da diag_log.c per scriverle anche su SD, senza dover
+// installare un secondo hook esp_log_set_vprintf() (ce n'e' solo uno
+// attivo alla volta in ESP-IDF). Passare NULL per disattivare.
+void log_buffer_set_sink(StreamBufferHandle_t sink);
 
 // Cattura una copia degli ultimi log (ESP_LOGx) in un buffer circolare in
 // RAM, oltre a continuare a stamparli sulla UART come sempre - permette di

@@ -34,6 +34,7 @@
 #include "ntrip_caster_server.h"
 #include "ppp_log.h"
 #include "auto_update.h"
+#include "diag_log.h"
 
 static const char *TAG = "main";
 
@@ -134,6 +135,9 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(300));
         esp_restart();
     }
+    // Dopo il controllo SD sopra (non prima): evita che i due si
+    // contendano la scheda nello stesso istante all'avvio.
+    diag_log_start();
 
     app_settings_t settings = settings_get();
     gnss_uart_init(&settings);

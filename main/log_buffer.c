@@ -16,6 +16,12 @@ static size_t s_head;      // prossima posizione di scrittura
 static bool s_wrapped;     // true se il buffer ha gia' fatto almeno un giro
 static SemaphoreHandle_t s_mutex;
 static vprintf_like_t s_orig_vprintf;
+static StreamBufferHandle_t s_sink;
+
+void log_buffer_set_sink(StreamBufferHandle_t sink)
+{
+    s_sink = sink;
+}
 
 static int log_buffer_vprintf(const char *fmt, va_list args)
 {
@@ -50,6 +56,10 @@ static int log_buffer_vprintf(const char *fmt, va_list args)
         }
     }
     xSemaphoreGive(s_mutex);
+
+    if (s_sink) {
+        xStreamBufferSend(s_sink, line, (size_t) n, 0);
+    }
 
     return ret;
 }

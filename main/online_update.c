@@ -2,6 +2,7 @@
 #include "version.h"
 #include "ota_update.h"
 #include "settings.h"
+#include "fw_archive.h"
 
 #include <string.h>
 #include <strings.h>
@@ -310,6 +311,13 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
 {
 #define SET_MSG(...) do { if (out_msg) snprintf(out_msg, out_msg_size, __VA_ARGS__); } while (0)
 #define FAIL(...) do { SET_MSG(__VA_ARGS__); progress_finish(false, out_msg); return false; } while (0)
+
+    // Best-effort, non blocca l'aggiornamento se la SD non e' disponibile
+    // (vedi fw_archive.h) - questo percorso (esp_https_ota diretto) non
+    // passa da ota_update_apply() in ota_update.c, quindi l'archiviazione
+    // va richiamata qui esplicitamente per coprire anche gli aggiornamenti
+    // online/automatici, non solo upload da browser e SD.
+    fw_archive_save_current();
 
     progress_reset();
 
