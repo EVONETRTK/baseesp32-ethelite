@@ -33,6 +33,11 @@ typedef enum {
     OLED_CTRL_SSD1309 = 2, // stesso percorso di SSD1306 nel driver, vedi commento sul campo sotto
 } oled_controller_t;
 
+typedef enum {
+    BASE_POSITION_AUTO = 0,   // survey-in ad ogni avvio (comportamento storico, precisione tipicamente metrica)
+    BASE_POSITION_MANUAL = 1, // coordinate fisse note (es. da un servizio di post-processing PPP)
+} base_position_mode_t;
+
 typedef struct {
     char wifi_ssid[33];
     char wifi_password[65];
@@ -150,6 +155,22 @@ typedef struct {
     char ntrip_caster_server_mountpoint[33];
     char ntrip_caster_server_username[33]; // vuoto = nessuna autenticazione richiesta
     char ntrip_caster_server_password[64];
+
+    // Posizione dell'antenna in modalita' base (solo effettivo sul chip
+    // LC29H per ora, vedi gnss_lc29h.c). "Automatica" ripete il survey-in
+    // (media pesata di qualche minuto, precisione tipicamente metrica) ad
+    // ogni avvio, come sempre fatto finora. "Manuale" usa queste coordinate
+    // fisse - tipicamente ottenute da un servizio di post-processing PPP
+    // (es. CSRS-PPP, OPUS: si registrano le osservazioni grezze per molte
+    // ore e si caricano sul sito, che restituisce una posizione accurata a
+    // livello di centimetri, molto piu' precisa del solo survey-in). La UI
+    // web propone come default gli stessi valori dell'ultima posizione
+    // rilevata dal ricevitore (vedi base_monitor.h), cosi' di norma basta
+    // confermare invece di doverli scrivere a mano.
+    base_position_mode_t base_position_mode;
+    double base_fixed_lat_deg;
+    double base_fixed_lon_deg;
+    double base_fixed_height_m; // quota ellissoidica WGS84, non sul livello del mare
 } app_settings_t;
 
 // Carica la configurazione da NVS; se assente o non valida usa i default

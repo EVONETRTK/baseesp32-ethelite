@@ -4,9 +4,11 @@
 #include "esp_err.h"
 
 // Configura un ricevitore Quectel LC29H (varianti BA/CA/DA/EA, non AA/LC79H)
-// collegato sulla UART indicata come base RTK: survey-in automatico (60s,
-// precisione richiesta 2,5m, stessa convenzione gia' usata per Unicore) e
-// uscita RTCM3 MSM7 + posizione antenna (1005).
+// collegato sulla UART indicata come base RTK, e uscita RTCM3 MSM7 +
+// posizione antenna (1005). Legge da settings.h (base_position_mode) se
+// usare il survey-in automatico (60s, precisione richiesta 2,5m, stessa
+// convenzione gia' usata per Unicore) oppure una posizione fissa nota
+// (tipicamente da un servizio PPP, vedi settings.h) convertita in ECEF.
 //
 // I comandi ($PQTM..., $PAIR...) sono presi dalla documentazione ufficiale
 // Quectel (LC29H Series&LC79H(AL) GNSS Protocol Specification V1.4), non da

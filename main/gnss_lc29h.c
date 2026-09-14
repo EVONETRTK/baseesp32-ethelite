@@ -1,4 +1,6 @@
 #include "gnss_lc29h.h"
+#include "settings.h"
+#include "geo_convert.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -36,12 +38,26 @@ static esp_err_t send_cmd(uart_port_t uart_num, const char *body)
 
 esp_err_t gnss_lc29h_configure_base(uart_port_t uart_num)
 {
-    ESP_LOGI(TAG, "Configuro ricevitore Quectel LC29H come base RTK (survey-in + RTCM3 MSM7)");
+    app_settings_t s = settings_get();
 
-    // PQTMCFGSVIN: modalita' survey-in (1), durata minima 60s, precisione
-    // richiesta 2,5m (stessa convenzione gia' usata per Unicore sopra) - i
-    // tre campi ECEF X/Y/Z restano a 0 (ignorati in survey-in, servono solo
-    // in modalita' "fixed" con coordinate note a mano).
+    // PQTMCFGSVIN, campo <Mode>: 1 = survey-in (media pesata delle
+    // posizioni per <MinDur> secondi, precisione richiesta <3D_AccLimit>
+    // metri, i tre campi ECEF restano ignorati), 2 = "fixed" con posizione
+    // nota passata direttamente nei campi ECEF X/Y/Z (documentazione
+    // ufficiale Quectel, par. 2.3.8) - qui convertita da lat/lon/quota
+    // WGS84 (piu' leggibili, quello che restituisce un servizio PPP) con
+    // geo_convert.h.
+    char svin_cmd[128];
+    if (s.base_position_mode == BASE_POSITION_MANUAL) {
+        double x, y, z;
+        geo_llh_to_ecef(s.base_fixed_lat_deg, s.base_fixed_lon_deg, s.base_fixed_height_m, &x, &y, &z);
+        ESP_LOGI(TAG, "Configuro ricevitore Quectel LC29H come base RTK (posizione fissa manuale + RTCM3 MSM7)");
+        snprintf(svin_cmd, sizeof(svin_cmd), "PQTMCFGSVIN,W,2,0,0,%.4f,%.4f,%.4f", x, y, z);
+    } else {
+        ESP_LOGI(TAG, "Configuro ricevitore Quectel LC29H come base RTK (survey-in + RTCM3 MSM7)");
+        snprintf(svin_cmd, sizeof(svin_cmd), "PQTMCFGSVIN,W,1,60,2.5,0,0,0");
+    }
+
     // PQTMCFGRCVRMODE,W,2: modalita' base - abilita da sola RTCM MSM4+1005
     // e disattiva l'uscita NMEA, per documentazione ufficiale.
     // PAIR432,1: alza l'uscita RTCM da MSM4 (default della modalita' base)
@@ -51,8 +67,8 @@ esp_err_t gnss_lc29h_configure_base(uart_port_t uart_num)
     // ma innocuo ed esplicito.
     // PQTMSAVEPAR: salva SVIN e RCVRMODE (richiesto da entrambi per avere
     // effetto, vedi ATTENZIONE in gnss_lc29h.h sul riavvio del modulo).
-    static const char *const cmds[] = {
-        "PQTMCFGSVIN,W,1,60,2.5,0,0,0",
+    const char *const cmds[] = {
+        svin_cmd,
         "PQTMCFGRCVRMODE,W,2",
         "PAIR432,1",
         "PAIR434,1",

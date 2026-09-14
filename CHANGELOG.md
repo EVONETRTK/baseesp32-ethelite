@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.13.0
+
+- Aggiunta la posizione base "manuale" (solo chip Quectel LC29H per ora): oltre al survey-in automatico ad ogni avvio (comportamento storico), ora si possono impostare coordinate fisse note - ad esempio ottenute da un servizio di post-processing PPP (CSRS-PPP, OPUS, ecc.), molto piu' precise del solo survey-in. Nuovo `main/geo_convert.c` per la conversione lat/lon/quota WGS84 <-> ECEF (richiesta dal comando `$PQTMCFGSVIN` del modulo in modalita' "fixed"). Per evitare errori di trascrizione, la UI web propone come default l'ultima posizione rilevata dal ricevitore stesso (dai messaggi RTCM 1005/1006 gia' inoltrati al caster, ora tracciati anche oltre alla sola baseline dell'avviso di spostamento) con un pulsante "Usa posizione attuale rilevata": nella maggior parte dei casi basta verificare e confermare, senza scrivere numeri a mano.
+
 ## 1.12.2
 
 - La scheda "Scheda microSD" nello Stato mostra ora anche la capacita' totale e lo spazio usato con una barra colorata (verde/giallo/rosso in base alla percentuale occupata), letti con `esp_vfs_fat_info()` subito dopo il mount.

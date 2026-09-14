@@ -59,6 +59,7 @@ static void apply_defaults(void)
     s_settings.ntrip_caster_server_enable = false;
     s_settings.ntrip_caster_server_port = 2101;
     strncpy(s_settings.ntrip_caster_server_mountpoint, "BASE01", sizeof(s_settings.ntrip_caster_server_mountpoint) - 1);
+    s_settings.base_position_mode = BASE_POSITION_AUTO;
     s_settings.gnss_chip = GNSS_CHIP_UBLOX;
     s_settings.device_mode = DEVICE_MODE_BASE;
     s_settings.network_mode = NETWORK_MODE_BOTH;

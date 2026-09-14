@@ -14,6 +14,7 @@
 #include "alerts.h"
 #include "base_monitor.h"
 #include "ntrip_caster_server.h"
+#include "geo_convert.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -170,6 +171,11 @@ static const char *oled_controller_str(oled_controller_t c)
     }
 }
 
+static const char *base_position_mode_str(base_position_mode_t m)
+{
+    return m == BASE_POSITION_MANUAL ? "manual" : "auto";
+}
+
 static const char *network_mode_str(network_mode_t m)
 {
     switch (m) {
@@ -245,6 +251,25 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "base_drift_baseline_set", drift.baseline_set);
     if (drift.baseline_set) {
         cJSON_AddNumberToObject(root, "base_drift_m", drift.drift_m);
+    }
+
+    cJSON_AddStringToObject(root, "base_position_mode", base_position_mode_str(s.base_position_mode));
+    cJSON_AddNumberToObject(root, "base_fixed_lat_deg", s.base_fixed_lat_deg);
+    cJSON_AddNumberToObject(root, "base_fixed_lon_deg", s.base_fixed_lon_deg);
+    cJSON_AddNumberToObject(root, "base_fixed_height_m", s.base_fixed_height_m);
+    // Ultima posizione rilevata dal ricevitore (ECEF, dallo stesso stream
+    // RTCM 1005/1006 usato sopra per il rilevamento spostamenti) convertita
+    // in lat/lon/quota - proposta dalla UI come default quando si passa a
+    // posizione manuale, cosi' di norma basta confermare invece di doverla
+    // trascrivere a mano da un'altra fonte (es. il display di un altro
+    // ricevitore, o un servizio PPP).
+    cJSON_AddBoolToObject(root, "base_current_position_set", drift.last_position_set);
+    if (drift.last_position_set) {
+        double lat, lon, height;
+        geo_ecef_to_llh(drift.last_ecef_x_m, drift.last_ecef_y_m, drift.last_ecef_z_m, &lat, &lon, &height);
+        cJSON_AddNumberToObject(root, "base_current_lat_deg", lat);
+        cJSON_AddNumberToObject(root, "base_current_lon_deg", lon);
+        cJSON_AddNumberToObject(root, "base_current_height_m", height);
     }
 
     cJSON_AddBoolToObject(root, "ntrip_caster_server_enable", s.ntrip_caster_server_enable);
@@ -492,6 +517,24 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     if (caster_srv_port_item && cJSON_IsNumber(caster_srv_port_item) &&
         caster_srv_port_item->valueint > 0 && caster_srv_port_item->valueint <= 65535) {
         s.ntrip_caster_server_port = (uint16_t) caster_srv_port_item->valueint;
+    }
+
+    cJSON *base_pos_mode_item = cJSON_GetObjectItemCaseSensitive(root, "base_position_mode");
+    if (base_pos_mode_item && cJSON_IsString(base_pos_mode_item)) {
+        s.base_position_mode = (strcmp(base_pos_mode_item->valuestring, "manual") == 0)
+                                    ? BASE_POSITION_MANUAL : BASE_POSITION_AUTO;
+    }
+    cJSON *base_lat_item = cJSON_GetObjectItemCaseSensitive(root, "base_fixed_lat_deg");
+    if (base_lat_item && cJSON_IsNumber(base_lat_item)) {
+        s.base_fixed_lat_deg = base_lat_item->valuedouble;
+    }
+    cJSON *base_lon_item = cJSON_GetObjectItemCaseSensitive(root, "base_fixed_lon_deg");
+    if (base_lon_item && cJSON_IsNumber(base_lon_item)) {
+        s.base_fixed_lon_deg = base_lon_item->valuedouble;
+    }
+    cJSON *base_height_item = cJSON_GetObjectItemCaseSensitive(root, "base_fixed_height_m");
+    if (base_height_item && cJSON_IsNumber(base_height_item)) {
+        s.base_fixed_height_m = base_height_item->valuedouble;
     }
 
     cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "ntrip_port");

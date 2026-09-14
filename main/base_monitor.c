@@ -12,6 +12,8 @@ static SemaphoreHandle_t s_mutex;
 static bool s_baseline_set;
 static rtcm3_position_t s_baseline;
 static double s_drift_m;
+static bool s_last_position_set;
+static rtcm3_position_t s_last_position;
 
 static void mutex_init(void)
 {
@@ -29,6 +31,8 @@ void base_monitor_feed(const uint8_t *data, size_t len)
 
     mutex_init();
     xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_last_position = pos;
+    s_last_position_set = true;
     if (!s_baseline_set) {
         s_baseline = pos;
         s_baseline_set = true;
@@ -55,6 +59,10 @@ base_monitor_status_t base_monitor_get_status(void)
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     st.baseline_set = s_baseline_set;
     st.drift_m = s_drift_m;
+    st.last_position_set = s_last_position_set;
+    st.last_ecef_x_m = s_last_position.ecef_x_m;
+    st.last_ecef_y_m = s_last_position.ecef_y_m;
+    st.last_ecef_z_m = s_last_position.ecef_z_m;
     xSemaphoreGive(s_mutex);
     return st;
 }

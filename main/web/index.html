@@ -186,6 +186,35 @@
   </fieldset>
 
   <fieldset>
+    <legend>Posizione base</legend>
+    <label>Modalita' posizione
+      <select name="base_position_mode">
+        <option value="auto">Automatica (survey-in ad ogni avvio)</option>
+        <option value="manual">Manuale (coordinate fisse)</option>
+      </select>
+    </label>
+    <div id="base-pos-manual-fields" style="display:none">
+      <label>Latitudine (gradi decimali)<input name="base_fixed_lat_deg" type="number" step="0.0000001"></label>
+      <label>Longitudine (gradi decimali)<input name="base_fixed_lon_deg" type="number" step="0.0000001"></label>
+      <label>Quota ellissoidica WGS84 (metri)<input name="base_fixed_height_m" type="number" step="0.001"></label>
+      <button type="button" class="action secondary" id="base-pos-use-current-btn">Usa posizione attuale rilevata</button>
+      <div id="base-pos-current-hint" class="hint" style="margin-top:.4rem">Nessuna posizione ancora rilevata dal ricevitore.</div>
+    </div>
+    <small class="hint">
+      In automatico il ricevitore rifa' il survey-in (qualche minuto, precisione tipicamente metrica) ad
+      ogni avvio, come sempre fatto finora. In manuale puoi invece bloccare una posizione fissa gia' nota -
+      ad esempio ottenuta con un servizio gratuito di post-processing PPP (cerca "CSRS-PPP" o "OPUS"
+      online): si registrano le osservazioni grezze del ricevitore per molte ore e si caricano sul sito,
+      che restituisce una posizione accurata a livello di centimetri, molto migliore del solo survey-in.
+      Il pulsante "Usa posizione attuale rilevata" precompila i campi con l'ultima posizione vista dal
+      ricevitore (dal messaggio RTCM 1005/1006 gia' inviato al caster) cosi', nella maggior parte dei casi,
+      basta verificarla e confermare invece di doverla scrivere a mano. Effettivo solo con chip GNSS
+      Quectel LC29H selezionato sopra; il cambio modalita' richiede lo spegnimento/riaccensione fisico del
+      modulo GNSS per avere effetto (vedi avviso nella pagina Hardware).
+    </small>
+  </fieldset>
+
+  <fieldset>
     <legend>Caster EVONETRTK (NTRIP)</legend>
     <label>Host<input name="ntrip_host"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
@@ -644,8 +673,15 @@ async function loadStatus() {
       f.ntrip_caster_server_port.value = s.ntrip_caster_server_port || 2101;
       f.ntrip_caster_server_mountpoint.value = s.ntrip_caster_server_mountpoint || '';
       f.ntrip_caster_server_username.value = s.ntrip_caster_server_username || '';
+      f.base_position_mode.value = s.base_position_mode || 'auto';
+      f.base_fixed_lat_deg.value = s.base_fixed_lat_deg || 0;
+      f.base_fixed_lon_deg.value = s.base_fixed_lon_deg || 0;
+      f.base_fixed_height_m.value = s.base_fixed_height_m || 0;
       updateOledAddrHex();
+      updateBasePosVisibility();
     }
+    lastStatus = s;
+    renderBasePosCurrent(s);
     renderDriftStatus(s);
     const casterClientsEl = document.getElementById('caster-srv-clients');
     if (casterClientsEl) {
@@ -800,6 +836,44 @@ function renderNtripStatus(s) {
   }
 }
 
+let lastStatus = null;
+
+function updateBasePosVisibility() {
+  const f = document.getElementById('cfg-form');
+  const fields = document.getElementById('base-pos-manual-fields');
+  if (f && fields) {
+    fields.style.display = (f.base_position_mode.value === 'manual') ? '' : 'none';
+  }
+}
+document.getElementById('cfg-form').base_position_mode.addEventListener('change', updateBasePosVisibility);
+
+function renderBasePosCurrent(s) {
+  const hintEl = document.getElementById('base-pos-current-hint');
+  const btn = document.getElementById('base-pos-use-current-btn');
+  if (!hintEl || !btn) {
+    return;
+  }
+  if (!s.base_current_position_set) {
+    hintEl.textContent = 'Nessuna posizione ancora rilevata dal ricevitore.';
+    btn.disabled = true;
+    return;
+  }
+  btn.disabled = false;
+  hintEl.textContent = 'Ultima posizione rilevata: lat ' + s.base_current_lat_deg.toFixed(7) +
+    ', lon ' + s.base_current_lon_deg.toFixed(7) + ', quota ' + s.base_current_height_m.toFixed(2) + ' m';
+}
+
+document.getElementById('base-pos-use-current-btn').addEventListener('click', () => {
+  if (!lastStatus || !lastStatus.base_current_position_set) {
+    return;
+  }
+  const f = document.getElementById('cfg-form');
+  f.base_fixed_lat_deg.value = lastStatus.base_current_lat_deg.toFixed(7);
+  f.base_fixed_lon_deg.value = lastStatus.base_current_lon_deg.toFixed(7);
+  f.base_fixed_height_m.value = lastStatus.base_current_height_m.toFixed(3);
+  f.dataset.touched = '1';
+});
+
 function renderDriftStatus(s) {
   const baselineEl = document.getElementById('drift-baseline');
   const currentEl = document.getElementById('drift-current');
@@ -904,6 +978,9 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
   data.base_drift_threshold_m = Number(data.base_drift_threshold_m);
   data.ntrip_caster_server_enable = f.ntrip_caster_server_enable.checked;
   data.ntrip_caster_server_port = Number(data.ntrip_caster_server_port);
+  data.base_fixed_lat_deg = Number(data.base_fixed_lat_deg);
+  data.base_fixed_lon_deg = Number(data.base_fixed_lon_deg);
+  data.base_fixed_height_m = Number(data.base_fixed_height_m);
 
   const msg = document.getElementById('save-msg');
   msg.textContent = 'Salvataggio...';
