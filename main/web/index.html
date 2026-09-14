@@ -159,8 +159,12 @@
     </div>
     <small class="hint">
       Prova subito la connessione con questo SSID/password, senza dover salvare e riavviare
-      per scoprire se sono giusti. Se funziona, viene salvata automaticamente.
+      per scoprire se sono giusti. Se funziona, viene salvata automaticamente e ricordata
+      (vedi sotto) - spostando il dispositivo tra reti gia' collegate con successo in passato,
+      si ricollega da solo senza dover reinserire nulla.
     </small>
+    <label style="margin-top:.8rem">Reti ricordate (oltre a quella attuale)</label>
+    <div id="wifi-known-list" class="hint">-</div>
   </fieldset>
 
   <fieldset>
@@ -763,6 +767,11 @@ async function loadStatus() {
     renderDriftStatus(s);
     renderQuickStatusFromStatus(s);
     renderPppLog(s);
+    const knownListEl = document.getElementById('wifi-known-list');
+    if (knownListEl) {
+      const known = s.wifi_known_networks || [];
+      knownListEl.textContent = known.length ? known.join(', ') : 'nessuna (solo quella attuale)';
+    }
     const casterClientsEl = document.getElementById('caster-srv-clients');
     if (casterClientsEl) {
       casterClientsEl.textContent = s.ntrip_caster_server_enable ? (s.ntrip_caster_server_clients ?? 0) : 'server disattivato';

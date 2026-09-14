@@ -38,6 +38,20 @@ typedef enum {
     BASE_POSITION_MANUAL = 1, // coordinate fisse note (es. da un servizio di post-processing PPP)
 } base_position_mode_t;
 
+// Reti WiFi "conosciute": ogni volta che una connessione tramite "Connetti"
+// (vedi web_ui.c) riesce davvero, quella rete viene ricordata qui (vedi
+// app_settings_remember_wifi() sotto) - il dispositivo puo' cosi' spostarsi
+// tra piu' reti gia' provate in passato (es. hotspot del campo, WiFi di
+// casa) riconnettendosi da solo a quella visibile, senza dover reinserire
+// SSID/password ogni volta. wifi_ssid/wifi_password restano la rete
+// "principale" (provata per prima); questo elenco tiene le altre.
+#define WIFI_KNOWN_NETWORKS_MAX 5
+
+typedef struct {
+    char ssid[33];
+    char password[65];
+} wifi_known_network_t;
+
 // IMPORTANTE per chi modifica questa struct: settings.c salva/carica questi
 // campi come blob grezzo in NVS, con una migrazione che permette di
 // aggiungere nuovi campi senza perdere la configurazione gia' salvata dagli
@@ -189,7 +203,21 @@ typedef struct {
     // che invece impedisce di raggiungere la pagina web da remoto.
     bool auto_update_check_enable;
     uint16_t auto_update_check_interval_h; // ore tra un controllo e l'altro
+
+    wifi_known_network_t wifi_known_networks[WIFI_KNOWN_NETWORKS_MAX];
 } app_settings_t;
+
+// Segna ssid/password come rete WiFi funzionante (verificata, non solo
+// digitata): *s (non salvato da solo, il chiamante decide quando/se
+// persistere con settings_save()) viene aggiornato cosi' che quella rete
+// diventi la "principale" (wifi_ssid/wifi_password, provata per prima ad
+// ogni riconnessione); se stava sostituendo una rete diversa gia'
+// impostata, quella precedente entra in testa all'elenco delle reti
+// "conosciute" sopra (le piu' vecchie escono oltre WIFI_KNOWN_NETWORKS_MAX
+// voci). Da chiamare SOLO dopo una connessione riuscita per davvero (mai
+// su un semplice salvataggio dal form, che non verifica la connettivita'),
+// cosi' l'elenco contiene solo reti gia' provate con successo.
+void app_settings_remember_wifi(app_settings_t *s, const char *ssid, const char *password);
 
 // Carica la configurazione da NVS; se assente o non valida usa i default
 // da Kconfig (SSID AP generato dal MAC del dispositivo). Va chiamata una

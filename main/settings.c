@@ -280,3 +280,45 @@ esp_err_t settings_save(const app_settings_t *s)
 
     return err;
 }
+
+void app_settings_remember_wifi(app_settings_t *s, const char *ssid, const char *password)
+{
+    if (strcmp(s->wifi_ssid, ssid) == 0) {
+        // Stessa rete di prima (solo la password puo' essere cambiata):
+        // resta la principale, nessun elenco da toccare.
+        strncpy(s->wifi_password, password, sizeof(s->wifi_password) - 1);
+        s->wifi_password[sizeof(s->wifi_password) - 1] = '\0';
+        return;
+    }
+
+    // Se la rete richiesta era gia' tra le "conosciute", toglila da li':
+    // sta per tornare ad essere la principale, non deve comparire due volte.
+    for (int i = 0; i < WIFI_KNOWN_NETWORKS_MAX; i++) {
+        if (strcmp(s->wifi_known_networks[i].ssid, ssid) == 0) {
+            for (int j = i; j < WIFI_KNOWN_NETWORKS_MAX - 1; j++) {
+                s->wifi_known_networks[j] = s->wifi_known_networks[j + 1];
+            }
+            memset(&s->wifi_known_networks[WIFI_KNOWN_NETWORKS_MAX - 1], 0,
+                   sizeof(s->wifi_known_networks[0]));
+            break;
+        }
+    }
+
+    // La vecchia principale (se impostata) scende in cima all'elenco delle
+    // conosciute - le altre si spostano di una posizione, la piu' vecchia
+    // in fondo esce se l'elenco e' gia' pieno.
+    if (s->wifi_ssid[0] != '\0') {
+        for (int i = WIFI_KNOWN_NETWORKS_MAX - 1; i > 0; i--) {
+            s->wifi_known_networks[i] = s->wifi_known_networks[i - 1];
+        }
+        strncpy(s->wifi_known_networks[0].ssid, s->wifi_ssid, sizeof(s->wifi_known_networks[0].ssid) - 1);
+        s->wifi_known_networks[0].ssid[sizeof(s->wifi_known_networks[0].ssid) - 1] = '\0';
+        strncpy(s->wifi_known_networks[0].password, s->wifi_password, sizeof(s->wifi_known_networks[0].password) - 1);
+        s->wifi_known_networks[0].password[sizeof(s->wifi_known_networks[0].password) - 1] = '\0';
+    }
+
+    strncpy(s->wifi_ssid, ssid, sizeof(s->wifi_ssid) - 1);
+    s->wifi_ssid[sizeof(s->wifi_ssid) - 1] = '\0';
+    strncpy(s->wifi_password, password, sizeof(s->wifi_password) - 1);
+    s->wifi_password[sizeof(s->wifi_password) - 1] = '\0';
+}

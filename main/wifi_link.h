@@ -18,6 +18,19 @@ bool wifi_link_connect(uint32_t timeout_ms);
 // scoprire se le credenziali sono giuste.
 bool wifi_link_connect_with(const char *ssid, const char *password, uint32_t timeout_ms);
 
+// Scansiona le reti visibili e prova a collegarsi alla PRIMA rete "nota"
+// (wifi_ssid principale, poi settings.wifi_known_networks - vedi
+// settings.h) che risulta effettivamente visibile, preferendo tra quelle
+// visibili quella col segnale migliore - permette di spostare il
+// dispositivo tra piu' reti gia' provate con successo in passato (es.
+// hotspot del campo, WiFi di casa) senza dover reinserire le credenziali:
+// si ricollega da solo a qualunque rete nota trovi. Se nessuna rete nota
+// e' visibile in questa scansione, ripiega comunque su un tentativo
+// diretto sulla rete principale (utile se un AP non risponde alle probe
+// request attive di una scansione ma accetterebbe una connessione
+// diretta). Blocca per la durata di scansione + connessione.
+bool wifi_link_connect_known(uint32_t connect_timeout_ms);
+
 // Ferma il WiFi (usato prima di passare al fallback cellulare).
 void wifi_link_disconnect(void);
 

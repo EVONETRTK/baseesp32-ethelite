@@ -2,7 +2,17 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
-## 1.17.2
+## 1.18.2
+
+- **Causa vera del crash di 1.18.1, questa volta risolta alla radice**: raddoppiare lo stack di `net_manager_task` non bastava - `wifi_ap_record_t` (usato dalla scansione WiFi) e' molto piu' grande di quel che sembra (include le info 802.11ax/HE), e un array di 32 sullo stack e' troppo pesante per qualunque dimensione ragionevole di stack. Il buffer della scansione (`wifi_link_scan_impl()` in wifi_link.c) ora vive sull'heap (malloc/free) invece che sullo stack - stesso principio gia' usato altrove in questo progetto per lo stesso problema, ma qui alla fonte invece che rincorrendo la dimensione giusta per ogni nuovo chiamante.
+
+## 1.18.1
+
+- **Fix di un crash introdotto in 1.18.0**: `net_manager_task` andava in stack overflow reale (confermato su hardware) non appena il nuovo `wifi_link_connect_known()` faceva la sua prima scansione prima di collegarsi - stesso tipo di causa gia' vista piu' volte in questo progetto (stack troppo piccolo per un array grande tenuto in locale, qui 32 `wifi_ap_record_t` della scansione). Stack di quel task portato da 4096 a 8192 byte.
+
+## 1.18.0
+
+- **Reti WiFi "conosciute"**: ogni volta che "Connetti" verifica con successo una rete, viene ricordata insieme a quelle gia' provate in passato (fino a 5, le piu' vecchie escono) - spostando il dispositivo tra reti diverse gia' usate almeno una volta (es. WiFi di casa e hotspot in campo), il riavvio si ricollega da solo a quella visibile, senza dover reinserire SSID/password ogni volta. Nuovo `app_settings_remember_wifi()` in settings.c e `wifi_link_connect_known()` in wifi_link.c (scansiona, sceglie tra le reti note quella col segnale migliore tra quelle visibili). Elenco (solo nomi, mai le password) visibile nella pagina Rete. Le reti vengono ricordate solo dopo una connessione VERIFICATA (mai da un semplice salvataggio del form senza test), per non riempire l'elenco con errori di battitura.
 
 - Corretto un altro pezzo dello stesso problema "non riesco a collegarmi al WiFi": i nomi di rete rilevati dalla scansione WiFi possono contenere byte non validi come UTF-8 (non tutti i router usano UTF-8 per nomi con caratteri speciali) - il browser li mostrava come punti interrogativi, e se l'utente cliccava su quel risultato per compilare il campo SSID, veniva salvato il nome CON i punti interrogativi al posto dei byte veri: una rete che di fatto non esiste, causa di "SSID non trovato" nonostante password corretta. Ora i byte grezzi dell'SSID vengono trattati come Latin-1 e convertiti in UTF-8 valido prima di mandarli al browser (mai piu' punti interrogativi, nessuna perdita di informazione) e riconvertiti esattamente agli stessi byte originali quando l'utente si collega o salva - la connessione usa quindi sempre il nome vero della rete.
 

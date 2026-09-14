@@ -33,7 +33,7 @@ static void net_manager_task(void *arg)
         case LINK_NONE:
             if (settings.network_mode != NETWORK_MODE_CELLULAR_ONLY) {
                 ESP_LOGI(TAG, "Tentativo connessione WiFi...");
-                if (wifi_link_connect(CONFIG_BASEESP32_WIFI_CONNECT_TIMEOUT_MS)) {
+                if (wifi_link_connect_known(CONFIG_BASEESP32_WIFI_CONNECT_TIMEOUT_MS)) {
                     ESP_LOGI(TAG, "Rete attiva: WiFi");
                     status_set_net(NET_STATUS_WIFI);
                     active = LINK_WIFI;
@@ -116,5 +116,11 @@ void net_manager_start(void)
     // il broadcast UDP NMEA anche via cavo.
     eth_link_init();
 
-    xTaskCreate(net_manager_task, "net_manager", 4096, NULL, 6, NULL);
+    // 4096 non bastava piu': wifi_link_connect_known() (per le reti WiFi
+    // "conosciute") scansiona prima di collegarsi, e la scansione tiene
+    // sullo stack un array di 32 wifi_ap_record_t (grosso, ~80-100 byte
+    // l'uno) - confermato su hardware reale (stack overflow nel task
+    // "net_manager" appena introdotta questa funzione). Stessa causa/fix
+    // gia' vista piu' volte in questo progetto per lo stesso motivo.
+    xTaskCreate(net_manager_task, "net_manager", 8192, NULL, 6, NULL);
 }

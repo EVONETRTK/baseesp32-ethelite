@@ -207,9 +207,22 @@ static size_t wifi_link_scan_impl(wifi_scan_result_t *out, size_t max_results)
         return 0;
     }
 
+    // wifi_ap_record_t e' molto piu' grande di quel che sembra (include
+    // fra l'altro le info 802.11ax/HE) - un array di 32 sullo stack ha
+    // causato uno stack overflow reale su hardware in piu' di un task
+    // chiamante (confermato: prima "wifi_scan", poi "net_manager" non
+    // appena ha iniziato a scansionare anche lui) nonostante stack gia'
+    // raddoppiati piu' volte. Anziche' continuare a indovinare la
+    // dimensione giusta per ogni nuovo chiamante, il buffer va sull'heap:
+    // stessa logica, nessun limite di stack da azzeccare.
     uint16_t num = WIFI_SCAN_MAX_RAW;
-    wifi_ap_record_t raw[WIFI_SCAN_MAX_RAW];
+    wifi_ap_record_t *raw = malloc(WIFI_SCAN_MAX_RAW * sizeof(wifi_ap_record_t));
+    if (!raw) {
+        ESP_LOGE(TAG, "Memoria insufficiente per la scansione WiFi");
+        return 0;
+    }
     if (esp_wifi_scan_get_ap_records(&num, raw) != ESP_OK) {
+        free(raw);
         return 0;
     }
 
@@ -238,7 +251,65 @@ static size_t wifi_link_scan_impl(wifi_scan_result_t *out, size_t max_results)
         out[count].secure = (raw[i].authmode != WIFI_AUTH_OPEN);
         count++;
     }
+    free(raw);
     return count;
+}
+
+bool wifi_link_connect_known(uint32_t connect_timeout_ms)
+{
+    app_settings_t settings = settings_get();
+
+    wifi_scan_result_t results[WIFI_SCAN_MAX_RAW];
+    size_t n = wifi_link_scan_impl(results, WIFI_SCAN_MAX_RAW);
+    if (n == 0) {
+        // Scansione vuota/fallita: ripiega sul tentativo diretto di
+        // sempre, non e' detto che significhi "nessuna rete nota qui".
+        return wifi_link_connect(connect_timeout_ms);
+    }
+
+    // Reti note da provare, in ordine di preferenza: la principale prima,
+    // poi le altre gia' collegate con successo in passato.
+    const char *cand_ssid[1 + WIFI_KNOWN_NETWORKS_MAX];
+    const char *cand_pass[1 + WIFI_KNOWN_NETWORKS_MAX];
+    size_t num_cand = 0;
+    if (settings.wifi_ssid[0] != '\0') {
+        cand_ssid[num_cand] = settings.wifi_ssid;
+        cand_pass[num_cand] = settings.wifi_password;
+        num_cand++;
+    }
+    for (int i = 0; i < WIFI_KNOWN_NETWORKS_MAX; i++) {
+        if (settings.wifi_known_networks[i].ssid[0] != '\0') {
+            cand_ssid[num_cand] = settings.wifi_known_networks[i].ssid;
+            cand_pass[num_cand] = settings.wifi_known_networks[i].password;
+            num_cand++;
+        }
+    }
+
+    // Tra le reti note, sceglie quella col segnale migliore fra quelle
+    // effettivamente viste in questa scansione (non semplicemente la
+    // prima della lista) - piu' probabile che la connessione riesca al
+    // primo colpo.
+    int best_result = -1;
+    size_t best_cand = 0;
+    for (size_t c = 0; c < num_cand; c++) {
+        for (size_t r = 0; r < n; r++) {
+            if (strcmp(cand_ssid[c], results[r].ssid) == 0) {
+                if (best_result < 0 || results[r].rssi > results[best_result].rssi) {
+                    best_result = (int) r;
+                    best_cand = c;
+                }
+                break;
+            }
+        }
+    }
+
+    if (best_result < 0) {
+        ESP_LOGI(TAG, "Nessuna rete nota visibile in questa scansione (%u reti viste)", (unsigned) n);
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Rete nota trovata: '%s' (%d dBm)", cand_ssid[best_cand], results[best_result].rssi);
+    return wifi_link_connect_with(cand_ssid[best_cand], cand_pass[best_cand], connect_timeout_ms);
 }
 
 // Contesto allocato sull'heap (non sullo stack del chiamante): se scatta

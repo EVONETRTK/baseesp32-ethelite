@@ -289,6 +289,21 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         raw_ssid_bytes_to_safe_utf8(s.wifi_ssid, safe_wifi_ssid, sizeof(safe_wifi_ssid));
         cJSON_AddStringToObject(root, "wifi_ssid", safe_wifi_ssid);
     }
+    {
+        // Solo i nomi (mai le password) delle altre reti "conosciute" -
+        // vedi settings.h/app_settings_remember_wifi() - per far vedere
+        // nella UI che il dispositivo le ricorda davvero.
+        cJSON *known = cJSON_CreateArray();
+        for (int i = 0; i < WIFI_KNOWN_NETWORKS_MAX; i++) {
+            if (s.wifi_known_networks[i].ssid[0] == '\0') {
+                continue;
+            }
+            char safe_known_ssid[65];
+            raw_ssid_bytes_to_safe_utf8(s.wifi_known_networks[i].ssid, safe_known_ssid, sizeof(safe_known_ssid));
+            cJSON_AddItemToArray(known, cJSON_CreateString(safe_known_ssid));
+        }
+        cJSON_AddItemToObject(root, "wifi_known_networks", known);
+    }
     cJSON_AddStringToObject(root, "cellular_apn", s.cellular_apn);
     cJSON_AddBoolToObject(root, "cellular_is_sim868", s.cellular_is_sim868);
     cJSON_AddStringToObject(root, "ntrip_host", s.ntrip_host);
@@ -916,13 +931,15 @@ static void wifi_test_connect_task(void *arg)
     bool connected = wifi_link_connect_with(ctx->ssid, ctx->password, 15000);
     if (connected) {
         app_settings_t s = settings_get();
-        strncpy(s.wifi_ssid, ctx->ssid, sizeof(s.wifi_ssid) - 1);
-        s.wifi_ssid[sizeof(s.wifi_ssid) - 1] = '\0';
-        strncpy(s.wifi_password, ctx->password, sizeof(s.wifi_password) - 1);
-        s.wifi_password[sizeof(s.wifi_password) - 1] = '\0';
+        // Ricorda questa rete (diventa la principale; un'eventuale rete
+        // precedente scende nell'elenco delle "conosciute") invece di
+        // limitarsi a sovrascrivere wifi_ssid/password - vedi
+        // settings.h, permette di spostare il dispositivo tra piu' reti
+        // gia' provate con successo senza dover reinserire le credenziali.
+        app_settings_remember_wifi(&s, ctx->ssid, ctx->password);
         settings_save(&s);
         status_set_net(NET_STATUS_WIFI);
-        ESP_LOGI(TAG, "Connesso, credenziali salvate automaticamente");
+        ESP_LOGI(TAG, "Connesso, rete '%s' ricordata automaticamente", ctx->ssid);
     }
 
     xSemaphoreTake(s_wifi_test_mutex, portMAX_DELAY);
