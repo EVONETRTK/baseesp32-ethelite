@@ -32,6 +32,7 @@
 #include "base_monitor.h"
 #include "rtcm3_1005.h"
 #include "ntrip_caster_server.h"
+#include "ppp_log.h"
 
 static const char *TAG = "main";
 
@@ -79,6 +80,7 @@ static void gnss_uart_task(void *arg)
             status_note_rtcm_bytes((uint32_t) len);
             base_monitor_feed(buf, (size_t) len);
             ntrip_caster_server_feed(buf, (size_t) len);
+            ppp_log_feed(buf, (size_t) len);
             xStreamBufferSend(rtcm_stream, buf, len, pdMS_TO_TICKS(1000));
         }
     }

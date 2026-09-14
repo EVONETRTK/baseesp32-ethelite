@@ -231,6 +231,34 @@
   </fieldset>
 
   <fieldset>
+    <legend>🎥 Registrazione dati per PPP (posizione base di alta precisione)</legend>
+    <small class="hint">
+      Registra le osservazioni RTCM3 grezze su SD per diverse ore da un punto fisso - poi converti il file in
+      RINEX (gratis, sul tuo PC) e caricalo su un servizio di post-processing PPP (CSRS-PPP, OPUS, ...) per
+      ottenere una posizione centimetrica da usare qui sopra in "Posizione base" &rarr; Manuale.
+    </small>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.7rem">
+      <button type="button" class="action" id="ppp-log-start-btn">▶️ Avvia registrazione</button>
+      <button type="button" class="action secondary" id="ppp-log-stop-btn">⏹️ Ferma</button>
+      <button type="button" class="action secondary" id="ppp-log-download-btn">⬇️ Scarica log</button>
+    </div>
+    <dl class="kv" style="margin-top:.6rem">
+      <dt>Stato</dt><dd id="ppp-log-status">-</dd>
+      <dt>Durata registrazione</dt><dd id="ppp-log-duration">-</dd>
+      <dt>Dimensione</dt><dd id="ppp-log-size">-</dd>
+    </dl>
+    <div id="ppp-log-msg" class="hint" style="margin-top:.4rem"></div>
+    <small class="hint">
+      Nessun invio automatico: il file resta sul dispositivo finche' non lo scarichi tu. Per convertirlo in
+      RINEX (formato richiesto da tutti i servizi PPP), sul tuo PC con
+      <a href="https://www.rtklib.com/" target="_blank" rel="noopener">RTKLIB</a> (gratuito):
+      <br><code>convbin ppp_log.rtcm3 -r rtcm3 -v 3.03 -n ppp_log.obs</code> (RINEX 3.03, es. per CSRS-PPP)
+      <br><code>convbin ppp_log.rtcm3 -r rtcm3 -v 2.11 -n ppp_log.obs</code> (RINEX 2.11, es. per OPUS/altri)
+      <br>Un'unica registrazione basta per generare il formato richiesto da ciascun ente.
+    </small>
+  </fieldset>
+
+  <fieldset>
     <legend>📡 Caster EVONETRTK (NTRIP)</legend>
     <label>Host<input name="ntrip_host"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
@@ -700,6 +728,7 @@ async function loadStatus() {
     renderBasePosCurrent(s);
     renderDriftStatus(s);
     renderQuickStatusFromStatus(s);
+    renderPppLog(s);
     const casterClientsEl = document.getElementById('caster-srv-clients');
     if (casterClientsEl) {
       casterClientsEl.textContent = s.ntrip_caster_server_enable ? (s.ntrip_caster_server_clients ?? 0) : 'server disattivato';
@@ -937,6 +966,63 @@ document.getElementById('base-pos-use-current-btn').addEventListener('click', ()
   f.base_fixed_lon_deg.value = lastStatus.base_current_lon_deg.toFixed(7);
   f.base_fixed_height_m.value = lastStatus.base_current_height_m.toFixed(3);
   f.dataset.touched = '1';
+});
+
+function renderPppLog(s) {
+  const statusEl = document.getElementById('ppp-log-status');
+  const durationEl = document.getElementById('ppp-log-duration');
+  const sizeEl = document.getElementById('ppp-log-size');
+  if (!statusEl) {
+    return;
+  }
+  if (s.ppp_log_recording) {
+    statusEl.textContent = '🔴 registrazione in corso';
+    statusEl.style.color = '#dc2626';
+    statusEl.style.fontWeight = '600';
+    durationEl.textContent = formatElapsed((s.now_us - s.ppp_log_started_at_us) / 1e6);
+    sizeEl.textContent = formatBytes(s.ppp_log_bytes);
+  } else if (s.ppp_log_file_exists) {
+    statusEl.textContent = '✅ registrazione pronta per il download';
+    statusEl.style.color = '#16a34a';
+    statusEl.style.fontWeight = '600';
+    durationEl.textContent = '-';
+    sizeEl.textContent = formatBytes(s.ppp_log_bytes);
+  } else {
+    statusEl.textContent = 'nessuna registrazione';
+    statusEl.style.color = '';
+    statusEl.style.fontWeight = '';
+    durationEl.textContent = '-';
+    sizeEl.textContent = '-';
+  }
+}
+
+document.getElementById('ppp-log-start-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('ppp-log-msg');
+  msg.textContent = 'Avvio in corso...';
+  try {
+    const r = await fetch('/api/ppp-log/start', { method: 'POST' });
+    const s = await r.json();
+    msg.textContent = s.ok ? 'Registrazione avviata.' : 'Impossibile avviare: verifica che la scheda SD sia inserita.';
+    loadStatus();
+  } catch (e) {
+    msg.textContent = 'Errore di comunicazione con il dispositivo.';
+  }
+});
+
+document.getElementById('ppp-log-stop-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('ppp-log-msg');
+  msg.textContent = 'Arresto in corso...';
+  try {
+    await fetch('/api/ppp-log/stop', { method: 'POST' });
+    msg.textContent = 'Registrazione fermata, file pronto per il download.';
+    loadStatus();
+  } catch (e) {
+    msg.textContent = 'Errore di comunicazione con il dispositivo.';
+  }
+});
+
+document.getElementById('ppp-log-download-btn').addEventListener('click', () => {
+  window.location.href = '/api/ppp-log/download';
 });
 
 function renderDriftStatus(s) {

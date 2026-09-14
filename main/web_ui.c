@@ -15,6 +15,7 @@
 #include "base_monitor.h"
 #include "ntrip_caster_server.h"
 #include "geo_convert.h"
+#include "ppp_log.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -270,6 +271,14 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddNumberToObject(root, "base_current_lat_deg", lat);
         cJSON_AddNumberToObject(root, "base_current_lon_deg", lon);
         cJSON_AddNumberToObject(root, "base_current_height_m", height);
+    }
+
+    ppp_log_status_t ppp = ppp_log_get_status();
+    cJSON_AddBoolToObject(root, "ppp_log_recording", ppp.recording);
+    cJSON_AddBoolToObject(root, "ppp_log_file_exists", ppp.file_exists);
+    if (ppp.recording || ppp.file_exists) {
+        cJSON_AddNumberToObject(root, "ppp_log_bytes", (double) ppp.bytes_written);
+        cJSON_AddNumberToObject(root, "ppp_log_started_at_us", (double) ppp.started_at_us);
     }
 
     cJSON_AddBoolToObject(root, "ntrip_caster_server_enable", s.ntrip_caster_server_enable);
@@ -1080,6 +1089,63 @@ static esp_err_t alerts_test_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t ppp_log_start_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    bool ok = ppp_log_start();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false}");
+    return ESP_OK;
+}
+
+static esp_err_t ppp_log_stop_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    ppp_log_stop();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+// Serve il file di log grezzo per il download dal browser, a blocchi (mai
+// caricato tutto in RAM: una registrazione di diverse ore puo' superare
+// facilmente la memoria disponibile) - fallisce con un messaggio chiaro se
+// la registrazione e' ancora in corso (vedi ppp_log_open_for_read()) o se
+// non c'e' nessun file salvato.
+static esp_err_t ppp_log_download_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    FILE *f = ppp_log_open_for_read();
+    if (!f) {
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_set_type(req, "text/plain; charset=utf-8");
+        httpd_resp_sendstr(req, "Nessun log disponibile, oppure una registrazione e' ancora in corso (fermala prima di scaricare)");
+        return ESP_OK;
+    }
+
+    httpd_resp_set_type(req, "application/octet-stream");
+    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"ppp_log.rtcm3\"");
+
+    static char chunk[2048]; // static: troppo grande per lo stack del task httpd
+    size_t n;
+    esp_err_t err = ESP_OK;
+    while ((n = fread(chunk, 1, sizeof(chunk), f)) > 0) {
+        if (httpd_resp_send_chunk(req, chunk, n) != ESP_OK) {
+            err = ESP_FAIL;
+            break;
+        }
+    }
+    httpd_resp_send_chunk(req, NULL, 0); // chiude la risposta chunked
+    ppp_log_close_for_read(f);
+    return err;
+}
+
 static esp_err_t reboot_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -1095,7 +1161,7 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 void web_ui_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 17; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi aggiunti
+    config.max_uri_handlers = 20; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi/PPP aggiunti
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne
@@ -1125,6 +1191,9 @@ void web_ui_start(void)
     httpd_uri_t wifi_test_progress_uri = { .uri = "/api/wifi/test-progress", .method = HTTP_GET, .handler = wifi_test_progress_get_handler };
     httpd_uri_t log_uri        = { .uri = "/api/log", .method = HTTP_GET, .handler = log_get_handler };
     httpd_uri_t alerts_test_uri = { .uri = "/api/alerts/test", .method = HTTP_POST, .handler = alerts_test_post_handler };
+    httpd_uri_t ppp_log_start_uri = { .uri = "/api/ppp-log/start", .method = HTTP_POST, .handler = ppp_log_start_post_handler };
+    httpd_uri_t ppp_log_stop_uri  = { .uri = "/api/ppp-log/stop",  .method = HTTP_POST, .handler = ppp_log_stop_post_handler };
+    httpd_uri_t ppp_log_dl_uri    = { .uri = "/api/ppp-log/download", .method = HTTP_GET, .handler = ppp_log_download_get_handler };
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
@@ -1141,6 +1210,9 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &ota_progress_uri);
     httpd_register_uri_handler(server, &log_uri);
     httpd_register_uri_handler(server, &alerts_test_uri);
+    httpd_register_uri_handler(server, &ppp_log_start_uri);
+    httpd_register_uri_handler(server, &ppp_log_stop_uri);
+    httpd_register_uri_handler(server, &ppp_log_dl_uri);
 
     ESP_LOGI(TAG, "Server web di gestione avviato");
 }
