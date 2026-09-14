@@ -5,6 +5,7 @@
 #include "freertos/stream_buffer.h"
 
 #include "esp_log.h"
+#include "esp_system.h"
 #include "nvs_flash.h"
 #include "driver/uart.h"
 
@@ -19,6 +20,7 @@
 #include "net_manager.h"
 #include "web_ui.h"
 #include "ota_update.h"
+#include "sd_update.h"
 #include "gnss_driver.h"
 #include "gnss_signal.h"
 #include "gnss_fix.h"
@@ -116,6 +118,19 @@ void app_main(void)
     // riuscito non torni indietro da solo al riavvio successivo (il
     // rollback automatico scatta solo per immagini mai confermate).
     ota_update_mark_valid();
+
+    // Controllo automatico della scheda microSD ad ogni avvio: usa la
+    // stessa funzione gia' usata dal pulsante manuale nella UI web (stesso
+    // timeout di sicurezza, stessa rinomina firmware.bin -> .applied dopo
+    // un aggiornamento riuscito per non riapplicarlo ad ogni riavvio) -
+    // se non c'e' nessuna scheda inserita, o non c'e' un aggiornamento piu'
+    // recente di quello attuale, non succede nulla.
+    char sd_msg[96] = {0};
+    if (sd_update_check_and_apply(sd_msg, sizeof(sd_msg))) {
+        ESP_LOGI(TAG, "Firmware aggiornato da microSD all'avvio, riavvio in corso: %s", sd_msg);
+        vTaskDelay(pdMS_TO_TICKS(300));
+        esp_restart();
+    }
 
     app_settings_t settings = settings_get();
     gnss_uart_init(&settings);

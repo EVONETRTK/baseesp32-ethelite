@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.12.0
+
+- La scheda microSD viene ora controllata automaticamente **ad ogni avvio** (prima solo premendo il pulsante "Controlla e aggiorna da SD" nella UI web) - riusa la stessa funzione gia' esistente, quindi stesse sicurezze: nessun effetto se non c'e' una scheda inserita o non c'e' un aggiornamento piu' recente di quello attuale, e il file `firmware.bin` viene rinominato dopo l'uso per non riapplicarlo ad ogni riavvio.
+
 ## 1.11.1
 
 - Aggiunta una schermata all'OLED (in rotazione con le altre) che mostra il nome della rete WiFi di configurazione e l'indirizzo fisso `192.168.4.1` per raggiungere la pagina web - utile a chi e' fisicamente in campo e non sa gia' a memoria come collegarsi, senza dover passare da un laptop o da un altro dispositivo gia' configurato.
