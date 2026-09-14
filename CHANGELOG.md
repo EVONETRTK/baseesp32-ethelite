@@ -2,7 +2,9 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
-## 1.18.2
+## 1.18.3
+
+- Corretto un bug reale segnalato dall'utente: selezionando una rete diversa dall'elenco della scansione WiFi, il campo password non veniva svuotato - restava quella digitata per la rete precedente, con il rischio concreto di provare a collegarsi alla rete nuova con la password sbagliata senza accorgersene. Ora si svuota sempre al cambio rete. Aggiunto anche `autocomplete="new-password"` al campo per ridurre le password suggerite/precompilate dal gestore password del browser.
 
 - **Causa vera del crash di 1.18.1, questa volta risolta alla radice**: raddoppiare lo stack di `net_manager_task` non bastava - `wifi_ap_record_t` (usato dalla scansione WiFi) e' molto piu' grande di quel che sembra (include le info 802.11ax/HE), e un array di 32 sullo stack e' troppo pesante per qualunque dimensione ragionevole di stack. Il buffer della scansione (`wifi_link_scan_impl()` in wifi_link.c) ora vive sull'heap (malloc/free) invece che sullo stack - stesso principio gia' usato altrove in questo progetto per lo stesso problema, ma qui alla fonte invece che rincorrendo la dimensione giusta per ogni nuovo chiamante.
 

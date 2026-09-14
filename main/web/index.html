@@ -151,7 +151,7 @@
     <label>SSID<input name="wifi_ssid"></label>
     <button type="button" class="action secondary" id="wifi-scan-btn" style="margin-top:.6rem">Cerca reti WiFi</button>
     <div id="wifi-scan-results" style="margin-top:.4rem"></div>
-    <label>Password<input name="wifi_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label>Password<input name="wifi_password" type="password" autocomplete="new-password" placeholder="lascia vuoto per non modificare"></label>
     <button type="button" class="action" id="wifi-test-btn" style="margin-top:.6rem">Connetti (senza riavviare)</button>
     <div id="wifi-test-msg" class="hint" style="margin-top:.4rem"></div>
     <div id="wifi-test-bar-track" class="sig-bar-track" style="display:none; margin-top:.4rem">
@@ -1270,6 +1270,12 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
       btn.addEventListener('click', () => {
         const f = document.getElementById('cfg-form');
         f.wifi_ssid.value = net.ssid;
+        // Svuota sempre la password quando si cambia rete: altrimenti
+        // resterebbe quella digitata per la rete precedente (o quella
+        // suggerita dal salvataggio automatico del browser), con il
+        // rischio concreto di provare a collegarsi alla rete nuova con
+        // la password sbagliata senza accorgersene.
+        f.wifi_password.value = '';
         f.dataset.touched = '1';
         results.innerHTML = '';
         f.wifi_password.focus();
