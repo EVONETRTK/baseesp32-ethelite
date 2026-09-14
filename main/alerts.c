@@ -1,6 +1,7 @@
 #include "alerts.h"
 #include "settings.h"
 #include "status.h"
+#include "base_monitor.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -254,6 +255,11 @@ static bool send_on_configured_channels(const app_settings_t *s, const char *sub
     return any_ok;
 }
 
+bool alerts_send_now(const app_settings_t *s, const char *subject, const char *body)
+{
+    return send_on_configured_channels(s, subject, body, NULL, 0);
+}
+
 bool alerts_send_test(const app_settings_t *s, char *out_msg, size_t out_msg_size)
 {
     char body[128];
@@ -265,34 +271,61 @@ bool alerts_send_test(const app_settings_t *s, char *out_msg, size_t out_msg_siz
 static void alerts_task(void *arg)
 {
     bool already_alerted = false;
+    bool already_alerted_drift = false;
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
 
         app_settings_t s = settings_get();
         if (!s.alert_enable) {
             already_alerted = false;
+            already_alerted_drift = false;
             continue;
         }
 
         ntrip_conn_status_t ntrip = status_ntrip_get();
         if (!ntrip.connected) {
             if (ntrip.last_disconnect_us <= 0) {
-                continue; // mai stato connesso dal boot: non e' una disconnessione da segnalare
-            }
-            int down_min = (int) ((esp_timer_get_time() - ntrip.last_disconnect_us) / 1000000 / 60);
-            if (!already_alerted && down_min >= s.alert_threshold_min) {
-                char body[256];
-                snprintf(body, sizeof(body),
-                         "EVONETRTK %s: connessione al caster NTRIP interrotta da oltre %d minuti (%s)",
-                         s.device_serial, s.alert_threshold_min, ntrip.last_error);
-                send_on_configured_channels(&s, "EVONETRTK - caster disconnesso", body, NULL, 0);
-                already_alerted = true;
+                // mai stato connesso dal boot: non e' una disconnessione da segnalare
+            } else {
+                int down_min = (int) ((esp_timer_get_time() - ntrip.last_disconnect_us) / 1000000 / 60);
+                if (!already_alerted && down_min >= s.alert_threshold_min) {
+                    char body[256];
+                    snprintf(body, sizeof(body),
+                             "EVONETRTK %s: connessione al caster NTRIP interrotta da oltre %d minuti (%s)",
+                             s.device_serial, s.alert_threshold_min, ntrip.last_error);
+                    send_on_configured_channels(&s, "EVONETRTK - caster disconnesso", body, NULL, 0);
+                    already_alerted = true;
+                }
             }
         } else if (already_alerted) {
             char body[128];
             snprintf(body, sizeof(body), "EVONETRTK %s: connessione al caster NTRIP ripristinata.", s.device_serial);
             send_on_configured_channels(&s, "EVONETRTK - caster ripristinato", body, NULL, 0);
             already_alerted = false;
+        }
+
+        // Spostamento della base (vedi base_monitor.c): stesso schema di
+        // "un avviso quando succede, uno quando rientra" di sopra, con un
+        // latch separato per non interferire col controllo NTRIP.
+        if (s.base_drift_alert_enable) {
+            base_monitor_status_t drift = base_monitor_get_status();
+            if (drift.baseline_set) {
+                if (drift.drift_m >= s.base_drift_threshold_m) {
+                    if (!already_alerted_drift) {
+                        char body[192];
+                        snprintf(body, sizeof(body),
+                                 "EVONETRTK %s: la base si e' spostata di circa %.1f m dalla posizione registrata "
+                                 "all'avvio - verifica l'antenna.",
+                                 s.device_serial, drift.drift_m);
+                        send_on_configured_channels(&s, "EVONETRTK - base spostata", body, NULL, 0);
+                        already_alerted_drift = true;
+                    }
+                } else {
+                    already_alerted_drift = false;
+                }
+            }
+        } else {
+            already_alerted_drift = false;
         }
     }
 }

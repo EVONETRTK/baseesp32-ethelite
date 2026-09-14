@@ -54,6 +54,11 @@ static void apply_defaults(void)
     s_settings.alert_enable = false;
     s_settings.alert_threshold_min = 15;
     s_settings.alert_smtp_port = 465;
+    s_settings.base_drift_alert_enable = false;
+    s_settings.base_drift_threshold_m = 5.0f;
+    s_settings.ntrip_caster_server_enable = false;
+    s_settings.ntrip_caster_server_port = 2101;
+    strncpy(s_settings.ntrip_caster_server_mountpoint, "BASE01", sizeof(s_settings.ntrip_caster_server_mountpoint) - 1);
     s_settings.gnss_chip = GNSS_CHIP_UBLOX;
     s_settings.device_mode = DEVICE_MODE_BASE;
     s_settings.network_mode = NETWORK_MODE_BOTH;
@@ -75,9 +80,9 @@ static void apply_defaults(void)
     s_settings.oled_scl_pin = CONFIG_BASEESP32_OLED_SCL_PIN;
     s_settings.oled_i2c_addr = CONFIG_BASEESP32_OLED_I2C_ADDR;
 #ifdef CONFIG_BASEESP32_OLED_CONTROLLER_SH1106
-    s_settings.oled_is_sh1106 = true;
+    s_settings.oled_controller = OLED_CTRL_SH1106;
 #else
-    s_settings.oled_is_sh1106 = false;
+    s_settings.oled_controller = OLED_CTRL_SSD1306;
 #endif
 #ifdef CONFIG_BASEESP32_OLED_FLIP_H
     s_settings.oled_flip_h = true;

@@ -174,6 +174,7 @@
       <select name="gnss_chip">
         <option value="ublox">u-blox (es. ZED-F9P)</option>
         <option value="unicore">Unicore (es. UM980/UM982)</option>
+        <option value="lc29h">Quectel LC29H (BA/CA/DA/EA)</option>
       </select>
     </label>
   </fieldset>
@@ -185,6 +186,31 @@
     <label>Mountpoint<input name="ntrip_mountpoint"></label>
     <label>Username <small class="hint">(solo modalita' rover)</small><input name="ntrip_username"></label>
     <label>Password / codice sorgente<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Server caster NTRIP locale (solo modalita' base)</legend>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="ntrip_caster_server_enable" type="checkbox" style="width:auto; margin:0">
+      Accetta rover collegati direttamente a questo dispositivo (oltre al caster esterno sopra)
+    </label>
+    <label>Porta<input name="ntrip_caster_server_port" type="number" min="1" max="65535" placeholder="2101"></label>
+    <label>Mountpoint<input name="ntrip_caster_server_mountpoint" placeholder="es. BASE01"></label>
+    <label>Username <small class="hint">(vuoto = nessuna autenticazione)</small><input name="ntrip_caster_server_username"></label>
+    <label>Password<input name="ntrip_caster_server_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <dl class="kv" style="margin-top:.4rem">
+      <dt>Rover collegati ora</dt><dd id="caster-srv-clients">-</dd>
+    </dl>
+    <small class="hint">
+      <strong>Funziona sempre sulla stessa rete locale</strong> (WiFi di casa/campo, hotspot) senza
+      configurazione aggiuntiva. Per farlo raggiungere anche da internet senza passare da un caster
+      esterno serve configurare il <strong>port forwarding sul tuo router</strong> (porta sopra &rarr;
+      IP di questo dispositivo) e, se il tuo operatore internet non ti da' un indirizzo fisso, un
+      servizio di <strong>DNS dinamico</strong> (es. DuckDNS, gratuito). Sui dati del modem cellulare
+      (SIM7600/SIM868) quasi certamente <strong>non funzionera' da internet</strong>: gli operatori
+      mobili mettono quasi sempre le SIM dietro un NAT condiviso che blocca le connessioni in
+      entrata, un limite della rete dell'operatore che nessun firmware puo' aggirare.
+    </small>
   </fieldset>
 
   <fieldset>
@@ -214,7 +240,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Avviso caster disconnesso</legend>
+    <legend>Avvisi (email/WhatsApp)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="alert_enable" type="checkbox" style="width:auto; margin:0">
       Avvisami se la connessione al caster resta interrotta troppo a lungo
@@ -225,6 +251,23 @@
       resta giu' (e uno quando torna a funzionare). Basta configurare almeno un canale qui sotto,
       email e WhatsApp insieme oppure uno solo.
     </small>
+
+    <label style="margin-top:.8rem; flex-direction:row; align-items:center; gap:.5rem">
+      <input name="base_drift_alert_enable" type="checkbox" style="width:auto; margin:0">
+      Avvisami se l'antenna della base si sposta (solo modalita' base)
+    </label>
+    <label>Distanza minima considerata uno spostamento reale (metri)<input name="base_drift_threshold_m" type="number" min="0.1" step="0.1"></label>
+    <small class="hint">
+      Confronta la posizione dell'antenna (dai messaggi RTCM 1005/1006 gia' inviati al caster) con
+      quella registrata al primo avvio dopo il boot - utile per accorgersi se la base viene urtata
+      da un mezzo agricolo o spostata dal vento, cosa che altrimenti manderebbe correzioni sbagliate
+      a tutti i rover collegati senza nessun segnale visibile sul posto. Richiede anche il flag sopra
+      "Avvisami se la connessione al caster..." attivo (usa la stessa configurazione email/WhatsApp).
+    </small>
+    <dl class="kv" style="margin-top:.4rem">
+      <dt>Posizione di riferimento</dt><dd id="drift-baseline">-</dd>
+      <dt>Spostamento attuale</dt><dd id="drift-current">-</dd>
+    </dl>
 
     <label style="margin-top:.8rem">Server SMTP (email)<input name="alert_smtp_host" placeholder="es. smtp.gmail.com"></label>
     <label>Porta SMTP<input name="alert_smtp_port" type="number" min="1" max="65535" placeholder="465"></label>
@@ -299,7 +342,7 @@
 
 <div id="page-hardware" class="page">
   <fieldset>
-    <legend>Antenna GNSS (u-blox/Unicore)</legend>
+    <legend>Antenna GNSS (u-blox/Unicore/LC29H)</legend>
     <label>UART ESP32
       <select name="gnss_uart_num">
         <option value="0">UART0</option>
@@ -310,7 +353,11 @@
     <label>GPIO TX (ESP32 &rarr; GNSS)<input name="gnss_uart_tx_pin" type="number" min="-1" max="48"></label>
     <label>GPIO RX (GNSS &rarr; ESP32, riceve RTCM3)<input name="gnss_uart_rx_pin" type="number" min="-1" max="48"></label>
     <label>Baud rate<input name="gnss_uart_baud" type="number" min="4800"></label>
-    <small class="hint">Pin verso il modulo GNSS esterno - variano per installazione. Richiede un riavvio per applicarsi.</small>
+    <small class="hint">
+      Pin verso il modulo GNSS esterno - variano per installazione. Richiede un riavvio per applicarsi.
+      Il modulo Quectel LC29H di fabbrica usa 460800 (non 115200) - impostalo qui invece di
+      cambiare la velocita' del modulo via comando.
+    </small>
   </fieldset>
 
   <fieldset>
@@ -336,9 +383,10 @@
   <fieldset>
     <legend>Display OLED (opzionale, 128x64 I2C)</legend>
     <label>Controller
-      <select name="oled_is_sh1106">
-        <option value="false">SSD1306 (tipico nei moduli da 0,96")</option>
-        <option value="true">SH1106 (tipico nei moduli da 1,3")</option>
+      <select name="oled_controller">
+        <option value="ssd1306">SSD1306 (tipico nei moduli da 0,96")</option>
+        <option value="sh1106">SH1106 (tipico nei moduli da 1,3")</option>
+        <option value="ssd1309">SSD1309 (tipico nei moduli da 2,42" - stessi comandi di SSD1306)</option>
       </select>
       <small class="hint">Se l'immagine esce distorta o scorretta, prova a cambiare questa scelta.</small>
     </label>
@@ -545,7 +593,7 @@ async function loadStatus() {
       f.oled_scl_pin.value = s.oled_scl_pin ?? -1;
       f.oled_i2c_addr.value = s.oled_i2c_addr ?? 60;
       f.ota_update_url.value = s.ota_update_url || '';
-      f.oled_is_sh1106.value = s.oled_is_sh1106 ? 'true' : 'false';
+      f.oled_controller.value = s.oled_controller || 'ssd1306';
       f.oled_flip_h.checked = !!s.oled_flip_h;
       f.oled_flip_v.checked = !!s.oled_flip_v;
       f.alert_enable.checked = !!s.alert_enable;
@@ -555,7 +603,18 @@ async function loadStatus() {
       f.alert_smtp_user.value = s.alert_smtp_user || '';
       f.alert_email_to.value = s.alert_email_to || '';
       f.alert_whatsapp_phone.value = s.alert_whatsapp_phone || '';
+      f.base_drift_alert_enable.checked = !!s.base_drift_alert_enable;
+      f.base_drift_threshold_m.value = s.base_drift_threshold_m || 5;
+      f.ntrip_caster_server_enable.checked = !!s.ntrip_caster_server_enable;
+      f.ntrip_caster_server_port.value = s.ntrip_caster_server_port || 2101;
+      f.ntrip_caster_server_mountpoint.value = s.ntrip_caster_server_mountpoint || '';
+      f.ntrip_caster_server_username.value = s.ntrip_caster_server_username || '';
       updateOledAddrHex();
+    }
+    renderDriftStatus(s);
+    const casterClientsEl = document.getElementById('caster-srv-clients');
+    if (casterClientsEl) {
+      casterClientsEl.textContent = s.ntrip_caster_server_enable ? (s.ntrip_caster_server_clients ?? 0) : 'server disattivato';
     }
   } catch (e) {
     document.getElementById('st-net').textContent = 'errore lettura stato';
@@ -706,6 +765,26 @@ function renderNtripStatus(s) {
   }
 }
 
+function renderDriftStatus(s) {
+  const baselineEl = document.getElementById('drift-baseline');
+  const currentEl = document.getElementById('drift-current');
+  if (!baselineEl || !currentEl) {
+    return; // pagina non ancora pronta (script gira anche prima del DOM completo)
+  }
+  if (!s.base_drift_baseline_set) {
+    baselineEl.textContent = 'non ancora registrata (serve un frame RTCM 1005/1006 dal GNSS)';
+    currentEl.textContent = '-';
+    currentEl.style.color = '';
+    currentEl.style.fontWeight = '';
+    return;
+  }
+  baselineEl.textContent = 'registrata';
+  const drift = s.base_drift_m ?? 0;
+  currentEl.textContent = drift.toFixed(2) + ' m';
+  currentEl.style.fontWeight = '600';
+  currentEl.style.color = drift >= (s.base_drift_threshold_m || 5) ? '#dc2626' : '#16a34a';
+}
+
 function renderFixStatus(s) {
   const qualityEl = document.getElementById('fix-quality');
   const satsEl = document.getElementById('fix-sats');
@@ -780,13 +859,16 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
   data.oled_sda_pin = Number(data.oled_sda_pin);
   data.oled_scl_pin = Number(data.oled_scl_pin);
   data.oled_i2c_addr = Number(data.oled_i2c_addr);
-  data.oled_is_sh1106 = (data.oled_is_sh1106 === 'true');
   data.oled_flip_h = f.oled_flip_h.checked;
   data.oled_flip_v = f.oled_flip_v.checked;
   data.cellular_is_sim868 = (data.cellular_is_sim868 === 'true');
   data.alert_enable = f.alert_enable.checked;
   data.alert_threshold_min = Number(data.alert_threshold_min);
   data.alert_smtp_port = Number(data.alert_smtp_port);
+  data.base_drift_alert_enable = f.base_drift_alert_enable.checked;
+  data.base_drift_threshold_m = Number(data.base_drift_threshold_m);
+  data.ntrip_caster_server_enable = f.ntrip_caster_server_enable.checked;
+  data.ntrip_caster_server_port = Number(data.ntrip_caster_server_port);
 
   const msg = document.getElementById('save-msg');
   msg.textContent = 'Salvataggio...';

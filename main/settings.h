@@ -7,6 +7,7 @@
 typedef enum {
     GNSS_CHIP_UBLOX = 0,
     GNSS_CHIP_UNICORE = 1,
+    GNSS_CHIP_LC29H = 2, // Quectel LC29H (BA/CA/DA/EA), comandi $PQTM.../$PAIR...
 } gnss_chip_t;
 
 typedef enum {
@@ -25,6 +26,12 @@ typedef enum {
     RGB_LED_WS2812 = 1, // indirizzabile, un solo pin dati (driver RMT)
     RGB_LED_PWM3 = 2,   // 3 pin separati R/G/B, intensita' via PWM (LEDC)
 } rgb_led_mode_t;
+
+typedef enum {
+    OLED_CTRL_SSD1306 = 0,
+    OLED_CTRL_SH1106 = 1,
+    OLED_CTRL_SSD1309 = 2, // stesso percorso di SSD1306 nel driver, vedi commento sul campo sotto
+} oled_controller_t;
 
 typedef struct {
     char wifi_ssid[33];
@@ -85,8 +92,13 @@ typedef struct {
     // I moduli da 0,96" montano quasi sempre SSD1306; quelli da 1,3" quasi
     // sempre SH1106 (RAM interna 132x64, comandi di indirizzamento diversi
     // - serve un driver leggermente diverso, non e' solo una questione di
-    // dimensione fisica).
-    bool oled_is_sh1106;
+    // dimensione fisica). SSD1309 (tipico sui moduli piu' grandi, 2,42")
+    // e' invece compatibile a livello di comandi con SSD1306 nella
+    // stragrande maggioranza dei moduli in commercio - stesso percorso nel
+    // driver, tenuto come opzione separata solo per mostrare all'utente il
+    // controller giusto invece di uno diverso ma elettricamente
+    // equivalente.
+    oled_controller_t oled_controller;
     // Orientamento: dipende da come il singolo modulo ha cablato
     // SEG/COM al vetro, varia da produttore a produttore - non c'e' un
     // valore giusto universale, va provato. flip_h risolve testo/immagine
@@ -114,6 +126,30 @@ typedef struct {
     char alert_email_to[64];
     char alert_whatsapp_phone[24];  // con prefisso internazionale, es. "391234567890" (CallMeBot)
     char alert_whatsapp_apikey[16];
+
+    // Avviso (stessi canali sopra) se l'antenna della base si sposta
+    // rispetto alla posizione registrata al primo frame RTCM 1005/1006
+    // ricevuto dopo l'avvio (es. urtata da un mezzo agricolo o dal vento) -
+    // uno spostamento non rilevato fa arrivare correzioni sbagliate a tutti
+    // i rover collegati, senza nessun segnale visibile sul posto. Attivo
+    // solo se alert_enable e' true, in aggiunta ad esso.
+    bool base_drift_alert_enable;
+    float base_drift_threshold_m; // distanza minima per considerarlo uno spostamento reale, non rumore di misura
+
+    // Server caster NTRIP locale (solo modalita' base): oltre a inoltrare
+    // l'RTCM3 al caster esterno configurato sopra, il dispositivo puo'
+    // anche accettare direttamente connessioni da rover (protocollo NTRIP
+    // server-side) - utile in campo senza internet, dove base e rover si
+    // scambiano le correzioni sulla stessa rete WiFi locale senza bisogno
+    // di un caster esterno. Raggiungibile da internet solo se l'utente
+    // configura il port forwarding sul proprio router (impossibile in
+    // pratica sui dati del modem cellulare, quasi sempre dietro NAT
+    // condiviso dall'operatore) - vedi hint nella UI web.
+    bool ntrip_caster_server_enable;
+    uint16_t ntrip_caster_server_port; // 2101 = porta standard NTRIP
+    char ntrip_caster_server_mountpoint[33];
+    char ntrip_caster_server_username[33]; // vuoto = nessuna autenticazione richiesta
+    char ntrip_caster_server_password[64];
 } app_settings_t;
 
 // Carica la configurazione da NVS; se assente o non valida usa i default

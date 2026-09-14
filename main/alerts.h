@@ -18,3 +18,10 @@ void alerts_start(void);
 // canale configurato ha avuto successo; out_msg (se non NULL) riceve un
 // riepilogo leggibile dell'esito di ciascun canale.
 bool alerts_send_test(const app_settings_t *s, char *out_msg, size_t out_msg_size);
+
+// Invia subito un avviso generico sui canali configurati in s - usata da
+// alerts_task() internamente e da altri moduli (es. base_monitor.c per lo
+// spostamento della base) che devono notificare un evento reale, non di
+// prova. Bloccante come alerts_send_test(). Ritorna true se almeno un
+// canale configurato ha avuto successo.
+bool alerts_send_now(const app_settings_t *s, const char *subject, const char *body);

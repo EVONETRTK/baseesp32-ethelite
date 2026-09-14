@@ -12,6 +12,8 @@
 #include "wifi_link.h"
 #include "cellular_link.h"
 #include "alerts.h"
+#include "base_monitor.h"
+#include "ntrip_caster_server.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -147,12 +149,25 @@ static const char *net_status_str(net_status_t s)
 
 static const char *gnss_chip_str(gnss_chip_t c)
 {
-    return c == GNSS_CHIP_UNICORE ? "unicore" : "ublox";
+    switch (c) {
+    case GNSS_CHIP_UNICORE: return "unicore";
+    case GNSS_CHIP_LC29H:   return "lc29h";
+    default:                return "ublox";
+    }
 }
 
 static const char *device_mode_str(device_mode_t m)
 {
     return m == DEVICE_MODE_ROVER ? "rover" : "base";
+}
+
+static const char *oled_controller_str(oled_controller_t c)
+{
+    switch (c) {
+    case OLED_CTRL_SH1106:  return "sh1106";
+    case OLED_CTRL_SSD1309: return "ssd1309";
+    default:                return "ssd1306";
+    }
 }
 
 static const char *network_mode_str(network_mode_t m)
@@ -223,6 +238,23 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     // alert_smtp_password e alert_whatsapp_apikey non vengono mai
     // restituiti (come ntrip_password sopra) - solo scrivibili dalla UI,
     // mai riletti.
+
+    cJSON_AddBoolToObject(root, "base_drift_alert_enable", s.base_drift_alert_enable);
+    cJSON_AddNumberToObject(root, "base_drift_threshold_m", s.base_drift_threshold_m);
+    base_monitor_status_t drift = base_monitor_get_status();
+    cJSON_AddBoolToObject(root, "base_drift_baseline_set", drift.baseline_set);
+    if (drift.baseline_set) {
+        cJSON_AddNumberToObject(root, "base_drift_m", drift.drift_m);
+    }
+
+    cJSON_AddBoolToObject(root, "ntrip_caster_server_enable", s.ntrip_caster_server_enable);
+    cJSON_AddNumberToObject(root, "ntrip_caster_server_port", s.ntrip_caster_server_port);
+    cJSON_AddStringToObject(root, "ntrip_caster_server_mountpoint", s.ntrip_caster_server_mountpoint);
+    cJSON_AddStringToObject(root, "ntrip_caster_server_username", s.ntrip_caster_server_username);
+    cJSON_AddNumberToObject(root, "ntrip_caster_server_clients", (double) ntrip_caster_server_get_client_count());
+    // ntrip_caster_server_password non viene mai restituita (come le altre
+    // password sopra) - solo scrivibile dalla UI, mai riletta.
+
     // Bluetooth Classic (SPP) non disponibile su ESP32-S3 (solo BLE, non
     // implementata su questa scheda) - i campi bt_* non vengono inviati.
 
@@ -241,7 +273,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "oled_sda_pin", s.oled_sda_pin);
     cJSON_AddNumberToObject(root, "oled_scl_pin", s.oled_scl_pin);
     cJSON_AddNumberToObject(root, "oled_i2c_addr", s.oled_i2c_addr);
-    cJSON_AddBoolToObject(root, "oled_is_sh1106", s.oled_is_sh1106);
+    cJSON_AddStringToObject(root, "oled_controller", oled_controller_str(s.oled_controller));
     cJSON_AddBoolToObject(root, "oled_flip_h", s.oled_flip_h);
     cJSON_AddBoolToObject(root, "oled_flip_v", s.oled_flip_v);
 
@@ -416,6 +448,9 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_field(root, "alert_email_to", s.alert_email_to, sizeof(s.alert_email_to));
     copy_field(root, "alert_whatsapp_phone", s.alert_whatsapp_phone, sizeof(s.alert_whatsapp_phone));
     copy_field(root, "alert_whatsapp_apikey", s.alert_whatsapp_apikey, sizeof(s.alert_whatsapp_apikey));
+    copy_field(root, "ntrip_caster_server_mountpoint", s.ntrip_caster_server_mountpoint, sizeof(s.ntrip_caster_server_mountpoint));
+    copy_field(root, "ntrip_caster_server_username", s.ntrip_caster_server_username, sizeof(s.ntrip_caster_server_username));
+    copy_field(root, "ntrip_caster_server_password", s.ntrip_caster_server_password, sizeof(s.ntrip_caster_server_password));
 
     cJSON *alert_enable_item = cJSON_GetObjectItemCaseSensitive(root, "alert_enable");
     if (alert_enable_item && cJSON_IsBool(alert_enable_item)) {
@@ -430,6 +465,23 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         alert_smtp_port_item->valueint > 0 && alert_smtp_port_item->valueint <= 65535) {
         s.alert_smtp_port = (uint16_t) alert_smtp_port_item->valueint;
     }
+    cJSON *drift_enable_item = cJSON_GetObjectItemCaseSensitive(root, "base_drift_alert_enable");
+    if (drift_enable_item && cJSON_IsBool(drift_enable_item)) {
+        s.base_drift_alert_enable = cJSON_IsTrue(drift_enable_item);
+    }
+    cJSON *drift_threshold_item = cJSON_GetObjectItemCaseSensitive(root, "base_drift_threshold_m");
+    if (drift_threshold_item && cJSON_IsNumber(drift_threshold_item) && drift_threshold_item->valuedouble > 0) {
+        s.base_drift_threshold_m = (float) drift_threshold_item->valuedouble;
+    }
+    cJSON *caster_srv_enable_item = cJSON_GetObjectItemCaseSensitive(root, "ntrip_caster_server_enable");
+    if (caster_srv_enable_item && cJSON_IsBool(caster_srv_enable_item)) {
+        s.ntrip_caster_server_enable = cJSON_IsTrue(caster_srv_enable_item);
+    }
+    cJSON *caster_srv_port_item = cJSON_GetObjectItemCaseSensitive(root, "ntrip_caster_server_port");
+    if (caster_srv_port_item && cJSON_IsNumber(caster_srv_port_item) &&
+        caster_srv_port_item->valueint > 0 && caster_srv_port_item->valueint <= 65535) {
+        s.ntrip_caster_server_port = (uint16_t) caster_srv_port_item->valueint;
+    }
 
     cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "ntrip_port");
     if (port_item && cJSON_IsNumber(port_item) && port_item->valueint > 0 && port_item->valueint <= 65535) {
@@ -443,7 +495,13 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
 
     cJSON *chip_item = cJSON_GetObjectItemCaseSensitive(root, "gnss_chip");
     if (chip_item && cJSON_IsString(chip_item)) {
-        s.gnss_chip = (strcmp(chip_item->valuestring, "unicore") == 0) ? GNSS_CHIP_UNICORE : GNSS_CHIP_UBLOX;
+        if (strcmp(chip_item->valuestring, "unicore") == 0) {
+            s.gnss_chip = GNSS_CHIP_UNICORE;
+        } else if (strcmp(chip_item->valuestring, "lc29h") == 0) {
+            s.gnss_chip = GNSS_CHIP_LC29H;
+        } else {
+            s.gnss_chip = GNSS_CHIP_UBLOX;
+        }
     }
 
     cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "device_mode");
@@ -503,9 +561,15 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     if (oled_addr_item && cJSON_IsNumber(oled_addr_item) && oled_addr_item->valueint > 0 && oled_addr_item->valueint < 256) {
         s.oled_i2c_addr = (uint8_t) oled_addr_item->valueint;
     }
-    cJSON *oled_sh1106_item = cJSON_GetObjectItemCaseSensitive(root, "oled_is_sh1106");
-    if (oled_sh1106_item && cJSON_IsBool(oled_sh1106_item)) {
-        s.oled_is_sh1106 = cJSON_IsTrue(oled_sh1106_item);
+    cJSON *oled_controller_item = cJSON_GetObjectItemCaseSensitive(root, "oled_controller");
+    if (oled_controller_item && cJSON_IsString(oled_controller_item)) {
+        if (strcmp(oled_controller_item->valuestring, "sh1106") == 0) {
+            s.oled_controller = OLED_CTRL_SH1106;
+        } else if (strcmp(oled_controller_item->valuestring, "ssd1309") == 0) {
+            s.oled_controller = OLED_CTRL_SSD1309;
+        } else {
+            s.oled_controller = OLED_CTRL_SSD1306;
+        }
     }
     cJSON *oled_flip_h_item = cJSON_GetObjectItemCaseSensitive(root, "oled_flip_h");
     if (oled_flip_h_item && cJSON_IsBool(oled_flip_h_item)) {

@@ -419,12 +419,18 @@ void oled_display_start(void)
     if (s.oled_sda_pin < 0 || s.oled_scl_pin < 0) {
         return;
     }
-    if (!oled_hw_init(s.oled_sda_pin, s.oled_scl_pin, s.oled_i2c_addr, s.oled_is_sh1106,
+    // SSD1309 usa lo stesso percorso di SSD1306 nel driver hardware (vedi
+    // commento su oled_controller_t in settings.h) - solo SH1106 richiede
+    // la sequenza di comandi/indirizzamento diversa gestita da oled_hw_init().
+    bool is_sh1106 = (s.oled_controller == OLED_CTRL_SH1106);
+    if (!oled_hw_init(s.oled_sda_pin, s.oled_scl_pin, s.oled_i2c_addr, is_sh1106,
                        s.oled_flip_h, s.oled_flip_v)) {
         return;
     }
+    const char *controller_str = (s.oled_controller == OLED_CTRL_SH1106) ? "SH1106"
+                                : (s.oled_controller == OLED_CTRL_SSD1309) ? "SSD1309" : "SSD1306";
     xTaskCreate(oled_task, "oled_display", 4096, NULL, 2, NULL);
     ESP_LOGI(TAG, "Display OLED attivo (SDA=%d SCL=%d addr=0x%02X controller=%s flip_h=%d flip_v=%d)",
-             s.oled_sda_pin, s.oled_scl_pin, s.oled_i2c_addr, s.oled_is_sh1106 ? "SH1106" : "SSD1306",
+             s.oled_sda_pin, s.oled_scl_pin, s.oled_i2c_addr, controller_str,
              s.oled_flip_h, s.oled_flip_v);
 }

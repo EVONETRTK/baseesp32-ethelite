@@ -27,6 +27,9 @@
 #include "ntrip_client.h"
 #include "ntrip_rover_client.h"
 #include "alerts.h"
+#include "base_monitor.h"
+#include "rtcm3_1005.h"
+#include "ntrip_caster_server.h"
 
 static const char *TAG = "main";
 
@@ -59,8 +62,12 @@ static void gnss_uart_init(const app_settings_t *settings)
 }
 
 // Modalita' BASE: legge i byte RTCM3 grezzi emessi dal GNSS e li inoltra
-// al task NTRIP tramite stream buffer. Nessun parsing dei frame: il GNSS
-// deve gia' emettere RTCM3 valido (modalita' base fissata sul ricevitore).
+// al task NTRIP tramite stream buffer. Il flusso viene anche passato (di
+// sola lettura) a base_monitor_feed() per rilevare un eventuale
+// spostamento dell'antenna dai frame 1005/1006 gia' presenti nello stream -
+// nessun impatto sui byte effettivamente inoltrati al caster, e
+// base_monitor_feed() e' pensata per essere veloce/non bloccante (non fa
+// I/O), per non rallentare questo task.
 static void gnss_uart_task(void *arg)
 {
     uint8_t buf[UART_RX_BUF_SIZE];
@@ -68,6 +75,8 @@ static void gnss_uart_task(void *arg)
         int len = uart_read_bytes(s_gnss_uart_num, buf, sizeof(buf), pdMS_TO_TICKS(100));
         if (len > 0) {
             status_note_rtcm_bytes((uint32_t) len);
+            base_monitor_feed(buf, (size_t) len);
+            ntrip_caster_server_feed(buf, (size_t) len);
             xStreamBufferSend(rtcm_stream, buf, len, pdMS_TO_TICKS(1000));
         }
     }
@@ -131,9 +140,11 @@ void app_main(void)
         xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
                     (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
     } else {
+        rtcm3_1005_init();
         rtcm_stream = xStreamBufferCreate(4096, 1);
         xTaskCreate(gnss_uart_task, "gnss_uart", 4096, NULL, 10, NULL);
         xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
+        ntrip_caster_server_start(); // non fa nulla se disattivato in settings
     }
 
     alerts_start();

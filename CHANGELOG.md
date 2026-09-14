@@ -2,6 +2,23 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.11.0
+
+- Aggiunto **SSD1309** come terza opzione esplicita per il controller del display OLED (tipico sui moduli da 2,42"), oltre a SSD1306 e SH1106 gia' presenti - stesso percorso di SSD1306 nel driver (compatibile a livello di comandi nella stragrande maggioranza dei moduli in commercio), ma mostrato come scelta distinta nella UI invece di dover selezionare "SSD1306" per un chip diverso. Il campo `oled_is_sh1106` (booleano) e' diventato `oled_controller` (tre valori: ssd1306/sh1106/ssd1309).
+
+## 1.10.0
+
+- Aggiunto un server caster NTRIP locale opzionale (solo modalita' base): oltre a inoltrare l'RTCM3 al caster esterno gia' configurato, il dispositivo puo' ora accettare direttamente connessioni da rover (protocollo NTRIP standard, porta di default 2101, con mountpoint/utente/password dedicati) - utile in campo senza internet, dove base e rover si scambiano le correzioni sulla stessa rete WiFi locale senza bisogno di un caster esterno. Funziona sempre in locale; per essere raggiungibile anche da internet senza passare da un caster serve configurare il port forwarding sul proprio router (e un DNS dinamico se l'IP pubblico non e' fisso) - **non funzionera' quasi certamente sui dati del modem cellulare**, dietro NAT condiviso dall'operatore nella grande maggioranza dei casi, un limite di rete che nessun firmware puo' aggirare. Nuovo modulo `ntrip_caster_server.c`, fino a 4 rover collegati insieme.
+
+## 1.9.0
+
+- Aggiunto avviso (email/WhatsApp, stessi canali gia' configurabili per il caster) se l'antenna della base si sposta rispetto alla posizione registrata al primo avvio - pensato per accorgersi se la base viene urtata da un mezzo agricolo o spostata dal vento, cosa che altrimenti manderebbe correzioni sbagliate a tutti i rover collegati senza nessun segnale visibile sul posto. Nuovo modulo `rtcm3_1005.c`: analizza (senza alterarlo) lo stesso stream RTCM3 gia' inoltrato al caster in modalita' base, cercando frame di tipo 1005/1006 (posizione ECEF dell'antenna) - preambolo, CRC24Q e bit layout presi dallo standard RTCM 10403.x ufficiale, verificati ma non ancora contro un flusso RTCM reale (nessun modulo GNSS fisico collegato in questa sessione). Soglia di distanza configurabile (default 5 m) nella scheda Sicurezza, con stato "posizione di riferimento"/"spostamento attuale" visibile in tempo reale.
+
+## 1.8.0
+
+- Aggiunto supporto per il ricevitore GNSS Quectel LC29H (varianti BA/CA/DA/EA) come terza opzione oltre a u-blox e Unicore, sia in modalita' base (survey-in + RTCM3 MSM7) sia rover. Comandi ($PQTM..., $PAIR...) presi dalla documentazione ufficiale Quectel (protocollo V1.4), con checksum NMEA calcolato a runtime - non ancora verificato su hardware reale (modulo non disponibile in questa sessione). Nuovo modulo `gnss_lc29h.c`.
+- **Nota per chi usa questo modulo**: a differenza di u-blox/Unicore, cambiare modalita' base/rover su questo chip richiede uno spegnimento/riaccensione fisico del modulo GNSS (non basta "Salva e riavvia", che riavvia solo l'ESP32) - limite del chip stesso, documentato da Quectel, non di questo firmware. Inoltre il modulo di fabbrica usa 460800 baud (non 115200): va impostato nella scheda Hardware.
+
 ## 1.7.1
 
 - Fix (confermato su hardware reale: "spesso si blocca" durante il test WiFi): il pulsante "Connetti (senza riavviare)" bloccava l'intero server web fino a 15s in attesa dell'esito - durante il tentativo la radio deve spostarsi sul canale della rete di destinazione per autenticarsi, il che puo' disturbare momentaneamente il collegamento della pagina stessa (sempre sull'AP di setup, canale 1); se capitava proprio in quel momento, la richiesta restava sospesa a tempo indeterminato senza nessun errore visibile. Il test ora gira in un task separato (stesso schema gia' usato per l'aggiornamento online), con la pagina che interroga l'esito periodicamente e tollera qualche fallimento di rete transitorio invece di restare bloccata in attesa di un'unica risposta.
