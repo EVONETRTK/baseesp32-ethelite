@@ -148,10 +148,20 @@
 
   <fieldset>
     <legend>📶 WiFi</legend>
-    <label>SSID<input name="wifi_ssid"></label>
+    <label>SSID<input name="wifi_ssid" autocomplete="off"></label>
     <button type="button" class="action secondary" id="wifi-scan-btn" style="margin-top:.6rem">Cerca reti WiFi</button>
     <div id="wifi-scan-results" style="margin-top:.4rem"></div>
-    <label>Password<input name="wifi_password" type="password" autocomplete="new-password" placeholder="lascia vuoto per non modificare"></label>
+    <label>Password
+      <!-- Campo "esca" nascosto: alcuni browser autocompilano sempre il
+           PRIMO campo password che trovano in un modulo con una password
+           gia' salvata per questo indirizzo, ignorando autocomplete="new-
+           password" - mettendone uno finto prima di quello vero lo fa
+           cadere in trappola al posto del campo reale. Il campo vero
+           resta "readonly" finche' non lo tocchi, altro trucco che i
+           browser rispettano per non autocompilarlo da soli. -->
+      <input type="password" name="wifi_password_decoy" autocomplete="new-password" tabindex="-1" style="position:absolute; opacity:0; height:0; width:0; pointer-events:none">
+      <input name="wifi_password" type="password" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" placeholder="lascia vuoto per non modificare">
+    </label>
     <button type="button" class="action" id="wifi-test-btn" style="margin-top:.6rem">Connetti (senza riavviare)</button>
     <div id="wifi-test-msg" class="hint" style="margin-top:.4rem"></div>
     <div id="wifi-test-bar-track" class="sig-bar-track" style="display:none; margin-top:.4rem">

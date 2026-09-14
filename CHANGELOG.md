@@ -2,7 +2,9 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
-## 1.18.3
+## 1.18.4
+
+- Corretto un altro bug reale segnalato dall'utente (confermato con domande mirate: non un firmware/NVS, un browser): il gestore password del browser autocompilava il campo password del WiFi con una password salvata di un'ALTRA rete, indipendentemente dal nome rete scritto sopra - `autocomplete="new-password"` da solo non basta per tutti i browser (Chrome in particolare tende a ignorarlo su form che sembrano un login). Aggiunto un campo "esca" nascosto prima di quello vero (i browser tendono ad autocompilare il primo campo password che trovano) e reso il campo vero `readonly` finche' non lo si tocca (altro trucco rispettato dai browser per non autocompilarlo da solo) - nessuna modifica al firmware, solo alla pagina web.
 
 - Corretto un bug reale segnalato dall'utente: selezionando una rete diversa dall'elenco della scansione WiFi, il campo password non veniva svuotato - restava quella digitata per la rete precedente, con il rischio concreto di provare a collegarsi alla rete nuova con la password sbagliata senza accorgersene. Ora si svuota sempre al cambio rete. Aggiunto anche `autocomplete="new-password"` al campo per ridurre le password suggerite/precompilate dal gestore password del browser.
 
