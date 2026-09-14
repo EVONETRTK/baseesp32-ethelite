@@ -38,6 +38,13 @@ typedef enum {
     BASE_POSITION_MANUAL = 1, // coordinate fisse note (es. da un servizio di post-processing PPP)
 } base_position_mode_t;
 
+// IMPORTANTE per chi modifica questa struct: settings.c salva/carica questi
+// campi come blob grezzo in NVS, con una migrazione che permette di
+// aggiungere nuovi campi senza perdere la configurazione gia' salvata dagli
+// utenti (WiFi, matricola, ecc.) - ma funziona SOLO se ogni nuovo campo
+// viene aggiunto IN FONDO alla struct, mai inserito in mezzo o tolto/
+// rinominato: altrimenti i byte salvati per i campi esistenti finirebbero
+// interpretati come il campo sbagliato. Vedi settings_init() in settings.c.
 typedef struct {
     char wifi_ssid[33];
     char wifi_password[65];

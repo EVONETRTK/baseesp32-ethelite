@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.13.2
+
+- **Fix importante**: gli aggiornamenti firmware che aggiungono un nuovo campo alle impostazioni (WiFi, matricola, GNSS, ecc.) non cancellano piu' l'intera configurazione salvata. Finora un confronto esatto della dimensione del blob NVS scartava tutto (tornando ai default di fabbrica, incluso il WiFi) ad ogni singolo aggiornamento che aggiungeva anche un solo campo - causa dei ripetuti "non si collega piu' al WiFi dopo l'aggiornamento" di questa sessione. Ora si copiano solo i byte realmente presenti nel salvataggio precedente, lasciando i campi nuovi al valore di default finche' non li si imposta dalla UI - ma **solo** per i blob salvati da questa versione in poi (nuovo magic "bs02"): i blob di versioni precedenti vengono scartati come prima (un ultimo reset, inevitabile) invece di essere fusi, perche' il loro layout non garantisce che i campi siano stati solo aggiunti in fondo (in questa sessione un campo e' stato cambiato di tipo/dimensione a parita' di posizione - `oled_is_sh1106` -> `oled_controller` - e un primo tentativo di merge tollerante su quei byte ha prodotto un `gnss_uart_num` spazzatura e un crash al boot, individuato e corretto prima del commit). Da qui in avanti la regola "solo aggiunte in fondo alla struct" e' garantita (vedi commento in `main/settings.h`), quindi il merge e' sicuro.
+
 ## 1.13.1
 
 - Nella pagina GNSS & NTRIP, quando e' disponibile una posizione rilevata dalla base (vedi 1.13.0), compare ora un link "Vedi la posizione rilevata su Google Maps" per un controllo visivo immediato senza dover trascrivere le coordinate altrove.

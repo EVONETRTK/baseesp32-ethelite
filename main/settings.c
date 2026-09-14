@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "nvs.h"
 #include "esp_mac.h"
@@ -13,7 +14,18 @@ static const char *TAG = "settings";
 
 #define NVS_NAMESPACE "baseesp32"
 #define NVS_KEY_CFG   "cfg"
-#define CFG_MAGIC     0x62733031u // "bs01"
+// "bs02", non "bs01": il magic e' stato cambiato apposta insieme
+// all'introduzione del merge tollerante alle differenze di dimensione in
+// settings_init() sotto. I blob salvati con "bs01" (qualunque versione di
+// questo firmware precedente a quella che ha introdotto "bs02") possono
+// avere campi non solo aggiunti in fondo ma anche cambiati di tipo/
+// dimensione a parita' di posizione (es. un campo bool diventato un enum) -
+// non e' sicuro fare merge parziale su quei byte, causerebbe valori
+// corrotti nei campi successivi (visto in pratica: un uart_num letto come
+// spazzatura ha mandato in crash il boot). Da "bs02" in poi la regola
+// "solo aggiunte in fondo" (vedi commento su app_settings_t in settings.h)
+// e' garantita, quindi il merge parziale e' sicuro.
+#define CFG_MAGIC     0x62733032u // "bs02"
 
 typedef struct {
     uint32_t magic;
@@ -119,13 +131,48 @@ void settings_init(void)
         return;
     }
 
-    stored_cfg_t stored;
-    size_t len = sizeof(stored);
-    esp_err_t err = nvs_get_blob(h, NVS_KEY_CFG, &stored, &len);
+    // Lunghezza REALMENTE salvata, che puo' essere minore di sizeof(stored_cfg_t)
+    // se il blob risale a una versione precedente del firmware con meno
+    // campi in app_settings_t (ogni volta che si aggiunge un campo, come
+    // successo piu' volte in questo progetto, la vecchia dimensione non
+    // combacia piu' con quella attuale). Prima di questa funzione, un
+    // confronto esatto delle dimensioni scartava l'intera configurazione
+    // salvata (WiFi, matricola, tutto) ad ogni singolo aggiornamento che
+    // aggiungeva anche un solo campo - qui invece si copiano solo i byte
+    // realmente presenti, lasciando i campi nuovi (in coda alla struct,
+    // gia' a apply_defaults() sopra) al loro valore di default. Funziona
+    // SOLO se i nuovi campi vengono sempre aggiunti in fondo a
+    // app_settings_t (mai inseriti in mezzo): se un campo esistente
+    // cambiasse posizione o dimensione, i byte salvati finirebbero nel
+    // campo sbagliato - convenzione da rispettare in settings.h.
+    size_t stored_size = 0;
+    esp_err_t err = nvs_get_blob(h, NVS_KEY_CFG, NULL, &stored_size);
+    if (err != ESP_OK || stored_size < sizeof(uint32_t)) {
+        nvs_close(h);
+        ESP_LOGW(TAG, "Nessuna configurazione salvata in NVS, uso i default di Kconfig");
+        return;
+    }
+
+    uint8_t *buf = malloc(stored_size);
+    if (!buf) {
+        nvs_close(h);
+        ESP_LOGE(TAG, "Memoria insufficiente per leggere la configurazione NVS, uso i default");
+        return;
+    }
+    err = nvs_get_blob(h, NVS_KEY_CFG, buf, &stored_size);
     nvs_close(h);
 
-    if (err == ESP_OK && len == sizeof(stored) && stored.magic == CFG_MAGIC) {
-        s_settings = stored.s;
+    uint32_t magic;
+    memcpy(&magic, buf, sizeof(magic));
+
+    if (err == ESP_OK && magic == CFG_MAGIC) {
+        size_t settings_bytes = stored_size - sizeof(magic);
+        size_t copy_len = settings_bytes < sizeof(app_settings_t) ? settings_bytes : sizeof(app_settings_t);
+        memcpy(&s_settings, buf + sizeof(magic), copy_len);
+        if (settings_bytes != sizeof(app_settings_t)) {
+            ESP_LOGI(TAG, "Configurazione caricata da una versione precedente del firmware (%u/%u byte) - i campi nuovi restano al default finche' non li imposti dalla UI",
+                     (unsigned) settings_bytes, (unsigned) sizeof(app_settings_t));
+        }
         // Migrazione per dispositivi gia' configurati prima dell'aggiunta
         // del default automatico sopra: una matricola mai impostata
         // resterebbe altrimenti vuota per sempre (il default si applica
@@ -143,8 +190,9 @@ void settings_init(void)
         }
         ESP_LOGI(TAG, "Configurazione caricata da NVS (AP=%s)", s_settings.ap_ssid);
     } else {
-        ESP_LOGW(TAG, "Configurazione NVS assente/non valida, uso i default di Kconfig");
+        ESP_LOGW(TAG, "Configurazione NVS non valida, uso i default di Kconfig");
     }
+    free(buf);
 }
 
 app_settings_t settings_get(void)
