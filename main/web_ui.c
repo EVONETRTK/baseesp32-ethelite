@@ -255,6 +255,13 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     // ntrip_caster_server_password non viene mai restituita (come le altre
     // password sopra) - solo scrivibile dalla UI, mai riletta.
 
+    sd_update_status_t sd_status = sd_update_get_status();
+    cJSON_AddBoolToObject(root, "sd_checked", sd_status.checked);
+    if (sd_status.checked) {
+        cJSON_AddBoolToObject(root, "sd_card_present", sd_status.card_present);
+        cJSON_AddStringToObject(root, "sd_message", sd_status.message);
+    }
+
     // Bluetooth Classic (SPP) non disponibile su ESP32-S3 (solo BLE, non
     // implementata su questa scheda) - i campi bt_* non vengono inviati.
 

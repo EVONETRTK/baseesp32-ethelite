@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.12.1
+
+- Aggiunto "Scheda microSD" nella scheda Stato della UI web: mostra se l'ultimo controllo (all'avvio o dal pulsante manuale) ha rilevato la scheda, colorato (verde rilevata / rosso non rilevata), invece di dover guardare il log seriale per saperlo.
+
 ## 1.12.0
 
 - La scheda microSD viene ora controllata automaticamente **ad ogni avvio** (prima solo premendo il pulsante "Controlla e aggiorna da SD" nella UI web) - riusa la stessa funzione gia' esistente, quindi stesse sicurezze: nessun effetto se non c'e' una scheda inserita o non c'e' un aggiornamento piu' recente di quello attuale, e il file `firmware.bin` viene rinominato dopo l'uso per non riapplicarlo ad ogni riavvio.

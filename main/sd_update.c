@@ -25,6 +25,45 @@ static const char *TAG = "sd_update";
 #define MOUNT_POINT "/sdcard"
 #define SD_UPDATE_TIMEOUT_MS 15000
 
+// Esito dell'ultimo controllo (boot automatico o pulsante manuale), letto
+// dalla UI web (scheda Stato) - protetto da mutex per via del campo
+// stringa, non scrivibile/leggibile in modo atomico come un booleano.
+static SemaphoreHandle_t s_status_mutex;
+static sd_update_status_t s_status;
+static bool s_last_card_present; // scritto direttamente al mount, senza bisogno del mutex (bool singolo)
+
+static void status_mutex_init(void)
+{
+    if (!s_status_mutex) {
+        s_status_mutex = xSemaphoreCreateMutex();
+    }
+}
+
+static void set_status(bool card_present, const char *msg)
+{
+    status_mutex_init();
+    xSemaphoreTake(s_status_mutex, portMAX_DELAY);
+    s_status.checked = true;
+    s_status.card_present = card_present;
+    if (msg) {
+        strncpy(s_status.message, msg, sizeof(s_status.message) - 1);
+        s_status.message[sizeof(s_status.message) - 1] = '\0';
+    }
+    xSemaphoreGive(s_status_mutex);
+}
+
+sd_update_status_t sd_update_get_status(void)
+{
+    if (!s_status_mutex) {
+        return (sd_update_status_t){0};
+    }
+    sd_update_status_t copy;
+    xSemaphoreTake(s_status_mutex, portMAX_DELAY);
+    copy = s_status;
+    xSemaphoreGive(s_status_mutex);
+    return copy;
+}
+
 static int ota_read_from_file(void *ctx_ptr, uint8_t *buf, size_t max_len)
 {
     FILE *f = (FILE *) ctx_ptr;
@@ -77,10 +116,12 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Scheda SD non montata: %s (assente, non inserita, o non formattata FAT32?)", esp_err_to_name(err));
         SET_MSG("Nessuna scheda SD rilevata (verifica inserimento e formato FAT32)");
+        s_last_card_present = false;
         spi_bus_free((spi_host_device_t) host.slot);
         return false;
     }
     ESP_LOGI(TAG, "Scheda SD montata correttamente");
+    s_last_card_present = true;
 
     bool applied = false;
     cJSON *root = NULL;
@@ -195,6 +236,7 @@ bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size)
         if (out_msg) {
             snprintf(out_msg, out_msg_size, "La scheda SD non risponde (timeout) - verifica contatti/formato e riprova");
         }
+        set_status(false, "La scheda SD non risponde (timeout)");
         return false; // ctx e ctx->done restano vivi per il task orfano, vedi commento sopra
     }
 
@@ -203,6 +245,7 @@ bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size)
         strncpy(out_msg, ctx->out_msg, out_msg_size - 1);
         out_msg[out_msg_size - 1] = '\0';
     }
+    set_status(s_last_card_present, ctx->out_msg);
     vSemaphoreDelete(ctx->done);
     free(ctx);
     return result;

@@ -70,6 +70,7 @@
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
       <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
       <dt>Fix RTK</dt><dd id="st-fix">-</dd>
+      <dt>Scheda microSD</dt><dd id="st-sd">-</dd>
       <dt>Indirizzo fisso</dt><dd id="st-mdns">-</dd>
     </dl>
     <small class="hint">
@@ -543,6 +544,20 @@ async function loadStatus() {
     document.getElementById('st-serial').textContent = s.device_serial || '(non impostata)';
     document.getElementById('st-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mdns').textContent = s.ap_ssid ? ('http://' + s.ap_ssid + '.local') : '-';
+    const sdEl = document.getElementById('st-sd');
+    if (!s.sd_checked) {
+      sdEl.textContent = 'non ancora controllata';
+      sdEl.style.color = '';
+      sdEl.style.fontWeight = '';
+    } else if (s.sd_card_present) {
+      sdEl.textContent = 'rilevata (' + (s.sd_message || 'OK') + ')';
+      sdEl.style.color = '#16a34a';
+      sdEl.style.fontWeight = '600';
+    } else {
+      sdEl.textContent = 'non rilevata';
+      sdEl.style.color = '#dc2626';
+      sdEl.style.fontWeight = '600';
+    }
     document.getElementById('fw-current-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
     document.getElementById('st-net').textContent = s.net;
