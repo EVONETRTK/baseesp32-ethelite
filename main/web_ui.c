@@ -137,6 +137,15 @@ static esp_err_t index_get_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
     httpd_resp_set_type(req, "text/html; charset=utf-8");
+    // Senza questo header il browser puo' tenersi in cache la pagina per
+    // giorni (nessun ETag/Last-Modified da confrontare, stesso indirizzo
+    // ad ogni visita) - un aggiornamento firmware che cambia la pagina
+    // web (icone, fix del campo password, qualunque cosa) rischiava di
+    // non avere ALCUN effetto visibile finche' l'utente non svuotava la
+    // cache a mano, pur avendo il nuovo codice gia' installato sul
+    // dispositivo. Trovato dopo che piu' fix lato pagina web sembravano
+    // "non fare niente" nonostante fossero installati e verificati.
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     size_t len = index_html_end - index_html_start;
     return httpd_resp_send(req, (const char *) index_html_start, len);
 }

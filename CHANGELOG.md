@@ -2,7 +2,9 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
-## 1.19.0
+## 1.19.1
+
+- **Probabile causa vera del "non cambia niente" segnalato dall'utente su piu' fix consecutivi**: la pagina web non aveva MAI un header `Cache-Control` nella risposta - senza niente da confrontare (nessun ETag/Last-Modified) e con lo stesso indirizzo ad ogni visita, il browser puo' tenersi la pagina in cache per giorni, mostrando sempre lo stesso HTML/JavaScript vecchio anche dopo aver installato un nuovo firmware con la pagina cambiata. Aggiunto `Cache-Control: no-store, no-cache, must-revalidate` - il browser scarichera' sempre la versione vera e aggiornata da qui in poi. **Serve comunque un ricaricamento forzato una volta sola** (Ctrl+Shift+R su PC, o svuotare la cache del browser) per scaricare questa stessa versione, dato che la pagina vecchia in cache non sa ancora del nuovo header.
 
 - **Fix definitivo (si spera) dell'autocompilamento password WiFi sbagliata**: il trucco di 1.18.4 (campo esca + readonly) evidentemente non bastava per il browser dell'utente. Cambiato approccio: invece di provare a impedire l'autocompilamento del browser, per i primi 2 secondi dopo il caricamento della pagina (il momento in cui tipicamente scatta) si ripulisce qualunque valore compaia nel campo password SENZA che l'utente lo abbia davvero digitato (rilevato dall'evento di digitazione reale) - piu' robusto perche' non dipende dall'euristica specifica di un singolo browser.
 - **Nome della rete WiFi mostrato quando connesso**: la scheda Stato ora mostra "WiFi — connesso a "NomeRete"" invece del solo generico "WiFi" - usa il nome della rete a cui ci si e' DAVVERO associati in questo momento (dal driver, non dalle impostazioni salvate), utile anche perche' con le reti "conosciute" (1.18.0) puo' non essere la rete "principale" configurata. Nuovo `wifi_link_get_current_ssid()`.
