@@ -190,6 +190,21 @@ void settings_init(void)
         if (s_settings.device_serial[0] == '\0' || looks_like_old_full_mac) {
             format_mac_serial(s_settings.device_serial, sizeof(s_settings.device_serial));
         }
+        // Stessa idea per il nome della rete di setup: se risultasse vuoto
+        // (configurazione salvata corrotta/incompleta) il dispositivo
+        // diventerebbe irraggiungibile in pratica (un AP senza nome e'
+        // difficile da trovare per un utente) - si rigenera dal MAC, come
+        // gia' fatto in apply_defaults() per un dispositivo mai configurato.
+        if (s_settings.ap_ssid[0] == '\0') {
+            ESP_LOGW(TAG, "Nome rete AP salvato vuoto, rigenero dal MAC");
+            uint8_t mac[6] = {0};
+            esp_read_mac(mac, ESP_MAC_WIFI_STA);
+            snprintf(s_settings.ap_ssid, sizeof(s_settings.ap_ssid), "EVONETRTK-%02X%02X%02X", mac[3], mac[4], mac[5]);
+        }
+        if (s_settings.ap_password[0] == '\0') {
+            ESP_LOGW(TAG, "Password rete AP salvata vuota, uso il default di fabbrica");
+            strncpy(s_settings.ap_password, "baseesp32setup", sizeof(s_settings.ap_password) - 1);
+        }
         // Rete di sicurezza indipendente dal magic/dalla dimensione sopra:
         // un valore fuori range qui manderebbe in crash il boot (ESP_ERROR_CHECK
         // dentro uart_driver_install() abortisce su un numero di porta non

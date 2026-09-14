@@ -2,7 +2,9 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
-## 1.16.1
+## 1.16.2
+
+- Diagnosticato un problema reale di connettivita' WiFi segnalato dall'utente: il log seriale ha mostrato che il nome della rete AP di setup, l'host del caster NTRIP e i pin UART del GNSS salvati risultavano vuoti/non validi nella configurazione caricata da NVS (la causa originaria non e' stata individuata con certezza nonostante l'analisi - non sembra riconducibile ai fix di persistenza gia' fatti in 1.13.2/1.14.0, che restano corretti). Aggiunta una rete di sicurezza aggiuntiva in `settings_init()`: se il nome o la password della rete AP risultano vuoti, vengono rigenerati (stesso meccanismo gia' esistente per la matricola), cosi' il dispositivo non diventa mai irraggiungibile per questo motivo specifico. Cancellata la NVS del dispositivo di test per ripartire da una configurazione pulita - richiede una riconfigurazione completa da parte dell'utente.
 
 - Aggiunta nella pagina Stato una barra del segnale cellulare (stessa forma/colori di quella WiFi gia' presente) con operatore e tecnologia, cosi' non serve piu' passare dalla pagina Segnali per vederli. Solo modifiche alla pagina web.
 
