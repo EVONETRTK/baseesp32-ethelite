@@ -390,6 +390,22 @@ static void screen_splash(void)
     fb_draw_text(52, 36, "RTK");
 }
 
+// Come raggiungere la pagina web senza saperlo gia' a memoria (utile a chi
+// e' fisicamente in campo, senza laptop/rete gia' configurata): il nome
+// dell'AP di setup e' sempre attivo (vedi wifi_link.c) e il suo indirizzo
+// e' sempre lo stesso IP fisso 192.168.4.1, indipendentemente
+// dall'affidabilita' di mDNS/.local sul dispositivo di chi si collega -
+// stesse due informazioni gia' mostrate nella UI web (scheda Stato), ma
+// qui leggibili direttamente dallo schermo del dispositivo stesso.
+static void screen_address(void)
+{
+    app_settings_t s = settings_get();
+    fb_draw_text(0, 0, "RETE WIFI:");
+    fb_draw_text(0, 14, s.ap_ssid);
+    fb_draw_text(0, 34, "POI APRI:");
+    fb_draw_text(0, 48, "192.168.4.1");
+}
+
 static void oled_task(void *arg)
 {
     fb_clear();
@@ -403,12 +419,13 @@ static void oled_task(void *arg)
         switch (screen) {
         case 0: screen_status(); break;
         case 1: screen_gnss(); break;
-        default: screen_signals(); break;
+        case 2: screen_signals(); break;
+        default: screen_address(); break;
         }
         if (oled_flush() != ESP_OK) {
             ESP_LOGW(TAG, "Scrittura I2C verso OLED fallita (display scollegato?)");
         }
-        screen = (screen + 1) % 3;
+        screen = (screen + 1) % 4;
         vTaskDelay(pdMS_TO_TICKS(2500));
     }
 }

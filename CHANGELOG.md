@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.11.1
+
+- Aggiunta una schermata all'OLED (in rotazione con le altre) che mostra il nome della rete WiFi di configurazione e l'indirizzo fisso `192.168.4.1` per raggiungere la pagina web - utile a chi e' fisicamente in campo e non sa gia' a memoria come collegarsi, senza dover passare da un laptop o da un altro dispositivo gia' configurato.
+
 ## 1.11.0
 
 - Aggiunto **SSD1309** come terza opzione esplicita per il controller del display OLED (tipico sui moduli da 2,42"), oltre a SSD1306 e SH1106 gia' presenti - stesso percorso di SSD1306 nel driver (compatibile a livello di comandi nella stragrande maggioranza dei moduli in commercio), ma mostrato come scelta distinta nella UI invece di dover selezionare "SSD1306" per un chip diverso. Il campo `oled_is_sh1106` (booleano) e' diventato `oled_controller` (tre valori: ssd1306/sh1106/ssd1309).
