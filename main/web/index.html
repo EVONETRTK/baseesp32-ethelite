@@ -199,6 +199,9 @@
       <label>Quota ellissoidica WGS84 (metri)<input name="base_fixed_height_m" type="number" step="0.001"></label>
       <button type="button" class="action secondary" id="base-pos-use-current-btn">Usa posizione attuale rilevata</button>
       <div id="base-pos-current-hint" class="hint" style="margin-top:.4rem">Nessuna posizione ancora rilevata dal ricevitore.</div>
+      <small class="hint" id="base-pos-maps-wrap" style="display:none">
+        <a id="base-pos-maps-link" href="#" target="_blank" rel="noopener">Vedi la posizione rilevata su Google Maps &rarr;</a>
+      </small>
     </div>
     <small class="hint">
       In automatico il ricevitore rifa' il survey-in (qualche minuto, precisione tipicamente metrica) ad
@@ -850,17 +853,24 @@ document.getElementById('cfg-form').base_position_mode.addEventListener('change'
 function renderBasePosCurrent(s) {
   const hintEl = document.getElementById('base-pos-current-hint');
   const btn = document.getElementById('base-pos-use-current-btn');
+  const mapsWrap = document.getElementById('base-pos-maps-wrap');
+  const mapsLink = document.getElementById('base-pos-maps-link');
   if (!hintEl || !btn) {
     return;
   }
   if (!s.base_current_position_set) {
     hintEl.textContent = 'Nessuna posizione ancora rilevata dal ricevitore.';
     btn.disabled = true;
+    if (mapsWrap) mapsWrap.style.display = 'none';
     return;
   }
   btn.disabled = false;
   hintEl.textContent = 'Ultima posizione rilevata: lat ' + s.base_current_lat_deg.toFixed(7) +
     ', lon ' + s.base_current_lon_deg.toFixed(7) + ', quota ' + s.base_current_height_m.toFixed(2) + ' m';
+  if (mapsWrap && mapsLink) {
+    mapsLink.href = 'https://www.google.com/maps?q=' + s.base_current_lat_deg + ',' + s.base_current_lon_deg;
+    mapsWrap.style.display = '';
+  }
 }
 
 document.getElementById('base-pos-use-current-btn').addEventListener('click', () => {
