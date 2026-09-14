@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.16.1
+
+- Aggiunta nella pagina Stato una barra del segnale cellulare (stessa forma/colori di quella WiFi gia' presente) con operatore e tecnologia, cosi' non serve piu' passare dalla pagina Segnali per vederli. Solo modifiche alla pagina web.
+
 ## 1.16.0
 
 - Nuovo controllo automatico degli aggiornamenti online (pagina Firmware, sotto "Aggiornamento online") - **disattivato di default**, si attiva esplicitamente dalla UI. Se attivo, il dispositivo controlla da solo ogni N ore (configurabile) se c'e' un firmware piu' recente all'indirizzo manifest configurato e, se si', lo scarica e si riavvia da solo - stesse protezioni anti-brick gia' esistenti (rollback automatico se la nuova immagine non si conferma valida). Pensato per un dispositivo raggiungibile solo via cellulare (SIM7600/SIM868): il controllo/download e' un collegamento in USCITA, funziona anche dietro il NAT condiviso dall'operatore che invece impedisce di raggiungere la pagina web da remoto per avviarlo a mano. Nuovo `main/auto_update.c`.

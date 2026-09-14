@@ -98,6 +98,10 @@
     <label style="margin-top:.8rem">📶 Segnale WiFi</label>
     <div class="sig-bar-track"><div class="sig-bar-fill" id="st-wifi-sig-bar" style="width:0%"></div></div>
     <small class="hint" id="st-wifi-sig-text">-</small>
+    <label style="margin-top:.8rem">📱 Segnale cellulare</label>
+    <div class="sig-bar-track"><div class="sig-bar-fill" id="st-cell-sig-bar" style="width:0%"></div></div>
+    <small class="hint" id="st-cell-sig-text">-</small>
+    <small class="hint" id="st-cell-operator">-</small>
     <small class="hint">
       Questa scheda (ESP32-S3) non ha Bluetooth Classic (solo BLE, non
       implementata): l'uscita dati per AgOpenGPS/AgIO in modalita' rover
@@ -1099,8 +1103,14 @@ async function loadSignals() {
     setSignalBar('wifi-sig-bar', 'wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
     setSignalBar('cell-sig-bar', 'cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
     setSignalBar('st-wifi-sig-bar', 'st-wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
+    setSignalBar('st-cell-sig-bar', 'st-cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
     document.getElementById('cell-operator').textContent = s.cellular_operator || 'non registrato';
     document.getElementById('cell-tech').textContent = s.cellular_tech || '-';
+    const stCellOperatorEl = document.getElementById('st-cell-operator');
+    if (stCellOperatorEl) {
+      stCellOperatorEl.textContent = 'Gestore: ' + (s.cellular_operator || 'non registrato') +
+        (s.cellular_tech ? (' (' + s.cellular_tech + ')') : '');
+    }
     renderFixStatus(s);
     renderQuickStatusFromSignals(s);
   } catch (e) {
