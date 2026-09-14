@@ -233,6 +233,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "device_serial", s.device_serial);
     cJSON_AddStringToObject(root, "firmware_version", FIRMWARE_VERSION);
     cJSON_AddStringToObject(root, "ota_update_url", s.ota_update_url);
+    cJSON_AddBoolToObject(root, "auto_update_check_enable", s.auto_update_check_enable);
+    cJSON_AddNumberToObject(root, "auto_update_check_interval_h", s.auto_update_check_interval_h);
     cJSON_AddNumberToObject(root, "nmea_udp_port", s.nmea_udp_port);
 
     cJSON_AddBoolToObject(root, "alert_enable", s.alert_enable);
@@ -544,6 +546,15 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     cJSON *base_height_item = cJSON_GetObjectItemCaseSensitive(root, "base_fixed_height_m");
     if (base_height_item && cJSON_IsNumber(base_height_item)) {
         s.base_fixed_height_m = base_height_item->valuedouble;
+    }
+
+    cJSON *auto_update_enable_item = cJSON_GetObjectItemCaseSensitive(root, "auto_update_check_enable");
+    if (auto_update_enable_item && cJSON_IsBool(auto_update_enable_item)) {
+        s.auto_update_check_enable = cJSON_IsTrue(auto_update_enable_item);
+    }
+    cJSON *auto_update_interval_item = cJSON_GetObjectItemCaseSensitive(root, "auto_update_check_interval_h");
+    if (auto_update_interval_item && cJSON_IsNumber(auto_update_interval_item) && auto_update_interval_item->valueint > 0) {
+        s.auto_update_check_interval_h = (uint16_t) auto_update_interval_item->valueint;
     }
 
     cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "ntrip_port");

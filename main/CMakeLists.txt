@@ -32,6 +32,7 @@ idf_component_register(
         "ntrip_caster_server.c"
         "geo_convert.c"
         "ppp_log.c"
+        "auto_update.c"
         "web_ui.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "web/index.html"

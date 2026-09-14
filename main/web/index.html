@@ -534,6 +534,21 @@
     <div id="fw-online-bar-track" class="sig-bar-track" style="display:none">
       <div id="fw-online-bar-fill" class="sig-bar-fill" style="width:0%"></div>
     </div>
+
+    <label style="margin-top:1rem; flex-direction:row; align-items:center; gap:.5rem">
+      <input name="auto_update_check_enable" type="checkbox" style="width:auto; margin:0">
+      Controlla e applica gli aggiornamenti automaticamente (senza intervento)
+    </label>
+    <label>Ogni quante ore<input name="auto_update_check_interval_h" type="number" min="1" placeholder="24"></label>
+    <small class="hint">
+      <strong>Disattivato di default.</strong> Se attivo, il dispositivo controlla da solo (collegamento in
+      uscita, funziona anche su sola SIM7600/SIM868 dietro NAT dell'operatore) se c'e' una versione piu'
+      recente e, se si', la scarica e si riavvia da solo - senza bisogno di raggiungere questa pagina.
+      Utile quando il dispositivo e' raggiungibile solo via cellulare (la pagina web non lo e', per lo
+      stesso NAT). Il riavvio interrompe per pochi secondi la trasmissione RTCM; se il nuovo firmware non
+      si avvia correttamente, il dispositivo torna da solo alla versione precedente (stesso meccanismo
+      anti-brick di sempre).
+    </small>
   </fieldset>
 </div>
 
@@ -701,6 +716,8 @@ async function loadStatus() {
       f.oled_scl_pin.value = s.oled_scl_pin ?? -1;
       f.oled_i2c_addr.value = s.oled_i2c_addr ?? 60;
       f.ota_update_url.value = s.ota_update_url || '';
+      f.auto_update_check_enable.checked = !!s.auto_update_check_enable;
+      f.auto_update_check_interval_h.value = s.auto_update_check_interval_h || 24;
       f.oled_controller.value = s.oled_controller || 'ssd1306';
       f.oled_flip_h.checked = !!s.oled_flip_h;
       f.oled_flip_v.checked = !!s.oled_flip_v;
@@ -1135,6 +1152,8 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
   data.base_fixed_lat_deg = Number(data.base_fixed_lat_deg);
   data.base_fixed_lon_deg = Number(data.base_fixed_lon_deg);
   data.base_fixed_height_m = Number(data.base_fixed_height_m);
+  data.auto_update_check_enable = f.auto_update_check_enable.checked;
+  data.auto_update_check_interval_h = Number(data.auto_update_check_interval_h);
 
   const msg = document.getElementById('save-msg');
   msg.textContent = 'Salvataggio...';

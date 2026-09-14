@@ -2,7 +2,9 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
-## 1.15.0
+## 1.16.0
+
+- Nuovo controllo automatico degli aggiornamenti online (pagina Firmware, sotto "Aggiornamento online") - **disattivato di default**, si attiva esplicitamente dalla UI. Se attivo, il dispositivo controlla da solo ogni N ore (configurabile) se c'e' un firmware piu' recente all'indirizzo manifest configurato e, se si', lo scarica e si riavvia da solo - stesse protezioni anti-brick gia' esistenti (rollback automatico se la nuova immagine non si conferma valida). Pensato per un dispositivo raggiungibile solo via cellulare (SIM7600/SIM868): il controllo/download e' un collegamento in USCITA, funziona anche dietro il NAT condiviso dall'operatore che invece impedisce di raggiungere la pagina web da remoto per avviarlo a mano. Nuovo `main/auto_update.c`.
 
 - Nuova funzione "Registrazione dati per PPP" (pagina GNSS & NTRIP, solo modalita' base): registra su microSD il flusso RTCM3 grezzo del GNSS per diverse ore da un punto fisso, con avvio/arresto **sempre manuale dalla UI web**, mai automatico. Il file scaricato dal browser si converte in RINEX (nella versione richiesta da ciascun servizio - 2.11, 3.03, ecc.) con lo strumento gratuito `convbin` di RTKLIB sul proprio PC: un'unica registrazione basta per generare il formato richiesto da qualunque ente di post-processing PPP (CSRS-PPP, OPUS, AUSPOS...). Verificato: CSRS-PPP (Natural Resources Canada) non offre un indirizzo email di invio diretto - richiede login con account e upload autenticato via modulo web, quindi l'invio ai servizi PPP resta un passaggio manuale fatto dall'utente, non automatizzato dal firmware (nessuna credenziale di servizi esterni salvata sul dispositivo per questo).
 - Nuovo `main/ppp_log.c`: registrazione non bloccante (stream buffer + task dedicato, stesso schema gia' usato per il server caster NTRIP locale) per non rallentare la lettura UART del GNSS; nuovi endpoint `/api/ppp-log/start`, `/api/ppp-log/stop`, `/api/ppp-log/download` (a blocchi, mai l'intero file in RAM).

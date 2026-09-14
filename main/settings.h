@@ -178,6 +178,17 @@ typedef struct {
     double base_fixed_lat_deg;
     double base_fixed_lon_deg;
     double base_fixed_height_m; // quota ellissoidica WGS84, non sul livello del mare
+
+    // Controllo/applicazione automatica degli aggiornamenti online (vedi
+    // auto_update.c) - disattivato di default: e' una scelta esplicita
+    // dell'utente, non il comportamento predefinito, perche' comporta
+    // comunque un riavvio non presidiato del dispositivo. Utile soprattutto
+    // quando il dispositivo e' raggiungibile solo via cellulare (SIM7600/
+    // SIM868): il controllo/download e' un collegamento in USCITA verso
+    // GitHub, funziona anche dietro il NAT condiviso degli operatori mobili
+    // che invece impedisce di raggiungere la pagina web da remoto.
+    bool auto_update_check_enable;
+    uint16_t auto_update_check_interval_h; // ore tra un controllo e l'altro
 } app_settings_t;
 
 // Carica la configurazione da NVS; se assente o non valida usa i default

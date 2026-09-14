@@ -33,6 +33,7 @@
 #include "rtcm3_1005.h"
 #include "ntrip_caster_server.h"
 #include "ppp_log.h"
+#include "auto_update.h"
 
 static const char *TAG = "main";
 
@@ -165,4 +166,5 @@ void app_main(void)
     }
 
     alerts_start();
+    auto_update_start(); // non fa nulla finche' non attivato dalla UI web (settings.auto_update_check_enable)
 }
