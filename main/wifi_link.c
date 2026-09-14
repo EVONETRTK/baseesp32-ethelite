@@ -182,6 +182,25 @@ bool wifi_link_get_rssi(int8_t *rssi)
     return true;
 }
 
+// Nome della rete a cui la STA e' effettivamente associata in questo
+// momento (dal driver WiFi, non dalle impostazioni salvate) - puo'
+// differire da settings.wifi_ssid se ci si e' collegati a una rete
+// "conosciuta" diversa dalla principale (vedi wifi_link_connect_known()
+// sotto). Ritorna false se non connessa.
+bool wifi_link_get_current_ssid(char *out, size_t out_size)
+{
+    if (!s_connected) {
+        return false;
+    }
+    wifi_ap_record_t info;
+    if (esp_wifi_sta_get_ap_info(&info) != ESP_OK) {
+        return false;
+    }
+    strncpy(out, (const char *) info.ssid, out_size - 1);
+    out[out_size - 1] = '\0';
+    return true;
+}
+
 #define WIFI_SCAN_MAX_RAW 32
 #define WIFI_SCAN_TIMEOUT_MS 10000
 

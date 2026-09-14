@@ -699,7 +699,14 @@ async function loadStatus() {
     }
     document.getElementById('fw-current-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
-    document.getElementById('st-net').textContent = s.net;
+    {
+      const netLabels = { wifi: 'WiFi', cellulare: 'Cellulare', nessuna: 'Nessuna' };
+      let netText = netLabels[s.net] || s.net;
+      if (s.net === 'wifi' && s.wifi_current_ssid) {
+        netText += ' — connesso a "' + s.wifi_current_ssid + '"';
+      }
+      document.getElementById('st-net').textContent = netText;
+    }
     document.getElementById('st-bytes').textContent = s.rtcm_bytes;
     document.getElementById('st-last').textContent = s.last_rtcm_us
       ? new Date(s.last_rtcm_us / 1000).toLocaleTimeString()
@@ -1588,6 +1595,32 @@ loadSignals();
 loadFwArchive();
 setInterval(loadStatus, 5000);
 setInterval(loadSignals, 3000);
+
+// Alcuni browser autocompilano il campo password del WiFi con una
+// credenziale salvata per questo indirizzo (non necessariamente quella
+// giusta per la rete scritta sopra), poco dopo il caricamento della
+// pagina, ignorando i trucchi HTML gia' in uso (campo esca, readonly) -
+// non tutti i browser li rispettano. Invece di continuare a inseguire
+// l'euristica giusta per ogni browser, si ripulisce per un paio di
+// secondi dopo il caricamento (il momento in cui l'autocompilamento
+// tipicamente scatta) qualunque valore compaia nel campo SENZA che
+// l'utente lo abbia davvero digitato.
+(function () {
+  const f = document.getElementById('cfg-form');
+  const pwField = f.wifi_password;
+  let userEdited = false;
+  pwField.addEventListener('input', () => { userEdited = true; });
+  let checks = 0;
+  const clearTimer = setInterval(() => {
+    if (!userEdited && pwField.value !== '') {
+      pwField.value = '';
+    }
+    checks++;
+    if (checks > 10) {
+      clearInterval(clearTimer);
+    }
+  }, 200);
+})();
 </script>
 </body>
 </html>

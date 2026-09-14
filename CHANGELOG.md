@@ -2,7 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
-## 1.18.4
+## 1.19.0
+
+- **Fix definitivo (si spera) dell'autocompilamento password WiFi sbagliata**: il trucco di 1.18.4 (campo esca + readonly) evidentemente non bastava per il browser dell'utente. Cambiato approccio: invece di provare a impedire l'autocompilamento del browser, per i primi 2 secondi dopo il caricamento della pagina (il momento in cui tipicamente scatta) si ripulisce qualunque valore compaia nel campo password SENZA che l'utente lo abbia davvero digitato (rilevato dall'evento di digitazione reale) - piu' robusto perche' non dipende dall'euristica specifica di un singolo browser.
+- **Nome della rete WiFi mostrato quando connesso**: la scheda Stato ora mostra "WiFi — connesso a "NomeRete"" invece del solo generico "WiFi" - usa il nome della rete a cui ci si e' DAVVERO associati in questo momento (dal driver, non dalle impostazioni salvate), utile anche perche' con le reti "conosciute" (1.18.0) puo' non essere la rete "principale" configurata. Nuovo `wifi_link_get_current_ssid()`.
 
 - Corretto un altro bug reale segnalato dall'utente (confermato con domande mirate: non un firmware/NVS, un browser): il gestore password del browser autocompilava il campo password del WiFi con una password salvata di un'ALTRA rete, indipendentemente dal nome rete scritto sopra - `autocomplete="new-password"` da solo non basta per tutti i browser (Chrome in particolare tende a ignorarlo su form che sembrano un login). Aggiunto un campo "esca" nascosto prima di quello vero (i browser tendono ad autocompilare il primo campo password che trovano) e reso il campo vero `readonly` finche' non lo si tocca (altro trucco rispettato dai browser per non autocompilarlo da solo) - nessuna modifica al firmware, solo alla pagina web.
 

@@ -267,6 +267,20 @@ static esp_err_t status_get_handler(httpd_req_t *req)
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "net", net_status_str(status_get_net()));
+    {
+        // Nome REALE della rete a cui si e' effettivamente associati ora
+        // (dal driver, non dalle impostazioni salvate) - puo' differire
+        // dalla rete "principale" se ci si e' collegati a una rete
+        // conosciuta diversa (vedi wifi_link_connect_known()). Mostrato
+        // nella pagina Stato cosi' si vede con certezza a quale rete si
+        // e' davvero collegati, non solo "WiFi" in generale.
+        char current_ssid[33];
+        if (wifi_link_get_current_ssid(current_ssid, sizeof(current_ssid))) {
+            char safe_current_ssid[65];
+            raw_ssid_bytes_to_safe_utf8(current_ssid, safe_current_ssid, sizeof(safe_current_ssid));
+            cJSON_AddStringToObject(root, "wifi_current_ssid", safe_current_ssid);
+        }
+    }
     cJSON_AddNumberToObject(root, "rtcm_bytes", status_get_rtcm_total_bytes());
     cJSON_AddNumberToObject(root, "last_rtcm_us", (double) status_get_last_rtcm_time_us());
 

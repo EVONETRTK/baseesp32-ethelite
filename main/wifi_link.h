@@ -45,6 +45,12 @@ esp_netif_t *wifi_link_get_ap_netif(void);
 // false se non connessa.
 bool wifi_link_get_rssi(int8_t *rssi);
 
+// Nome della rete a cui la station e' effettivamente associata ORA (dal
+// driver WiFi, non dalle impostazioni salvate - puo' differire se ci si
+// e' collegati a una rete "conosciuta" diversa dalla principale). Ritorna
+// false se non connessa.
+bool wifi_link_get_current_ssid(char *out, size_t out_size);
+
 typedef struct {
     char ssid[33];
     int8_t rssi;
