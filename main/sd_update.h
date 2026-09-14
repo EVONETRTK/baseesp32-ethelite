@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // Monta la scheda microSD (lettore integrato, pin fissi da Kconfig),
 // cerca firmware.bin + firmware.json (con il campo "version") nella
@@ -15,9 +16,11 @@
 bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size);
 
 typedef struct {
-    bool checked;       // true dal primo sd_update_check_and_apply() in poi (boot o pulsante manuale)
-    bool card_present;  // valido solo se checked == true
-    char message[96];   // stesso testo restituito da sd_update_check_and_apply()
+    bool checked;         // true dal primo sd_update_check_and_apply() in poi (boot o pulsante manuale)
+    bool card_present;    // valido solo se checked == true
+    char message[96];     // stesso testo restituito da sd_update_check_and_apply()
+    uint64_t total_bytes; // capacita' totale del filesystem FAT, validi solo se card_present == true
+    uint64_t used_bytes;  // spazio occupato (total_bytes - spazio libero)
 } sd_update_status_t;
 
 // Esito dell'ultimo sd_update_check_and_apply() (boot automatico o

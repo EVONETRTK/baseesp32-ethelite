@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.12.2
+
+- La scheda "Scheda microSD" nello Stato mostra ora anche la capacita' totale e lo spazio usato con una barra colorata (verde/giallo/rosso in base alla percentuale occupata), letti con `esp_vfs_fat_info()` subito dopo il mount.
+
 ## 1.12.1
 
 - Aggiunto "Scheda microSD" nella scheda Stato della UI web: mostra se l'ultimo controllo (all'avvio o dal pulsante manuale) ha rilevato la scheda, colorato (verde rilevata / rosso non rilevata), invece di dover guardare il log seriale per saperlo.

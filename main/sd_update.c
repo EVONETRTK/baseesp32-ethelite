@@ -30,7 +30,9 @@ static const char *TAG = "sd_update";
 // stringa, non scrivibile/leggibile in modo atomico come un booleano.
 static SemaphoreHandle_t s_status_mutex;
 static sd_update_status_t s_status;
-static bool s_last_card_present; // scritto direttamente al mount, senza bisogno del mutex (bool singolo)
+static bool s_last_card_present;     // scritti direttamente al mount, senza bisogno del mutex (letti solo dallo stesso task)
+static uint64_t s_last_total_bytes;
+static uint64_t s_last_used_bytes;
 
 static void status_mutex_init(void)
 {
@@ -39,12 +41,14 @@ static void status_mutex_init(void)
     }
 }
 
-static void set_status(bool card_present, const char *msg)
+static void set_status(bool card_present, const char *msg, uint64_t total_bytes, uint64_t used_bytes)
 {
     status_mutex_init();
     xSemaphoreTake(s_status_mutex, portMAX_DELAY);
     s_status.checked = true;
     s_status.card_present = card_present;
+    s_status.total_bytes = total_bytes;
+    s_status.used_bytes = used_bytes;
     if (msg) {
         strncpy(s_status.message, msg, sizeof(s_status.message) - 1);
         s_status.message[sizeof(s_status.message) - 1] = '\0';
@@ -117,11 +121,26 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
         ESP_LOGW(TAG, "Scheda SD non montata: %s (assente, non inserita, o non formattata FAT32?)", esp_err_to_name(err));
         SET_MSG("Nessuna scheda SD rilevata (verifica inserimento e formato FAT32)");
         s_last_card_present = false;
+        s_last_total_bytes = 0;
+        s_last_used_bytes = 0;
         spi_bus_free((spi_host_device_t) host.slot);
         return false;
     }
     ESP_LOGI(TAG, "Scheda SD montata correttamente");
     s_last_card_present = true;
+
+    uint64_t total_bytes = 0, free_bytes = 0;
+    if (esp_vfs_fat_info(MOUNT_POINT, &total_bytes, &free_bytes) == ESP_OK) {
+        s_last_total_bytes = total_bytes;
+        s_last_used_bytes = total_bytes - free_bytes;
+        ESP_LOGI(TAG, "Spazio SD: %llu MB totali, %llu MB usati",
+                 (unsigned long long) (total_bytes / (1024 * 1024)),
+                 (unsigned long long) (s_last_used_bytes / (1024 * 1024)));
+    } else {
+        ESP_LOGW(TAG, "Impossibile leggere la capacita' della scheda SD");
+        s_last_total_bytes = 0;
+        s_last_used_bytes = 0;
+    }
 
     bool applied = false;
     cJSON *root = NULL;
@@ -236,7 +255,7 @@ bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size)
         if (out_msg) {
             snprintf(out_msg, out_msg_size, "La scheda SD non risponde (timeout) - verifica contatti/formato e riprova");
         }
-        set_status(false, "La scheda SD non risponde (timeout)");
+        set_status(false, "La scheda SD non risponde (timeout)", 0, 0);
         return false; // ctx e ctx->done restano vivi per il task orfano, vedi commento sopra
     }
 
@@ -245,7 +264,7 @@ bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size)
         strncpy(out_msg, ctx->out_msg, out_msg_size - 1);
         out_msg[out_msg_size - 1] = '\0';
     }
-    set_status(s_last_card_present, ctx->out_msg);
+    set_status(s_last_card_present, ctx->out_msg, s_last_total_bytes, s_last_used_bytes);
     vSemaphoreDelete(ctx->done);
     free(ctx);
     return result;

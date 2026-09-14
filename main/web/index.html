@@ -71,6 +71,11 @@
       <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
       <dt>Fix RTK</dt><dd id="st-fix">-</dd>
       <dt>Scheda microSD</dt><dd id="st-sd">-</dd>
+      <dt id="st-sd-space-label" style="display:none">Spazio SD</dt>
+      <dd id="st-sd-space" style="display:none">
+        <span id="st-sd-space-text">-</span>
+        <div class="sig-bar-track"><div class="sig-bar-fill" id="st-sd-space-bar" style="width:0%"></div></div>
+      </dd>
       <dt>Indirizzo fisso</dt><dd id="st-mdns">-</dd>
     </dl>
     <small class="hint">
@@ -557,6 +562,21 @@ async function loadStatus() {
       sdEl.textContent = 'non rilevata';
       sdEl.style.color = '#dc2626';
       sdEl.style.fontWeight = '600';
+    }
+    const sdSpaceLabel = document.getElementById('st-sd-space-label');
+    const sdSpaceEl = document.getElementById('st-sd-space');
+    if (s.sd_checked && s.sd_card_present && s.sd_total_bytes) {
+      sdSpaceLabel.style.display = '';
+      sdSpaceEl.style.display = '';
+      const pct = Math.max(0, Math.min(100, (s.sd_used_bytes / s.sd_total_bytes) * 100));
+      document.getElementById('st-sd-space-text').textContent =
+        formatBytes(s.sd_used_bytes) + ' usati su ' + formatBytes(s.sd_total_bytes) + ' (' + pct.toFixed(0) + '%)';
+      const bar = document.getElementById('st-sd-space-bar');
+      bar.style.width = pct + '%';
+      bar.style.background = colorForPct(100 - pct);
+    } else {
+      sdSpaceLabel.style.display = 'none';
+      sdSpaceEl.style.display = 'none';
     }
     document.getElementById('fw-current-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';

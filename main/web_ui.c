@@ -260,6 +260,10 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     if (sd_status.checked) {
         cJSON_AddBoolToObject(root, "sd_card_present", sd_status.card_present);
         cJSON_AddStringToObject(root, "sd_message", sd_status.message);
+        if (sd_status.card_present) {
+            cJSON_AddNumberToObject(root, "sd_total_bytes", (double) sd_status.total_bytes);
+            cJSON_AddNumberToObject(root, "sd_used_bytes", (double) sd_status.used_bytes);
+        }
     }
 
     // Bluetooth Classic (SPP) non disponibile su ESP32-S3 (solo BLE, non
