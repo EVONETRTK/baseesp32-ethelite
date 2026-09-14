@@ -196,6 +196,67 @@ static const char *rgb_mode_str(rgb_led_mode_t m)
     }
 }
 
+// Il nome di una rete WiFi rilevata in scansione e' una sequenza di byte
+// arbitraria (non tutti i router usano UTF-8 per nomi con caratteri
+// speciali) - se contiene byte non validi come UTF-8, JSON/il browser li
+// sostituiscono con punti interrogativi quando li mostrano. Il problema
+// vero non e' solo estetico: se l'utente clicca su quel risultato per
+// compilare il campo SSID, verrebbe salvato il nome CON i punti
+// interrogativi al posto dei byte originali - una rete che di fatto non
+// esiste, causa reale di "non riesco a collegarmi" nonostante password
+// corretta (diagnosticato con l'utente via log seriale dal vivo).
+//
+// Fix: si trattano i byte grezzi dell'SSID come se fossero Latin-1
+// (ISO-8859-1, un byte = un carattere) e si convertono in UTF-8 valido
+// prima di mandarli al browser - qualunque sequenza di byte, in qualunque
+// codifica fosse realmente, sopravvive cosi' intatta (nessun punto
+// interrogativo, nessuna perdita di informazione) e il giro inverso
+// (safe_utf8_to_raw_ssid_bytes, usato quando l'utente si collega/salva)
+// la riporta esattamente ai byte originali - la connessione usera' quindi
+// sempre il nome VERO della rete, byte per byte, anche per nomi con
+// caratteri speciali che il browser da solo mostrerebbe in modo diverso.
+// Usata anche per il wifi_ssid gia' salvato restituito da /api/status
+// (potrebbe contenere byte non-UTF8 se salvato prima di questo fix).
+static void raw_ssid_bytes_to_safe_utf8(const char *in, char *out, size_t out_size)
+{
+    size_t o = 0;
+    for (const unsigned char *p = (const unsigned char *) in; *p && o + 2 < out_size; p++) {
+        if (*p < 0x80) {
+            out[o++] = (char) *p;
+        } else {
+            out[o++] = (char) (0xC0 | (*p >> 6));
+            out[o++] = (char) (0x80 | (*p & 0x3F));
+        }
+    }
+    out[o] = '\0';
+}
+
+// Inversa di raw_ssid_bytes_to_safe_utf8() - vedi commento sopra. Una
+// sequenza inattesa (non prodotta da quella funzione, es. un carattere
+// speciale digitato a mano dall'utente invece che selezionato da una
+// scansione) viene copiata byte per byte invece di bloccare il
+// salvataggio: nel peggiore dei casi un carattere raro digitato a mano
+// non sopravvive esattamente, ma la funzione non fallisce mai.
+static void safe_utf8_to_raw_ssid_bytes(const char *in, char *out, size_t out_size)
+{
+    size_t o = 0;
+    const unsigned char *p = (const unsigned char *) in;
+    while (*p && o + 1 < out_size) {
+        if (*p < 0x80) {
+            out[o++] = (char) *p;
+            p++;
+        } else if ((*p & 0xE0) == 0xC0 && p[1] != '\0' && (p[1] & 0xC0) == 0x80) {
+            unsigned int cp = ((unsigned int) (*p & 0x1F) << 6) | (p[1] & 0x3F);
+            out[o++] = (char) (cp & 0xFF);
+            p += 2;
+        } else {
+            out[o++] = (char) *p;
+            p++;
+        }
+    }
+    out[o] = '\0';
+}
+
 static esp_err_t status_get_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -223,7 +284,11 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "gnss_chip", gnss_chip_str(s.gnss_chip));
     cJSON_AddStringToObject(root, "device_mode", device_mode_str(s.device_mode));
     cJSON_AddStringToObject(root, "network_mode", network_mode_str(s.network_mode));
-    cJSON_AddStringToObject(root, "wifi_ssid", s.wifi_ssid);
+    {
+        char safe_wifi_ssid[65];
+        raw_ssid_bytes_to_safe_utf8(s.wifi_ssid, safe_wifi_ssid, sizeof(safe_wifi_ssid));
+        cJSON_AddStringToObject(root, "wifi_ssid", safe_wifi_ssid);
+    }
     cJSON_AddStringToObject(root, "cellular_apn", s.cellular_apn);
     cJSON_AddBoolToObject(root, "cellular_is_sim868", s.cellular_is_sim868);
     cJSON_AddStringToObject(root, "ntrip_host", s.ntrip_host);
@@ -478,7 +543,17 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
 
     app_settings_t s = settings_get();
 
-    copy_field(root, "wifi_ssid", s.wifi_ssid, sizeof(s.wifi_ssid));
+    // wifi_ssid passa da safe_utf8_to_raw_ssid_bytes() (vedi commento sopra
+    // la sua definizione) invece del semplice copy_field(): puo' arrivare
+    // qui da un click su un risultato della scansione WiFi, che usa la
+    // stessa codifica per non perdere/alterare nomi rete con caratteri
+    // speciali.
+    {
+        cJSON *ssid_item = cJSON_GetObjectItemCaseSensitive(root, "wifi_ssid");
+        if (ssid_item && cJSON_IsString(ssid_item) && ssid_item->valuestring[0] != '\0') {
+            safe_utf8_to_raw_ssid_bytes(ssid_item->valuestring, s.wifi_ssid, sizeof(s.wifi_ssid));
+        }
+    }
     copy_field(root, "wifi_password", s.wifi_password, sizeof(s.wifi_password));
     copy_field(root, "cellular_apn", s.cellular_apn, sizeof(s.cellular_apn));
     copy_field(root, "ntrip_host", s.ntrip_host, sizeof(s.ntrip_host));
@@ -895,8 +970,7 @@ static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
     }
 
     char ssid[33];
-    strncpy(ssid, ssid_item->valuestring, sizeof(ssid) - 1);
-    ssid[sizeof(ssid) - 1] = '\0';
+    safe_utf8_to_raw_ssid_bytes(ssid_item->valuestring, ssid, sizeof(ssid));
 
     // Password vuota/assente = mantieni quella gia' salvata per questo
     // SSID (stessa convenzione dei campi password nel resto della UI) -
@@ -993,7 +1067,9 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
     cJSON *networks = cJSON_CreateArray();
     for (size_t i = 0; i < n; i++) {
         cJSON *net = cJSON_CreateObject();
-        cJSON_AddStringToObject(net, "ssid", results[i].ssid);
+        char safe_ssid[65]; // fino a 2 byte UTF-8 per ogni byte originale (max 32)
+        raw_ssid_bytes_to_safe_utf8(results[i].ssid, safe_ssid, sizeof(safe_ssid));
+        cJSON_AddStringToObject(net, "ssid", safe_ssid);
         cJSON_AddNumberToObject(net, "rssi", results[i].rssi);
         cJSON_AddBoolToObject(net, "secure", results[i].secure);
         cJSON_AddItemToArray(networks, net);
