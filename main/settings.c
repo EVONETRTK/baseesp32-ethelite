@@ -188,6 +188,22 @@ void settings_init(void)
         if (s_settings.device_serial[0] == '\0' || looks_like_old_full_mac) {
             format_mac_serial(s_settings.device_serial, sizeof(s_settings.device_serial));
         }
+        // Rete di sicurezza indipendente dal magic/dalla dimensione sopra:
+        // un valore fuori range qui manderebbe in crash il boot (ESP_ERROR_CHECK
+        // dentro uart_driver_install() abortisce su un numero di porta non
+        // valido, visto in pratica durante lo sviluppo di questa funzione) -
+        // invece di fidarsi ciecamente di un blob NVS che in teoria dovrebbe
+        // essere valido ma in pratica (bug, corruzione, versioni future con
+        // un bug di migrazione) potrebbe non esserlo, si riporta al default
+        // di Kconfig qualunque valore non plausibile.
+        if (s_settings.gnss_uart_num < 0 || s_settings.gnss_uart_num > 2) {
+            ESP_LOGW(TAG, "gnss_uart_num salvato non valido (%d), uso il default di Kconfig", s_settings.gnss_uart_num);
+            s_settings.gnss_uart_num = CONFIG_BASEESP32_GNSS_UART_NUM;
+        }
+        if (s_settings.gnss_uart_baud < 1200) {
+            ESP_LOGW(TAG, "gnss_uart_baud salvato non valido (%d), uso il default di Kconfig", s_settings.gnss_uart_baud);
+            s_settings.gnss_uart_baud = CONFIG_BASEESP32_GNSS_UART_BAUD;
+        }
         ESP_LOGI(TAG, "Configurazione caricata da NVS (AP=%s)", s_settings.ap_ssid);
     } else {
         ESP_LOGW(TAG, "Configurazione NVS non valida, uso i default di Kconfig");

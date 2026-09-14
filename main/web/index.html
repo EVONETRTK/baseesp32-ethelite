@@ -6,48 +6,61 @@
 <title>EVONETRTK</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 680px; margin: 1.5rem auto; padding: 0 1rem; background:#f6f7f9; color:#1a1a1a; }
-  h1 { font-size: 1.3rem; margin-bottom: .8rem; }
+  h1 { font-size: 1.5rem; margin-bottom: .8rem; display:flex; align-items:center; gap:.4rem; }
+  .quick-status { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom: 1rem; }
+  .qs-chip { display:flex; align-items:center; gap:.35rem; padding:.45rem .8rem; border-radius:20px; background:#eef0f2; color:#6b7280; font-size:.82rem; font-weight:600; border:1px solid transparent; transition: background .2s, color .2s, border-color .2s; }
+  .qs-chip .qs-icon { font-size:1.05rem; }
+  .qs-chip.qs-ok { background:#dcfce7; color:#15803d; border-color:#86efac; }
+  .qs-chip.qs-warn { background:#fef3c7; color:#b45309; border-color:#fcd34d; }
+  .qs-chip.qs-bad { background:#fee2e2; color:#b91c1c; border-color:#fca5a5; }
   nav.tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom: 1rem; }
-  nav.tabs button { padding:.5rem .9rem; border:1px solid #c5c9d0; background:#fff; border-radius:6px; cursor:pointer; font-size:.9rem; }
+  nav.tabs button { padding:.55rem 1rem; border:1px solid #c5c9d0; background:#fff; border-radius:8px; cursor:pointer; font-size:.9rem; transition: background .15s, color .15s, border-color .15s; }
   nav.tabs button.active { background:#2563eb; color:#fff; border-color:#2563eb; }
   .page { display:none; }
   .page.active { display:block; }
-  fieldset { border: 1px solid #d0d3d8; border-radius: 8px; margin-bottom: 1.2rem; padding: 1rem; background: #fff; }
-  legend { font-weight: 600; padding: 0 .4rem; }
+  fieldset { border: 1px solid #d0d3d8; border-radius: 10px; margin-bottom: 1.2rem; padding: 1rem; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  legend { font-weight: 700; font-size: 1rem; padding: 0 .5rem; }
   label { display:block; margin-top:.6rem; font-size:.9rem; color:#333; }
   input, select { width:100%; padding:.5rem; margin-top:.2rem; box-sizing:border-box; border:1px solid #c5c9d0; border-radius:6px; font-size:1rem; }
-  button.action { padding:.6rem 1.2rem; border:none; border-radius:6px; background:#2563eb; color:#fff; font-size:1rem; cursor:pointer; margin-top:1rem; }
+  button.action { padding:.6rem 1.2rem; border:none; border-radius:8px; background:#2563eb; color:#fff; font-size:1rem; font-weight:600; cursor:pointer; margin-top:1rem; }
   button.secondary { background:#6b7280; margin-left:.5rem; }
-  dl.kv { display:grid; grid-template-columns:auto 1fr; gap:.3rem .8rem; margin:0; font-size:.9rem; }
+  dl.kv { display:grid; grid-template-columns:auto 1fr; gap:.4rem .8rem; margin:0; font-size:.9rem; }
   dl.kv dt { color:#666; }
   #save-msg { margin-top:.6rem; font-size:.9rem; }
   small.hint { display:block; color:#888; margin-top:.2rem; }
   .sig-bar-track { background:#e5e7eb; border-radius:4px; height:10px; overflow:hidden; margin-top:.3rem; }
-  .sig-bar-fill { background:#2563eb; height:100%; }
+  .sig-bar-fill { background:#2563eb; height:100%; transition: width .3s, background .3s; }
   canvas#sat-chart { width:100%; height:180px; background:#fff; border:1px solid #d0d3d8; border-radius:8px; }
   .legend-dot { display:inline-block; width:.7rem; height:.7rem; border-radius:50%; margin-right:.3rem; vertical-align:middle; }
   .legend-row { font-size:.85rem; margin-top:.4rem; }
 </style>
 </head>
 <body>
-<h1>EVONETRTK</h1>
+<h1>🛰️ EVONETRTK</h1>
+
+<div id="quick-status" class="quick-status">
+  <div class="qs-chip" id="qs-wifi"><span class="qs-icon">📶</span><span class="qs-label">Rete</span></div>
+  <div class="qs-chip" id="qs-ntrip"><span class="qs-icon">📡</span><span class="qs-label">NTRIP</span></div>
+  <div class="qs-chip" id="qs-fix"><span class="qs-icon">🎯</span><span class="qs-label">Fix</span></div>
+  <div class="qs-chip" id="qs-sd"><span class="qs-icon">💾</span><span class="qs-label">SD</span></div>
+</div>
 
 <nav class="tabs">
-  <button type="button" data-page="page-status" class="active">Stato</button>
-  <button type="button" data-page="page-network">Rete</button>
-  <button type="button" data-page="page-gnss">GNSS &amp; NTRIP</button>
-  <button type="button" data-page="page-security">Sicurezza</button>
-  <button type="button" data-page="page-signals">Segnali</button>
-  <button type="button" data-page="page-hardware">Hardware</button>
-  <button type="button" data-page="page-firmware">Firmware</button>
-  <button type="button" data-page="page-log">Log</button>
+  <button type="button" data-page="page-status" class="active">📊 Stato</button>
+  <button type="button" data-page="page-network">🌐 Rete</button>
+  <button type="button" data-page="page-gnss">🛰️ GNSS &amp; NTRIP</button>
+  <button type="button" data-page="page-security">🔒 Sicurezza</button>
+  <button type="button" data-page="page-signals">📶 Segnali</button>
+  <button type="button" data-page="page-hardware">🎛️ Hardware</button>
+  <button type="button" data-page="page-firmware">⬆️ Firmware</button>
+  <button type="button" data-page="page-log">📜 Log</button>
 </nav>
 
 <form id="cfg-form">
 
 <div id="page-status" class="page active">
   <fieldset>
-    <legend>Connessione NTRIP (caster)</legend>
+    <legend>📡 Connessione NTRIP (caster)</legend>
     <dl class="kv">
       <dt>Stato</dt><dd id="ntrip-status">-</dd>
       <dt id="ntrip-since-label">Connesso da</dt><dd id="ntrip-since">-</dd>
@@ -61,7 +74,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Stato</legend>
+    <legend>📊 Stato</legend>
     <dl class="kv">
       <dt>Matricola</dt><dd id="st-serial">-</dd>
       <dt>Versione firmware</dt><dd id="st-version">-</dd>
@@ -82,7 +95,7 @@
       L'indirizzo fisso funziona solo dallo stesso dispositivo/rete a cui la scheda e' collegata
       in quel momento (AP di setup o rete WiFi di casa) - non serve piu' ricordare l'IP.
     </small>
-    <label style="margin-top:.8rem">Segnale WiFi</label>
+    <label style="margin-top:.8rem">📶 Segnale WiFi</label>
     <div class="sig-bar-track"><div class="sig-bar-fill" id="st-wifi-sig-bar" style="width:0%"></div></div>
     <small class="hint" id="st-wifi-sig-text">-</small>
     <small class="hint">
@@ -94,7 +107,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Sistema</legend>
+    <legend>💻 Sistema</legend>
     <label>CPU core 0</label>
     <div class="sig-bar-track"><div class="sig-bar-fill" id="cpu0-bar" style="width:0%"></div></div>
     <small class="hint" id="cpu0-text">-</small>
@@ -118,7 +131,7 @@
 
 <div id="page-network" class="page">
   <fieldset>
-    <legend>Connettivita'</legend>
+    <legend>🌐 Connettivita'</legend>
     <label>Connettivita' da usare
       <select name="network_mode">
         <option value="both">WiFi con fallback cellulare (consigliato)</option>
@@ -130,7 +143,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>WiFi</legend>
+    <legend>📶 WiFi</legend>
     <label>SSID<input name="wifi_ssid"></label>
     <button type="button" class="action secondary" id="wifi-scan-btn" style="margin-top:.6rem">Cerca reti WiFi</button>
     <div id="wifi-scan-results" style="margin-top:.4rem"></div>
@@ -147,7 +160,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Rete cellulare (slot LTE)</legend>
+    <legend>📱 Rete cellulare (slot LTE)</legend>
     <label>Modulo modem montato
       <select name="cellular_is_sim868">
         <option value="false">SIM7600X</option>
@@ -159,7 +172,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Rete di setup (AP di questo dispositivo)</legend>
+    <legend>🔌 Rete di setup (AP di questo dispositivo)</legend>
     <label>SSID AP<input name="ap_ssid"></label>
     <label>Password AP<input name="ap_password" type="password" placeholder="lascia vuoto per non modificare">
       <small class="hint">Minimo 8 caratteri. Se l'AP non ha mai avuto una password impostata, resta aperto.</small>
@@ -169,7 +182,7 @@
 
 <div id="page-gnss" class="page">
   <fieldset>
-    <legend>Modalita' operativa</legend>
+    <legend>🛰️ Modalita' operativa</legend>
     <label>Funzione del dispositivo
       <select name="device_mode">
         <option value="base">Base (invia correzioni RTCM3 al caster)</option>
@@ -186,7 +199,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Posizione base</legend>
+    <legend>📍 Posizione base</legend>
     <label>Modalita' posizione
       <select name="base_position_mode">
         <option value="auto">Automatica (survey-in ad ogni avvio)</option>
@@ -218,7 +231,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Caster EVONETRTK (NTRIP)</legend>
+    <legend>📡 Caster EVONETRTK (NTRIP)</legend>
     <label>Host<input name="ntrip_host"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
     <label>Mountpoint<input name="ntrip_mountpoint"></label>
@@ -227,7 +240,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Server caster NTRIP locale (solo modalita' base)</legend>
+    <legend>📡 Server caster NTRIP locale (solo modalita' base)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="ntrip_caster_server_enable" type="checkbox" style="width:auto; margin:0">
       Accetta rover collegati direttamente a questo dispositivo (oltre al caster esterno sopra)
@@ -252,7 +265,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Uscita dati per software di guida (solo modalita' rover)</legend>
+    <legend>🚜 Uscita dati per software di guida (solo modalita' rover)</legend>
     <label>Porta UDP broadcast NMEA<input name="nmea_udp_port" type="number" min="1" max="65535"></label>
     <small class="hint">
       In modalita' rover, ogni riga NMEA emessa dal GNSS (posizione, satelliti, ecc.) viene
@@ -265,20 +278,20 @@
 
 <div id="page-security" class="page">
   <fieldset>
-    <legend>Sicurezza</legend>
+    <legend>🔒 Sicurezza</legend>
     <label>Codice di accesso a questa pagina<input name="admin_code" type="password" placeholder="lascia vuoto per non modificare">
       <small class="hint">Utente "admin", protegge tutta questa interfaccia. Default di fabbrica: 1234 - cambialo alla prima configurazione.</small>
     </label>
   </fieldset>
 
   <fieldset>
-    <legend>Identificazione dispositivo</legend>
+    <legend>🆔 Identificazione dispositivo</legend>
     <label>Matricola<input name="device_serial" placeholder="es. EVONETRTK-0001"></label>
     <small class="hint">Per default e' lo stesso numero del nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428") - puoi sostituirlo con un tuo codice se preferisci un altro sistema di tracciamento.</small>
   </fieldset>
 
   <fieldset>
-    <legend>Avvisi (email/WhatsApp)</legend>
+    <legend>🔔 Avvisi (email/WhatsApp)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="alert_enable" type="checkbox" style="width:auto; margin:0">
       Avvisami se la connessione al caster resta interrotta troppo a lungo
@@ -332,7 +345,7 @@
 
 <div id="page-signals" class="page">
   <fieldset>
-    <legend>Fix GNSS (RTK)</legend>
+    <legend>🎯 Fix GNSS (RTK)</legend>
     <dl class="kv">
       <dt>Stato fix</dt><dd id="fix-quality">-</dd>
       <dt>Satelliti usati nel fix</dt><dd id="fix-sats">-</dd>
@@ -345,7 +358,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Satelliti GNSS (C/N0 per satellite)</legend>
+    <legend>🛰️ Satelliti GNSS (C/N0 per satellite)</legend>
     <canvas id="sat-chart" width="620" height="180"></canvas>
     <div class="legend-row">
       <span class="legend-dot" style="background:#2563eb"></span>GPS
@@ -358,12 +371,12 @@
   </fieldset>
 
   <fieldset>
-    <legend>Qualita' delle connessioni</legend>
-    <label>WiFi (RSSI)</label>
+    <legend>📶 Qualita' delle connessioni</legend>
+    <label>📶 WiFi (RSSI)</label>
     <div class="sig-bar-track"><div class="sig-bar-fill" id="wifi-sig-bar" style="width:0%"></div></div>
     <small class="hint" id="wifi-sig-text">-</small>
 
-    <label style="margin-top:1rem">Cellulare (RSSI)</label>
+    <label style="margin-top:1rem">📱 Cellulare (RSSI)</label>
     <div class="sig-bar-track"><div class="sig-bar-fill" id="cell-sig-bar" style="width:0%"></div></div>
     <small class="hint" id="cell-sig-text">-</small>
     <dl class="kv" style="margin-top:.6rem">
@@ -380,7 +393,7 @@
 
 <div id="page-hardware" class="page">
   <fieldset>
-    <legend>Antenna GNSS (u-blox/Unicore/LC29H)</legend>
+    <legend>🎛️ Antenna GNSS (u-blox/Unicore/LC29H)</legend>
     <label>UART ESP32
       <select name="gnss_uart_num">
         <option value="0">UART0</option>
@@ -399,7 +412,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>LED RGB (opzionale)</legend>
+    <legend>💡 LED RGB (opzionale)</legend>
     <label>Tipo di LED
       <select name="rgb_led_mode">
         <option value="none">Nessuno</option>
@@ -419,7 +432,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Display OLED (opzionale, 128x64 I2C)</legend>
+    <legend>🖥️ Display OLED (opzionale, 128x64 I2C)</legend>
     <label>Controller
       <select name="oled_controller">
         <option value="ssd1306">SSD1306 (tipico nei moduli da 0,96")</option>
@@ -454,7 +467,7 @@
 
 <div id="page-firmware" class="page">
   <fieldset>
-    <legend>Aggiornamento firmware</legend>
+    <legend>⬆️ Aggiornamento firmware</legend>
     <dl class="kv">
       <dt>Versione attuale</dt><dd id="fw-current-version">-</dd>
     </dl>
@@ -471,7 +484,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Aggiornamento da microSD</legend>
+    <legend>💾 Aggiornamento da microSD</legend>
     <p style="font-size:.9rem; margin-top:0">
       Copia <code>firmware.bin</code> e <code>firmware.json</code> (contenente <code>{"version":"x.y.z"}</code>)
       nella radice di una microSD, inseriscila nel lettore integrato e premi il pulsante -
@@ -483,7 +496,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>Aggiornamento online</legend>
+    <legend>🌍 Aggiornamento online</legend>
     <label>Indirizzo manifest (JSON con versione e link al .bin)
       <input name="ota_update_url" placeholder="es. https://github.com/utente/repo/releases/latest/download/version.json">
     </label>
@@ -501,7 +514,7 @@
 
 <div id="page-log" class="page">
   <fieldset>
-    <legend>Log recenti</legend>
+    <legend>📜 Log recenti</legend>
     <small class="hint">
       Ultime righe di log conservate in memoria dall'ultimo riavvio (si perdono al riavvio) -
       utile per capire cosa succede senza collegare un cavo USB/seriale.
@@ -583,15 +596,15 @@ async function loadStatus() {
     document.getElementById('st-mdns').textContent = s.ap_ssid ? ('http://' + s.ap_ssid + '.local') : '-';
     const sdEl = document.getElementById('st-sd');
     if (!s.sd_checked) {
-      sdEl.textContent = 'non ancora controllata';
+      sdEl.textContent = '⬜ non ancora controllata';
       sdEl.style.color = '';
       sdEl.style.fontWeight = '';
     } else if (s.sd_card_present) {
-      sdEl.textContent = 'rilevata (' + (s.sd_message || 'OK') + ')';
+      sdEl.textContent = '✅ rilevata (' + (s.sd_message || 'OK') + ')';
       sdEl.style.color = '#16a34a';
       sdEl.style.fontWeight = '600';
     } else {
-      sdEl.textContent = 'non rilevata';
+      sdEl.textContent = '❌ non rilevata';
       sdEl.style.color = '#dc2626';
       sdEl.style.fontWeight = '600';
     }
@@ -686,6 +699,7 @@ async function loadStatus() {
     lastStatus = s;
     renderBasePosCurrent(s);
     renderDriftStatus(s);
+    renderQuickStatusFromStatus(s);
     const casterClientsEl = document.getElementById('caster-srv-clients');
     if (casterClientsEl) {
       casterClientsEl.textContent = s.ntrip_caster_server_enable ? (s.ntrip_caster_server_clients ?? 0) : 'server disattivato';
@@ -803,6 +817,7 @@ function renderChipTemp(celsius) {
 // veri e propri, gli altri sono un fix "normale" (utile ma senza le
 // precisioni centimetriche che giustificano l'uso di questa scheda).
 const FIX_QUALITY_COLOR = { 4: '#16a34a', 5: '#d97706', 1: '#2563eb', 2: '#2563eb', 3: '#2563eb' };
+const FIX_QUALITY_ICON = { 4: '✅', 5: '🟡', 1: 'ℹ️', 2: 'ℹ️', 3: 'ℹ️' };
 
 function formatElapsed(seconds) {
   if (seconds < 60) return Math.round(seconds) + ' s';
@@ -821,7 +836,7 @@ function renderNtripStatus(s) {
   errorEl.textContent = s.ntrip_last_error || '-';
 
   if (s.ntrip_connected) {
-    statusEl.textContent = 'CONNESSO';
+    statusEl.textContent = '✅ CONNESSO';
     statusEl.style.color = '#16a34a';
     statusEl.style.fontWeight = '600';
     sinceLabelEl.textContent = 'Connesso da';
@@ -829,7 +844,7 @@ function renderNtripStatus(s) {
       ? formatElapsed((s.now_us - s.ntrip_connected_since_us) / 1e6)
       : '-';
   } else {
-    statusEl.textContent = 'NON CONNESSO';
+    statusEl.textContent = '❌ NON CONNESSO';
     statusEl.style.color = '#dc2626';
     statusEl.style.fontWeight = '600';
     sinceLabelEl.textContent = 'Disconnesso da';
@@ -840,6 +855,46 @@ function renderNtripStatus(s) {
 }
 
 let lastStatus = null;
+
+function setQsChip(id, state, label) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('qs-ok', 'qs-warn', 'qs-bad');
+  if (state) el.classList.add(state);
+  if (label !== undefined) {
+    const labelEl = el.querySelector('.qs-label');
+    if (labelEl) labelEl.textContent = label;
+  }
+}
+
+function renderQuickStatusFromStatus(s) {
+  const netLabel = s.net === 'wifi' ? 'WiFi' : (s.net === 'cellulare' ? 'Cellulare' : 'Assente');
+  setQsChip('qs-wifi', s.net && s.net !== 'nessuna' ? 'qs-ok' : 'qs-bad', netLabel);
+
+  setQsChip('qs-ntrip', s.ntrip_connected ? 'qs-ok' : 'qs-bad', s.ntrip_connected ? 'NTRIP OK' : 'NTRIP giu\'');
+
+  if (!s.sd_checked) {
+    setQsChip('qs-sd', null, 'SD ?');
+  } else if (s.sd_card_present) {
+    setQsChip('qs-sd', 'qs-ok', 'SD OK');
+  } else {
+    setQsChip('qs-sd', 'qs-bad', 'SD assente');
+  }
+}
+
+function renderQuickStatusFromSignals(s) {
+  if (!s.gnss_fix_valid) {
+    setQsChip('qs-fix', null, 'Fix n/d');
+    return;
+  }
+  if (s.gnss_fix_quality === 4) {
+    setQsChip('qs-fix', 'qs-ok', 'RTK fisso');
+  } else if (s.gnss_fix_quality === 5) {
+    setQsChip('qs-fix', 'qs-warn', 'RTK float');
+  } else {
+    setQsChip('qs-fix', 'qs-bad', 'No RTK');
+  }
+}
 
 function updateBasePosVisibility() {
   const f = document.getElementById('cfg-form');
@@ -897,11 +952,12 @@ function renderDriftStatus(s) {
     currentEl.style.fontWeight = '';
     return;
   }
-  baselineEl.textContent = 'registrata';
+  baselineEl.textContent = '✅ registrata';
   const drift = s.base_drift_m ?? 0;
-  currentEl.textContent = drift.toFixed(2) + ' m';
+  const driftOk = drift < (s.base_drift_threshold_m || 5);
+  currentEl.textContent = (driftOk ? '✅ ' : '⚠️ ') + drift.toFixed(2) + ' m';
   currentEl.style.fontWeight = '600';
-  currentEl.style.color = drift >= (s.base_drift_threshold_m || 5) ? '#dc2626' : '#16a34a';
+  currentEl.style.color = driftOk ? '#16a34a' : '#dc2626';
 }
 
 function renderFixStatus(s) {
@@ -914,14 +970,15 @@ function renderFixStatus(s) {
   const stFixEl = document.getElementById('st-fix');
 
   if (!s.gnss_fix_valid) {
-    const txt = 'Nessun dato ricevuto';
+    const txt = '⬜ Nessun dato ricevuto';
     [qualityEl, stFixEl].forEach((el) => { el.textContent = txt; el.style.color = ''; el.style.fontWeight = ''; });
     satsEl.textContent = hdopEl.textContent = diffAgeEl.textContent = altEl.textContent = ageEl.textContent = '-';
     return;
   }
 
   const color = FIX_QUALITY_COLOR[s.gnss_fix_quality] || '#dc2626';
-  const label = (s.gnss_fix_quality_str || '-').toUpperCase();
+  const icon = FIX_QUALITY_ICON[s.gnss_fix_quality] || '❌';
+  const label = icon + ' ' + (s.gnss_fix_quality_str || '-').toUpperCase();
   [qualityEl, stFixEl].forEach((el) => { el.textContent = label; el.style.color = color; el.style.fontWeight = '600'; });
 
   satsEl.textContent = s.gnss_satellites_used;
@@ -942,6 +999,7 @@ async function loadSignals() {
     document.getElementById('cell-operator').textContent = s.cellular_operator || 'non registrato';
     document.getElementById('cell-tech').textContent = s.cellular_tech || '-';
     renderFixStatus(s);
+    renderQuickStatusFromSignals(s);
   } catch (e) {
     // pagina segnali non visibile o rete assente: si ritenta al giro dopo
   }
