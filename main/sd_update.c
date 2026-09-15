@@ -1,6 +1,7 @@
 #include "sd_update.h"
 #include "ota_update.h"
 #include "version.h"
+#include "sd_mutex.h"
 
 #include "sdkconfig.h"
 
@@ -85,6 +86,12 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
     // Bus SPI dedicato (SPI3_HOST), distinto da quello eventualmente usato
     // dall'Ethernet W5500 (SPI2_HOST, vedi eth_link.c) - pin fisici
     // comunque diversi, ma meglio non condividere anche l'istanza host.
+    // Preso PRIMA di toccare l'hardware SD, rilasciato su OGNI percorso di
+    // uscita di questa funzione (vedi sd_mutex.h) - impedisce a un altro
+    // modulo (diag_log, fw_archive, ppp_log) di montare la stessa scheda
+    // mentre questa funzione la sta gia' usando.
+    sd_mutex_take();
+
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
     host.slot = SPI3_HOST;
 
@@ -103,6 +110,7 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Init bus SPI per SD fallita: %s", esp_err_to_name(err));
         SET_MSG("Bus SPI verso la scheda SD non inizializzabile");
+        sd_mutex_give();
         return false;
     }
 
@@ -124,6 +132,7 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
         s_last_total_bytes = 0;
         s_last_used_bytes = 0;
         spi_bus_free((spi_host_device_t) host.slot);
+        sd_mutex_give();
         return false;
     }
     ESP_LOGI(TAG, "Scheda SD montata correttamente");
@@ -199,6 +208,7 @@ cleanup:
     }
     esp_vfs_fat_sdcard_unmount(MOUNT_POINT, card);
     spi_bus_free((spi_host_device_t) host.slot);
+    sd_mutex_give();
     return applied;
 
 #undef SET_MSG

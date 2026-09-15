@@ -35,6 +35,7 @@ idf_component_register(
         "auto_update.c"
         "fw_archive.c"
         "diag_log.c"
+        "sd_mutex.c"
         "web_ui.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "web/index.html"

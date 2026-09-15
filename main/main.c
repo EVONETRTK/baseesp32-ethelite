@@ -36,6 +36,7 @@
 #include "auto_update.h"
 #include "diag_log.h"
 #include "fw_archive.h"
+#include "sd_mutex.h"
 
 static const char *TAG = "main";
 
@@ -89,9 +90,16 @@ static void gnss_uart_task(void *arg)
     }
 }
 
+static void fw_archive_save_current_task(void *arg)
+{
+    fw_archive_save_current();
+    vTaskDelete(NULL);
+}
+
 void app_main(void)
 {
     log_buffer_init(); // il prima possibile, per non perdere i log di avvio
+    sd_mutex_init(); // prima che qualunque cosa possa toccare la SD (vedi sd_mutex.h)
 
     ESP_LOGI(TAG, "EVONETRTK firmware v%s", FIRMWARE_VERSION);
 
@@ -144,9 +152,19 @@ void app_main(void)
     // incluso, non solo aggiornamenti applicati dal firmware stesso). Se
     // questa versione e' gia' archiviata non riscrive nulla (vedi
     // fw_archive_save_current()) - costo trascurabile ad ogni riavvio
-    // successivo al primo. Dopo il controllo SD sopra, non prima: evita
-    // che i due si contendano la scheda nello stesso istante all'avvio.
-    fw_archive_save_current();
+    // successivo al primo.
+    //
+    // Chiamata in un task dedicato con stack generoso, MAI direttamente
+    // qui: lo stack di app_main() (task "main") e' troppo piccolo per le
+    // operazioni SD/FAT che fa questa funzione - confermato da uno stack
+    // overflow reale su hardware la prima volta che l'ho chiamata inline
+    // qui, stessa causa/fix gia' vista piu' volte in questo stesso
+    // progetto per operazioni SD analoghe (vedi net_manager.c/web_ui.c).
+    // Puo' partire subito, senza ritardi artificiali per evitare altri
+    // moduli SD (diag_log incluso): il mutex condiviso (sd_mutex.h) fa
+    // aspettare il proprio turno invece di fallire se la scheda e'
+    // gia' in uso da un altro modulo in quel momento.
+    xTaskCreate(fw_archive_save_current_task, "fw_archive_boot", 8192, NULL, 2, NULL);
     diag_log_start();
 
     app_settings_t settings = settings_get();

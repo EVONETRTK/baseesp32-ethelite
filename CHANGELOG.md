@@ -2,6 +2,26 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.25
+
+- **Confermato su hardware reale: l'archiviazione automatica del firmware su SD funziona davvero, dall'avvio alla scrittura completa** - task avviato, SD montata, ~1.45MB copiati (~3s), file salvato e verificato. Aggiunto anche un log per il caso "SD non disponibile" che prima falliva in silenzio, utile se ricapita in futuro. Rimossa la diagnostica temporanea di debug (aveva gia' fatto il suo lavoro).
+
+## 1.19.23
+
+- **Trovata la vera causa finale dell'archiviazione SD che falliva, grazie all'errno aggiunto in diagnostica temporanea (1.19.22)**: non era la contesa tra moduli (gia' risolta in 1.19.21 col mutex condiviso, comunque un fix corretto da tenere), ma il filesystem FAT configurato per i soli nomi file classici "8.3" (`CONFIG_FATFS_LFN_NONE`) - il nome `v1.19.23.bin` (due punti, piu' di 8 caratteri prima dell'estensione) non e' un nome 8.3 valido, `fopen()` falliva con `errno=22` (Invalid argument). Attivato il supporto ai nomi file lunghi (`CONFIG_FATFS_LFN_HEAP` - sull'heap, non sullo stack, per non aggiungere pressione allo stack dei task SD dopo piu' di uno stack overflow reale gia' visto in questo progetto).
+
+## 1.19.21
+
+- **Fix vero (non un ritardo) della contesa SD**: aggiunto `sd_mutex.c/.h`, un mutex condiviso tra tutti e quattro i moduli che montano/smontano la microSD in modo indipendente (`sd_update.c`, `diag_log.c`, `fw_archive.c`, `ppp_log.c`) - prima ognuno montava per conto proprio senza sapere degli altri, e chi arrivava per secondo falliva silenziosamente invece di aspettare il proprio turno. Ricorsivo (non un mutex semplice): `sd_update` puo' tenerlo gia' preso quando chiama `ota_update_apply()`, che a sua volta chiama `fw_archive_save_current()` - un mutex normale si sarebbe bloccato da solo in questo caso. Tolto anche il ritardo di 8s introdotto in 1.19.20 (mitigazione temporanea, non piu' necessaria con la vera causa risolta).
+
+## 1.19.20
+
+- Il fix di 1.19.19 evitava il crash ma l'archiviazione su SD falliva comunque all'avvio ("Impossibile creare... archiviazione saltata"): il nuovo task si scontrava con `diag_log` (avviato subito dopo, monta/smonta la SD ogni 30s per tutta la vita del dispositivo) per l'uso della stessa scheda, senza alcun coordinamento tra i moduli SD del firmware (nessuno dei quattro - SD update, diag log, archivio, PPP log - usa un mutex condiviso). Aggiunto un ritardo di 8s prima del primo tentativo di archiviazione, per evitare la finestra di conflitto piu' probabile all'avvio. Non risolve la contesa in generale (richiederebbe un mutex condiviso tra tutti i moduli SD - refactor piu' ampio, rimandato).
+
+## 1.19.19
+
+- **Fix di uno stack overflow reale introdotto da me stesso in 1.19.18**: chiamare `fw_archive_save_current()` direttamente dentro `app_main()` faceva traboccare lo stack del task "main" (troppo piccolo per le operazioni SD/FAT coinvolte) - confermato su hardware reale, crash e riavvio automatico appena dopo il controllo SD all'avvio. Spostata in un task dedicato con stack da 8192 byte, stessa tecnica gia' usata altrove nel progetto per lo stesso tipo di operazione.
+
 ## 1.19.18
 
 - Su richiesta dell'utente ("una versione funzionante deve essere sempre sulla SD"): `fw_archive_save_current()` (esisteva gia', ma partiva solo prima di applicare un aggiornamento tramite le funzioni OTA del firmware) ora gira anche ad ogni avvio - cosi' l'archivio su SD si popola anche per un dispositivo che ha ricevuto il firmware via flash USB diretto (come in questa sessione), non solo tramite aggiornamento online/SD/browser. Salta la scrittura se la versione attuale e' gia' archiviata, per non consumare inutilmente la SD ad ogni riavvio.

@@ -1,4 +1,5 @@
 #include "ppp_log.h"
+#include "sd_mutex.h"
 
 #include <string.h>
 
@@ -43,8 +44,13 @@ static void status_mutex_init(void)
     }
 }
 
+// sd_mutex_take() e' preso qui (non nel chiamante) e rilasciato in
+// unmount_sd() - o subito, se il montaggio stesso fallisce - vedi
+// sd_mutex.h per il motivo (contesa reale con altri moduli SD).
 static bool mount_sd(void)
 {
+    sd_mutex_take();
+
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
     host.slot = SPI3_HOST;
 
@@ -59,6 +65,7 @@ static bool mount_sd(void)
     esp_err_t err = spi_bus_initialize((spi_host_device_t) host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Init bus SPI per SD fallita: %s", esp_err_to_name(err));
+        sd_mutex_give();
         return false;
     }
 
@@ -74,6 +81,7 @@ static bool mount_sd(void)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Scheda SD non montata: %s", esp_err_to_name(err));
         spi_bus_free((spi_host_device_t) host.slot);
+        sd_mutex_give();
         return false;
     }
     s_sd_mounted = true;
@@ -89,6 +97,7 @@ static void unmount_sd(void)
     spi_bus_free(SPI3_HOST);
     s_sd_mounted = false;
     s_card = NULL;
+    sd_mutex_give();
 }
 
 // Unico task che possiede il FILE* di scrittura: apre/chiude la SD in

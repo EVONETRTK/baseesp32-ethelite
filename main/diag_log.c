@@ -1,5 +1,6 @@
 #include "diag_log.h"
 #include "log_buffer.h"
+#include "sd_mutex.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -32,8 +33,15 @@ static bool s_sd_mounted;
 
 // Stesso schema di montaggio di ppp_log.c/fw_archive.c - duplicato per
 // tenere ogni modulo autonomo.
+// sd_mutex_take() e' preso qui (non nel chiamante) e rilasciato in
+// unmount_sd() - o subito, se il montaggio stesso fallisce - cosi'
+// ogni chiamante di mount_sd() lo ottiene/rilascia automaticamente
+// senza doverci pensare. Vedi sd_mutex.h per il motivo (contesa reale
+// con altri moduli, confermata su hardware).
 static bool mount_sd(void)
 {
+    sd_mutex_take();
+
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
     host.slot = SPI3_HOST;
 
@@ -47,6 +55,7 @@ static bool mount_sd(void)
     };
     esp_err_t err = spi_bus_initialize((spi_host_device_t) host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
     if (err != ESP_OK) {
+        sd_mutex_give();
         return false;
     }
 
@@ -61,6 +70,7 @@ static bool mount_sd(void)
     err = esp_vfs_fat_sdspi_mount(MOUNT_POINT, &host, &slot_cfg, &mount_cfg, &s_card);
     if (err != ESP_OK) {
         spi_bus_free((spi_host_device_t) host.slot);
+        sd_mutex_give();
         return false;
     }
     s_sd_mounted = true;
@@ -76,6 +86,7 @@ static void unmount_sd(void)
     spi_bus_free(SPI3_HOST);
     s_sd_mounted = false;
     s_card = NULL;
+    sd_mutex_give();
 }
 
 static int read_next_index(void)

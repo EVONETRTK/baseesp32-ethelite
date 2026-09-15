@@ -1,6 +1,7 @@
 #include "fw_archive.h"
 #include "ota_update.h"
 #include "version.h"
+#include "sd_mutex.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "sdkconfig.h"
 #include "esp_log.h"
@@ -31,8 +33,15 @@ static bool s_sd_mounted;
 // montato solo per la durata dell'operazione) - duplicato qui invece di
 // condiviso per tenere ogni modulo autonomo, come gia' fatto altrove in
 // questo progetto.
+// sd_mutex_take() e' preso qui (non nel chiamante) e rilasciato in
+// unmount_sd() - o subito, se il montaggio stesso fallisce - vedi
+// sd_mutex.h per il motivo (contesa reale con altri moduli, confermata
+// su hardware: l'archiviazione all'avvio falliva sistematicamente
+// prima di questo mutex, scontrandosi con diag_log).
 static bool mount_sd(void)
 {
+    sd_mutex_take();
+
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
     host.slot = SPI3_HOST;
 
@@ -47,6 +56,7 @@ static bool mount_sd(void)
     esp_err_t err = spi_bus_initialize((spi_host_device_t) host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "SD non disponibile (bus SPI): %s", esp_err_to_name(err));
+        sd_mutex_give();
         return false;
     }
 
@@ -62,6 +72,7 @@ static bool mount_sd(void)
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "SD non montata: %s", esp_err_to_name(err));
         spi_bus_free((spi_host_device_t) host.slot);
+        sd_mutex_give();
         return false;
     }
     s_sd_mounted = true;
@@ -77,6 +88,7 @@ static void unmount_sd(void)
     spi_bus_free(SPI3_HOST);
     s_sd_mounted = false;
     s_card = NULL;
+    sd_mutex_give();
 }
 
 // "v1.15.0.bin" -> "1.15.0". Ritorna NULL se il nome non ha la forma attesa.
@@ -134,6 +146,7 @@ static int compare_entries_newest_first(const void *a, const void *b)
 void fw_archive_save_current(void)
 {
     if (!mount_sd()) {
+        ESP_LOGW(TAG, "SD non disponibile, archiviazione saltata");
         return; // best-effort, non blocca l'aggiornamento in corso
     }
     mkdir(ARCHIVE_DIR, 0755); // ESP_OK anche se esiste gia' (errno EEXIST ignorato)
@@ -159,9 +172,10 @@ void fw_archive_save_current(void)
         return;
     }
 
+    errno = 0;
     FILE *f = fopen(path, "wb");
     if (!f) {
-        ESP_LOGW(TAG, "Impossibile creare %s, archiviazione saltata", path);
+        ESP_LOGW(TAG, "Impossibile creare %s, archiviazione saltata (errno=%d: %s)", path, errno, strerror(errno));
         unmount_sd();
         return;
     }

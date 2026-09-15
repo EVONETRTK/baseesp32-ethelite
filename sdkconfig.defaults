@@ -49,3 +49,12 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 # core) - overhead trascurabile (solo un contatore aggiornato nel loop
 # idle), nessun impatto sulle prestazioni.
 CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
+
+# Il default (nomi file solo formato classico "8.3", es. "BOOT_0.LOG")
+# rifiutava con errno EINVAL (confermato su hardware reale) i nomi usati
+# dall'archivio firmware su SD ("v1.19.22.bin" - piu' di 8 caratteri e
+# due punti, non valido in 8.3). Allocato sull'heap (non sullo stack, vedi
+# CONFIG_FATFS_LFN_STACK) per non aggiungere ulteriore pressione sullo
+# stack dei task che toccano la SD, gia' causa di piu' di uno stack
+# overflow reale in questo stesso progetto.
+CONFIG_FATFS_LFN_HEAP=y
