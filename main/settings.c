@@ -150,6 +150,8 @@ void settings_init(void)
     // copie diverse.
     s_settings_mutex = xSemaphoreCreateMutex();
 
+    ESP_LOGI(TAG, "sizeof(app_settings_t) di questo firmware = %u byte", (unsigned) sizeof(app_settings_t));
+
     apply_defaults();
 
     nvs_handle_t h;

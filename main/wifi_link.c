@@ -304,13 +304,32 @@ bool wifi_link_connect_known(uint32_t connect_timeout_ms)
         }
     }
 
-    // Tra le reti note, sceglie quella col segnale migliore fra quelle
-    // effettivamente viste in questa scansione (non semplicemente la
-    // prima della lista) - piu' probabile che la connessione riesca al
-    // primo colpo.
+    // La "principale" (settings.wifi_ssid, sempre candidato indice 0 se
+    // presente - vedi sopra) e' quella scelta per ultima dall'utente in
+    // modo esplicito (pulsante "Connetti" nella UI, tramite
+    // app_settings_remember_wifi()): se e' visibile in questa scansione va
+    // usata SEMPRE, indipendentemente dal segnale delle altre reti note.
+    // Prima di questo fix si sceglieva semplicemente la rete nota col
+    // segnale migliore fra TUTTE (principale comprese le altre "conosciute")
+    // - risultato concreto osservato dall'utente: se la rete vecchia aveva
+    // segnale piu' forte di quella appena scelta, il riconnettore
+    // automatico (che gira di nuovo non appena finisce un test manuale)
+    // ripiombava sulla rete vecchia subito dopo un cambio di rete riuscito,
+    // ignorando la scelta esplicita appena fatta. Le altre reti "conosciute"
+    // restano un fallback per segnale migliore SOLO se la principale non e'
+    // visibile in questa scansione.
+    bool have_principal = num_cand > 0 && strcmp(cand_ssid[0], settings.wifi_ssid) == 0;
+    for (size_t r = 0; have_principal && r < n; r++) {
+        if (strcmp(cand_ssid[0], results[r].ssid) == 0) {
+            ESP_LOGI(TAG, "Rete principale visibile: '%s' (%d dBm)", cand_ssid[0], results[r].rssi);
+            return wifi_link_connect_with(cand_ssid[0], cand_pass[0], connect_timeout_ms);
+        }
+    }
+
     int best_result = -1;
     size_t best_cand = 0;
-    for (size_t c = 0; c < num_cand; c++) {
+    size_t fallback_start = have_principal ? 1 : 0;
+    for (size_t c = fallback_start; c < num_cand; c++) {
         for (size_t r = 0; r < n; r++) {
             if (strcmp(cand_ssid[c], results[r].ssid) == 0) {
                 if (best_result < 0 || results[r].rssi > results[best_result].rssi) {
@@ -327,7 +346,7 @@ bool wifi_link_connect_known(uint32_t connect_timeout_ms)
         return false;
     }
 
-    ESP_LOGI(TAG, "Rete nota trovata: '%s' (%d dBm)", cand_ssid[best_cand], results[best_result].rssi);
+    ESP_LOGI(TAG, "Rete nota trovata (principale non visibile): '%s' (%d dBm)", cand_ssid[best_cand], results[best_result].rssi);
     return wifi_link_connect_with(cand_ssid[best_cand], cand_pass[best_cand], connect_timeout_ms);
 }
 

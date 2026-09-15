@@ -34,6 +34,21 @@
 
 static const char *TAG = "web_ui";
 
+// Protegge l'intera sequenza "leggi-modifica-scrivi" delle impostazioni,
+// non solo le singole chiamate a settings_get()/settings_save() (gia'
+// atomiche per conto proprio, vedi settings.c). Trovato con un utente che
+// segnalava byte strani nell'elenco delle reti WiFi "conosciute": il test
+// di connessione WiFi (wifi_test_connect_task, gira in background fino a
+// 15s) e il salvataggio delle impostazioni generali (settings_post_handler,
+// sincrono ma puo' partire IN QUALSIASI momento su un altro worker HTTP
+// mentre il test e' ancora in corso) leggono ciascuno una propria
+// istantanea della configurazione, la modificano per conto proprio, e la
+// riscrivono per intero - se si sovrappongono, chi salva per ultimo
+// sovrascrive il lavoro dell'altro con un'istantanea piu' vecchia. Preso
+// prima di settings_get() e rilasciato dopo settings_save() in ognuno dei
+// punti che fanno questa sequenza, cosi' non possono mai sovrapporsi.
+static SemaphoreHandle_t s_settings_edit_mutex;
+
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
 
@@ -449,6 +464,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
 
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(root);
@@ -514,6 +530,7 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
 
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(root);
@@ -579,6 +596,7 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
+    xSemaphoreTake(s_settings_edit_mutex, portMAX_DELAY);
     app_settings_t s = settings_get();
 
     // wifi_ssid passa da safe_utf8_to_raw_ssid_bytes() (vedi commento sopra
@@ -771,6 +789,7 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     cJSON_Delete(root);
 
     esp_err_t err = settings_save(&s);
+    xSemaphoreGive(s_settings_edit_mutex);
     if (err != ESP_OK) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "salvataggio fallito");
         return ESP_FAIL;
@@ -842,6 +861,7 @@ static esp_err_t ota_sd_post_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "message", msg);
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(root);
@@ -871,6 +891,7 @@ static esp_err_t fw_archive_list_get_handler(httpd_req_t *req)
     cJSON_AddItemToObject(root, "files", arr);
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(root);
@@ -918,6 +939,7 @@ static esp_err_t fw_archive_apply_post_handler(httpd_req_t *req)
     cJSON_AddStringToObject(resp, "message", msg);
     char *json = cJSON_PrintUnformatted(resp);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(resp);
@@ -942,6 +964,17 @@ typedef struct {
 static SemaphoreHandle_t s_wifi_test_mutex;
 static wifi_test_status_t s_wifi_test_status;
 
+bool web_ui_wifi_test_in_progress(void)
+{
+    if (!s_wifi_test_mutex) {
+        return false;
+    }
+    xSemaphoreTake(s_wifi_test_mutex, portMAX_DELAY);
+    bool running = s_wifi_test_status.running;
+    xSemaphoreGive(s_wifi_test_mutex);
+    return running;
+}
+
 typedef struct {
     char ssid[33];
     char password[65];
@@ -953,6 +986,7 @@ static void wifi_test_connect_task(void *arg)
 
     bool connected = wifi_link_connect_with(ctx->ssid, ctx->password, 15000);
     if (connected) {
+        xSemaphoreTake(s_settings_edit_mutex, portMAX_DELAY);
         app_settings_t s = settings_get();
         // Ricorda questa rete (diventa la principale; un'eventuale rete
         // precedente scende nell'elenco delle "conosciute") invece di
@@ -961,6 +995,7 @@ static void wifi_test_connect_task(void *arg)
         // gia' provate con successo senza dover reinserire le credenziali.
         app_settings_remember_wifi(&s, ctx->ssid, ctx->password);
         settings_save(&s);
+        xSemaphoreGive(s_settings_edit_mutex);
         status_set_net(NET_STATUS_WIFI);
         ESP_LOGI(TAG, "Connesso, rete '%s' ricordata automaticamente", ctx->ssid);
     }
@@ -1021,8 +1056,27 @@ static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
         strncpy(password, pass_item->valuestring, sizeof(password) - 1);
         password[sizeof(password) - 1] = '\0';
     } else {
+        // Password vuota = usa quella gia' salvata per QUESTO ssid - prima
+        // cercava solo in wifi_password (quella della rete "principale"),
+        // sbagliato se l'utente sceglie dall'elenco scansione una rete gia'
+        // nota ma diversa dalla principale attuale: si finiva per riprovare
+        // con la password della rete SBAGLIATA invece di quella salvata per
+        // la rete effettivamente selezionata. Bug reale segnalato
+        // dall'utente ("quando ritorno su una rete che gia' conosce non
+        // devo mettere la password"). Cerca prima tra le principale, poi
+        // tra le reti "conosciute" (vedi settings.h).
         app_settings_t existing = settings_get();
-        strncpy(password, existing.wifi_password, sizeof(password) - 1);
+        password[0] = '\0';
+        if (strcmp(existing.wifi_ssid, ssid) == 0) {
+            strncpy(password, existing.wifi_password, sizeof(password) - 1);
+        } else {
+            for (int i = 0; i < WIFI_KNOWN_NETWORKS_MAX; i++) {
+                if (strcmp(existing.wifi_known_networks[i].ssid, ssid) == 0) {
+                    strncpy(password, existing.wifi_known_networks[i].password, sizeof(password) - 1);
+                    break;
+                }
+            }
+        }
         password[sizeof(password) - 1] = '\0';
     }
     cJSON_Delete(root);
@@ -1037,9 +1091,27 @@ static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
     if (!s_wifi_test_mutex) {
         s_wifi_test_mutex = xSemaphoreCreateMutex();
     }
+    // Un secondo tentativo partito mentre il primo e' ancora in corso (es.
+    // doppio click su "Connetti") avviava DUE task concorrenti, entrambi
+    // basati sulla stessa istantanea di partenza di s_settings: ciascuno
+    // decide da solo come spostare la rete "principale" precedente
+    // nell'elenco delle "conosciute" (vedi app_settings_remember_wifi()),
+    // senza sapere dell'altro - chi salva per ultimo sovrascrive il lavoro
+    // dell'altro, un classico read-modify-write non atomico nonostante
+    // ogni singola lettura/scrittura di s_settings sia gia' protetta da
+    // mutex. Rifiutare qui un secondo tentativo mentre uno e' gia' attivo
+    // lo rende impossibile strutturalmente, invece di sperare che l'utente
+    // non prema due volte.
     xSemaphoreTake(s_wifi_test_mutex, portMAX_DELAY);
-    s_wifi_test_status = (wifi_test_status_t){ .running = true };
+    bool already_running = s_wifi_test_status.running;
+    if (!already_running) {
+        s_wifi_test_status = (wifi_test_status_t){ .running = true };
+    }
     xSemaphoreGive(s_wifi_test_mutex);
+    if (already_running) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Un test di connessione e' gia' in corso, attendi che finisca");
+        return ESP_FAIL;
+    }
 
     wifi_test_task_ctx_t *ctx = calloc(1, sizeof(wifi_test_task_ctx_t));
     if (!ctx) {
@@ -1065,6 +1137,7 @@ static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
     }
 
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, "{\"ok\":true}");
     return ESP_OK;
 }
@@ -1086,8 +1159,27 @@ static esp_err_t wifi_test_progress_get_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(resp, "running", st.running);
     cJSON_AddBoolToObject(resp, "done", st.done);
     cJSON_AddBoolToObject(resp, "connected", st.connected);
+    if (st.done) {
+        // Nome REALE della rete a cui ci si e' effettivamente associati ORA
+        // (dal driver, non dal campo SSID digitato) - mostrato SEMPRE a
+        // test finito, anche quando il test e' fallito (st.connected ==
+        // false): un test fallito lascia comunque partire il riconnettore
+        // automatico, che puo' ricollegarsi da solo a una rete diversa gia'
+        // nota (es. quella su cui si era prima del test) - senza questo
+        // campo il messaggio "NON connesso" lasciava intendere che il
+        // dispositivo fosse rimasto scollegato del tutto, mentre magari
+        // era gia' di nuovo online su un'altra rete, causando confusione
+        // reale segnalata dall'utente.
+        char current_ssid[33];
+        if (wifi_link_get_current_ssid(current_ssid, sizeof(current_ssid))) {
+            char safe_ssid[65];
+            raw_ssid_bytes_to_safe_utf8(current_ssid, safe_ssid, sizeof(safe_ssid));
+            cJSON_AddStringToObject(resp, "connected_ssid", safe_ssid);
+        }
+    }
     char *json = cJSON_PrintUnformatted(resp);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(resp);
@@ -1118,6 +1210,7 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
 
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(root);
@@ -1142,6 +1235,7 @@ static esp_err_t ota_check_online_post_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "message", msg);
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(root);
@@ -1195,6 +1289,7 @@ static esp_err_t ota_apply_online_post_handler(httpd_req_t *req)
     ESP_LOGI(TAG, "Aggiornamento online avviato in background");
 
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"Avviato\"}");
     return ESP_OK;
 }
@@ -1217,6 +1312,7 @@ static esp_err_t ota_progress_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "message", p.message);
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(root);
@@ -1295,6 +1391,7 @@ static esp_err_t alerts_test_post_handler(httpd_req_t *req)
     cJSON_AddStringToObject(resp, "message", msg);
     char *json = cJSON_PrintUnformatted(resp);
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
     cJSON_Delete(resp);
@@ -1308,6 +1405,7 @@ static esp_err_t ppp_log_start_post_handler(httpd_req_t *req)
     }
     bool ok = ppp_log_start();
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false}");
     return ESP_OK;
 }
@@ -1319,6 +1417,7 @@ static esp_err_t ppp_log_stop_post_handler(httpd_req_t *req)
     }
     ppp_log_stop();
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, "{\"ok\":true}");
     return ESP_OK;
 }
@@ -1358,6 +1457,21 @@ static esp_err_t ppp_log_download_get_handler(httpd_req_t *req)
     return err;
 }
 
+static esp_err_t wifi_forget_known_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    xSemaphoreTake(s_settings_edit_mutex, portMAX_DELAY);
+    app_settings_t s = settings_get();
+    memset(s.wifi_known_networks, 0, sizeof(s.wifi_known_networks));
+    settings_save(&s);
+    xSemaphoreGive(s_settings_edit_mutex);
+    ESP_LOGI(TAG, "Elenco reti WiFi conosciute svuotato dalla UI web");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
 static esp_err_t reboot_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -1372,6 +1486,8 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 
 void web_ui_start(void)
 {
+    s_settings_edit_mutex = xSemaphoreCreateMutex();
+
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_uri_handlers = 22; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi/PPP/archivio aggiunti
     // Il default (4096 byte) va in overflow quando un handler fa una
@@ -1401,6 +1517,7 @@ void web_ui_start(void)
     httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
     httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
     httpd_uri_t wifi_test_progress_uri = { .uri = "/api/wifi/test-progress", .method = HTTP_GET, .handler = wifi_test_progress_get_handler };
+    httpd_uri_t wifi_forget_uri = { .uri = "/api/wifi/forget-known", .method = HTTP_POST, .handler = wifi_forget_known_post_handler };
     httpd_uri_t log_uri        = { .uri = "/api/log", .method = HTTP_GET, .handler = log_get_handler };
     httpd_uri_t alerts_test_uri = { .uri = "/api/alerts/test", .method = HTTP_POST, .handler = alerts_test_post_handler };
     httpd_uri_t ppp_log_start_uri = { .uri = "/api/ppp-log/start", .method = HTTP_POST, .handler = ppp_log_start_post_handler };
@@ -1413,6 +1530,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &wifi_scan_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);
     httpd_register_uri_handler(server, &wifi_test_progress_uri);
+    httpd_register_uri_handler(server, &wifi_forget_uri);
     httpd_register_uri_handler(server, &status_uri);
     httpd_register_uri_handler(server, &signals_uri);
     httpd_register_uri_handler(server, &settings_uri);

@@ -2,6 +2,63 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.17
+
+- **Causa vera del "dice non connesso ma in realta' e' collegato a un'altra rete" segnalato dall'utente**: quando un test falliva (password sbagliata, segnale debole, rete fuori portata), il messaggio "NON connesso" non diceva a quale rete il dispositivo fosse EFFETTIVAMENTE tornato tramite il riconnettore automatico (che riparte comunque dopo un test fallito) - lasciando intendere erroneamente che fosse rimasto scollegato del tutto. Ora il messaggio di fallimento mostra anche la rete reale a cui si e' ricollegato nel frattempo, con un controllo ritardato di qualche secondo per dare tempo alla riconnessione automatica di completarsi prima di mostrare "senza rete".
+
+## 1.19.16
+
+- Il fix di 1.19.14 (password corretta per le reti gia' note) era gia' giusto lato firmware, ma la pagina metteva comunque il cursore nel campo password dopo aver cliccato una rete dall'elenco scansione - dando l'impressione sbagliata che andasse digitata di nuovo, anche per una rete gia' nota (verde). Corretto: per le reti gia' note il focus va sul pulsante "Connetti", non sul campo password - si seleziona e si preme, senza scrivere nulla.
+
+## 1.19.15
+
+- Su richiesta dell'utente, tolta la scritta "(senza riavviare)" dal pulsante "Connetti" della scheda WiFi.
+
+## 1.19.14
+
+- **Bug reale segnalato dall'utente**: selezionando dalla scansione una rete gia' nota (evidenziata in verde) ma diversa dalla "principale" attuale, e lasciando il campo password vuoto per riusare quella gia' salvata, il dispositivo provava con la password della rete SBAGLIATA (sempre quella della principale, mai quella specifica della rete scelta). Corretto: ora cerca la password giusta anche tra le reti "conosciute" (non solo nella principale) quando il campo e' lasciato vuoto - selezionare una rete verde e premere "Connetti" senza scrivere nulla funziona come dovrebbe.
+
+## 1.19.13
+
+- Su richiesta dell'utente, accorciato il messaggio di esito del test WiFi: solo `CONNESSO a "NomeRete"`, tolta la spiegazione aggiuntiva ("salvato automaticamente, nessun riavvio necessario") ormai ridondante.
+
+## 1.19.12
+
+- Richiesta dell'utente: il messaggio di esito del test WiFi ora mostra il nome REALE della rete a cui ci si e' effettivamente collegati ("CONNESSO a "NomeRete"") invece del solo generico "CONNESSO!" - utile soprattutto per verificare a colpo d'occhio, senza dover controllare IP o log, se il dispositivo si e' davvero collegato alla rete appena scelta.
+
+## 1.19.11
+
+- **Causa vera (parte 2) del "torna sulla rete vecchia da solo" segnalato dall'utente, anche dopo il fix di 1.19.8**: `wifi_link_connect_known()` (usata dal riconnettore automatico) sceglieva sempre la rete nota col SEGNALE MIGLIORE fra tutte quelle conosciute, principale compresa - non necessariamente quella scelta per ultima dall'utente. Appena finiva un test manuale riuscito verso una rete nuova, il riconnettore automatico ripartiva (correttamente, dopo il fix precedente) ma poteva comunque scegliere la rete VECCHIA se questa aveva un segnale piu' forte, ignorando la scelta esplicita appena fatta. Ora la rete "principale" (l'ultima scelta esplicitamente) viene sempre preferita se visibile nella scansione, indipendentemente dal segnale delle altre - le altre reti "conosciute" restano un ripiego solo se la principale non si vede affatto.
+
+## 1.19.10
+
+- Su richiesta dell'utente, rimosso dalla pagina il campo "Reti ricordate": nonostante i fix di 1.19.5/1.19.6/1.19.8 la lista continuava a mostrare occasionalmente voci con caratteri corrotti, e la riconnessione automatica funziona comunque correttamente senza bisogno di mostrarla (confermato piu' volte su hardware: ComunicareWiFi <-> iPhone). La memoria delle reti resta attiva dietro le quinte, solo non piu' visibile/gestibile dalla UI.
+- Colore verde delle reti gia' note nell'elenco di scansione reso piu' marcato (era troppo tenue).
+
+## 1.19.9
+
+- Corretto bug reale segnalato dall'utente: il pulsante "Mostra" (rivela password) compariva due volte nella scheda WiFi. Causa: un vecchio campo password "esca" nascosto, di un tentativo precedente contro l'autocompilamento del browser ormai sostituito dal timer di pulizia (vedi 1.19.1), era rimasto nella pagina - lo script che aggiunge "Mostra" ad ogni campo password lo trovava e ne creava uno anche per quello, invisibile ma presente. Rimosso il campo morto (e il `readonly` collegato, anch'esso superato dallo stesso timer).
+- Richiesta dell'utente: le reti WiFi gia' collegate con successo in passato vengono ora evidenziate in verde nell'elenco della scansione (con un segno di spunta), cosi' si vede a colpo d'occhio quali sceglierebbe da solo il riconnettore automatico invece di doverle ricordare a memoria.
+
+## 1.19.8
+
+- **Trovata la causa vera (non solo cosmetica) del comportamento WiFi imprevedibile, grazie al log byte-per-byte aggiunto in 1.19.7**: `net_manager_task` (il riconnettore automatico in background) e il test di connessione manuale dalla UI ("Connetti") usavano entrambi la stessa funzione di basso livello per collegarsi (gia' protetta da mutex, quindi nessuna vera corruzione di memoria) - ma NESSUNO dei due sapeva dell'intenzione dell'altro: quando l'utente testava una rete diversa da quella attuale, la disconnessione che ne risultava veniva letta dal riconnettore automatico come "rete persa", che ripartiva per conto suo riconnettendo alla MIGLIOR rete gia' nota - spesso vincendo la corsa e riportando il dispositivo sulla rete vecchia pochi secondi dopo un test riuscito verso quella nuova. Confermato su hardware reale: un test di connessione a "iPhone" (dati puliti in arrivo dal browser, nessun errore) e' finito comunque con il dispositivo di nuovo su "ComunicareWiFi" per questo esatto motivo. Aggiunto un controllo (`web_ui_wifi_test_in_progress()`) che mette in pausa il riconnettore automatico finche' un test manuale non e' finito.
+- Rimossa la diagnostica byte-per-byte temporanea di 1.19.7 (aveva gia' fatto il suo lavoro: i byte in arrivo dal browser erano puliti, quindi il problema non era li' ma nel comportamento sopra descritto).
+
+## 1.19.6
+
+- Il fix di 1.19.5 (rifiuta un secondo test WiFi mentre uno e' in corso) non bastava: l'utente continuava a vedere caratteri strani nell'elenco reti ricordate anche dopo. Trovata una seconda causa concreta della stessa famiglia di bug: il salvataggio delle impostazioni generali (pulsante "Salva" della pagina principale) e il test di connessione WiFi in background NON si escludevano a vicenda - potevano leggere/modificare/scrivere la configurazione in parallelo su due percorsi di codice indipendenti, ciascuno ignaro dell'altro, con l'ultimo che salva a sovrascrivere il lavoro dell'altro. Aggiunto un mutex condiviso attorno all'intera sequenza "leggi-modifica-scrivi" in tutti e tre i punti del firmware che salvano davvero le impostazioni (form generale, test WiFi, "dimentica reti").
+
+## 1.19.5
+
+- **Confermato su hardware reale (finalmente): il salvataggio/memoria delle password WiFi funziona** - connessione a due reti diverse in sequenza (rete WiFi normale + hotspot del telefono), entrambe salvate correttamente, riconnessione automatica confermata tra le due senza reinserire nulla.
+- Bug reale trovato con l'utente: una voce con caratteri strani appariva nell'elenco "reti ricordate", trattata come una rete a se stante invece che riconosciuta come duplicato. Causa probabile: `wifi_test_connect_post_handler` non rifiutava un secondo tentativo di connessione partito mentre il primo era ancora in corso (il flag "running" esisteva gia' ma non veniva controllato) - due tentativi concorrenti possono leggere/modificare/scrivere l'elenco delle reti conosciute senza sapere l'uno dell'altro. Ora un secondo tentativo mentre uno e' gia' in corso viene rifiutato.
+- Aggiunto un pulsante "Dimentica reti ricordate" nella scheda WiFi per svuotare subito l'elenco (nuovo endpoint `POST /api/wifi/forget-known`), utile per ripulire un elenco confuso senza dover cancellare tutta la configurazione.
+
+## 1.19.4
+
+- **Stessa causa di 1.19.1 (cache del browser), ma sugli endpoint dati**: l'header anti-cache era stato aggiunto solo alla pagina HTML, non alle risposte JSON di `/api/status`, scansione WiFi, ecc. - il browser poteva quindi continuare a mostrare dati vecchi (es. "reti ricordate" con voci non piu' corrispondenti a quelle salvate davvero) anche a firmware/NVS aggiornati. Aggiunto `Cache-Control: no-store, no-cache, must-revalidate` a tutti i 14 endpoint JSON.
+
 ## 1.19.3
 
 - **Verifica approfondita richiesta dall'utente dopo il "?" nell'indirizzo di aggiornamento online** - trovate due cose:

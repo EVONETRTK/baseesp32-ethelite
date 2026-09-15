@@ -4,6 +4,7 @@
 #include "eth_link.h"
 #include "status.h"
 #include "settings.h"
+#include "web_ui.h"
 
 #include "sdkconfig.h"
 #include "esp_log.h"
@@ -31,6 +32,18 @@ static void net_manager_task(void *arg)
 
         switch (active) {
         case LINK_NONE:
+            if (web_ui_wifi_test_in_progress()) {
+                // Un test manuale ("Connetti" dalla UI) e' in corso: non
+                // avviare un tentativo automatico in parallelo, altrimenti
+                // i due si contendono la stessa radio WiFi e quello
+                // automatico puo' vincere per ultimo, riportando il
+                // dispositivo sulla rete vecchia subito dopo che l'utente
+                // ha appena verificato con successo quella nuova - vedi
+                // web_ui_wifi_test_in_progress() per i dettagli del bug
+                // osservato. Si riprova al giro successivo del ciclo.
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                break;
+            }
             if (settings.network_mode != NETWORK_MODE_CELLULAR_ONLY) {
                 ESP_LOGI(TAG, "Tentativo connessione WiFi...");
                 if (wifi_link_connect_known(CONFIG_BASEESP32_WIFI_CONNECT_TIMEOUT_MS)) {

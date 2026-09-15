@@ -152,17 +152,12 @@
     <button type="button" class="action secondary" id="wifi-scan-btn" style="margin-top:.6rem">Cerca reti WiFi</button>
     <div id="wifi-scan-results" style="margin-top:.4rem"></div>
     <label>Password
-      <!-- Campo "esca" nascosto: alcuni browser autocompilano sempre il
-           PRIMO campo password che trovano in un modulo con una password
-           gia' salvata per questo indirizzo, ignorando autocomplete="new-
-           password" - mettendone uno finto prima di quello vero lo fa
-           cadere in trappola al posto del campo reale. Il campo vero
-           resta "readonly" finche' non lo tocchi, altro trucco che i
-           browser rispettano per non autocompilarlo da soli. -->
-      <input type="password" name="wifi_password_decoy" autocomplete="new-password" tabindex="-1" style="position:absolute; opacity:0; height:0; width:0; pointer-events:none">
-      <input name="wifi_password" type="password" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" placeholder="lascia vuoto per non modificare">
+      <!-- Niente campo "esca"/readonly qui: quei trucchi non bastavano
+           su tutti i browser (vedi il timer di pulizia piu' sotto, che
+           e' l'unica protezione anti-autocompilamento rimasta). -->
+      <input name="wifi_password" type="password" autocomplete="new-password" placeholder="lascia vuoto per non modificare">
     </label>
-    <button type="button" class="action" id="wifi-test-btn" style="margin-top:.6rem">Connetti (senza riavviare)</button>
+    <button type="button" class="action" id="wifi-test-btn" style="margin-top:.6rem">Connetti</button>
     <div id="wifi-test-msg" class="hint" style="margin-top:.4rem"></div>
     <div id="wifi-test-bar-track" class="sig-bar-track" style="display:none; margin-top:.4rem">
       <div id="wifi-test-bar-fill" class="sig-bar-fill" style="width:0%"></div>
@@ -173,8 +168,6 @@
       (vedi sotto) - spostando il dispositivo tra reti gia' collegate con successo in passato,
       si ricollega da solo senza dover reinserire nulla.
     </small>
-    <label style="margin-top:.8rem">Reti ricordate (oltre a quella attuale)</label>
-    <div id="wifi-known-list" class="hint">-</div>
   </fieldset>
 
   <fieldset>
@@ -784,11 +777,6 @@ async function loadStatus() {
     renderDriftStatus(s);
     renderQuickStatusFromStatus(s);
     renderPppLog(s);
-    const knownListEl = document.getElementById('wifi-known-list');
-    if (knownListEl) {
-      const known = s.wifi_known_networks || [];
-      knownListEl.textContent = known.length ? known.join(', ') : 'nessuna (solo quella attuale)';
-    }
     const casterClientsEl = document.getElementById('caster-srv-clients');
     if (casterClientsEl) {
       casterClientsEl.textContent = s.ntrip_caster_server_enable ? (s.ntrip_caster_server_clients ?? 0) : 'server disattivato';
@@ -1278,12 +1266,23 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
       return;
     }
     results.innerHTML = '';
+    // Reti gia' provate con successo in passato (principale + "conosciute",
+    // vedi settings.h) - evidenziate nell'elenco cosi' l'utente vede subito
+    // quali sceglierebbe il riconnettore automatico da solo, invece di
+    // doverle ricordare a memoria o riprovarle per scoprirlo.
+    const knownSsids = new Set();
+    if (lastStatus) {
+      if (lastStatus.wifi_ssid) knownSsids.add(lastStatus.wifi_ssid);
+      (lastStatus.wifi_known_networks || []).forEach((n) => knownSsids.add(n));
+    }
     nets.forEach((net) => {
+      const isKnown = knownSsids.has(net.ssid);
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'action secondary';
-      btn.style.cssText = 'display:block; width:100%; text-align:left; margin-top:.3rem; font-size:.85rem; padding:.4rem .7rem';
-      btn.textContent = net.ssid + '  —  ' + net.rssi + ' dBm' + (net.secure ? '' : '  (aperta)');
+      btn.style.cssText = 'display:block; width:100%; text-align:left; margin-top:.3rem; font-size:.85rem; padding:.4rem .7rem'
+        + (isKnown ? '; background:#8fe0a8; border-color:#2f9e52; font-weight:600' : '');
+      btn.textContent = (isKnown ? '✓ ' : '') + net.ssid + '  —  ' + net.rssi + ' dBm' + (net.secure ? '' : '  (aperta)');
       btn.addEventListener('click', () => {
         const f = document.getElementById('cfg-form');
         f.wifi_ssid.value = net.ssid;
@@ -1291,11 +1290,20 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
         // resterebbe quella digitata per la rete precedente (o quella
         // suggerita dal salvataggio automatico del browser), con il
         // rischio concreto di provare a collegarsi alla rete nuova con
-        // la password sbagliata senza accorgersene.
+        // la password sbagliata senza accorgersene. Il dispositivo la
+        // ritrova da solo (rete principale o "conosciuta") quando il
+        // campo resta vuoto - vedi wifi_test_connect_post_handler.
         f.wifi_password.value = '';
         f.dataset.touched = '1';
         results.innerHTML = '';
-        f.wifi_password.focus();
+        if (isKnown) {
+          // Rete gia' nota (verde): niente cursore nel campo password,
+          // altrimenti sembra che vada digitata di nuovo - basta premere
+          // "Connetti", il dispositivo la ritrova da solo.
+          document.getElementById('wifi-test-btn').focus();
+        } else {
+          f.wifi_password.focus();
+        }
       });
       results.appendChild(btn);
     });
@@ -1341,12 +1349,28 @@ async function pollWifiTestProgress() {
     if (!s.connected) {
       msg.style.color = '#dc2626';
       msg.style.fontWeight = '600';
-      msg.textContent = 'NON connesso - verifica password/segnale (nessuna modifica salvata)';
+      msg.textContent = 'NON connesso alla rete richiesta (nessuna modifica salvata)'
+        + (s.connected_ssid ? ' - attualmente collegato a "' + s.connected_ssid + '"' : ' - al momento senza rete');
+      if (!s.connected_ssid) {
+        // Il riconnettore automatico parte solo ora che il test e'
+        // finito e puo' impiegare qualche secondo per ritrovare una rete
+        // gia' nota - un secondo controllo ritardato evita di lasciare
+        // scritto "senza rete" quando in realta' si e' gia' ricollegato.
+        setTimeout(async () => {
+          try {
+            const r3 = await fetch('/api/wifi/test-progress');
+            const s3 = await r3.json();
+            if (s3.connected_ssid) {
+              msg.textContent = 'NON connesso alla rete richiesta (nessuna modifica salvata) - attualmente collegato a "' + s3.connected_ssid + '"';
+            }
+          } catch (e) {}
+        }, 4000);
+      }
       return;
     }
     msg.style.color = '#16a34a';
     msg.style.fontWeight = '600';
-    msg.textContent = 'CONNESSO - salvato automaticamente, nessun riavvio necessario.';
+    msg.textContent = 'CONNESSO a "' + (s.connected_ssid || '?') + '"';
     try {
       const r2 = await fetch('/api/signals');
       const s2 = await r2.json();
