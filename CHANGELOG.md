@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.18
+
+- Su richiesta dell'utente ("una versione funzionante deve essere sempre sulla SD"): `fw_archive_save_current()` (esisteva gia', ma partiva solo prima di applicare un aggiornamento tramite le funzioni OTA del firmware) ora gira anche ad ogni avvio - cosi' l'archivio su SD si popola anche per un dispositivo che ha ricevuto il firmware via flash USB diretto (come in questa sessione), non solo tramite aggiornamento online/SD/browser. Salta la scrittura se la versione attuale e' gia' archiviata, per non consumare inutilmente la SD ad ogni riavvio.
+
 ## 1.19.17
 
 - **Causa vera del "dice non connesso ma in realta' e' collegato a un'altra rete" segnalato dall'utente**: quando un test falliva (password sbagliata, segnale debole, rete fuori portata), il messaggio "NON connesso" non diceva a quale rete il dispositivo fosse EFFETTIVAMENTE tornato tramite il riconnettore automatico (che riparte comunque dopo un test fallito) - lasciando intendere erroneamente che fosse rimasto scollegato del tutto. Ora il messaggio di fallimento mostra anche la rete reale a cui si e' ricollegato nel frattempo, con un controllo ritardato di qualche secondo per dare tempo alla riconnessione automatica di completarsi prima di mostrare "senza rete".

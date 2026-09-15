@@ -35,6 +35,7 @@
 #include "ppp_log.h"
 #include "auto_update.h"
 #include "diag_log.h"
+#include "fw_archive.h"
 
 static const char *TAG = "main";
 
@@ -135,8 +136,17 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(300));
         esp_restart();
     }
-    // Dopo il controllo SD sopra (non prima): evita che i due si
-    // contendano la scheda nello stesso istante all'avvio.
+    // Archivia il firmware attualmente in esecuzione sulla SD ad ogni
+    // avvio (non solo prima di un aggiornamento, come faceva finora) -
+    // richiesto dall'utente: cosi' una versione funzionante resta sempre
+    // disponibile sulla SD per un ripristino manuale, indipendentemente da
+    // come questo firmware sia arrivato sul dispositivo (flash USB diretto
+    // incluso, non solo aggiornamenti applicati dal firmware stesso). Se
+    // questa versione e' gia' archiviata non riscrive nulla (vedi
+    // fw_archive_save_current()) - costo trascurabile ad ogni riavvio
+    // successivo al primo. Dopo il controllo SD sopra, non prima: evita
+    // che i due si contendano la scheda nello stesso istante all'avvio.
+    fw_archive_save_current();
     diag_log_start();
 
     app_settings_t settings = settings_get();

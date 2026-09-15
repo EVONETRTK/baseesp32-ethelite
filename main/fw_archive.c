@@ -148,6 +148,17 @@ void fw_archive_save_current(void)
     char path[64];
     snprintf(path, sizeof(path), "%s/v%s.bin", ARCHIVE_DIR, FIRMWARE_VERSION);
 
+    // Se questa versione e' gia' archiviata (chiamata ripetuta all'avvio,
+    // vedi main.c - non solo prima di un aggiornamento) non serve
+    // riscrivere l'intera partizione ad ogni riavvio: inutile usura della
+    // SD nel tempo su un dispositivo che puo' restare acceso mesi in campo.
+    FILE *existing = fopen(path, "rb");
+    if (existing) {
+        fclose(existing);
+        unmount_sd();
+        return;
+    }
+
     FILE *f = fopen(path, "wb");
     if (!f) {
         ESP_LOGW(TAG, "Impossibile creare %s, archiviazione saltata", path);
