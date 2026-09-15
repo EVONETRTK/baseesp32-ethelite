@@ -10,6 +10,9 @@
 
 #include "sdkconfig.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
 static const char *TAG = "settings";
 
 #define NVS_NAMESPACE "baseesp32"
@@ -33,6 +36,21 @@ typedef struct {
 } stored_cfg_t;
 
 static app_settings_t s_settings;
+// Praticamente ogni modulo di questo firmware chiama settings_get() (con
+// che frequenza varia da task a task, alcuni periodicamente) mentre
+// settings_get()/settings_save() copiano l'intera struct (>1.7KB, ~450
+// word) SENZA alcuna protezione - su un chip dual-core con FreeRTOS
+// preemptive, una copia cosi' grossa non e' atomica: un settings_save()
+// da un task puo' essere interrotto a meta' da un altro task che nello
+// stesso istante chiama settings_get(), risultando in una lettura "a
+// pezzi" (alcuni campi vecchi, altri nuovi) - o viceversa. Ricostruito a
+// posteriori come causa piu' probabile di una serie di corruzioni
+// apparentemente casuali di singoli campi vista in questa sessione
+// (valori spazzatura diversi ogni volta in campi diversi: gnss_uart_num,
+// ota_update_url...) che i fix precedenti (rete di sicurezza sui singoli
+// campi) attenuavano senza risolvere alla radice. Il mutex qui sotto
+// rende atomica ogni lettura/scrittura dell'intera struct condivisa.
+static SemaphoreHandle_t s_settings_mutex;
 
 // Stessi 3 byte finali del MAC gia' usati per il suffisso dell'SSID
 // dell'AP di setup (es. "EVONETRTK-893428" -> "893428") - stesso numero
@@ -125,6 +143,13 @@ static void apply_defaults(void)
 
 void settings_init(void)
 {
+    // Creato qui (chiamata singola, sincrona, prima che qualunque altro
+    // task sia avviato - vedi main.c) invece che pigramente dentro
+    // settings_get()/settings_save(): evita la finestra in cui due task
+    // potrebbero vedere entrambi il mutex non ancora creato e crearne due
+    // copie diverse.
+    s_settings_mutex = xSemaphoreCreateMutex();
+
     apply_defaults();
 
     nvs_handle_t h;
@@ -221,6 +246,51 @@ void settings_init(void)
             ESP_LOGW(TAG, "gnss_uart_baud salvato non valido (%d), uso il default di Kconfig", s_settings.gnss_uart_baud);
             s_settings.gnss_uart_baud = CONFIG_BASEESP32_GNSS_UART_BAUD;
         }
+        // Rete di sicurezza generale per tutti i campi testo che devono
+        // sempre essere ASCII stampabile "normale" (indirizzi, nomi host,
+        // matricola...) - a differenza di wifi_ssid/ap_ssid, che possono
+        // legittimamente contenere byte non-ASCII (nomi di rete reali) e
+        // hanno gia' la loro gestione dedicata (vedi raw_ssid_bytes_to_
+        // safe_utf8() in web_ui.c). Trovato dopo che l'utente ha segnalato
+        // punti interrogativi nell'indirizzo di aggiornamento online - un
+        // campo che l'utente scrive sempre a mano in ASCII puro, quindi
+        // qualunque byte "strano" li' dentro e' un segno di configurazione
+        // corrotta, non un carattere legittimo. Un campo cosi' viene
+        // azzerato (torna a "non configurato") invece di continuare a
+        // mostrare byte corrotti per sempre.
+        {
+            struct { char *field; size_t size; const char *label; } ascii_fields[] = {
+                { s_settings.ntrip_host, sizeof(s_settings.ntrip_host), "ntrip_host" },
+                { s_settings.ntrip_mountpoint, sizeof(s_settings.ntrip_mountpoint), "ntrip_mountpoint" },
+                { s_settings.ntrip_username, sizeof(s_settings.ntrip_username), "ntrip_username" },
+                { s_settings.cellular_apn, sizeof(s_settings.cellular_apn), "cellular_apn" },
+                { s_settings.ota_update_url, sizeof(s_settings.ota_update_url), "ota_update_url" },
+                { s_settings.alert_smtp_host, sizeof(s_settings.alert_smtp_host), "alert_smtp_host" },
+                { s_settings.alert_smtp_user, sizeof(s_settings.alert_smtp_user), "alert_smtp_user" },
+                { s_settings.alert_email_to, sizeof(s_settings.alert_email_to), "alert_email_to" },
+                { s_settings.alert_whatsapp_phone, sizeof(s_settings.alert_whatsapp_phone), "alert_whatsapp_phone" },
+                { s_settings.ntrip_caster_server_mountpoint, sizeof(s_settings.ntrip_caster_server_mountpoint), "ntrip_caster_server_mountpoint" },
+                { s_settings.ntrip_caster_server_username, sizeof(s_settings.ntrip_caster_server_username), "ntrip_caster_server_username" },
+                // device_serial NON e' qui: ha gia' la sua gestione dedicata
+                // sopra (rigenera dal MAC se vuota) - includerla anche qui
+                // la svuoterebbe DOPO che quel controllo e' gia' passato,
+                // senza una seconda occasione di rigenerarla in questo boot.
+            };
+            for (size_t i = 0; i < sizeof(ascii_fields) / sizeof(ascii_fields[0]); i++) {
+                bool clean = true;
+                for (size_t j = 0; j < ascii_fields[i].size && ascii_fields[i].field[j] != '\0'; j++) {
+                    unsigned char c = (unsigned char) ascii_fields[i].field[j];
+                    if (c < 0x20 || c > 0x7E) {
+                        clean = false;
+                        break;
+                    }
+                }
+                if (!clean) {
+                    ESP_LOGW(TAG, "Campo '%s' salvato con byte non validi, azzerato", ascii_fields[i].label);
+                    ascii_fields[i].field[0] = '\0';
+                }
+            }
+        }
         ESP_LOGI(TAG, "Configurazione caricata da NVS (AP=%s)", s_settings.ap_ssid);
     } else {
         ESP_LOGW(TAG, "Configurazione NVS non valida, uso i default di Kconfig");
@@ -230,7 +300,10 @@ void settings_init(void)
 
 app_settings_t settings_get(void)
 {
-    return s_settings;
+    xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
+    app_settings_t copy = s_settings;
+    xSemaphoreGive(s_settings_mutex);
+    return copy;
 }
 
 esp_err_t settings_save(const app_settings_t *s)
@@ -244,9 +317,14 @@ esp_err_t settings_save(const app_settings_t *s)
              s->wifi_ssid, (int) strlen(s->wifi_ssid), s->ap_ssid, s->gnss_uart_num, s->gnss_uart_baud,
              (unsigned) sizeof(*s));
 
+    xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
     s_settings = *s;
+    xSemaphoreGive(s_settings_mutex);
 
-    stored_cfg_t stored = { .magic = CFG_MAGIC, .s = s_settings };
+    // Costruito da *s (parametro del chiamante, non condiviso/soggetto a
+    // scritture concorrenti) e non da s_settings: evita qualunque finestra
+    // di rischio tra il rilascio del mutex sopra e questa riga.
+    stored_cfg_t stored = { .magic = CFG_MAGIC, .s = *s };
 
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);

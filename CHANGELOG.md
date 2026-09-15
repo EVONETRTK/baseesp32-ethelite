@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.3
+
+- **Verifica approfondita richiesta dall'utente dopo il "?" nell'indirizzo di aggiornamento online** - trovate due cose:
+  1. **Rete di sicurezza estesa**: oltre a gnss_uart_num/baud e ap_ssid/password (gia' protetti), ora anche ntrip_host, ntrip_mountpoint, ntrip_username, cellular_apn, ota_update_url, i campi degli avvisi email/WhatsApp e i campi del caster locale vengono validati al caricamento - se contengono byte non validi (non ASCII stampabile) vengono azzerati invece di continuare a mostrare punti interrogativi. Confermato sul dispositivo dell'utente: il campo `ota_update_url` risultava davvero corrotto.
+  2. **Causa vera, probabilmente dietro tutta questa classe di problemi in questa sessione (ap_ssid vuoto, gnss_uart_num con valori spazzatura diversi ogni volta, ora ota_update_url)**: `s_settings` (la configurazione condivisa, oltre 1.7KB) non era mai stata protetta da un mutex - ogni lettura (`settings_get()`, chiamata da quasi ogni modulo del firmware, alcuni periodicamente) e scrittura (`settings_save()`) copiava l'intera struct senza alcuna sincronizzazione. Su un chip dual-core con piu' task che leggono/scrivono in continuo, una copia cosi' grossa non e' atomica: una scrittura poteva essere interrotta a meta' da una lettura concorrente (o viceversa), risultando in campi "a pezzi" - un campo diverso corrotto ogni volta, esattamente il comportamento osservato. Aggiunto un mutex che rende atomica ogni lettura/scrittura.
+
 ## 1.19.1
 
 - **Probabile causa vera del "non cambia niente" segnalato dall'utente su piu' fix consecutivi**: la pagina web non aveva MAI un header `Cache-Control` nella risposta - senza niente da confrontare (nessun ETag/Last-Modified) e con lo stesso indirizzo ad ogni visita, il browser puo' tenersi la pagina in cache per giorni, mostrando sempre lo stesso HTML/JavaScript vecchio anche dopo aver installato un nuovo firmware con la pagina cambiata. Aggiunto `Cache-Control: no-store, no-cache, must-revalidate` - il browser scarichera' sempre la versione vera e aggiornata da qui in poi. **Serve comunque un ricaricamento forzato una volta sola** (Ctrl+Shift+R su PC, o svuotare la cache del browser) per scaricare questa stessa versione, dato che la pagina vecchia in cache non sa ancora del nuovo header.
