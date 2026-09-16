@@ -33,6 +33,19 @@
   canvas#sat-chart { width:100%; height:180px; background:#fff; border:1px solid #d0d3d8; border-radius:8px; }
   .legend-dot { display:inline-block; width:.7rem; height:.7rem; border-radius:50%; margin-right:.3rem; vertical-align:middle; }
   .legend-row { font-size:.85rem; margin-top:.4rem; }
+  /* "Recipiente" del collegamento NTRIP rover: due tubi (RTCM in arrivo dal
+     caster, GGA in uscita verso il caster) che riempiono un unico
+     contenitore - pieno e fermo = entrambe le direzioni vive, vedi
+     updateNtripFlow(). */
+  .ntrip-flow-row { display:flex; gap:1.2rem; align-items:flex-end; margin-top:.4rem; }
+  .ntrip-pipe-col { display:flex; flex-direction:column; align-items:center; font-size:.8rem; color:#666; }
+  .ntrip-pipe-track { width:14px; height:70px; background:#e5e7eb; border-radius:4px; overflow:hidden; display:flex; flex-direction:column-reverse; }
+  .ntrip-pipe-fill { width:100%; height:0%; background:#94a3b8; transition: height .4s, background .4s; }
+  .ntrip-pipe-fill.active { background:#2563eb; }
+  .ntrip-tank-track { width:90px; height:70px; background:#e5e7eb; border-radius:8px; overflow:hidden; display:flex; flex-direction:column-reverse; border:2px solid #d0d3d8; }
+  .ntrip-tank-fill { width:100%; height:0%; background:#cbd5e1; transition: height .5s, background .5s; }
+  .ntrip-tank-fill.full { background:#16a34a; }
+  .ntrip-tank-fill.partial { background:#d97706; }
 </style>
 </head>
 <body>
@@ -89,8 +102,15 @@
         <span id="st-sd-space-text">-</span>
         <div class="sig-bar-track"><div class="sig-bar-fill" id="st-sd-space-bar" style="width:0%"></div></div>
       </dd>
+      <dt>Indirizzo IP attuale</dt><dd id="st-ip" style="font-weight:700">-</dd>
       <dt>Indirizzo fisso</dt><dd id="st-mdns">-</dd>
+      <dt>Caster NTRIP configurato</dt><dd id="st-ntrip-host">-</dd>
     </dl>
+    <small class="hint">
+      L'IP puo' cambiare se la scheda si sposta su un'altra rete o se il router ne assegna uno
+      nuovo: controlla qui prima di dare per scontato l'indirizzo, soprattutto se il "Caster NTRIP
+      configurato" non risulta piu' raggiungibile (vedi "Ultimo errore" sopra).
+    </small>
     <small class="hint">
       L'indirizzo fisso funziona solo dallo stesso dispositivo/rete a cui la scheda e' collegata
       in quel momento (AP di setup o rete WiFi di casa) - non serve piu' ricordare l'IP.
@@ -189,6 +209,7 @@
       <small class="hint">Minimo 8 caratteri. Se l'AP non ha mai avuto una password impostata, resta aperto.</small>
     </label>
   </fieldset>
+  <button type="submit" class="action">Salva</button>
 </div>
 
 <div id="page-gnss" class="page">
@@ -274,6 +295,8 @@
     <label>Host<input name="ntrip_host"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
     <label>Mountpoint<input name="ntrip_mountpoint"></label>
+    <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem">Cerca mountpoint disponibili</button>
+    <div id="ntrip-mp-results" style="margin-top:.4rem"></div>
     <label>Username <small class="hint">(solo modalita' rover)</small><input name="ntrip_username"></label>
     <label>Password / codice sorgente<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
   </fieldset>
@@ -313,6 +336,7 @@
       corrisponda a quella configurata lato AgIO.
     </small>
   </fieldset>
+  <button type="submit" class="action">Salva</button>
 </div>
 
 <div id="page-security" class="page">
@@ -380,6 +404,7 @@
     <button type="button" class="action secondary" id="alert-test-btn" style="margin-top:.8rem">Invia avviso di prova</button>
     <div id="alert-test-msg" class="hint" style="margin-top:.4rem"></div>
   </fieldset>
+  <button type="submit" class="action">Salva</button>
 </div>
 
 <div id="page-signals" class="page">
@@ -394,6 +419,30 @@
       <dt>Ultimo fix</dt><dd id="fix-age">-</dd>
     </dl>
     <small class="hint">Dati letti dalle sentenze $xxGGA emesse dal GNSS - popolato solo in modalita' rover, mentre il ricevitore trasmette NMEA.</small>
+  </fieldset>
+
+  <fieldset>
+    <legend>🔗 Collegamento NTRIP (rover)</legend>
+    <div class="ntrip-flow-row">
+      <div class="ntrip-pipe-col">
+        <div class="ntrip-pipe-track"><div class="ntrip-pipe-fill" id="ntrip-pipe-in"></div></div>
+        📥 RTCM
+      </div>
+      <div class="ntrip-pipe-col">
+        <div class="ntrip-tank-track"><div class="ntrip-tank-fill" id="ntrip-tank"></div></div>
+        Collegamento
+      </div>
+      <div class="ntrip-pipe-col">
+        <div class="ntrip-pipe-track"><div class="ntrip-pipe-fill" id="ntrip-pipe-out"></div></div>
+        📤 GGA
+      </div>
+    </div>
+    <small class="hint" id="ntrip-flow-text">-</small>
+    <small class="hint">
+      Il contenitore si riempie quando arrivano correzioni RTCM dal caster E il rover invia
+      la propria posizione (GGA) - un collegamento NTRIP e' bidirezionale, non basta una sola
+      direzione attiva. Popolato solo in modalita' rover.
+    </small>
   </fieldset>
 
   <fieldset>
@@ -502,6 +551,8 @@
       valore giusto universale, prova e guarda il risultato. Richiede un riavvio.
     </small>
   </fieldset>
+  <button type="submit" class="action">Salva</button>
+  <small class="hint">Pin GNSS/OLED/RGB richiedono un riavvio manuale (scheda Rete) dopo il salvataggio per applicarsi.</small>
 </div>
 
 <div id="page-firmware" class="page">
@@ -576,7 +627,13 @@
   </fieldset>
 </div>
 
-<button type="submit" class="action">Salva e riavvia</button>
+<button type="submit" class="action">Salva</button>
+<small class="hint">
+  Il salvataggio NON riavvia piu' automaticamente il dispositivo - molte impostazioni (es. WiFi,
+  NTRIP) si applicano subito da sole. Alcune (pin GNSS/OLED/RGB nella scheda Hardware) richiedono
+  comunque un riavvio manuale per applicarsi: usa il pulsante "Riavvia dispositivo" nella scheda
+  Rete quando serve.
+</small>
 </form>
 
 <div id="page-log" class="page">
@@ -661,6 +718,8 @@ async function loadStatus() {
     document.getElementById('st-serial').textContent = s.device_serial || '(non impostata)';
     document.getElementById('st-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mdns').textContent = s.ap_ssid ? ('http://' + s.ap_ssid + '.local') : '-';
+    document.getElementById('st-ip').textContent = s.wifi_ip || s.ap_ip || '-';
+    document.getElementById('st-ntrip-host').textContent = s.ntrip_host ? (s.ntrip_host + ':' + s.ntrip_port + '/' + (s.ntrip_mountpoint || '')) : '-';
     const sdEl = document.getElementById('st-sd');
     if (!s.sd_checked) {
       sdEl.textContent = '⬜ non ancora controllata';
@@ -1122,10 +1181,52 @@ function renderFixStatus(s) {
   ageEl.textContent = s.gnss_fix_age_s.toFixed(0) + ' s fa';
 }
 
+// "Recipiente" del collegamento NTRIP rover: due tubi (RTCM ricevuti dal
+// caster, GGA inviati al caster) - pieni/attivi entro FRESH_S secondi dal
+// dato piu' recente. Il contenitore centrale si riempie SOLO se entrambe
+// le direzioni sono vive: un collegamento NTRIP e' bidirezionale, vederne
+// una sola attiva (es. RTCM in arrivo ma GGA mai inviato) e' comunque un
+// problema reale da notare a colpo d'occhio, non solo "connesso si/no".
+function updateNtripFlow(s) {
+  const pipeIn = document.getElementById('ntrip-pipe-in');
+  const pipeOut = document.getElementById('ntrip-pipe-out');
+  const tank = document.getElementById('ntrip-tank');
+  const text = document.getElementById('ntrip-flow-text');
+  if (!pipeIn || !tank) return;
+
+  const FRESH_S = 8;
+  const nowUs = s.now_us || 0;
+  const rtcmAgeS = s.last_rtcm_us ? (nowUs - s.last_rtcm_us) / 1e6 : Infinity;
+  const ggaAgeS = s.last_gga_sent_us ? (nowUs - s.last_gga_sent_us) / 1e6 : Infinity;
+  const rtcmFresh = rtcmAgeS < FRESH_S;
+  const ggaFresh = ggaAgeS < FRESH_S;
+
+  pipeIn.style.height = rtcmFresh ? '100%' : '15%';
+  pipeIn.classList.toggle('active', rtcmFresh);
+  pipeOut.style.height = ggaFresh ? '100%' : '15%';
+  pipeOut.classList.toggle('active', ggaFresh);
+
+  tank.classList.remove('full', 'partial');
+  if (rtcmFresh && ggaFresh) {
+    tank.style.height = '100%';
+    tank.classList.add('full');
+    text.textContent = '✅ Collegato: correzioni in arrivo, posizione inviata';
+  } else if (rtcmFresh || ggaFresh) {
+    tank.style.height = '45%';
+    tank.classList.add('partial');
+    text.textContent = '⚠️ Solo una direzione attiva: ' +
+      (rtcmFresh ? 'ricevo correzioni ma non invio la posizione (GGA)' : 'invio la posizione ma non arrivano correzioni RTCM');
+  } else {
+    tank.style.height = '0%';
+    text.textContent = '⬜ Nessuno scambio dati con il caster';
+  }
+}
+
 async function loadSignals() {
   try {
     const r = await fetch('/api/signals');
     const s = await r.json();
+    updateNtripFlow(s);
     drawSatChart(s.satellites || []);
     setSignalBar('wifi-sig-bar', 'wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
     setSignalBar('cell-sig-bar', 'cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
@@ -1197,8 +1298,8 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
   try {
     const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
     if (!r.ok) throw new Error('errore server');
-    msg.textContent = 'Salvato. Riavvio in corso, la pagina potrebbe non rispondere per qualche secondo...';
-    await fetch('/api/reboot', { method: 'POST' });
+    msg.textContent = 'Salvato. Se hai modificato pin GNSS/OLED/RGB serve un riavvio manuale (scheda Rete) per applicarli - il resto e\' gia\' attivo.';
+    loadStatus();
   } catch (e) {
     msg.textContent = 'Errore nel salvataggio';
   }
@@ -1309,6 +1410,41 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
     });
   } catch (e) {
     results.textContent = 'Errore durante la ricerca reti';
+  }
+});
+
+// Elenco delle mountpoint disponibili sul caster (letto dal sourcetable
+// NTRIP, pubblico per definizione del protocollo) - l'utente sceglie da
+// un elenco invece di dover scrivere a mano un nome senza sapere quali
+// esistono davvero ne' quali abbiano una base attiva in quel momento.
+document.getElementById('ntrip-mp-scan-btn').addEventListener('click', async () => {
+  const results = document.getElementById('ntrip-mp-results');
+  results.textContent = 'Ricerca mountpoint in corso...';
+  try {
+    const r = await fetch('/api/ntrip/mountpoints');
+    const s = await r.json();
+    const mps = s.mountpoints || [];
+    if (!mps.length) {
+      results.textContent = 'Nessuna mountpoint trovata (caster irraggiungibile o sourcetable vuoto)';
+      return;
+    }
+    results.innerHTML = '';
+    mps.forEach((mp) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'action secondary';
+      btn.style.cssText = 'display:block; width:100%; text-align:left; margin-top:.3rem; font-size:.85rem; padding:.4rem .7rem';
+      btn.textContent = mp.name + (mp.description ? '  —  ' + mp.description : '');
+      btn.addEventListener('click', () => {
+        const f = document.getElementById('cfg-form');
+        f.ntrip_mountpoint.value = mp.name;
+        f.dataset.touched = '1';
+        results.innerHTML = '';
+      });
+      results.appendChild(btn);
+    });
+  } catch (e) {
+    results.textContent = 'Errore durante la ricerca mountpoint';
   }
 });
 

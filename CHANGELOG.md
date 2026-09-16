@@ -2,6 +2,30 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.31
+
+- **Richiesta dell'utente ("gli IP aggiornati devono essere sempre in bella vista")**, dopo un caso reale di rover scollegato perche' il PC del caster aveva cambiato rete/IP senza che nessuno se ne accorgesse: la scheda Stato mostra ora "Indirizzo IP attuale" del dispositivo (letto dal driver via `esp_netif_get_ip_info()`, non dalle impostazioni salvate) e "Caster NTRIP configurato" (host:porta/mountpoint), cosi' un disallineamento salta subito all'occhio.
+
+## 1.19.30
+
+- Richiesta dell'utente: pulsante "Salva" aggiunto in fondo a ciascuna delle 4 pagine con impostazioni modificabili (Rete, GNSS & NTRIP, Sicurezza, Hardware), non solo in fondo a tutto il modulo - non serve piu' scorrere fino in fondo/cambiare pagina per salvare. Nessuna duplicazione di codice: essendo tutte le pagine dentro lo stesso form, ogni pulsante usa lo stesso salvataggio gia' esistente.
+
+## 1.19.29
+
+- **Richiesta dell'utente ("il riavvio dobbiamo farlo solo se strettamente necessario")**: il pulsante "Salva e riavvia" riavviava SEMPRE il dispositivo dopo ogni salvataggio, anche per campi che si applicano gia' da soli (WiFi, NTRIP rover/host/mountpoint/credenziali) - inutile e, prima del fix della sessione di stasera, rischioso ad ogni singolo salvataggio. Ora "Salva" non riavvia piu' automaticamente; il riavvio resta disponibile come azione separata e deliberata ("Riavvia dispositivo", scheda Rete) per le poche impostazioni che lo richiedono davvero (pin GNSS/OLED/RGB nella scheda Hardware).
+
+## 1.19.28
+
+- Richiesta dell'utente: nella pagina Segnali, un "recipiente" visivo per il collegamento NTRIP rover, riempito da due "tubi" - RTCM ricevuti dal caster e GGA inviati al rover - pieno e verde solo se ENTRAMBE le direzioni sono vive negli ultimi 8s, arancione se solo una, vuoto se nessuna. Nuovo tracciamento lato firmware dell'ultimo GGA inviato (`status_note_gga_sent()`), esposto in `/api/signals`.
+
+## 1.19.27
+
+- Richiesta dell'utente ("l'app mi dovrebbe proporre lei i mountpoint, non devo scriverli a mano"): aggiunto un pulsante "Cerca mountpoint disponibili" nella scheda NTRIP rover, che legge il sourcetable pubblico del caster (`ntrip_rover_client_fetch_mountpoints()`, nuovo endpoint `GET /api/ntrip/mountpoints`) e mostra l'elenco cliccabile, con la descrizione di ciascuna - come gia' funziona la ricerca reti WiFi.
+
+## 1.19.26
+
+- **LA CAUSA VERA, FINALMENTE, di tutta la classe di bug "campi con valori a caso dopo il riavvio" vista in questa sessione (ap_ssid vuoto, gnss_uart_num=5005 uguale al default di nmea_udp_port, pin OLED con i valori del campo GNSS, l'SSID dell'AP di setup che spariva) - MAI stata vera corruzione ne' un blob di una vecchia versione**: `stored_cfg_t` (il blob salvato in NVS: `magic` + `app_settings_t`) contiene dei campi `double` (le coordinate della base fissa), che richiedono allineamento a 8 byte - il compilatore inserisce quindi 4 byte di padding invisibili tra `magic` (4 byte) e i dati veri. Il codice di caricamento calcolava pero' l'inizio dei dati come `sizeof(magic)` (4 byte), non `offsetof(stored_cfg_t, s)` (8 byte reali) - un errore di 4 byte che faceva leggere OGNI campo della configurazione shiftato di una posizione, ad OGNI singolo riavvio successivo a un salvataggio, fin dalla primissima volta che questo formato ha incluso un campo double. Il salvataggio stesso era sempre stato corretto (scrive la struct intera con un'assegnazione normale, che include gia' il padding giusto) - solo il caricamento sbagliava. Corretto usando `offsetof()` invece di `sizeof(magic)`.
+
 ## 1.19.25
 
 - **Confermato su hardware reale: l'archiviazione automatica del firmware su SD funziona davvero, dall'avvio alla scrittura completa** - task avviato, SD montata, ~1.45MB copiati (~3s), file salvato e verificato. Aggiunto anche un log per il caso "SD non disponibile" che prima falliva in silenzio, utile se ricapita in futuro. Rimossa la diagnostica temporanea di debug (aveva gia' fatto il suo lavoro).

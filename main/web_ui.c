@@ -10,6 +10,7 @@
 #include "gnss_signal.h"
 #include "gnss_fix.h"
 #include "wifi_link.h"
+#include "ntrip_rover_client.h"
 #include "cellular_link.h"
 #include "alerts.h"
 #include "base_monitor.h"
@@ -305,8 +306,29 @@ static esp_err_t status_get_handler(httpd_req_t *req)
             cJSON_AddStringToObject(root, "wifi_current_ssid", safe_current_ssid);
         }
     }
+    {
+        // IP reale attuale delle interfacce di rete (STA + AP), letto dal
+        // driver, non dalle impostazioni: e' cambiato piu' volte durante lo
+        // sviluppo (router diverso, DHCP diverso) causando NTRIP rotto per
+        // host non piu' raggiungibile senza che si notasse subito - va
+        // mostrato sempre in "Stato" per essere visibile a colpo d'occhio.
+        esp_netif_ip_info_t ip_info;
+        esp_netif_t *sta_netif = wifi_link_get_sta_netif();
+        if (sta_netif && esp_netif_get_ip_info(sta_netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+            char ip_str[16];
+            esp_ip4addr_ntoa(&ip_info.ip, ip_str, sizeof(ip_str));
+            cJSON_AddStringToObject(root, "wifi_ip", ip_str);
+        }
+        esp_netif_t *ap_netif = wifi_link_get_ap_netif();
+        if (ap_netif && esp_netif_get_ip_info(ap_netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+            char ip_str[16];
+            esp_ip4addr_ntoa(&ip_info.ip, ip_str, sizeof(ip_str));
+            cJSON_AddStringToObject(root, "ap_ip", ip_str);
+        }
+    }
     cJSON_AddNumberToObject(root, "rtcm_bytes", status_get_rtcm_total_bytes());
     cJSON_AddNumberToObject(root, "last_rtcm_us", (double) status_get_last_rtcm_time_us());
+    cJSON_AddNumberToObject(root, "last_gga_sent_us", (double) status_get_last_gga_sent_time_us());
 
     ntrip_conn_status_t ntrip = status_ntrip_get();
     cJSON_AddBoolToObject(root, "ntrip_connected", ntrip.connected);
@@ -527,6 +549,14 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
         cJSON_AddNullToObject(root, "cellular_operator");
         cJSON_AddNullToObject(root, "cellular_tech");
     }
+
+    // Per il "recipiente" del collegamento NTRIP rover nella pagina
+    // Segnali (vedi updateNtripFlow() in index.html): meglio qui che in
+    // /api/status, dato che questa pagina la interroga gia' ogni pochi
+    // secondi mentre e' visibile, a differenza della pagina Stato.
+    cJSON_AddNumberToObject(root, "last_rtcm_us", (double) status_get_last_rtcm_time_us());
+    cJSON_AddNumberToObject(root, "last_gga_sent_us", (double) status_get_last_gga_sent_time_us());
+    cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
 
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
@@ -1217,6 +1247,34 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t ntrip_mountpoints_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    ntrip_mountpoint_entry_t entries[NTRIP_MOUNTPOINTS_MAX];
+    size_t n = ntrip_rover_client_fetch_mountpoints(entries, NTRIP_MOUNTPOINTS_MAX);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *mountpoints = cJSON_CreateArray();
+    for (size_t i = 0; i < n; i++) {
+        cJSON *mp = cJSON_CreateObject();
+        cJSON_AddStringToObject(mp, "name", entries[i].name);
+        cJSON_AddStringToObject(mp, "description", entries[i].description);
+        cJSON_AddItemToArray(mountpoints, mp);
+    }
+    cJSON_AddItemToObject(root, "mountpoints", mountpoints);
+
+    char *json = cJSON_PrintUnformatted(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
 static esp_err_t ota_check_online_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -1489,7 +1547,7 @@ void web_ui_start(void)
     s_settings_edit_mutex = xSemaphoreCreateMutex();
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 22; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi/PPP/archivio aggiunti
+    config.max_uri_handlers = 24; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi/PPP/archivio/NTRIP aggiunti
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne
@@ -1515,6 +1573,7 @@ void web_ui_start(void)
     httpd_uri_t ota_apply_uri  = { .uri = "/api/ota/apply-online", .method = HTTP_POST, .handler = ota_apply_online_post_handler };
     httpd_uri_t ota_progress_uri = { .uri = "/api/ota/progress", .method = HTTP_GET, .handler = ota_progress_get_handler };
     httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
+    httpd_uri_t ntrip_mountpoints_uri = { .uri = "/api/ntrip/mountpoints", .method = HTTP_GET, .handler = ntrip_mountpoints_get_handler };
     httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
     httpd_uri_t wifi_test_progress_uri = { .uri = "/api/wifi/test-progress", .method = HTTP_GET, .handler = wifi_test_progress_get_handler };
     httpd_uri_t wifi_forget_uri = { .uri = "/api/wifi/forget-known", .method = HTTP_POST, .handler = wifi_forget_known_post_handler };
@@ -1528,6 +1587,7 @@ void web_ui_start(void)
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
+    httpd_register_uri_handler(server, &ntrip_mountpoints_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);
     httpd_register_uri_handler(server, &wifi_test_progress_uri);
     httpd_register_uri_handler(server, &wifi_forget_uri);

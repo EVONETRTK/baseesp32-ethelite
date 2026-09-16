@@ -110,6 +110,120 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     return sock;
 }
 
+// Isola il prossimo campo separato da ';' in *cursor, terminandolo con '\0'
+// - stessa logica di gnss_signal.c/gnss_fix.c, duplicata qui perche' e'
+// privata a quel file e il formato del sourcetable NTRIP usa ';' invece
+// della ',' delle sentenze NMEA.
+static char *next_field_semicolon(char **cursor)
+{
+    if (!*cursor) {
+        return NULL;
+    }
+    char *start = *cursor;
+    char *sep = strchr(start, ';');
+    if (sep) {
+        *sep = '\0';
+        *cursor = sep + 1;
+    } else {
+        *cursor = NULL;
+    }
+    return start;
+}
+
+size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_t max_count)
+{
+    app_settings_t settings = settings_get();
+
+    char port_str[8];
+    snprintf(port_str, sizeof(port_str), "%u", settings.ntrip_port);
+
+    struct addrinfo hints = {
+        .ai_family = AF_INET,
+        .ai_socktype = SOCK_STREAM,
+    };
+    struct addrinfo *res = NULL;
+    if (getaddrinfo(settings.ntrip_host, port_str, &hints, &res) != 0 || res == NULL) {
+        ESP_LOGW(TAG, "Sourcetable: DNS lookup fallita per %s", settings.ntrip_host);
+        return 0;
+    }
+
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sock < 0) {
+        freeaddrinfo(res);
+        return 0;
+    }
+    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
+        ESP_LOGW(TAG, "Sourcetable: connessione a %s:%d fallita: errno %d", settings.ntrip_host, settings.ntrip_port, errno);
+        close(sock);
+        freeaddrinfo(res);
+        return 0;
+    }
+    freeaddrinfo(res);
+
+    // Nessuna autenticazione: il sourcetable NTRIP ("GET /" sulla radice,
+    // non su una mountpoint specifica) e' sempre pubblico per definizione
+    // del protocollo - permette a qualunque client di scoprire cosa offre
+    // il caster prima di autenticarsi su una mountpoint scelta.
+    const char req[] = "GET / HTTP/1.1\r\nUser-Agent: NTRIP baseesp32/1.0\r\nConnection: close\r\n\r\n";
+    if (send(sock, req, sizeof(req) - 1, 0) != (int) sizeof(req) - 1) {
+        close(sock);
+        return 0;
+    }
+
+    // Il sourcetable puo' arrivare in piu' pacchetti TCP - si legge finche'
+    // il caster chiude la connessione (Connection: close sopra) o si
+    // riempie il buffer, non ci si ferma al primo recv() come nel resto di
+    // questo file (li' basta l'intestazione di risposta, qui serve il
+    // corpo intero).
+    static char buf[4096];
+    size_t total = 0;
+    while (total < sizeof(buf) - 1) {
+        int r = recv(sock, buf + total, sizeof(buf) - 1 - total, 0);
+        if (r <= 0) {
+            break;
+        }
+        total += (size_t) r;
+    }
+    buf[total] = '\0';
+    close(sock);
+
+    size_t count = 0;
+    char *line = buf;
+    while (count < max_count && line && *line) {
+        char *newline = strchr(line, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+        char *cr = strchr(line, '\r');
+        if (cr) {
+            *cr = '\0';
+        }
+        char *next_line = newline ? newline + 1 : NULL;
+
+        if (strncmp(line, "STR;", 4) != 0) {
+            line = next_line;
+            continue;
+        }
+        char *field_cursor = line;
+        next_field_semicolon(&field_cursor); // "STR"
+        char *name = next_field_semicolon(&field_cursor);
+        char *desc = next_field_semicolon(&field_cursor);
+        if (name && name[0] != '\0') {
+            strncpy(out[count].name, name, sizeof(out[count].name) - 1);
+            out[count].name[sizeof(out[count].name) - 1] = '\0';
+            if (desc) {
+                strncpy(out[count].description, desc, sizeof(out[count].description) - 1);
+                out[count].description[sizeof(out[count].description) - 1] = '\0';
+            } else {
+                out[count].description[0] = '\0';
+            }
+            count++;
+        }
+        line = next_line;
+    }
+    return count;
+}
+
 static void set_active_sock(int sock)
 {
     xSemaphoreTake(s_sock_mutex, portMAX_DELAY);
@@ -176,5 +290,7 @@ void ntrip_rover_client_forward_gga(const char *line, size_t len)
 
     char buf[128];
     int n = snprintf(buf, sizeof(buf), "%.*s\r\n", (int) len, line);
-    send(sock, buf, n, 0);
+    if (send(sock, buf, n, 0) == n) {
+        status_note_gga_sent();
+    }
 }

@@ -4,3 +4,5 @@ sdkconfig.old
 .vscode/
 managed_components/
 dependencies.lock
+release_assets/
+sd_card_files/

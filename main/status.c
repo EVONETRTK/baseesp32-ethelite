@@ -44,6 +44,18 @@ int64_t status_get_last_rtcm_time_us(void)
     return s_last_rtcm_us;
 }
 
+static volatile int64_t s_last_gga_sent_us = 0;
+
+void status_note_gga_sent(void)
+{
+    s_last_gga_sent_us = esp_timer_get_time();
+}
+
+int64_t status_get_last_gga_sent_time_us(void)
+{
+    return s_last_gga_sent_us;
+}
+
 void status_ntrip_note_connected(void)
 {
     ntrip_mutex_init();

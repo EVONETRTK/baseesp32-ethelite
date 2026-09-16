@@ -46,3 +46,10 @@ uint32_t status_get_rtcm_total_bytes(void);
 // Timestamp (microsecondi, esp_timer_get_time) dell'ultimo dato RTCM
 // ricevuto dalla UART GNSS; 0 se non ancora ricevuto nulla.
 int64_t status_get_last_rtcm_time_us(void);
+
+// Speculare a rtcm_bytes/last_rtcm_us sopra ma per la direzione opposta
+// (solo rover): l'ultima riga $GxGGA inoltrata al caster, per mostrare in
+// UI un collegamento NTRIP come davvero bidirezionale (correzioni in
+// arrivo E posizione in uscita), non solo "connesso si/no".
+void status_note_gga_sent(void);
+int64_t status_get_last_gga_sent_time_us(void);

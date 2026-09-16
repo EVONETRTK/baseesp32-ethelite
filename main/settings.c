@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 #include "nvs.h"
 #include "esp_mac.h"
@@ -195,9 +196,30 @@ void settings_init(void)
     memcpy(&magic, buf, sizeof(magic));
 
     if (err == ESP_OK && magic == CFG_MAGIC) {
-        size_t settings_bytes = stored_size - sizeof(magic);
+        // offsetof(stored_cfg_t, s), NON sizeof(magic): stored_cfg_t contiene
+        // dei "double" (base_fixed_lat_deg e affini, dentro app_settings_t),
+        // che richiedono allineamento a 8 byte - il compilatore inserisce 4
+        // byte di padding invisibili tra "magic" (4 byte) e "s" per rispettarlo
+        // (sizeof(stored_cfg_t) infatti e' 1712, non 1708 come ci si
+        // aspetterebbe da 4+1704). Usare sizeof(magic) qui functiona SOLO se
+        // non c'e' padding: quando c'e' (come in questo caso), il calcolo
+        // sballava la dimensione "utile" letta di 4 byte E leggeva il
+        // memcpy sotto a partire dal punto sbagliato (dentro il padding,
+        // non dall'inizio vero di "s") - RISULTATO: OGNI campo di
+        // app_settings_t veniva letto shiftato di 4 byte ad OGNI riavvio
+        // successivo a un salvataggio, scambiandolo silenziosamente con
+        // quello del campo precedente nella struct. Causa vera, root-cause
+        // finalmente trovata, di tutta la classe di bug "valori a caso dopo
+        // il riavvio" vista in questa sessione (ap_ssid vuoto, gnss_uart_num
+        // con lo stesso valore ricorrente di nmea_udp_port, pin OLED con i
+        // valori del campo GNSS precedente, ecc.) - MAI stata vera
+        // corruzione ne' un blob di una versione precedente: e' successo
+        // dalla primissima volta che questo formato ("bs02") ha incluso un
+        // campo double, su OGNI singolo salvataggio da allora.
+        size_t header_size = offsetof(stored_cfg_t, s);
+        size_t settings_bytes = stored_size - header_size;
         size_t copy_len = settings_bytes < sizeof(app_settings_t) ? settings_bytes : sizeof(app_settings_t);
-        memcpy(&s_settings, buf + sizeof(magic), copy_len);
+        memcpy(&s_settings, buf + header_size, copy_len);
         if (settings_bytes != sizeof(app_settings_t)) {
             ESP_LOGI(TAG, "Configurazione caricata da una versione precedente del firmware (%u/%u byte) - i campi nuovi restano al default finche' non li imposti dalla UI",
                      (unsigned) settings_bytes, (unsigned) sizeof(app_settings_t));
