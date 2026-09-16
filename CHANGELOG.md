@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.46
+
+- Richiesta dell'utente ("continuo a mettere le password su rete conosciuta"): il campo password WiFi era percepito come "il dispositivo ha dimenticato la password" perche' appare sempre vuoto - comportamento voluto (nessun campo password viene mai restituito in lettura, per sicurezza), ma spiegato finora solo da un placeholder facile da non notare. Aggiunta una spiegazione permanente sotto il campo.
+
 ## 1.19.45
 
 - **Fix critico trovato verificando il boot dopo il fix precedente**: stack overflow reale nel task "main" ("***ERROR*** A stack overflow in task main has been detected", crash + riavvio automatico ad ogni singolo boot, sempre allo stesso punto) causato da `eth_link_init()` (bus SPI + installazione driver W5500, chiamata direttamente dentro `app_main()`) - probabilmente presente fin dalla 1.19.40 ma non notato perche' la verifica di allora filtrava il log solo per righe contenenti "eth" (che non includono "stack overflow"), e il riavvio automatico nascondeva il sintomo facendo sembrare tutto a posto al boot successivo. Spostata in un task dedicato (`eth_link_init_task`, stack 6144) invece di continuare ad allargare lo stack del task main ad ogni nuova funzionalita' - stessa causa e stessa soluzione gia' viste piu' volte in questo progetto (scansione WiFi, archiviazione firmware su SD).

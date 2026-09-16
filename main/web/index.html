@@ -209,6 +209,11 @@
            e' l'unica protezione anti-autocompilamento rimasta). -->
       <input name="wifi_password" type="password" autocomplete="new-password" placeholder="lascia vuoto per non modificare">
     </label>
+    <small class="hint">
+      Questo campo appare sempre vuoto per sicurezza - il dispositivo non restituisce mai le
+      password gia' salvate. <strong>Non significa che le abbia dimenticate</strong>: lascialo
+      vuoto e la password attuale resta quella di prima, sia premendo "Connetti" sia "Salva".
+    </small>
     <button type="button" class="action" id="wifi-test-btn" style="margin-top:.6rem">Connetti</button>
     <div id="wifi-test-msg" class="hint" style="margin-top:.4rem"></div>
     <div id="wifi-test-bar-track" class="sig-bar-track" style="display:none; margin-top:.4rem">
