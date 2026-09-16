@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.34
+
+- Richiesta dell'utente: il pulsante 💾 per-campo introdotto in 1.19.32 (uno per ciascuno dei 56 parametri) e' stato sostituito da **un pulsante di salvataggio per riquadro** (18 in totale, uno per fieldset con almeno un campo modificabile) - es. "Server caster NTRIP locale" (porta, mountpoint, username, password) o "Modalita' operativa" (funzione dispositivo, chip GNSS) si salvano insieme con un solo click, invece di uno per campo. La scheda WiFi resta invariata (il pulsante "Connetti" gia' salva da solo al successo).
+
 ## 1.19.33
 
 - Richiesta dell'utente ("raggruppali per tipologia"): il fieldset "Avvisi (email/WhatsApp)" nella scheda Sicurezza, che mescolava avviso disconnessione, avviso spostamento base, configurazione email e configurazione WhatsApp in un unico blocco, e' stato diviso in 4 gruppi separati per argomento (🔌 disconnessione, 📍 drift, ✉️ email, 💬 WhatsApp) + un piccolo gruppo per il pulsante di prova. Nessun campo aggiunto o rimosso, solo riorganizzato.

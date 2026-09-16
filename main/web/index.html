@@ -46,11 +46,11 @@
   .ntrip-tank-fill { width:100%; height:0%; background:#cbd5e1; transition: height .5s, background .5s; }
   .ntrip-tank-fill.full { background:#16a34a; }
   .ntrip-tank-fill.partial { background:#d97706; }
-  .field-row { display:flex; align-items:stretch; gap:.4rem; margin-top:.2rem; }
-  .field-row input, .field-row select { width:auto; flex:1; min-width:0; margin-top:0; }
-  .field-save-btn { flex:0 0 auto; padding:0 .7rem; border:none; border-radius:6px; background:#2563eb; color:#fff; font-size:1rem; cursor:pointer; }
-  .field-save-btn.ok { background:#16a34a; }
-  .field-save-btn.err { background:#dc2626; }
+  .fieldset-save-row { display:flex; align-items:center; gap:.6rem; margin-top:.9rem; }
+  .fieldset-save-btn { margin-top:0; }
+  .fieldset-save-btn.ok { background:#16a34a; }
+  .fieldset-save-btn.err { background:#dc2626; }
+  .fieldset-save-msg { font-size:.85rem; color:#666; }
 </style>
 </head>
 <body>
@@ -162,25 +162,30 @@
   <fieldset>
     <legend>🌐 Connettivita'</legend>
     <label>Connettivita' da usare
-      <span class="field-row"><select name="network_mode">
+      <select name="network_mode">
         <option value="both">WiFi con fallback cellulare (consigliato)</option>
         <option value="wifi">Solo WiFi (ignora il modem cellulare anche se collegato)</option>
         <option value="cellular">Solo cellulare (ignora il WiFi station)</option>
-      </select><button type="button" class="field-save-btn" data-field="network_mode">💾</button></span>
+      </select>
       <small class="hint">L'AP di setup di questa pagina resta sempre attivo in ogni caso. L'Ethernet, se abilitata via menuconfig, e' indipendente da questa scelta.</small>
     </label>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="network_mode">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>📶 WiFi</legend>
-    <label>SSID<span class="field-row"><input name="wifi_ssid" autocomplete="off"><button type="button" class="field-save-btn" data-field="wifi_ssid">💾</button></span></label>
+    <label>SSID<input name="wifi_ssid" autocomplete="off"></label>
     <button type="button" class="action secondary" id="wifi-scan-btn" style="margin-top:.6rem">Cerca reti WiFi</button>
     <div id="wifi-scan-results" style="margin-top:.4rem"></div>
     <label>Password
       <!-- Niente campo "esca"/readonly qui: quei trucchi non bastavano
            su tutti i browser (vedi il timer di pulizia piu' sotto, che
            e' l'unica protezione anti-autocompilamento rimasta). -->
-      <span class="field-row"><input name="wifi_password" type="password" autocomplete="new-password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="wifi_password">💾</button></span>
+      <input name="wifi_password" type="password" autocomplete="new-password" placeholder="lascia vuoto per non modificare">
     </label>
     <button type="button" class="action" id="wifi-test-btn" style="margin-top:.6rem">Connetti</button>
     <div id="wifi-test-msg" class="hint" style="margin-top:.4rem"></div>
@@ -198,53 +203,68 @@
   <fieldset>
     <legend>📱 Rete cellulare (slot LTE)</legend>
     <label>Modulo modem montato
-      <span class="field-row"><select name="cellular_is_sim868">
+      <select name="cellular_is_sim868">
         <option value="false">SIM7600X</option>
         <option value="true">SIM868</option>
-      </select><button type="button" class="field-save-btn" data-field="cellular_is_sim868">💾</button></span>
+      </select>
       <small class="hint">Stesso slot/pin fisici, ma sequenza di accensione e comandi AT diversi secondo il modulo.</small>
     </label>
-    <label>APN operatore SIM<span class="field-row"><input name="cellular_apn"><button type="button" class="field-save-btn" data-field="cellular_apn">💾</button></span></label>
+    <label>APN operatore SIM<input name="cellular_apn"></label>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="cellular_is_sim868,cellular_apn">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>🔌 Rete di setup (AP di questo dispositivo)</legend>
-    <label>SSID AP<span class="field-row"><input name="ap_ssid"><button type="button" class="field-save-btn" data-field="ap_ssid">💾</button></span></label>
-    <label>Password AP<span class="field-row"><input name="ap_password" type="password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="ap_password">💾</button></span>
+    <label>SSID AP<input name="ap_ssid"></label>
+    <label>Password AP<input name="ap_password" type="password" placeholder="lascia vuoto per non modificare">
       <small class="hint">Minimo 8 caratteri. Se l'AP non ha mai avuto una password impostata, resta aperto.</small>
     </label>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="ap_ssid,ap_password">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset></div>
 
 <div id="page-gnss" class="page">
   <fieldset>
     <legend>🛰️ Modalita' operativa</legend>
     <label>Funzione del dispositivo
-      <span class="field-row"><select name="device_mode">
+      <select name="device_mode">
         <option value="base">Base (invia correzioni RTCM3 al caster)</option>
         <option value="rover">Rover (riceve correzioni RTCM3 dal caster)</option>
-      </select><button type="button" class="field-save-btn" data-field="device_mode">💾</button></span>
+      </select>
     </label>
     <label>Chip GNSS collegato
-      <span class="field-row"><select name="gnss_chip">
+      <select name="gnss_chip">
         <option value="ublox">u-blox (es. ZED-F9P)</option>
         <option value="unicore">Unicore (es. UM980/UM982)</option>
         <option value="lc29h">Quectel LC29H (BA/CA/DA/EA)</option>
-      </select><button type="button" class="field-save-btn" data-field="gnss_chip">💾</button></span>
+      </select>
     </label>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="device_mode,gnss_chip">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>📍 Posizione base</legend>
     <label>Modalita' posizione
-      <span class="field-row"><select name="base_position_mode">
+      <select name="base_position_mode">
         <option value="auto">Automatica (survey-in ad ogni avvio)</option>
         <option value="manual">Manuale (coordinate fisse)</option>
-      </select><button type="button" class="field-save-btn" data-field="base_position_mode">💾</button></span>
+      </select>
     </label>
     <div id="base-pos-manual-fields" style="display:none">
-      <label>Latitudine (gradi decimali)<span class="field-row"><input name="base_fixed_lat_deg" type="number" step="0.0000001"><button type="button" class="field-save-btn" data-field="base_fixed_lat_deg">💾</button></span></label>
-      <label>Longitudine (gradi decimali)<span class="field-row"><input name="base_fixed_lon_deg" type="number" step="0.0000001"><button type="button" class="field-save-btn" data-field="base_fixed_lon_deg">💾</button></span></label>
-      <label>Quota ellissoidica WGS84 (metri)<span class="field-row"><input name="base_fixed_height_m" type="number" step="0.001"><button type="button" class="field-save-btn" data-field="base_fixed_height_m">💾</button></span></label>
+      <label>Latitudine (gradi decimali)<input name="base_fixed_lat_deg" type="number" step="0.0000001"></label>
+      <label>Longitudine (gradi decimali)<input name="base_fixed_lon_deg" type="number" step="0.0000001"></label>
+      <label>Quota ellissoidica WGS84 (metri)<input name="base_fixed_height_m" type="number" step="0.001"></label>
       <button type="button" class="action secondary" id="base-pos-use-current-btn">Usa posizione attuale rilevata</button>
       <div id="base-pos-current-hint" class="hint" style="margin-top:.4rem">Nessuna posizione ancora rilevata dal ricevitore.</div>
       <small class="hint" id="base-pos-maps-wrap" style="display:none">
@@ -263,6 +283,11 @@
       Quectel LC29H selezionato sopra; il cambio modalita' richiede lo spegnimento/riaccensione fisico del
       modulo GNSS per avere effetto (vedi avviso nella pagina Hardware).
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="base_position_mode,base_fixed_lat_deg,base_fixed_lon_deg,base_fixed_height_m">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
@@ -295,25 +320,30 @@
 
   <fieldset>
     <legend>📡 Caster EVONETRTK (NTRIP)</legend>
-    <label>Host<span class="field-row"><input name="ntrip_host"><button type="button" class="field-save-btn" data-field="ntrip_host">💾</button></span></label>
-    <label>Porta<span class="field-row"><input name="ntrip_port" type="number" min="1" max="65535"><button type="button" class="field-save-btn" data-field="ntrip_port">💾</button></span></label>
-    <label>Mountpoint<span class="field-row"><input name="ntrip_mountpoint"><button type="button" class="field-save-btn" data-field="ntrip_mountpoint">💾</button></span></label>
+    <label>Host<input name="ntrip_host"></label>
+    <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
+    <label>Mountpoint<input name="ntrip_mountpoint"></label>
     <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem">Cerca mountpoint disponibili</button>
     <div id="ntrip-mp-results" style="margin-top:.4rem"></div>
-    <label>Username <small class="hint">(solo modalita' rover)</small><span class="field-row"><input name="ntrip_username"><button type="button" class="field-save-btn" data-field="ntrip_username">💾</button></span></label>
-    <label>Password / codice sorgente<span class="field-row"><input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="ntrip_password">💾</button></span></label>
+    <label>Username <small class="hint">(solo modalita' rover)</small><input name="ntrip_username"></label>
+    <label>Password / codice sorgente<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_host,ntrip_port,ntrip_mountpoint,ntrip_username,ntrip_password">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>📡 Server caster NTRIP locale (solo modalita' base)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
-      <span class="field-row"><input name="ntrip_caster_server_enable" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="ntrip_caster_server_enable">💾</button></span>
+      <input name="ntrip_caster_server_enable" type="checkbox" style="width:auto; margin:0">
       Accetta rover collegati direttamente a questo dispositivo (oltre al caster esterno sopra)
     </label>
-    <label>Porta<span class="field-row"><input name="ntrip_caster_server_port" type="number" min="1" max="65535" placeholder="2101"><button type="button" class="field-save-btn" data-field="ntrip_caster_server_port">💾</button></span></label>
-    <label>Mountpoint<span class="field-row"><input name="ntrip_caster_server_mountpoint" placeholder="es. BASE01"><button type="button" class="field-save-btn" data-field="ntrip_caster_server_mountpoint">💾</button></span></label>
-    <label>Username <small class="hint">(vuoto = nessuna autenticazione)</small><span class="field-row"><input name="ntrip_caster_server_username"><button type="button" class="field-save-btn" data-field="ntrip_caster_server_username">💾</button></span></label>
-    <label>Password<span class="field-row"><input name="ntrip_caster_server_password" type="password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="ntrip_caster_server_password">💾</button></span></label>
+    <label>Porta<input name="ntrip_caster_server_port" type="number" min="1" max="65535" placeholder="2101"></label>
+    <label>Mountpoint<input name="ntrip_caster_server_mountpoint" placeholder="es. BASE01"></label>
+    <label>Username <small class="hint">(vuoto = nessuna autenticazione)</small><input name="ntrip_caster_server_username"></label>
+    <label>Password<input name="ntrip_caster_server_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <dl class="kv" style="margin-top:.4rem">
       <dt>Rover collegati ora</dt><dd id="caster-srv-clients">-</dd>
     </dl>
@@ -327,54 +357,79 @@
       mobili mettono quasi sempre le SIM dietro un NAT condiviso che blocca le connessioni in
       entrata, un limite della rete dell'operatore che nessun firmware puo' aggirare.
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_caster_server_enable,ntrip_caster_server_port,ntrip_caster_server_mountpoint,ntrip_caster_server_username,ntrip_caster_server_password">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>🚜 Uscita dati per software di guida (solo modalita' rover)</legend>
-    <label>Porta UDP broadcast NMEA<span class="field-row"><input name="nmea_udp_port" type="number" min="1" max="65535"><button type="button" class="field-save-btn" data-field="nmea_udp_port">💾</button></span></label>
+    <label>Porta UDP broadcast NMEA<input name="nmea_udp_port" type="number" min="1" max="65535"></label>
     <small class="hint">
       In modalita' rover, ogni riga NMEA emessa dal GNSS (posizione, satelliti, ecc.) viene
       trasmessa in broadcast UDP su questa porta, su tutte le reti attive (AP di setup, WiFi,
       Ethernet se abilitata) - per software come AgOpenGPS/AgIO. Verifica che la porta
       corrisponda a quella configurata lato AgIO.
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="nmea_udp_port">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset></div>
 
 <div id="page-security" class="page">
   <fieldset>
     <legend>🔒 Sicurezza</legend>
-    <label>Codice di accesso a questa pagina<span class="field-row"><input name="admin_code" type="password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="admin_code">💾</button></span>
+    <label>Codice di accesso a questa pagina<input name="admin_code" type="password" placeholder="lascia vuoto per non modificare">
       <small class="hint">Utente "admin", protegge tutta questa interfaccia. Default di fabbrica: 1234 - cambialo alla prima configurazione.</small>
     </label>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="admin_code">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>🆔 Identificazione dispositivo</legend>
-    <label>Matricola<span class="field-row"><input name="device_serial" placeholder="es. EVONETRTK-0001"><button type="button" class="field-save-btn" data-field="device_serial">💾</button></span></label>
+    <label>Matricola<input name="device_serial" placeholder="es. EVONETRTK-0001"></label>
     <small class="hint">Per default e' lo stesso numero del nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428") - puoi sostituirlo con un tuo codice se preferisci un altro sistema di tracciamento.</small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="device_serial">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>🔌 Avviso disconnessione caster</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
-      <span class="field-row"><input name="alert_enable" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="alert_enable">💾</button></span>
+      <input name="alert_enable" type="checkbox" style="width:auto; margin:0">
       Avvisami se la connessione al caster resta interrotta troppo a lungo
     </label>
-    <label>Minuti di disconnessione prima di avvisare<span class="field-row"><input name="alert_threshold_min" type="number" min="1"><button type="button" class="field-save-btn" data-field="alert_threshold_min">💾</button></span></label>
+    <label>Minuti di disconnessione prima di avvisare<input name="alert_threshold_min" type="number" min="1"></label>
     <small class="hint">
       Pensato per una base lasciata incustodita in campo: un avviso quando la connessione NTRIP
       resta giu' (e uno quando torna a funzionare). Basta configurare almeno un canale qui sotto,
       email e WhatsApp insieme oppure uno solo.
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="alert_enable,alert_threshold_min">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>📍 Avviso spostamento base (drift)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
-      <span class="field-row"><input name="base_drift_alert_enable" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="base_drift_alert_enable">💾</button></span>
+      <input name="base_drift_alert_enable" type="checkbox" style="width:auto; margin:0">
       Avvisami se l'antenna della base si sposta (solo modalita' base)
     </label>
-    <label>Distanza minima considerata uno spostamento reale (metri)<span class="field-row"><input name="base_drift_threshold_m" type="number" min="0.1" step="0.1"><button type="button" class="field-save-btn" data-field="base_drift_threshold_m">💾</button></span></label>
+    <label>Distanza minima considerata uno spostamento reale (metri)<input name="base_drift_threshold_m" type="number" min="0.1" step="0.1"></label>
     <small class="hint">
       Confronta la posizione dell'antenna (dai messaggi RTCM 1005/1006 gia' inviati al caster) con
       quella registrata al primo avvio dopo il boot - utile per accorgersi se la base viene urtata
@@ -386,30 +441,45 @@
       <dt>Posizione di riferimento</dt><dd id="drift-baseline">-</dd>
       <dt>Spostamento attuale</dt><dd id="drift-current">-</dd>
     </dl>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="base_drift_alert_enable,base_drift_threshold_m">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>✉️ Canale email (SMTP)</legend>
-    <label>Server SMTP<span class="field-row"><input name="alert_smtp_host" placeholder="es. smtp.gmail.com"><button type="button" class="field-save-btn" data-field="alert_smtp_host">💾</button></span></label>
-    <label>Porta SMTP<span class="field-row"><input name="alert_smtp_port" type="number" min="1" max="65535" placeholder="465"><button type="button" class="field-save-btn" data-field="alert_smtp_port">💾</button></span></label>
-    <label>Utente/mittente<span class="field-row"><input name="alert_smtp_user" placeholder="es. tuonome@gmail.com"><button type="button" class="field-save-btn" data-field="alert_smtp_user">💾</button></span></label>
-    <label>Password (password per le app, non quella dell'account)<span class="field-row"><input name="alert_smtp_password" type="password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="alert_smtp_password">💾</button></span></label>
-    <label>Destinatario avviso<span class="field-row"><input name="alert_email_to" placeholder="es. tuonome@gmail.com"><button type="button" class="field-save-btn" data-field="alert_email_to">💾</button></span></label>
+    <label>Server SMTP<input name="alert_smtp_host" placeholder="es. smtp.gmail.com"></label>
+    <label>Porta SMTP<input name="alert_smtp_port" type="number" min="1" max="65535" placeholder="465"></label>
+    <label>Utente/mittente<input name="alert_smtp_user" placeholder="es. tuonome@gmail.com"></label>
+    <label>Password (password per le app, non quella dell'account)<input name="alert_smtp_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label>Destinatario avviso<input name="alert_email_to" placeholder="es. tuonome@gmail.com"></label>
     <small class="hint">
       Con Gmail serve una "password per le app" (myaccount.google.com/apppasswords), non la password
       normale dell'account - richiede la verifica in due passaggi attiva.
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="alert_smtp_host,alert_smtp_port,alert_smtp_user,alert_smtp_password,alert_email_to">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>💬 Canale WhatsApp</legend>
-    <label>Numero WhatsApp (con prefisso internazionale)<span class="field-row"><input name="alert_whatsapp_phone" placeholder="es. 391234567890"><button type="button" class="field-save-btn" data-field="alert_whatsapp_phone">💾</button></span></label>
-    <label>API key CallMeBot<span class="field-row"><input name="alert_whatsapp_apikey" type="password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="alert_whatsapp_apikey">💾</button></span></label>
+    <label>Numero WhatsApp (con prefisso internazionale)<input name="alert_whatsapp_phone" placeholder="es. 391234567890"></label>
+    <label>API key CallMeBot<input name="alert_whatsapp_apikey" type="password" placeholder="lascia vuoto per non modificare"></label>
     <small class="hint">
       Via <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener">CallMeBot</a>,
       un servizio gratuito di terze parti (non ufficiale WhatsApp) - il numero va registrato una
       tantum inviando un messaggio al loro bot per ottenere la propria API key.
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="alert_whatsapp_phone,alert_whatsapp_apikey">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
@@ -495,55 +565,65 @@
   <fieldset>
     <legend>🎛️ Antenna GNSS (u-blox/Unicore/LC29H)</legend>
     <label>UART ESP32
-      <span class="field-row"><select name="gnss_uart_num">
+      <select name="gnss_uart_num">
         <option value="0">UART0</option>
         <option value="1">UART1</option>
         <option value="2">UART2</option>
-      </select><button type="button" class="field-save-btn" data-field="gnss_uart_num">💾</button></span>
+      </select>
     </label>
-    <label>GPIO TX (ESP32 &rarr; GNSS)<span class="field-row"><input name="gnss_uart_tx_pin" type="number" min="-1" max="48"><button type="button" class="field-save-btn" data-field="gnss_uart_tx_pin">💾</button></span></label>
-    <label>GPIO RX (GNSS &rarr; ESP32, riceve RTCM3)<span class="field-row"><input name="gnss_uart_rx_pin" type="number" min="-1" max="48"><button type="button" class="field-save-btn" data-field="gnss_uart_rx_pin">💾</button></span></label>
-    <label>Baud rate<span class="field-row"><input name="gnss_uart_baud" type="number" min="4800"><button type="button" class="field-save-btn" data-field="gnss_uart_baud">💾</button></span></label>
+    <label>GPIO TX (ESP32 &rarr; GNSS)<input name="gnss_uart_tx_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO RX (GNSS &rarr; ESP32, riceve RTCM3)<input name="gnss_uart_rx_pin" type="number" min="-1" max="48"></label>
+    <label>Baud rate<input name="gnss_uart_baud" type="number" min="4800"></label>
     <small class="hint">
       Pin verso il modulo GNSS esterno - variano per installazione. Richiede un riavvio per applicarsi.
       Il modulo Quectel LC29H di fabbrica usa 460800 (non 115200) - impostalo qui invece di
       cambiare la velocita' del modulo via comando.
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="gnss_uart_num,gnss_uart_tx_pin,gnss_uart_rx_pin,gnss_uart_baud">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>💡 LED RGB (opzionale)</legend>
     <label>Tipo di LED
-      <span class="field-row"><select name="rgb_led_mode">
+      <select name="rgb_led_mode">
         <option value="none">Nessuno</option>
         <option value="ws2812">WS2812 / NeoPixel (1 pin dati)</option>
         <option value="pwm3">3 pin separati R/G/B (PWM)</option>
-      </select><button type="button" class="field-save-btn" data-field="rgb_led_mode">💾</button></span>
+      </select>
     </label>
-    <label>GPIO dati WS2812<span class="field-row"><input name="rgb_led_ws2812_pin" type="number" min="-1" max="48"><button type="button" class="field-save-btn" data-field="rgb_led_ws2812_pin">💾</button></span></label>
-    <label>GPIO Rosso (PWM)<span class="field-row"><input name="rgb_led_pwm_r_pin" type="number" min="-1" max="48"><button type="button" class="field-save-btn" data-field="rgb_led_pwm_r_pin">💾</button></span></label>
-    <label>GPIO Verde (PWM)<span class="field-row"><input name="rgb_led_pwm_g_pin" type="number" min="-1" max="48"><button type="button" class="field-save-btn" data-field="rgb_led_pwm_g_pin">💾</button></span></label>
-    <label>GPIO Blu (PWM)<span class="field-row"><input name="rgb_led_pwm_b_pin" type="number" min="-1" max="48"><button type="button" class="field-save-btn" data-field="rgb_led_pwm_b_pin">💾</button></span></label>
+    <label>GPIO dati WS2812<input name="rgb_led_ws2812_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Rosso (PWM)<input name="rgb_led_pwm_r_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Verde (PWM)<input name="rgb_led_pwm_g_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Blu (PWM)<input name="rgb_led_pwm_b_pin" type="number" min="-1" max="48"></label>
     <label style="display:flex; align-items:center; gap:.4rem">
-      <span class="field-row"><input name="rgb_led_pwm_active_low" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="rgb_led_pwm_active_low">💾</button></span>
+      <input name="rgb_led_pwm_active_low" type="checkbox" style="width:auto; margin:0">
       Logica invertita (catodo comune verso i GPIO)
     </label>
     <small class="hint">-1 su un pin = non usato/non applicabile al tipo scelto. Richiede un riavvio.</small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="rgb_led_mode,rgb_led_ws2812_pin,rgb_led_pwm_r_pin,rgb_led_pwm_g_pin,rgb_led_pwm_b_pin,rgb_led_pwm_active_low">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 
   <fieldset>
     <legend>🖥️ Display OLED (opzionale, 128x64 I2C)</legend>
     <label>Controller
-      <span class="field-row"><select name="oled_controller">
+      <select name="oled_controller">
         <option value="ssd1306">SSD1306 (tipico nei moduli da 0,96")</option>
         <option value="sh1106">SH1106 (tipico nei moduli da 1,3")</option>
         <option value="ssd1309">SSD1309 (tipico nei moduli da 2,42" - stessi comandi di SSD1306)</option>
-      </select><button type="button" class="field-save-btn" data-field="oled_controller">💾</button></span>
+      </select>
       <small class="hint">Se l'immagine esce distorta o scorretta, prova a cambiare questa scelta.</small>
     </label>
-    <label>GPIO SDA<span class="field-row"><input name="oled_sda_pin" type="number" min="-1" max="48"><button type="button" class="field-save-btn" data-field="oled_sda_pin">💾</button></span></label>
-    <label>GPIO SCL<span class="field-row"><input name="oled_scl_pin" type="number" min="-1" max="48"><button type="button" class="field-save-btn" data-field="oled_scl_pin">💾</button></span></label>
-    <label>Indirizzo I2C (decimale)<span class="field-row"><input name="oled_i2c_addr" type="number" min="1" max="255"><button type="button" class="field-save-btn" data-field="oled_i2c_addr">💾</button></span></label>
+    <label>GPIO SDA<input name="oled_sda_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO SCL<input name="oled_scl_pin" type="number" min="-1" max="48"></label>
+    <label>Indirizzo I2C (decimale)<input name="oled_i2c_addr" type="number" min="1" max="255"></label>
     <small class="hint" id="oled-addr-hex"></small>
     <small class="hint">
       Indirizzo tipico 60 (0x3C, esadecimale); alcuni cloni rispondono su 61 (0x3D). -1 su SDA/SCL
@@ -551,17 +631,22 @@
       dispositivo, satelliti per costellazione e segnale cellulare/WiFi. Richiede un riavvio.
     </small>
     <label style="display:flex; align-items:center; gap:.4rem; margin-top:.8rem">
-      <span class="field-row"><input name="oled_flip_h" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="oled_flip_h">💾</button></span>
+      <input name="oled_flip_h" type="checkbox" style="width:auto; margin:0">
       Testo/immagine a specchio (inverti orizzontale)
     </label>
     <label style="display:flex; align-items:center; gap:.4rem">
-      <span class="field-row"><input name="oled_flip_v" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="oled_flip_v">💾</button></span>
+      <input name="oled_flip_v" type="checkbox" style="width:auto; margin:0">
       Display sottosopra (inverti verticale)
     </label>
     <small class="hint">
       L'orientamento dipende da come il singolo modulo e' cablato internamente - non c'e' un
       valore giusto universale, prova e guarda il risultato. Richiede un riavvio.
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="oled_controller,oled_sda_pin,oled_scl_pin,oled_i2c_addr,oled_flip_h,oled_flip_v">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>  <small class="hint">Pin GNSS/OLED/RGB richiedono un riavvio manuale (scheda Rete) dopo il salvataggio per applicarsi.</small>
 </div>
 
@@ -611,7 +696,7 @@
   <fieldset>
     <legend>🌍 Aggiornamento online</legend>
     <label>Indirizzo manifest (JSON con versione e link al .bin)
-      <span class="field-row"><input name="ota_update_url" placeholder="es. https://github.com/utente/repo/releases/latest/download/version.json"><button type="button" class="field-save-btn" data-field="ota_update_url">💾</button></span>
+      <input name="ota_update_url" placeholder="es. https://github.com/utente/repo/releases/latest/download/version.json">
     </label>
     <small class="hint">Lascia vuoto per disattivare. Salva con il pulsante 💾 qui sopra.</small>
     <button type="button" class="action" id="fw-online-btn" style="margin-top:.8rem">Controlla aggiornamenti online</button>
@@ -621,10 +706,10 @@
     </div>
 
     <label style="margin-top:1rem; flex-direction:row; align-items:center; gap:.5rem">
-      <span class="field-row"><input name="auto_update_check_enable" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="auto_update_check_enable">💾</button></span>
+      <input name="auto_update_check_enable" type="checkbox" style="width:auto; margin:0">
       Controlla e applica gli aggiornamenti automaticamente (senza intervento)
     </label>
-    <label>Ogni quante ore<span class="field-row"><input name="auto_update_check_interval_h" type="number" min="1" placeholder="24"><button type="button" class="field-save-btn" data-field="auto_update_check_interval_h">💾</button></span></label>
+    <label>Ogni quante ore<input name="auto_update_check_interval_h" type="number" min="1" placeholder="24"></label>
     <small class="hint">
       <strong>Disattivato di default.</strong> Se attivo, il dispositivo controlla da solo (collegamento in
       uscita, funziona anche su sola SIM7600/SIM868 dietro NAT dell'operatore) se c'e' una versione piu'
@@ -634,6 +719,11 @@
       si avvia correttamente, il dispositivo torna da solo alla versione precedente (stesso meccanismo
       anti-brick di sempre).
     </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="ota_update_url,auto_update_check_enable,auto_update_check_interval_h">💾 Salva</button>
+      <span class="fieldset-save-msg"></span>
+    </div>
   </fieldset>
 </div>
 <small class="hint">
@@ -1297,51 +1387,51 @@ function typedFieldValue(f, name) {
 }
 
 // Salvataggio di un singolo campo (pulsante 💾 accanto ad ogni parametro,
-// vedi index.html) - manda solo quel campo: il backend (copy_field in
-// web_ui.c) lascia invariato tutto il resto. Per le password vuote non manda
-// nulla (il campo "lascia vuoto per non modificare" e' gia' cosi' per
-// design) invece di mostrare un falso "Salvato".
-async function saveField(name, btn) {
+// vedi index.html) - manda insieme tutti i campi elencati in data-fields del
+// riquadro: il backend (copy_field in web_ui.c) lascia invariato tutto il
+// resto. Le password lasciate vuote ("lascia vuoto per non modificare")
+// vengono escluse dall'invio invece di mandare una stringa vuota che il
+// backend ignorerebbe comunque - solo per chiarezza del messaggio mostrato.
+async function saveFieldset(names, btn, msgEl) {
   const f = document.getElementById('cfg-form');
-  const el = f.elements[name];
-  if (!el) return;
-  const value = typedFieldValue(f, name);
-
-  if (el.type === 'password' && value === '') {
-    flashFieldBtn(btn, '—', null);
-    return;
+  const data = {};
+  for (const name of names) {
+    const el = f.elements[name];
+    if (!el) continue;
+    const value = typedFieldValue(f, name);
+    if (el.type === 'password' && value === '') continue;
+    data[name] = value;
   }
 
   const orig = btn.textContent;
   btn.disabled = true;
   btn.textContent = '...';
+  btn.classList.remove('ok', 'err');
+  msgEl.textContent = '';
   try {
-    const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify({ [name]: value }) });
+    const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
     if (!r.ok) throw new Error('errore server');
-    flashFieldBtn(btn, '✓', true, orig);
+    btn.classList.add('ok');
+    msgEl.textContent = 'Salvato';
   } catch (e) {
-    flashFieldBtn(btn, '✗', false, orig);
+    btn.classList.add('err');
+    msgEl.textContent = 'Errore';
   }
   btn.disabled = false;
-}
-
-function flashFieldBtn(btn, text, ok, orig) {
-  btn.textContent = text;
-  btn.classList.remove('ok', 'err');
-  if (ok === true) btn.classList.add('ok');
-  if (ok === false) btn.classList.add('err');
-  if (ok !== null) {
-    setTimeout(() => { btn.textContent = orig || '💾'; btn.classList.remove('ok', 'err'); }, 1500);
-  } else {
-    setTimeout(() => { btn.textContent = orig || '💾'; }, 900);
-  }
+  setTimeout(() => {
+    btn.textContent = orig;
+    btn.classList.remove('ok', 'err');
+    msgEl.textContent = '';
+  }, 1800);
 }
 
 document.getElementById('cfg-form').addEventListener('click', (ev) => {
-  const btn = ev.target.closest('.field-save-btn');
+  const btn = ev.target.closest('.fieldset-save-btn');
   if (!btn) return;
   ev.preventDefault();
-  saveField(btn.dataset.field, btn);
+  const names = btn.dataset.fields.split(',');
+  const msgEl = btn.nextElementSibling;
+  saveFieldset(names, btn, msgEl);
 });
 
 // Fallback: invio del form (es. tasto Invio in un campo) salva tutto in un
