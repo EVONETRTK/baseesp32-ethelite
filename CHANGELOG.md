@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.33
+
+- Richiesta dell'utente ("raggruppali per tipologia"): il fieldset "Avvisi (email/WhatsApp)" nella scheda Sicurezza, che mescolava avviso disconnessione, avviso spostamento base, configurazione email e configurazione WhatsApp in un unico blocco, e' stato diviso in 4 gruppi separati per argomento (🔌 disconnessione, 📍 drift, ✉️ email, 💬 WhatsApp) + un piccolo gruppo per il pulsante di prova. Nessun campo aggiunto o rimosso, solo riorganizzato.
+
 ## 1.19.32
 
 - **Richiesta dell'utente ("il pulsante salva va messo a fianco di ogni parametro... e non sotto la pagina")**: rimossi i pulsanti "Salva" in fondo alle 4 schede (Rete, GNSS & NTRIP, Sicurezza, Hardware) e il pulsante globale in fondo a Firmware - ogni singolo campo (56 in totale) ha ora il proprio pulsante 💾 accanto, che salva solo quel valore (il backend lascia invariato tutto il resto). Le password vuote ("lascia vuoto per non modificare") non vengono inviate, mostrano solo "—" invece di un falso "Salvato".

@@ -355,7 +355,7 @@
   </fieldset>
 
   <fieldset>
-    <legend>🔔 Avvisi (email/WhatsApp)</legend>
+    <legend>🔌 Avviso disconnessione caster</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <span class="field-row"><input name="alert_enable" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="alert_enable">💾</button></span>
       Avvisami se la connessione al caster resta interrotta troppo a lungo
@@ -366,8 +366,11 @@
       resta giu' (e uno quando torna a funzionare). Basta configurare almeno un canale qui sotto,
       email e WhatsApp insieme oppure uno solo.
     </small>
+  </fieldset>
 
-    <label style="margin-top:.8rem; flex-direction:row; align-items:center; gap:.5rem">
+  <fieldset>
+    <legend>📍 Avviso spostamento base (drift)</legend>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
       <span class="field-row"><input name="base_drift_alert_enable" type="checkbox" style="width:auto; margin:0"><button type="button" class="field-save-btn" data-field="base_drift_alert_enable">💾</button></span>
       Avvisami se l'antenna della base si sposta (solo modalita' base)
     </label>
@@ -376,15 +379,18 @@
       Confronta la posizione dell'antenna (dai messaggi RTCM 1005/1006 gia' inviati al caster) con
       quella registrata al primo avvio dopo il boot - utile per accorgersi se la base viene urtata
       da un mezzo agricolo o spostata dal vento, cosa che altrimenti manderebbe correzioni sbagliate
-      a tutti i rover collegati senza nessun segnale visibile sul posto. Richiede anche il flag sopra
-      "Avvisami se la connessione al caster..." attivo (usa la stessa configurazione email/WhatsApp).
+      a tutti i rover collegati senza nessun segnale visibile sul posto. Richiede anche l'avviso di
+      disconnessione attivo qui sopra (usa la stessa configurazione email/WhatsApp).
     </small>
     <dl class="kv" style="margin-top:.4rem">
       <dt>Posizione di riferimento</dt><dd id="drift-baseline">-</dd>
       <dt>Spostamento attuale</dt><dd id="drift-current">-</dd>
     </dl>
+  </fieldset>
 
-    <label style="margin-top:.8rem">Server SMTP (email)<span class="field-row"><input name="alert_smtp_host" placeholder="es. smtp.gmail.com"><button type="button" class="field-save-btn" data-field="alert_smtp_host">💾</button></span></label>
+  <fieldset>
+    <legend>✉️ Canale email (SMTP)</legend>
+    <label>Server SMTP<span class="field-row"><input name="alert_smtp_host" placeholder="es. smtp.gmail.com"><button type="button" class="field-save-btn" data-field="alert_smtp_host">💾</button></span></label>
     <label>Porta SMTP<span class="field-row"><input name="alert_smtp_port" type="number" min="1" max="65535" placeholder="465"><button type="button" class="field-save-btn" data-field="alert_smtp_port">💾</button></span></label>
     <label>Utente/mittente<span class="field-row"><input name="alert_smtp_user" placeholder="es. tuonome@gmail.com"><button type="button" class="field-save-btn" data-field="alert_smtp_user">💾</button></span></label>
     <label>Password (password per le app, non quella dell'account)<span class="field-row"><input name="alert_smtp_password" type="password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="alert_smtp_password">💾</button></span></label>
@@ -393,18 +399,25 @@
       Con Gmail serve una "password per le app" (myaccount.google.com/apppasswords), non la password
       normale dell'account - richiede la verifica in due passaggi attiva.
     </small>
+  </fieldset>
 
-    <label style="margin-top:.8rem">Numero WhatsApp (con prefisso internazionale)<span class="field-row"><input name="alert_whatsapp_phone" placeholder="es. 391234567890"><button type="button" class="field-save-btn" data-field="alert_whatsapp_phone">💾</button></span></label>
+  <fieldset>
+    <legend>💬 Canale WhatsApp</legend>
+    <label>Numero WhatsApp (con prefisso internazionale)<span class="field-row"><input name="alert_whatsapp_phone" placeholder="es. 391234567890"><button type="button" class="field-save-btn" data-field="alert_whatsapp_phone">💾</button></span></label>
     <label>API key CallMeBot<span class="field-row"><input name="alert_whatsapp_apikey" type="password" placeholder="lascia vuoto per non modificare"><button type="button" class="field-save-btn" data-field="alert_whatsapp_apikey">💾</button></span></label>
     <small class="hint">
       Via <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener">CallMeBot</a>,
       un servizio gratuito di terze parti (non ufficiale WhatsApp) - il numero va registrato una
       tantum inviando un messaggio al loro bot per ottenere la propria API key.
     </small>
+  </fieldset>
 
-    <button type="button" class="action secondary" id="alert-test-btn" style="margin-top:.8rem">Invia avviso di prova</button>
+  <fieldset>
+    <legend>🧪 Prova avvisi</legend>
+    <button type="button" class="action secondary" id="alert-test-btn">Invia avviso di prova</button>
     <div id="alert-test-msg" class="hint" style="margin-top:.4rem"></div>
-  </fieldset></div>
+  </fieldset>
+</div>
 
 <div id="page-signals" class="page">
   <fieldset>
