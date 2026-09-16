@@ -274,6 +274,63 @@
   </fieldset>
 
   <fieldset>
+    <legend>📡 Messaggi RTCM inviati (solo base)</legend>
+    <small class="hint">
+      Quali correzioni mandare al rover e con quale risoluzione - utile per ridurre il volume dati
+      su ricevitori con memoria limitata (spegni le costellazioni che non ti servono, o usa MSM4
+      invece di MSM7). Con chip <strong>Quectel LC29H</strong> il modulo ha solo un interruttore
+      globale MSM4/MSM7 (non per costellazione): se anche una sola e' impostata su MSM7, tutte le
+      altre attive riceveranno comunque MSM7 - limite del modulo, non di questa pagina.
+    </small>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.7rem">
+      <button type="button" class="action secondary" id="rtcm-preset-msm4">Standard MSM4 (leggero)</button>
+      <button type="button" class="action secondary" id="rtcm-preset-msm7">Massima precisione MSM7</button>
+      <button type="button" class="action secondary" id="rtcm-preset-gpsglo">Solo GPS+GLONASS</button>
+    </div>
+    <label style="margin-top:.8rem">GPS
+      <select name="rtcm_gps_msm">
+        <option value="off">Disattivato</option>
+        <option value="msm4">MSM4 (standard)</option>
+        <option value="msm7">MSM7 (massima precisione)</option>
+      </select>
+    </label>
+    <label>GLONASS
+      <select name="rtcm_glonass_msm">
+        <option value="off">Disattivato</option>
+        <option value="msm4">MSM4 (standard)</option>
+        <option value="msm7">MSM7 (massima precisione)</option>
+      </select>
+    </label>
+    <label>Galileo
+      <select name="rtcm_galileo_msm">
+        <option value="off">Disattivato</option>
+        <option value="msm4">MSM4 (standard)</option>
+        <option value="msm7">MSM7 (massima precisione)</option>
+      </select>
+    </label>
+    <label>BeiDou
+      <select name="rtcm_beidou_msm">
+        <option value="off">Disattivato</option>
+        <option value="msm4">MSM4 (standard)</option>
+        <option value="msm7">MSM7 (massima precisione)</option>
+      </select>
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem; margin-top:.6rem">
+      <input name="rtcm_1005_enable" type="checkbox" style="width:auto; margin:0">
+      Messaggio 1005 (posizione base) - normalmente da lasciare sempre attivo
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1230_enable" type="checkbox" style="width:auto; margin:0">
+      Messaggio 1230 (bias GLONASS) - non applicabile su Quectel LC29H
+    </label>
+
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="rtcm_gps_msm,rtcm_glonass_msm,rtcm_galileo_msm,rtcm_beidou_msm,rtcm_1005_enable,rtcm_1230_enable">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
     <legend>📍 Posizione base</legend>
     <label>Modalita' posizione
       <select name="base_position_mode">
@@ -1122,6 +1179,12 @@ async function loadStatus() {
       f.nmea_udp_port.value = s.nmea_udp_port || '';
       f.gnss_chip.value = s.gnss_chip || 'ublox';
       f.device_mode.value = s.device_mode || 'base';
+      f.rtcm_gps_msm.value = s.rtcm_gps_msm || 'off';
+      f.rtcm_glonass_msm.value = s.rtcm_glonass_msm || 'off';
+      f.rtcm_galileo_msm.value = s.rtcm_galileo_msm || 'off';
+      f.rtcm_beidou_msm.value = s.rtcm_beidou_msm || 'off';
+      f.rtcm_1005_enable.checked = !!s.rtcm_1005_enable;
+      f.rtcm_1230_enable.checked = !!s.rtcm_1230_enable;
       f.network_mode.value = s.network_mode || 'both';
       f.ap_ssid.value = s.ap_ssid || '';
       f.device_serial.value = s.device_serial || '';
@@ -1614,6 +1677,7 @@ const NUMBER_FIELDS = new Set([
 const BOOL_CHECKBOX_FIELDS = new Set([
   'rgb_led_pwm_active_low', 'oled_flip_h', 'oled_flip_v', 'alert_enable',
   'base_drift_alert_enable', 'ntrip_caster_server_enable', 'auto_update_check_enable',
+  'rtcm_1005_enable', 'rtcm_1230_enable',
 ]);
 
 // Legge dal form il valore gia' tipizzato correttamente per il JSON che si
@@ -1919,6 +1983,32 @@ document.getElementById('ntrip-test-btn').addEventListener('click', async () => 
     msg.style.fontWeight = '600';
     msg.textContent = 'Errore di comunicazione col dispositivo';
   }
+});
+
+// Preset per la selezione messaggi RTCM (solo base) - riempiono i quattro
+// select e le due checkbox, ma non salvano da soli: resta il pulsante 💾
+// del riquadro a farlo, cosi' si puo' vedere/ritoccare prima di confermare.
+function applyRtcmPreset(gps, glonass, galileo, beidou, m1005, m1230) {
+  const f = document.getElementById('cfg-form');
+  f.rtcm_gps_msm.value = gps;
+  f.rtcm_glonass_msm.value = glonass;
+  f.rtcm_galileo_msm.value = galileo;
+  f.rtcm_beidou_msm.value = beidou;
+  f.rtcm_1005_enable.checked = m1005;
+  f.rtcm_1230_enable.checked = m1230;
+  [f.rtcm_gps_msm, f.rtcm_glonass_msm, f.rtcm_galileo_msm, f.rtcm_beidou_msm, f.rtcm_1005_enable, f.rtcm_1230_enable]
+    .forEach((el) => el.classList.add('field-dirty'));
+  updateTabDirtyBadges();
+}
+
+document.getElementById('rtcm-preset-msm4').addEventListener('click', () => {
+  applyRtcmPreset('msm4', 'msm4', 'msm4', 'msm4', true, true);
+});
+document.getElementById('rtcm-preset-msm7').addEventListener('click', () => {
+  applyRtcmPreset('msm7', 'msm7', 'msm7', 'msm7', true, true);
+});
+document.getElementById('rtcm-preset-gpsglo').addEventListener('click', () => {
+  applyRtcmPreset('msm7', 'msm7', 'off', 'off', true, true);
 });
 
 // Durante il tentativo la radio deve spostarsi sul canale della rete di

@@ -1,4 +1,5 @@
 #include "gnss_ubx.h"
+#include "settings.h"
 
 #include <string.h>
 #include "esp_log.h"
@@ -74,25 +75,60 @@ static esp_err_t ubx_valset(uart_port_t uart_num, const ubx_cfg_kv32_t *kvs, siz
     return ubx_send(uart_num, 0x06, 0x8A, payload, (uint16_t) (4 + n * sizeof(ubx_cfg_kv32_t)));
 }
 
+// Chiave MSM4/MSM7 (UART1) per ciascuna costellazione, verificate contro
+// sparkfun/SparkFun_u-blox_GNSS_Arduino_Library (src/u-blox_config_keys.h,
+// libreria di terzi ampiamente usata, non la fonte ufficiale u-blox diretta
+// ma un riscontro indipendente) dopo aver scoperto che i valori precedenti
+// in questo file erano sbagliati (quasi tutti spostati di una posizione:
+// es. 1005 era 0x209102bd invece di 0x209102be) - la configurazione RTCM3
+// della base molto probabilmente non ha mai funzionato correttamente su
+// hardware u-blox reale prima di questo fix, dato che una chiave sbagliata
+// viene rifiutata in silenzio (vedi avvertenza in gnss_ubx.h).
+typedef struct {
+    uint32_t msm4_key;
+    uint32_t msm7_key;
+} ubx_msm_keys_t;
+
+static const ubx_msm_keys_t UBX_MSM_KEYS_GPS     = { 0x2091035f, 0x209102cd };
+static const ubx_msm_keys_t UBX_MSM_KEYS_GLONASS = { 0x20910364, 0x209102d2 };
+static const ubx_msm_keys_t UBX_MSM_KEYS_GALILEO = { 0x20910369, 0x20910319 };
+static const ubx_msm_keys_t UBX_MSM_KEYS_BEIDOU  = { 0x2091036e, 0x209102d7 };
+
+// Aggiunge a kvs (fino a max, aggiornando *n) le due chiavi msm4/msm7 di
+// una costellazione, impostando ad 1 solo quella corrispondente al livello
+// richiesto e a 0 l'altra - un cambio MSM4->MSM7 (o viceversa) deve
+// disattivare esplicitamente il livello precedente, non basta abilitare
+// quello nuovo.
+static void add_msm_level(ubx_cfg_kv32_t *kvs, size_t *n, size_t max, const ubx_msm_keys_t *keys, rtcm_msm_level_t level)
+{
+    if (*n + 2 > max) {
+        return;
+    }
+    kvs[(*n)++] = (ubx_cfg_kv32_t) { keys->msm4_key, level == RTCM_MSM4 ? 1u : 0u };
+    kvs[(*n)++] = (ubx_cfg_kv32_t) { keys->msm7_key, level == RTCM_MSM7 ? 1u : 0u };
+}
+
 esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
 {
     ESP_LOGI(TAG, "Configuro ricevitore u-blox come base RTK (Survey-In + RTCM3 su UART1)");
 
-    const ubx_cfg_kv32_t kvs[] = {
-        { 0x10740004, 1 },     // CFG-UART1OUTPROT-RTCM3X: abilita RTCM3 in uscita su UART1
-        { 0x10740002, 0 },     // CFG-UART1OUTPROT-NMEA: disabilita NMEA in uscita (solo RTCM3 su questa porta)
-        { 0x209102bd, 1 },     // CFG-MSGOUT-RTCM_3X_TYPE1005_UART1 (posizione base)
-        { 0x209102cc, 1 },     // CFG-MSGOUT-RTCM_3X_TYPE1077_UART1 (GPS MSM7)
-        { 0x209102d1, 1 },     // CFG-MSGOUT-RTCM_3X_TYPE1087_UART1 (GLONASS MSM7)
-        { 0x2091031b, 1 },     // CFG-MSGOUT-RTCM_3X_TYPE1097_UART1 (Galileo MSM7)
-        { 0x209102d6, 1 },     // CFG-MSGOUT-RTCM_3X_TYPE1127_UART1 (BeiDou MSM7)
-        { 0x20910303, 1 },     // CFG-MSGOUT-RTCM_3X_TYPE1230_UART1 (bias GLONASS)
-        { 0x20030001, 1 },     // CFG-TMODE-MODE = 1 (Survey-In)
-        { 0x40030011, 60 },    // CFG-TMODE-SVIN-MIN-DUR: durata minima survey-in (s)
-        { 0x40030010, 2500 },  // CFG-TMODE-SVIN-ACC-LIMIT: precisione richiesta, unita' 0.1mm (2500 = 250mm)
-    };
+    app_settings_t s = settings_get();
 
-    esp_err_t err = ubx_valset(uart_num, kvs, sizeof(kvs) / sizeof(kvs[0]));
+    ubx_cfg_kv32_t kvs[32];
+    size_t n = 0;
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x10740004, 1 }; // CFG-UART1OUTPROT-RTCM3X: abilita RTCM3 in uscita su UART1
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x10740002, 0 }; // CFG-UART1OUTPROT-NMEA: disabilita NMEA in uscita (solo RTCM3 su questa porta)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102be, s.rtcm_1005_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1005_UART1 (posizione base)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910304, s.rtcm_1230_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1230_UART1 (bias GLONASS)
+    add_msm_level(kvs, &n, 32, &UBX_MSM_KEYS_GPS, s.rtcm_gps_msm);
+    add_msm_level(kvs, &n, 32, &UBX_MSM_KEYS_GLONASS, s.rtcm_glonass_msm);
+    add_msm_level(kvs, &n, 32, &UBX_MSM_KEYS_GALILEO, s.rtcm_galileo_msm);
+    add_msm_level(kvs, &n, 32, &UBX_MSM_KEYS_BEIDOU, s.rtcm_beidou_msm);
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x20030001, 1 };     // CFG-TMODE-MODE = 1 (Survey-In)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x40030010, 60 };    // CFG-TMODE-SVIN-MIN-DUR: durata minima survey-in (s) - chiave corretta, era scambiata con quella sotto
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x40030011, 2500 };  // CFG-TMODE-SVIN-ACC-LIMIT: precisione richiesta, unita' 0.1mm (2500 = 250mm) - chiave corretta, era scambiata con quella sopra
+
+    esp_err_t err = ubx_valset(uart_num, kvs, n);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Invio configurazione UBX fallito");
     }

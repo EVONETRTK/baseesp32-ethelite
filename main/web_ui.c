@@ -189,6 +189,22 @@ static const char *device_mode_str(device_mode_t m)
     return m == DEVICE_MODE_ROVER ? "rover" : "base";
 }
 
+static const char *rtcm_msm_level_str(rtcm_msm_level_t l)
+{
+    switch (l) {
+    case RTCM_MSM4: return "msm4";
+    case RTCM_MSM7: return "msm7";
+    default:        return "off";
+    }
+}
+
+static rtcm_msm_level_t rtcm_msm_level_from_str(const char *s)
+{
+    if (strcmp(s, "msm4") == 0) return RTCM_MSM4;
+    if (strcmp(s, "msm7") == 0) return RTCM_MSM7;
+    return RTCM_MSM_OFF;
+}
+
 static const char *oled_controller_str(oled_controller_t c)
 {
     switch (c) {
@@ -343,6 +359,12 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
     cJSON_AddNumberToObject(root, "last_online_update_check_us", (double) status_get_last_online_update_check_us());
     cJSON_AddStringToObject(root, "gnss_chip", gnss_chip_str(s.gnss_chip));
+    cJSON_AddStringToObject(root, "rtcm_gps_msm", rtcm_msm_level_str(s.rtcm_gps_msm));
+    cJSON_AddStringToObject(root, "rtcm_glonass_msm", rtcm_msm_level_str(s.rtcm_glonass_msm));
+    cJSON_AddStringToObject(root, "rtcm_galileo_msm", rtcm_msm_level_str(s.rtcm_galileo_msm));
+    cJSON_AddStringToObject(root, "rtcm_beidou_msm", rtcm_msm_level_str(s.rtcm_beidou_msm));
+    cJSON_AddBoolToObject(root, "rtcm_1005_enable", s.rtcm_1005_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1230_enable", s.rtcm_1230_enable);
     cJSON_AddStringToObject(root, "device_mode", device_mode_str(s.device_mode));
     cJSON_AddStringToObject(root, "network_mode", network_mode_str(s.network_mode));
     {
@@ -754,6 +776,31 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "device_mode");
     if (mode_item && cJSON_IsString(mode_item)) {
         s.device_mode = (strcmp(mode_item->valuestring, "rover") == 0) ? DEVICE_MODE_ROVER : DEVICE_MODE_BASE;
+    }
+
+    cJSON *rtcm_gps_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_gps_msm");
+    if (rtcm_gps_item && cJSON_IsString(rtcm_gps_item)) {
+        s.rtcm_gps_msm = rtcm_msm_level_from_str(rtcm_gps_item->valuestring);
+    }
+    cJSON *rtcm_glonass_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_glonass_msm");
+    if (rtcm_glonass_item && cJSON_IsString(rtcm_glonass_item)) {
+        s.rtcm_glonass_msm = rtcm_msm_level_from_str(rtcm_glonass_item->valuestring);
+    }
+    cJSON *rtcm_galileo_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_galileo_msm");
+    if (rtcm_galileo_item && cJSON_IsString(rtcm_galileo_item)) {
+        s.rtcm_galileo_msm = rtcm_msm_level_from_str(rtcm_galileo_item->valuestring);
+    }
+    cJSON *rtcm_beidou_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_beidou_msm");
+    if (rtcm_beidou_item && cJSON_IsString(rtcm_beidou_item)) {
+        s.rtcm_beidou_msm = rtcm_msm_level_from_str(rtcm_beidou_item->valuestring);
+    }
+    cJSON *rtcm_1005_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_1005_enable");
+    if (rtcm_1005_item && cJSON_IsBool(rtcm_1005_item)) {
+        s.rtcm_1005_enable = cJSON_IsTrue(rtcm_1005_item);
+    }
+    cJSON *rtcm_1230_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_1230_enable");
+    if (rtcm_1230_item && cJSON_IsBool(rtcm_1230_item)) {
+        s.rtcm_1230_enable = cJSON_IsTrue(rtcm_1230_item);
     }
 
     cJSON *cellular_modem_item = cJSON_GetObjectItemCaseSensitive(root, "cellular_is_sim868");

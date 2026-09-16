@@ -4,18 +4,22 @@
 #include "esp_err.h"
 
 // Configura un ricevitore u-blox (serie F9, es. ZED-F9P) collegato sulla
-// UART indicata come base RTK: Survey-In automatico e uscita RTCM3 sulla
-// stessa porta seriale.
+// UART indicata come base RTK: Survey-In automatico e uscita RTCM3 (i
+// messaggi/costellazioni scelti in settings.rtcm_*) sulla stessa porta
+// seriale.
 //
-// ATTENZIONE: le chiavi di configurazione UBX-CFG-VALSET usate qui (vedi
-// gnss_ubx.c) sono quelle documentate pubblicamente per la famiglia
-// u-blox F9 ma sono state trascritte a memoria, senza possibilita' di
-// verifica su hardware reale in questo progetto (ESP-IDF non installato).
-// La funzione non legge/verifica gli UBX-ACK di risposta: un ID chiave
-// sbagliato viene tipicamente rifiutato in silenzio dal ricevitore
-// (nessun crash, ma nessuna configurazione applicata). Vanno controllate
-// contro l'Interface Description del modulo specifico prima dell'uso in
-// campo.
+// Le chiavi di configurazione UBX-CFG-VALSET usate qui (vedi gnss_ubx.c)
+// sono state verificate contro sparkfun/SparkFun_u-blox_GNSS_Arduino_Library
+// (src/u-blox_config_keys.h) dopo aver scoperto che i valori usati in
+// precedenza in questo file (trascritti a memoria) erano sbagliati - quasi
+// tutte le chiavi CFG-MSGOUT-RTCM_3X_TYPE*_UART1 erano spostate di una
+// posizione, e le due chiavi CFG-TMODE-SVIN-MIN-DUR/SVIN-ACC-LIMIT erano
+// scambiate tra loro. Restano comunque una fonte di terzi, non
+// l'Interface Description ufficiale u-blox diretta, e la funzione non
+// legge/verifica gli UBX-ACK di risposta: un ID chiave sbagliato viene
+// tipicamente rifiutato in silenzio dal ricevitore (nessun crash, ma
+// nessuna configurazione applicata) - non ancora testato su un vero
+// ricevitore u-blox in questo progetto.
 esp_err_t gnss_ubx_configure_base(uart_port_t uart_num);
 
 // Configura lo stesso ricevitore come rover: esce dalla modalita' base,

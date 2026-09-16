@@ -53,6 +53,23 @@ typedef struct {
     char password[65];
 } wifi_known_network_t;
 
+// Livello dei messaggi RTCM3 MSM (Multiple Signal Message) da inviare per
+// ciascuna costellazione quando il dispositivo e' base - richiesto
+// dall'utente per poter ridurre il volume dati/messaggi su ricevitori
+// rover con memoria limitata, invece di avere un set fisso di messaggi
+// deciso dal firmware. MSM4 = risoluzione standard (meno dati), MSM7 =
+// massima risoluzione (piu' dati). Non tutti i chip GNSS supportati
+// permettono lo stesso livello di controllo: u-blox e Unicore possono
+// scegliere per singola costellazione, il Quectel LC29H (vedi
+// gnss_lc29h.c) ha solo un interruttore globale MSM4/MSM7 lato modulo -
+// li' il livello piu' alto richiesto tra le costellazioni abilitate vale
+// per tutte.
+typedef enum {
+    RTCM_MSM_OFF = 0,
+    RTCM_MSM4 = 1,
+    RTCM_MSM7 = 2,
+} rtcm_msm_level_t;
+
 // IMPORTANTE per chi modifica questa struct: settings.c salva/carica questi
 // campi come blob grezzo in NVS, con una migrazione che permette di
 // aggiungere nuovi campi senza perdere la configurazione gia' salvata dagli
@@ -206,6 +223,18 @@ typedef struct {
     uint16_t auto_update_check_interval_h; // ore tra un controllo e l'altro
 
     wifi_known_network_t wifi_known_networks[WIFI_KNOWN_NETWORKS_MAX];
+
+    // Selezione messaggi RTCM3 per la base (vedi rtcm_msm_level_t sopra) -
+    // il default (impostato in apply_defaults()) riproduce il comportamento
+    // storico gia' in uso (MSM7 su tutte le costellazioni + 1005 + 1230),
+    // cosi' un dispositivo gia' in campo non cambia comportamento finche'
+    // non si tocca esplicitamente questa impostazione.
+    rtcm_msm_level_t rtcm_gps_msm;
+    rtcm_msm_level_t rtcm_glonass_msm;
+    rtcm_msm_level_t rtcm_galileo_msm;
+    rtcm_msm_level_t rtcm_beidou_msm;
+    bool rtcm_1005_enable; // posizione base (senza posizione RTK non ha senso disattivarlo, ma resta scelta esplicita dell'utente)
+    bool rtcm_1230_enable; // bias di fase/codice GLONASS
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

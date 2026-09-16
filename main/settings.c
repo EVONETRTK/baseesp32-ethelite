@@ -145,6 +145,15 @@ static void apply_defaults(void)
     format_mac_serial(s_settings.device_serial, sizeof(s_settings.device_serial));
     strncpy(s_settings.ap_password, "baseesp32setup", sizeof(s_settings.ap_password) - 1);
     strncpy(s_settings.admin_code, "1234", sizeof(s_settings.admin_code) - 1);
+
+    // Default = comportamento storico gia' in uso prima che questa
+    // impostazione esistesse (MSM7 su tutte le costellazioni + 1005 + 1230).
+    s_settings.rtcm_gps_msm = RTCM_MSM7;
+    s_settings.rtcm_glonass_msm = RTCM_MSM7;
+    s_settings.rtcm_galileo_msm = RTCM_MSM7;
+    s_settings.rtcm_beidou_msm = RTCM_MSM7;
+    s_settings.rtcm_1005_enable = true;
+    s_settings.rtcm_1230_enable = true;
 }
 
 void settings_init(void)

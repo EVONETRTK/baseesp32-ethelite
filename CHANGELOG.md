@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.41
+
+- **Richiesta dell'utente: i messaggi RTCM3 inviati dalla base sono ora selezionabili dalla UI** invece di un set fisso deciso dal firmware ("devo poter dire io 1005 1074 ecc, alcune antenne potrebbero riempire la memoria"). Nuovo riquadro "Messaggi RTCM inviati" (pagina GNSS & NTRIP): livello MSM (spento/MSM4/MSM7) per ciascuna costellazione (GPS/GLONASS/Galileo/BeiDou) + interruttori per 1005 (posizione base) e 1230 (bias GLONASS), con 3 preset rapidi (Standard MSM4, Massima precisione MSM7, Solo GPS+GLONASS) oltre alla scelta libera. Applicato a tutti e tre i chip supportati (u-blox, Unicore, Quectel LC29H) - il LC29H ha pero' solo un interruttore MSM4/MSM7 globale lato modulo, non per costellazione: documentato onestamente in UI invece di far finta di un controllo che l'hardware non offre.
+- **Bug reale trovato e corretto nel driver u-blox verificando le chiavi contro una fonte affidabile** (sparkfun/SparkFun_u-blox_GNSS_Arduino_Library) prima di aggiungere le nuove: quasi tutte le chiavi UBX-CFG-MSGOUT-RTCM_3X_TYPE*_UART1 gia' in uso erano sbagliate (spostate di una posizione, es. 1005 era 0x209102bd invece di 0x209102be), e le due chiavi CFG-TMODE-SVIN-MIN-DUR/SVIN-ACC-LIMIT erano scambiate tra loro (60 secondi finiva nella chiave di precisione, 2500 in quella di durata). La configurazione RTCM3 della base su hardware u-blox molto probabilmente non ha mai funzionato correttamente prima di questo fix - una chiave sbagliata viene rifiutata in silenzio dal ricevitore, senza errore visibile.
+
 ## 1.19.40
 
 - **Richiesta dell'utente: attivata davvero l'Ethernet (W5500 via SPI) sul T-ETH-Elite**, prima disattivata di default e mai compilata con successo. Verificato prima il pinout ufficiale contro `Xinyuan-LilyGO/LilyGO-T-ETH-Series` (`examples/HelloServer/utilities.h`, sezione `LILYGO_T_ETH_ELITE_ESP32S3`): i pin gia' presenti nel Kconfig del progetto (MISO=47, MOSI=21, SCLK=48, CS=45, INT=14, RST=-1, indirizzo PHY=1) combaciano esattamente - nessuna modifica necessaria li'. Due bug reali trovati compilando per la prima volta con l'opzione attiva:
