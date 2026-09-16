@@ -147,13 +147,23 @@ static void apply_defaults(void)
     strncpy(s_settings.admin_code, "1234", sizeof(s_settings.admin_code) - 1);
 
     // Default = comportamento storico gia' in uso prima che questa
-    // impostazione esistesse (MSM7 su tutte le costellazioni + 1005 + 1230).
-    s_settings.rtcm_gps_msm = RTCM_MSM7;
-    s_settings.rtcm_glonass_msm = RTCM_MSM7;
-    s_settings.rtcm_galileo_msm = RTCM_MSM7;
-    s_settings.rtcm_beidou_msm = RTCM_MSM7;
+    // impostazione esistesse (MSM7 su tutte le costellazioni + 1005 + 1230,
+    // gli extra 1007/1008/1019/1020 spenti perche' non mai stati inviati
+    // prima d'ora).
     s_settings.rtcm_1005_enable = true;
     s_settings.rtcm_1230_enable = true;
+    s_settings.rtcm_1007_enable = false;
+    s_settings.rtcm_1008_enable = false;
+    s_settings.rtcm_1019_enable = false;
+    s_settings.rtcm_1020_enable = false;
+    s_settings.rtcm_1074_enable = false;
+    s_settings.rtcm_1077_enable = true;
+    s_settings.rtcm_1084_enable = false;
+    s_settings.rtcm_1087_enable = true;
+    s_settings.rtcm_1094_enable = false;
+    s_settings.rtcm_1097_enable = true;
+    s_settings.rtcm_1124_enable = false;
+    s_settings.rtcm_1127_enable = true;
 }
 
 void settings_init(void)

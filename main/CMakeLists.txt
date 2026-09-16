@@ -28,6 +28,7 @@ idf_component_register(
         "online_update.c"
         "alerts.c"
         "rtcm3_1005.c"
+        "rtcm3_stats.c"
         "base_monitor.c"
         "ntrip_caster_server.c"
         "geo_convert.c"

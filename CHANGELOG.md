@@ -2,6 +2,21 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.43
+
+- Richiesta dell'utente (altri suggerimenti UX proposti e accettati): cinque novita':
+  1. Le checkbox RTCM non supportate dal chip GNSS scelto (es. 1007/1008/1019/1020 su u-blox) si disattivano e sbiadiscono da sole invece di restare spuntabili e scoprire solo dal log che vengono ignorate.
+  2. Pulsante "Annulla modifiche non salvate" nel riquadro RTCM - ricarica dal dispositivo i valori gia' salvati, scartando esperimenti fatti sul form.
+  3. Stato Ethernet (collegato/IP) visibile nella scheda Stato - prima l'interfaccia, appena attivata in 1.19.40, non aveva nessuna visibilita' in UI.
+  4. Validazione di formato per l'host NTRIP prima di salvare (niente spazi, "http://" davanti o "/" in fondo) - un errore di battitura si scopre subito, non solo quando la connessione fallisce.
+  5. Nuovo riquadro "Byte RTCM per messaggio" in Segnali (solo base): quanto pesa davvero ciascun messaggio scelto, dal boot. Nuovo modulo `rtcm3_stats.c` (scanner di frame RTCM3 leggero, senza validazione CRC - solo diagnostica, riusa lo stesso schema di stato gia' verificato in `rtcm3_1005.c`).
+
+## 1.19.42
+
+- **Richiesta dell'utente ("altri software si può scegliere 1005 1007 ecc")**: la selezione messaggi RTCM di 1.19.41 (menu a tendina off/MSM4/MSM7 per costellazione) è stata sostituita da **14 checkbox indipendenti, uno per numero messaggio** (1005, 1007, 1008, 1019, 1020, 1074, 1077, 1084, 1087, 1094, 1097, 1124, 1127, 1230), nessun vincolo tra loro - stile piu' vicino ad altri software NTRIP/base. Aggiunto anche il supporto per **1007/1008** (descrittore antenna) e **1019/1020** (effemeridi GPS/GLONASS), non presenti nella selezione precedente.
+- Verificato prima di aggiungerli che **u-blox non supporta affatto 1007/1008/1019/1020 in uscita** (nessuna chiave CFG-MSGOUT corrispondente esiste, stessa fonte SparkFun gia' usata per il fix delle chiavi in 1.19.41): se spuntati su un dispositivo configurato per u-blox vengono ignorati con un log invece di fallire in silenzio o fingere supporto. Stesso trattamento onesto per Quectel LC29H (nessun controllo individuale su questi messaggi, solo l'interruttore MSM4/7 globale gia' documentato in 1.19.41).
+- I 4 campi `rtcm_*_msm` di 1.19.41 restano nella struct impostazioni (rinominati `_DEPRECATED`, non piu' letti/scritti) per non spostare l'offset dei campi salvati su NVS - regola "solo in fondo, mai rimosso" gia' seguita per tutto il resto del progetto.
+
 ## 1.19.41
 
 - **Richiesta dell'utente: i messaggi RTCM3 inviati dalla base sono ora selezionabili dalla UI** invece di un set fisso deciso dal firmware ("devo poter dire io 1005 1074 ecc, alcune antenne potrebbero riempire la memoria"). Nuovo riquadro "Messaggi RTCM inviati" (pagina GNSS & NTRIP): livello MSM (spento/MSM4/MSM7) per ciascuna costellazione (GPS/GLONASS/Galileo/BeiDou) + interruttori per 1005 (posizione base) e 1230 (bias GLONASS), con 3 preset rapidi (Standard MSM4, Massima precisione MSM7, Solo GPS+GLONASS) oltre alla scelta libera. Applicato a tutti e tre i chip supportati (u-blox, Unicore, Quectel LC29H) - il LC29H ha pero' solo un interruttore MSM4/MSM7 globale lato modulo, non per costellazione: documentato onestamente in UI invece di far finta di un controllo che l'hardware non offre.

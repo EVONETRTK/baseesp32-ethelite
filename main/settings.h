@@ -229,12 +229,40 @@ typedef struct {
     // storico gia' in uso (MSM7 su tutte le costellazioni + 1005 + 1230),
     // cosi' un dispositivo gia' in campo non cambia comportamento finche'
     // non si tocca esplicitamente questa impostazione.
-    rtcm_msm_level_t rtcm_gps_msm;
-    rtcm_msm_level_t rtcm_glonass_msm;
-    rtcm_msm_level_t rtcm_galileo_msm;
-    rtcm_msm_level_t rtcm_beidou_msm;
+    // DEPRECATI (v1.19.41): sostituiti dai checkbox per singolo messaggio
+    // qui sotto (v1.19.42, richiesta dell'utente di scegliere i numeri
+    // messaggio direttamente, come in altri software, invece di un livello
+    // "off/MSM4/MSM7" per costellazione). Restano nella struct SOLO per non
+    // spostare l'offset dei campi seguenti nei blob NVS gia' salvati (vedi
+    // regola in cima al file) - non piu' letti/scritti da nessuna parte.
+    rtcm_msm_level_t rtcm_gps_msm_DEPRECATED;
+    rtcm_msm_level_t rtcm_glonass_msm_DEPRECATED;
+    rtcm_msm_level_t rtcm_galileo_msm_DEPRECATED;
+    rtcm_msm_level_t rtcm_beidou_msm_DEPRECATED;
     bool rtcm_1005_enable; // posizione base (senza posizione RTK non ha senso disattivarlo, ma resta scelta esplicita dell'utente)
     bool rtcm_1230_enable; // bias di fase/codice GLONASS
+
+    // Selezione messaggi RTCM3 per singolo numero (v1.19.42) - ogni
+    // checkbox e' indipendente, come nella maggior parte degli altri
+    // software NTRIP/base (nessun vincolo che impedisca es. di abilitare
+    // sia 1074 sia 1077 insieme, anche se ridondante). Non tutti i chip
+    // supportati onorano tutti questi messaggi: vedi i commenti in
+    // gnss_ubx.c/gnss_unicore.c/gnss_lc29h.c per i limiti reali di
+    // ciascuno (es. u-blox non supporta affatto 1007/1008/1019/1020,
+    // verificato contro sparkfun/SparkFun_u-blox_GNSS_Arduino_Library:
+    // nessuna chiave CFG-MSGOUT corrispondente esiste).
+    bool rtcm_1007_enable; // descrittore antenna (senza numero di serie)
+    bool rtcm_1008_enable; // descrittore antenna + numero di serie
+    bool rtcm_1019_enable; // effemeridi GPS
+    bool rtcm_1020_enable; // effemeridi GLONASS
+    bool rtcm_1074_enable; // GPS MSM4
+    bool rtcm_1077_enable; // GPS MSM7
+    bool rtcm_1084_enable; // GLONASS MSM4
+    bool rtcm_1087_enable; // GLONASS MSM7
+    bool rtcm_1094_enable; // Galileo MSM4
+    bool rtcm_1097_enable; // Galileo MSM7
+    bool rtcm_1124_enable; // BeiDou MSM4
+    bool rtcm_1127_enable; // BeiDou MSM7
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

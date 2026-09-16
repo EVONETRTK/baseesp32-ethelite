@@ -31,6 +31,7 @@
 #include "alerts.h"
 #include "base_monitor.h"
 #include "rtcm3_1005.h"
+#include "rtcm3_stats.h"
 #include "ntrip_caster_server.h"
 #include "ppp_log.h"
 #include "auto_update.h"
@@ -83,6 +84,7 @@ static void gnss_uart_task(void *arg)
         if (len > 0) {
             status_note_rtcm_bytes((uint32_t) len);
             base_monitor_feed(buf, (size_t) len);
+            rtcm3_stats_feed(buf, (size_t) len);
             ntrip_caster_server_feed(buf, (size_t) len);
             ppp_log_feed(buf, (size_t) len);
             xStreamBufferSend(rtcm_stream, buf, len, pdMS_TO_TICKS(1000));
@@ -191,6 +193,7 @@ void app_main(void)
                     (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
     } else {
         rtcm3_1005_init();
+        rtcm3_stats_init();
         rtcm_stream = xStreamBufferCreate(4096, 1);
         xTaskCreate(gnss_uart_task, "gnss_uart", 4096, NULL, 10, NULL);
         xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);

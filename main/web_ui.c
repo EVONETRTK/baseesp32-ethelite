@@ -8,8 +8,10 @@
 #include "log_buffer.h"
 #include "sys_stats.h"
 #include "gnss_signal.h"
+#include "rtcm3_stats.h"
 #include "gnss_fix.h"
 #include "wifi_link.h"
+#include "eth_link.h"
 #include "ntrip_rover_client.h"
 #include "cellular_link.h"
 #include "alerts.h"
@@ -189,22 +191,6 @@ static const char *device_mode_str(device_mode_t m)
     return m == DEVICE_MODE_ROVER ? "rover" : "base";
 }
 
-static const char *rtcm_msm_level_str(rtcm_msm_level_t l)
-{
-    switch (l) {
-    case RTCM_MSM4: return "msm4";
-    case RTCM_MSM7: return "msm7";
-    default:        return "off";
-    }
-}
-
-static rtcm_msm_level_t rtcm_msm_level_from_str(const char *s)
-{
-    if (strcmp(s, "msm4") == 0) return RTCM_MSM4;
-    if (strcmp(s, "msm7") == 0) return RTCM_MSM7;
-    return RTCM_MSM_OFF;
-}
-
 static const char *oled_controller_str(oled_controller_t c)
 {
     switch (c) {
@@ -341,6 +327,17 @@ static esp_err_t status_get_handler(httpd_req_t *req)
             esp_ip4addr_ntoa(&ip_info.ip, ip_str, sizeof(ip_str));
             cJSON_AddStringToObject(root, "ap_ip", ip_str);
         }
+        // Ethernet e' indipendente da WiFi/cellulare (vedi net_manager.c) e
+        // fino ad ora non aveva nessuna visibilita' in UI - eth_link_*()
+        // sono gia' no-op sicuri se BASEESP32_ETHERNET_ENABLE e' disattivato
+        // in questo build (eth_connected resta false, eth_netif NULL).
+        cJSON_AddBoolToObject(root, "eth_connected", eth_link_is_connected());
+        esp_netif_t *eth_netif = eth_link_get_netif();
+        if (eth_netif && esp_netif_get_ip_info(eth_netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+            char ip_str[16];
+            esp_ip4addr_ntoa(&ip_info.ip, ip_str, sizeof(ip_str));
+            cJSON_AddStringToObject(root, "eth_ip", ip_str);
+        }
     }
     cJSON_AddNumberToObject(root, "rtcm_bytes", status_get_rtcm_total_bytes());
     cJSON_AddNumberToObject(root, "last_rtcm_us", (double) status_get_last_rtcm_time_us());
@@ -359,12 +356,20 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
     cJSON_AddNumberToObject(root, "last_online_update_check_us", (double) status_get_last_online_update_check_us());
     cJSON_AddStringToObject(root, "gnss_chip", gnss_chip_str(s.gnss_chip));
-    cJSON_AddStringToObject(root, "rtcm_gps_msm", rtcm_msm_level_str(s.rtcm_gps_msm));
-    cJSON_AddStringToObject(root, "rtcm_glonass_msm", rtcm_msm_level_str(s.rtcm_glonass_msm));
-    cJSON_AddStringToObject(root, "rtcm_galileo_msm", rtcm_msm_level_str(s.rtcm_galileo_msm));
-    cJSON_AddStringToObject(root, "rtcm_beidou_msm", rtcm_msm_level_str(s.rtcm_beidou_msm));
     cJSON_AddBoolToObject(root, "rtcm_1005_enable", s.rtcm_1005_enable);
     cJSON_AddBoolToObject(root, "rtcm_1230_enable", s.rtcm_1230_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1007_enable", s.rtcm_1007_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1008_enable", s.rtcm_1008_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1019_enable", s.rtcm_1019_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1020_enable", s.rtcm_1020_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1074_enable", s.rtcm_1074_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1077_enable", s.rtcm_1077_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1084_enable", s.rtcm_1084_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1087_enable", s.rtcm_1087_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1094_enable", s.rtcm_1094_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1097_enable", s.rtcm_1097_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1124_enable", s.rtcm_1124_enable);
+    cJSON_AddBoolToObject(root, "rtcm_1127_enable", s.rtcm_1127_enable);
     cJSON_AddStringToObject(root, "device_mode", device_mode_str(s.device_mode));
     cJSON_AddStringToObject(root, "network_mode", network_mode_str(s.network_mode));
     {
@@ -545,6 +550,23 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
         cJSON_AddItemToArray(sats, sat);
     }
     cJSON_AddItemToObject(root, "satellites", sats);
+
+    {
+        // Byte totali visti dal boot per ciascun numero di messaggio RTCM3
+        // (solo base - vedi rtcm3_stats.c) - permette alla UI di mostrare
+        // quanto pesa davvero ciascun messaggio scelto in GNSS & NTRIP,
+        // invece di doverlo indovinare.
+        rtcm3_stat_entry_t entries[24];
+        size_t n_stats = rtcm3_stats_get(entries, sizeof(entries) / sizeof(entries[0]));
+        cJSON *rtcm_by_type = cJSON_CreateArray();
+        for (size_t i = 0; i < n_stats; i++) {
+            cJSON *e = cJSON_CreateObject();
+            cJSON_AddNumberToObject(e, "type", entries[i].msg_type);
+            cJSON_AddNumberToObject(e, "bytes", entries[i].bytes);
+            cJSON_AddItemToArray(rtcm_by_type, e);
+        }
+        cJSON_AddItemToObject(root, "rtcm_bytes_by_type", rtcm_by_type);
+    }
 
     gnss_fix_status_t fix = gnss_fix_get_status();
     cJSON_AddBoolToObject(root, "gnss_fix_valid", fix.valid);
@@ -778,29 +800,34 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         s.device_mode = (strcmp(mode_item->valuestring, "rover") == 0) ? DEVICE_MODE_ROVER : DEVICE_MODE_BASE;
     }
 
-    cJSON *rtcm_gps_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_gps_msm");
-    if (rtcm_gps_item && cJSON_IsString(rtcm_gps_item)) {
-        s.rtcm_gps_msm = rtcm_msm_level_from_str(rtcm_gps_item->valuestring);
-    }
-    cJSON *rtcm_glonass_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_glonass_msm");
-    if (rtcm_glonass_item && cJSON_IsString(rtcm_glonass_item)) {
-        s.rtcm_glonass_msm = rtcm_msm_level_from_str(rtcm_glonass_item->valuestring);
-    }
-    cJSON *rtcm_galileo_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_galileo_msm");
-    if (rtcm_galileo_item && cJSON_IsString(rtcm_galileo_item)) {
-        s.rtcm_galileo_msm = rtcm_msm_level_from_str(rtcm_galileo_item->valuestring);
-    }
-    cJSON *rtcm_beidou_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_beidou_msm");
-    if (rtcm_beidou_item && cJSON_IsString(rtcm_beidou_item)) {
-        s.rtcm_beidou_msm = rtcm_msm_level_from_str(rtcm_beidou_item->valuestring);
-    }
-    cJSON *rtcm_1005_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_1005_enable");
-    if (rtcm_1005_item && cJSON_IsBool(rtcm_1005_item)) {
-        s.rtcm_1005_enable = cJSON_IsTrue(rtcm_1005_item);
-    }
-    cJSON *rtcm_1230_item = cJSON_GetObjectItemCaseSensitive(root, "rtcm_1230_enable");
-    if (rtcm_1230_item && cJSON_IsBool(rtcm_1230_item)) {
-        s.rtcm_1230_enable = cJSON_IsTrue(rtcm_1230_item);
+    {
+        // Un checkbox indipendente per numero messaggio RTCM3 (v1.19.42) -
+        // stesso pattern ripetuto per ciascuno, nessuna interdipendenza tra
+        // di loro (vedi commento su app_settings_t.rtcm_1007_enable ecc. in
+        // settings.h). Puntatori dentro "s" (variabile locale), non
+        // puntatori a membro (questo e' C, non C++).
+        struct { const char *json_key; bool *field; } rtcm_bool_fields[] = {
+            { "rtcm_1005_enable", &s.rtcm_1005_enable },
+            { "rtcm_1230_enable", &s.rtcm_1230_enable },
+            { "rtcm_1007_enable", &s.rtcm_1007_enable },
+            { "rtcm_1008_enable", &s.rtcm_1008_enable },
+            { "rtcm_1019_enable", &s.rtcm_1019_enable },
+            { "rtcm_1020_enable", &s.rtcm_1020_enable },
+            { "rtcm_1074_enable", &s.rtcm_1074_enable },
+            { "rtcm_1077_enable", &s.rtcm_1077_enable },
+            { "rtcm_1084_enable", &s.rtcm_1084_enable },
+            { "rtcm_1087_enable", &s.rtcm_1087_enable },
+            { "rtcm_1094_enable", &s.rtcm_1094_enable },
+            { "rtcm_1097_enable", &s.rtcm_1097_enable },
+            { "rtcm_1124_enable", &s.rtcm_1124_enable },
+            { "rtcm_1127_enable", &s.rtcm_1127_enable },
+        };
+        for (size_t i = 0; i < sizeof(rtcm_bool_fields) / sizeof(rtcm_bool_fields[0]); i++) {
+            cJSON *item = cJSON_GetObjectItemCaseSensitive(root, rtcm_bool_fields[i].json_key);
+            if (item && cJSON_IsBool(item)) {
+                *rtcm_bool_fields[i].field = cJSON_IsTrue(item);
+            }
+        }
     }
 
     cJSON *cellular_modem_item = cJSON_GetObjectItemCaseSensitive(root, "cellular_is_sim868");

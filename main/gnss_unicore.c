@@ -19,29 +19,20 @@ static esp_err_t send_cmd(uart_port_t uart_num, const char *cmd)
     return (written == len) ? ESP_OK : ESP_FAIL;
 }
 
-// Numero messaggio RTCM3 MSM4/MSM7 per costellazione - stessa convenzione
-// di nome comando "RTCM<numero> 1" gia' usata per i messaggi MSM4 in questo
-// file, estesa qui ai numeri MSM7 seguendo lo stesso schema standard
-// RTCM3 (non e' stata verificata riga per riga sul manuale comandi Unicore
-// UM98x, ma segue lo schema di denominazione gia' confermato funzionante
-// per gli altri numeri messaggio in questa stessa funzione).
-typedef struct {
-    int msm4_type;
-    int msm7_type;
-} unicore_msm_types_t;
-
-static const unicore_msm_types_t UNICORE_MSM_GPS     = { 1074, 1077 };
-static const unicore_msm_types_t UNICORE_MSM_GLONASS = { 1084, 1087 };
-static const unicore_msm_types_t UNICORE_MSM_GALILEO = { 1094, 1097 };
-static const unicore_msm_types_t UNICORE_MSM_BEIDOU  = { 1124, 1127 };
-
-static esp_err_t send_msm_level(uart_port_t uart_num, const unicore_msm_types_t *types, rtcm_msm_level_t level)
+// Manda "RTCM<numero> 1" se enabled, altrimenti non fa nulla (UNLOG in
+// gnss_unicore_configure_base() azzera gia' tutto, non serve un "0"
+// esplicito per un messaggio non voluto). Stessa convenzione di nome
+// comando gia' confermata funzionante per 1005/1033/1074/1084/1094/1124
+// in questo file, estesa qui a tutti gli altri numeri seguendo lo stesso
+// schema standard RTCM3 - non verificata riga per riga sul manuale comandi
+// Unicore UM98x per ogni singolo numero, ma coerente con quanto gia' in uso.
+static esp_err_t send_rtcm_if(uart_port_t uart_num, bool enabled, int rtcm_type)
 {
-    if (level == RTCM_MSM_OFF) {
+    if (!enabled) {
         return ESP_OK;
     }
     char cmd[24];
-    snprintf(cmd, sizeof(cmd), "RTCM%d 1", level == RTCM_MSM4 ? types->msm4_type : types->msm7_type);
+    snprintf(cmd, sizeof(cmd), "RTCM%d 1", rtcm_type);
     return send_cmd(uart_num, cmd);
 }
 
@@ -52,27 +43,39 @@ esp_err_t gnss_unicore_configure_base(uart_port_t uart_num)
     app_settings_t s = settings_get();
 
     // UNLOG azzera tutti i log/messaggi attivi: non serve disattivare
-    // esplicitamente un livello MSM non scelto, parte gia' da zero.
+    // esplicitamente un messaggio non scelto, parte gia' da zero.
     esp_err_t err = send_cmd(uart_num, "UNLOG");
     esp_err_t e = send_cmd(uart_num, "MODE BASE TIME 60 2.5");
     if (e != ESP_OK) err = e;
-    if (s.rtcm_1005_enable) {
-        e = send_cmd(uart_num, "RTCM1005 1");
-        if (e != ESP_OK) err = e;
-    }
-    e = send_cmd(uart_num, "RTCM1033 1"); // descrittore antenna, sempre utile, non fa parte della selezione
+    e = send_rtcm_if(uart_num, s.rtcm_1005_enable, 1005);
     if (e != ESP_OK) err = e;
-    if (s.rtcm_1230_enable) {
-        e = send_cmd(uart_num, "RTCM1230 1");
-        if (e != ESP_OK) err = e;
-    }
-    e = send_msm_level(uart_num, &UNICORE_MSM_GPS, s.rtcm_gps_msm);
+    e = send_cmd(uart_num, "RTCM1033 1"); // descrittore antenna+ricevitore Unicore, sempre utile, non fa parte della selezione (diverso da 1007/1008)
     if (e != ESP_OK) err = e;
-    e = send_msm_level(uart_num, &UNICORE_MSM_GLONASS, s.rtcm_glonass_msm);
+    e = send_rtcm_if(uart_num, s.rtcm_1230_enable, 1230);
     if (e != ESP_OK) err = e;
-    e = send_msm_level(uart_num, &UNICORE_MSM_GALILEO, s.rtcm_galileo_msm);
+    e = send_rtcm_if(uart_num, s.rtcm_1007_enable, 1007);
     if (e != ESP_OK) err = e;
-    e = send_msm_level(uart_num, &UNICORE_MSM_BEIDOU, s.rtcm_beidou_msm);
+    e = send_rtcm_if(uart_num, s.rtcm_1008_enable, 1008);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1019_enable, 1019);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1020_enable, 1020);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1074_enable, 1074);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1077_enable, 1077);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1084_enable, 1084);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1087_enable, 1087);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1094_enable, 1094);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1097_enable, 1097);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1124_enable, 1124);
+    if (e != ESP_OK) err = e;
+    e = send_rtcm_if(uart_num, s.rtcm_1127_enable, 1127);
     if (e != ESP_OK) err = e;
     e = send_cmd(uart_num, "SAVECONFIG");
     if (e != ESP_OK) err = e;

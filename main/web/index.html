@@ -65,6 +65,7 @@
   .search-result-empty { padding:.55rem .8rem; color:#888; font-size:.85rem; }
   fieldset.search-highlight { outline:3px solid #2563eb; outline-offset:2px; }
   .fieldset-last-saved { font-size:.78rem; color:#999; margin-left:.4rem; }
+  .rtcm-unsupported { opacity:.45; }
   .qs-chip { cursor:pointer; }
 </style>
 </head>
@@ -128,6 +129,7 @@
         <div class="sig-bar-track"><div class="sig-bar-fill" id="st-sd-space-bar" style="width:0%"></div></div>
       </dd>
       <dt>Indirizzo IP attuale</dt><dd style="font-weight:700"><span id="st-ip">-</span> <button type="button" class="copy-btn" data-copy-target="st-ip" title="Copia">📋</button></dd>
+      <dt>Ethernet (cavo)</dt><dd id="st-eth">-</dd>
       <dt>Indirizzo fisso</dt><dd><span id="st-mdns">-</span> <button type="button" class="copy-btn" data-copy-target="st-mdns" title="Copia">📋</button></dd>
       <dt>Caster NTRIP configurato</dt><dd id="st-ntrip-host">-</dd>
     </dl>
@@ -276,56 +278,92 @@
   <fieldset>
     <legend>📡 Messaggi RTCM inviati (solo base)</legend>
     <small class="hint">
-      Quali correzioni mandare al rover e con quale risoluzione - utile per ridurre il volume dati
-      su ricevitori con memoria limitata (spegni le costellazioni che non ti servono, o usa MSM4
-      invece di MSM7). Con chip <strong>Quectel LC29H</strong> il modulo ha solo un interruttore
-      globale MSM4/MSM7 (non per costellazione): se anche una sola e' impostata su MSM7, tutte le
-      altre attive riceveranno comunque MSM7 - limite del modulo, non di questa pagina.
+      Ogni messaggio si spunta singolarmente, come nella maggior parte degli altri software NTRIP -
+      utile per ridurre il volume dati su ricevitori con memoria limitata. Con chip
+      <strong>u-blox</strong>, 1007/1008/1019/1020 non sono disponibili in uscita (nessun comando
+      esiste per loro) e vengono ignorati se spuntati. Con chip <strong>Quectel LC29H</strong> il
+      modulo ha solo un interruttore MSM4/MSM7 globale (non per costellazione) e non puo' spegnere
+      singolarmente 1007/1008/1019/1020/1230: se e' spuntato anche un solo messaggio MSM7, tutte le
+      altre costellazioni attive lo riceveranno comunque a MSM7 - limiti dei moduli, non di questa
+      pagina.
     </small>
     <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.7rem">
       <button type="button" class="action secondary" id="rtcm-preset-msm4">Standard MSM4 (leggero)</button>
       <button type="button" class="action secondary" id="rtcm-preset-msm7">Massima precisione MSM7</button>
       <button type="button" class="action secondary" id="rtcm-preset-gpsglo">Solo GPS+GLONASS</button>
+      <button type="button" class="action secondary" id="rtcm-revert">Annulla modifiche non salvate</button>
     </div>
-    <label style="margin-top:.8rem">GPS
-      <select name="rtcm_gps_msm">
-        <option value="off">Disattivato</option>
-        <option value="msm4">MSM4 (standard)</option>
-        <option value="msm7">MSM7 (massima precisione)</option>
-      </select>
-    </label>
-    <label>GLONASS
-      <select name="rtcm_glonass_msm">
-        <option value="off">Disattivato</option>
-        <option value="msm4">MSM4 (standard)</option>
-        <option value="msm7">MSM7 (massima precisione)</option>
-      </select>
-    </label>
-    <label>Galileo
-      <select name="rtcm_galileo_msm">
-        <option value="off">Disattivato</option>
-        <option value="msm4">MSM4 (standard)</option>
-        <option value="msm7">MSM7 (massima precisione)</option>
-      </select>
-    </label>
-    <label>BeiDou
-      <select name="rtcm_beidou_msm">
-        <option value="off">Disattivato</option>
-        <option value="msm4">MSM4 (standard)</option>
-        <option value="msm7">MSM7 (massima precisione)</option>
-      </select>
-    </label>
-    <label style="flex-direction:row; align-items:center; gap:.5rem; margin-top:.6rem">
+
+    <label style="margin-top:.8rem; font-weight:600">Posizione e metadati base</label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="rtcm_1005_enable" type="checkbox" style="width:auto; margin:0">
-      Messaggio 1005 (posizione base) - normalmente da lasciare sempre attivo
+      1005 - posizione base (normalmente da lasciare sempre attivo)
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1007_enable" type="checkbox" style="width:auto; margin:0">
+      1007 - descrittore antenna (non su u-blox)
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1008_enable" type="checkbox" style="width:auto; margin:0">
+      1008 - descrittore antenna + numero di serie (non su u-blox)
     </label>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="rtcm_1230_enable" type="checkbox" style="width:auto; margin:0">
-      Messaggio 1230 (bias GLONASS) - non applicabile su Quectel LC29H
+      1230 - bias di fase/codice GLONASS
+    </label>
+
+    <label style="margin-top:.8rem; font-weight:600">Effemeridi</label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1019_enable" type="checkbox" style="width:auto; margin:0">
+      1019 - effemeridi GPS (non su u-blox)
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1020_enable" type="checkbox" style="width:auto; margin:0">
+      1020 - effemeridi GLONASS (non su u-blox)
+    </label>
+
+    <label style="margin-top:.8rem; font-weight:600">GPS</label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1074_enable" type="checkbox" style="width:auto; margin:0">
+      1074 - MSM4 (standard)
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1077_enable" type="checkbox" style="width:auto; margin:0">
+      1077 - MSM7 (massima precisione)
+    </label>
+
+    <label style="margin-top:.8rem; font-weight:600">GLONASS</label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1084_enable" type="checkbox" style="width:auto; margin:0">
+      1084 - MSM4 (standard)
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1087_enable" type="checkbox" style="width:auto; margin:0">
+      1087 - MSM7 (massima precisione)
+    </label>
+
+    <label style="margin-top:.8rem; font-weight:600">Galileo</label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1094_enable" type="checkbox" style="width:auto; margin:0">
+      1094 - MSM4 (standard)
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1097_enable" type="checkbox" style="width:auto; margin:0">
+      1097 - MSM7 (massima precisione)
+    </label>
+
+    <label style="margin-top:.8rem; font-weight:600">BeiDou</label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1124_enable" type="checkbox" style="width:auto; margin:0">
+      1124 - MSM4 (standard)
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem">
+      <input name="rtcm_1127_enable" type="checkbox" style="width:auto; margin:0">
+      1127 - MSM7 (massima precisione)
     </label>
 
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="rtcm_gps_msm,rtcm_glonass_msm,rtcm_galileo_msm,rtcm_beidou_msm,rtcm_1005_enable,rtcm_1230_enable">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="rtcm_1005_enable,rtcm_1007_enable,rtcm_1008_enable,rtcm_1230_enable,rtcm_1019_enable,rtcm_1020_enable,rtcm_1074_enable,rtcm_1077_enable,rtcm_1084_enable,rtcm_1087_enable,rtcm_1094_enable,rtcm_1097_enable,rtcm_1124_enable,rtcm_1127_enable">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -397,7 +435,7 @@
 
   <fieldset>
     <legend>📡 Caster EVONETRTK (NTRIP)</legend>
-    <label>Host<input name="ntrip_host"></label>
+    <label>Host<input name="ntrip_host" data-validate="host" placeholder="es. 192.168.2.158 o caster.esempio.it"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
     <label>Mountpoint<input name="ntrip_mountpoint"></label>
     <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem">Cerca mountpoint disponibili</button>
@@ -629,6 +667,15 @@
       <span class="legend-dot" style="background:#6b7280; margin-left:.8rem"></span>altro
     </div>
     <small class="hint">Dati letti dalle sentenze $xxGSV emesse dal GNSS - popolato solo in modalita' rover, mentre il ricevitore trasmette NMEA.</small>
+  </fieldset>
+
+  <fieldset id="rtcm-bytes-fieldset" style="display:none">
+    <legend>📊 Byte RTCM per messaggio (solo base)</legend>
+    <small class="hint">
+      Quanto pesa davvero ciascun messaggio scelto in GNSS & NTRIP, dal boot - utile per capire
+      l'impatto reale delle selezioni sul volume dati verso il rover.
+    </small>
+    <dl class="kv" id="rtcm-bytes-list" style="margin-top:.6rem">-</dl>
   </fieldset>
 
   <fieldset>
@@ -1095,6 +1142,19 @@ async function loadStatus() {
     document.getElementById('st-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mdns').textContent = s.ap_ssid ? ('http://' + s.ap_ssid + '.local') : '-';
     document.getElementById('st-ip').textContent = s.wifi_ip || s.ap_ip || '-';
+    {
+      const ethEl = document.getElementById('st-eth');
+      if (s.eth_connected && s.eth_ip) {
+        ethEl.textContent = '✅ collegato, IP ' + s.eth_ip;
+        ethEl.style.color = '#16a34a';
+      } else if (s.eth_connected) {
+        ethEl.textContent = '🟡 cavo collegato, nessun IP ricevuto';
+        ethEl.style.color = '#d97706';
+      } else {
+        ethEl.textContent = '⬜ non collegato';
+        ethEl.style.color = '';
+      }
+    }
     document.getElementById('st-ntrip-host').textContent = s.ntrip_host ? (s.ntrip_host + ':' + s.ntrip_port + '/' + (s.ntrip_mountpoint || '')) : '-';
     const sdEl = document.getElementById('st-sd');
     if (!s.sd_checked) {
@@ -1179,12 +1239,21 @@ async function loadStatus() {
       f.nmea_udp_port.value = s.nmea_udp_port || '';
       f.gnss_chip.value = s.gnss_chip || 'ublox';
       f.device_mode.value = s.device_mode || 'base';
-      f.rtcm_gps_msm.value = s.rtcm_gps_msm || 'off';
-      f.rtcm_glonass_msm.value = s.rtcm_glonass_msm || 'off';
-      f.rtcm_galileo_msm.value = s.rtcm_galileo_msm || 'off';
-      f.rtcm_beidou_msm.value = s.rtcm_beidou_msm || 'off';
+      updateRtcmUnsupported();
       f.rtcm_1005_enable.checked = !!s.rtcm_1005_enable;
+      f.rtcm_1007_enable.checked = !!s.rtcm_1007_enable;
+      f.rtcm_1008_enable.checked = !!s.rtcm_1008_enable;
       f.rtcm_1230_enable.checked = !!s.rtcm_1230_enable;
+      f.rtcm_1019_enable.checked = !!s.rtcm_1019_enable;
+      f.rtcm_1020_enable.checked = !!s.rtcm_1020_enable;
+      f.rtcm_1074_enable.checked = !!s.rtcm_1074_enable;
+      f.rtcm_1077_enable.checked = !!s.rtcm_1077_enable;
+      f.rtcm_1084_enable.checked = !!s.rtcm_1084_enable;
+      f.rtcm_1087_enable.checked = !!s.rtcm_1087_enable;
+      f.rtcm_1094_enable.checked = !!s.rtcm_1094_enable;
+      f.rtcm_1097_enable.checked = !!s.rtcm_1097_enable;
+      f.rtcm_1124_enable.checked = !!s.rtcm_1124_enable;
+      f.rtcm_1127_enable.checked = !!s.rtcm_1127_enable;
       f.network_mode.value = s.network_mode || 'both';
       f.ap_ssid.value = s.ap_ssid || '';
       f.device_serial.value = s.device_serial || '';
@@ -1644,9 +1713,41 @@ async function loadSignals() {
     }
     renderFixStatus(s);
     renderQuickStatusFromSignals(s);
+    renderRtcmByteStats(s.rtcm_bytes_by_type || []);
   } catch (e) {
     // pagina segnali non visibile o rete assente: si ritenta al giro dopo
   }
+}
+
+// Etichette leggibili per i numeri messaggio RTCM3 gia' selezionabili in
+// GNSS & NTRIP (vedi RTCM_ALL_MESSAGE_FIELDS) - un tipo non in questa
+// mappa (es. 1033, sempre attivo su Unicore) mostra solo il numero.
+const RTCM_TYPE_LABELS = {
+  1005: 'Posizione base', 1007: 'Descrittore antenna', 1008: 'Descrittore antenna + serie',
+  1019: 'Effemeridi GPS', 1020: 'Effemeridi GLONASS', 1230: 'Bias GLONASS',
+  1033: 'Descrittore antenna+ricevitore (Unicore)',
+  1074: 'GPS MSM4', 1077: 'GPS MSM7', 1084: 'GLONASS MSM4', 1087: 'GLONASS MSM7',
+  1094: 'Galileo MSM4', 1097: 'Galileo MSM7', 1124: 'BeiDou MSM4', 1127: 'BeiDou MSM7',
+};
+
+function renderRtcmByteStats(entries) {
+  const fieldset = document.getElementById('rtcm-bytes-fieldset');
+  const list = document.getElementById('rtcm-bytes-list');
+  if (!entries.length) {
+    fieldset.style.display = 'none';
+    return;
+  }
+  fieldset.style.display = '';
+  const sorted = entries.slice().sort((a, b) => b.bytes - a.bytes);
+  list.innerHTML = '';
+  sorted.forEach((e) => {
+    const dt = document.createElement('dt');
+    dt.textContent = e.type + (RTCM_TYPE_LABELS[e.type] ? ' - ' + RTCM_TYPE_LABELS[e.type] : '');
+    const dd = document.createElement('dd');
+    dd.textContent = formatBytes(e.bytes);
+    list.appendChild(dt);
+    list.appendChild(dd);
+  });
 }
 
 document.getElementById('cfg-form').addEventListener('input', (ev) => {
@@ -1677,7 +1778,10 @@ const NUMBER_FIELDS = new Set([
 const BOOL_CHECKBOX_FIELDS = new Set([
   'rgb_led_pwm_active_low', 'oled_flip_h', 'oled_flip_v', 'alert_enable',
   'base_drift_alert_enable', 'ntrip_caster_server_enable', 'auto_update_check_enable',
-  'rtcm_1005_enable', 'rtcm_1230_enable',
+  'rtcm_1005_enable', 'rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1230_enable',
+  'rtcm_1019_enable', 'rtcm_1020_enable', 'rtcm_1074_enable', 'rtcm_1077_enable',
+  'rtcm_1084_enable', 'rtcm_1087_enable', 'rtcm_1094_enable', 'rtcm_1097_enable',
+  'rtcm_1124_enable', 'rtcm_1127_enable',
 ]);
 
 // Legge dal form il valore gia' tipizzato correttamente per il JSON che si
@@ -1718,6 +1822,20 @@ document.getElementById('cfg-form').addEventListener('input', (ev) => {
   updateTabDirtyBadges();
 });
 
+// Validazioni di formato lato client (campi marcati con data-validate in
+// index.html) - un errore palese di battitura (spazi, "http://" davanti,
+// "/" in fondo) si scopre qui, prima di salvare, invece che solo quando la
+// connessione al caster fallisce e bisogna indovinare perche'.
+function validateFieldFormat(kind, value) {
+  if (kind === 'host') {
+    if (/\s/.test(value)) return 'l\'indirizzo non puo\' contenere spazi';
+    if (/^https?:\/\//i.test(value)) return 'solo l\'indirizzo, senza "http://" o "https://" davanti';
+    if (value.endsWith('/')) return 'senza "/" alla fine';
+    if (value.includes('@')) return 'l\'indirizzo non puo\' contenere "@"';
+  }
+  return null;
+}
+
 // Salvataggio di un riquadro intero (pulsante 💾 in fondo a ciascun
 // fieldset, vedi index.html) - manda insieme tutti i campi elencati in
 // data-fields: il backend (copy_field in web_ui.c) lascia invariato tutto
@@ -1736,6 +1854,20 @@ async function saveFieldset(names, btn, msgEl) {
   const riskyMsg = btn.dataset.riskyMsg || 'Questo campo protegge l\'accesso a questa pagina: se sbagliato potresti restare escluso dal dispositivo. Salvare comunque?';
   if (btn.dataset.risky && !confirm(riskyMsg)) {
     return;
+  }
+
+  // Validazione di formato prima di inviare (solo sui campi con
+  // data-validate) - un errore palese (spazi, "http://" davanti, "/" in
+  // fondo) si scopre qui invece che solo quando la connessione fallisce.
+  for (const name of names) {
+    const el = f.elements[name];
+    if (!el || !el.dataset.validate || !el.value) continue;
+    const err = validateFieldFormat(el.dataset.validate, el.value);
+    if (err) {
+      msgEl.textContent = 'Errore: ' + err;
+      msgEl.style.color = '#dc2626';
+      return;
+    }
   }
 
   const data = {};
@@ -1985,30 +2117,76 @@ document.getElementById('ntrip-test-btn').addEventListener('click', async () => 
   }
 });
 
-// Preset per la selezione messaggi RTCM (solo base) - riempiono i quattro
-// select e le due checkbox, ma non salvano da soli: resta il pulsante 💾
-// del riquadro a farlo, cosi' si puo' vedere/ritoccare prima di confermare.
-function applyRtcmPreset(gps, glonass, galileo, beidou, m1005, m1230) {
+// Preset per la selezione messaggi RTCM (solo base) - spuntano/tolgono le
+// checkbox elencate in "on" (le altre di RTCM_ALL_MESSAGE_FIELDS restano
+// spente), ma non salvano da soli: resta il pulsante 💾 del riquadro a
+// farlo, cosi' si puo' vedere/ritoccare prima di confermare.
+const RTCM_ALL_MESSAGE_FIELDS = [
+  'rtcm_1005_enable', 'rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1230_enable',
+  'rtcm_1019_enable', 'rtcm_1020_enable', 'rtcm_1074_enable', 'rtcm_1077_enable',
+  'rtcm_1084_enable', 'rtcm_1087_enable', 'rtcm_1094_enable', 'rtcm_1097_enable',
+  'rtcm_1124_enable', 'rtcm_1127_enable',
+];
+function applyRtcmPreset(onFields) {
   const f = document.getElementById('cfg-form');
-  f.rtcm_gps_msm.value = gps;
-  f.rtcm_glonass_msm.value = glonass;
-  f.rtcm_galileo_msm.value = galileo;
-  f.rtcm_beidou_msm.value = beidou;
-  f.rtcm_1005_enable.checked = m1005;
-  f.rtcm_1230_enable.checked = m1230;
-  [f.rtcm_gps_msm, f.rtcm_glonass_msm, f.rtcm_galileo_msm, f.rtcm_beidou_msm, f.rtcm_1005_enable, f.rtcm_1230_enable]
-    .forEach((el) => el.classList.add('field-dirty'));
+  const on = new Set(onFields);
+  RTCM_ALL_MESSAGE_FIELDS.forEach((name) => {
+    const el = f.elements[name];
+    el.checked = on.has(name);
+    el.classList.add('field-dirty');
+  });
   updateTabDirtyBadges();
 }
 
 document.getElementById('rtcm-preset-msm4').addEventListener('click', () => {
-  applyRtcmPreset('msm4', 'msm4', 'msm4', 'msm4', true, true);
+  applyRtcmPreset(['rtcm_1005_enable', 'rtcm_1230_enable', 'rtcm_1074_enable', 'rtcm_1084_enable', 'rtcm_1094_enable', 'rtcm_1124_enable']);
 });
 document.getElementById('rtcm-preset-msm7').addEventListener('click', () => {
-  applyRtcmPreset('msm7', 'msm7', 'msm7', 'msm7', true, true);
+  applyRtcmPreset(['rtcm_1005_enable', 'rtcm_1230_enable', 'rtcm_1077_enable', 'rtcm_1087_enable', 'rtcm_1097_enable', 'rtcm_1127_enable']);
 });
 document.getElementById('rtcm-preset-gpsglo').addEventListener('click', () => {
-  applyRtcmPreset('msm7', 'msm7', 'off', 'off', true, true);
+  applyRtcmPreset(['rtcm_1005_enable', 'rtcm_1230_enable', 'rtcm_1077_enable', 'rtcm_1087_enable']);
+});
+
+// Non tutti i chip onorano tutti i messaggi (vedi i commenti nei driver
+// gnss_ubx.c/gnss_lc29h.c): le checkbox non supportate dal chip scelto
+// vengono disattivate e sbiadite, invece di lasciarle spuntabili e
+// scoprire solo dal log che vengono ignorate.
+const RTCM_UNSUPPORTED_BY_CHIP = {
+  ublox: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
+  lc29h: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable', 'rtcm_1230_enable'],
+  unicore: [],
+};
+function updateRtcmUnsupported() {
+  const f = document.getElementById('cfg-form');
+  const unsupported = new Set(RTCM_UNSUPPORTED_BY_CHIP[f.gnss_chip.value] || []);
+  RTCM_ALL_MESSAGE_FIELDS.forEach((name) => {
+    const el = f.elements[name];
+    const label = el.closest('label');
+    const isUnsupported = unsupported.has(name);
+    el.disabled = isUnsupported;
+    if (label) label.classList.toggle('rtcm-unsupported', isUnsupported);
+  });
+}
+document.getElementById('cfg-form').gnss_chip.addEventListener('change', updateRtcmUnsupported);
+
+// Ricarica dal dispositivo i soli valori RTCM gia' salvati, scartando
+// modifiche fatte sul form ma non ancora confermate col pulsante 💾 -
+// utile dopo aver sperimentato con le checkbox per tornare a un punto noto
+// senza dover ricordare a mano cosa c'era prima.
+document.getElementById('rtcm-revert').addEventListener('click', async () => {
+  try {
+    const r = await fetch('/api/status');
+    const s = await r.json();
+    const f = document.getElementById('cfg-form');
+    RTCM_ALL_MESSAGE_FIELDS.forEach((name) => {
+      f.elements[name].checked = !!s[name];
+      f.elements[name].classList.remove('field-dirty');
+    });
+    updateTabDirtyBadges();
+  } catch (e) {
+    alert('Errore nel recupero dei valori salvati');
+  }
 });
 
 // Durante il tentativo la radio deve spostarsi sul canale della rete di

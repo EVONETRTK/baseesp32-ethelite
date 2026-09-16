@@ -43,25 +43,28 @@ esp_err_t gnss_lc29h_configure_base(uart_port_t uart_num)
     // Il comando documentato (PAIR432) del LC29H alza/abbassa la
     // risoluzione RTCM per TUTTE le costellazioni insieme - a differenza
     // di u-blox/Unicore, questo modulo non ha un comando per scegliere
-    // MSM4/MSM7 (o spegnere del tutto) una costellazione alla volta.
-    // Il livello scelto qui e' il piu' alto richiesto tra le quattro
-    // impostazioni utente (rtcm_*_msm): se anche una sola costellazione
-    // chiede MSM7, tutte le altre attive lo riceveranno comunque a MSM7 -
-    // limite del set di comandi del modulo, non del firmware.
-    rtcm_msm_level_t requested = RTCM_MSM_OFF;
-    const rtcm_msm_level_t levels[] = { s.rtcm_gps_msm, s.rtcm_glonass_msm, s.rtcm_galileo_msm, s.rtcm_beidou_msm };
-    for (size_t i = 0; i < sizeof(levels) / sizeof(levels[0]); i++) {
-        if (levels[i] > requested) {
-            requested = levels[i];
-        }
-    }
-    if (requested == RTCM_MSM_OFF) {
-        ESP_LOGW(TAG, "Tutte le costellazioni RTCM disattivate nelle impostazioni: il LC29H non ha un comando "
+    // MSM4/MSM7 (o spegnere del tutto) una costellazione alla volta, ne'
+    // per spegnere singolarmente 1007/1008/1019/1020/1230. Il livello
+    // scelto qui e' MSM7 se e' spuntato ALMENO UNO dei messaggi MSM7
+    // (1077/1087/1097/1127), altrimenti MSM4 se e' spuntato almeno un MSM4
+    // - limite del set di comandi del modulo, non del firmware: se anche
+    // una sola costellazione chiede MSM7, tutte le altre attive lo
+    // riceveranno comunque a MSM7.
+    bool any_msm7 = s.rtcm_1077_enable || s.rtcm_1087_enable || s.rtcm_1097_enable || s.rtcm_1127_enable;
+    bool any_msm4 = s.rtcm_1074_enable || s.rtcm_1084_enable || s.rtcm_1094_enable || s.rtcm_1124_enable;
+    if (!any_msm7 && !any_msm4) {
+        ESP_LOGW(TAG, "Nessun messaggio MSM4/MSM7 selezionato nelle impostazioni: il LC29H non ha un comando "
                       "documentato per spegnere del tutto l'uscita RTCM in modalita' base, restera' al livello "
                       "di default del modulo (MSM4)");
-        requested = RTCM_MSM4;
     }
-    bool use_msm7 = (requested == RTCM_MSM7);
+    if (s.rtcm_1007_enable || s.rtcm_1008_enable || s.rtcm_1019_enable || s.rtcm_1020_enable) {
+        ESP_LOGW(TAG, "1007/1008/1019/1020 richiesti nelle impostazioni ma non supportati dal LC29H in uscita: ignorati");
+    }
+    if (!s.rtcm_1230_enable) {
+        ESP_LOGW(TAG, "1230 disattivato nelle impostazioni ma il LC29H non ha un comando documentato per "
+                      "sopprimerlo singolarmente: potrebbe restare comunque incluso dal default del modulo");
+    }
+    bool use_msm7 = any_msm7;
 
     // PQTMCFGSVIN, campo <Mode>: 1 = survey-in (media pesata delle
     // posizioni per <MinDur> secondi, precisione richiesta <3D_AccLimit>
