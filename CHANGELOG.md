@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.40
+
+- **Richiesta dell'utente: attivata davvero l'Ethernet (W5500 via SPI) sul T-ETH-Elite**, prima disattivata di default e mai compilata con successo. Verificato prima il pinout ufficiale contro `Xinyuan-LilyGO/LilyGO-T-ETH-Series` (`examples/HelloServer/utilities.h`, sezione `LILYGO_T_ETH_ELITE_ESP32S3`): i pin gia' presenti nel Kconfig del progetto (MISO=47, MOSI=21, SCLK=48, CS=45, INT=14, RST=-1, indirizzo PHY=1) combaciano esattamente - nessuna modifica necessaria li'. Due bug reali trovati compilando per la prima volta con l'opzione attiva:
+  1. `eth_link.c` non includeva `esp_eth_mac_spi.h` (le dichiarazioni W5500 non arrivano da `esp_eth_mac.h`).
+  2. Serviva anche l'opzione Kconfig del *componente* `esp_eth` stesso (`CONFIG_ETH_SPI_ETHERNET_W5500`), separata e indipendente dalle opzioni del progetto (`BASEESP32_ETH_*`, che configurano solo i pin) - senza quella, l'intero blocco W5500 di `esp_eth_mac_spi.h` non viene nemmeno compilato nel componente.
+  Flash: 28% libero (da 29%), impatto minimo.
+
 ## 1.19.39
 
 - **Fix segnalato dall'utente ("la ricerca non funziona, man mano che scrivo devono apparire le voci")**: la ricerca tra le impostazioni (1.19.38) non mostrava mai i risultati - `results.style.display = ''` rimuoveva lo stile inline ma la regola CSS base per `#settings-search-results` e' `display:none`, quindi il riquadro restava sempre nascosto anche con risultati trovati. Corretto impostando esplicitamente `'block'`.

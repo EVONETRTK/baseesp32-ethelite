@@ -284,14 +284,27 @@ menu "baseesp32-ethelite Configuration"
     config BASEESP32_ETHERNET_ENABLE
         bool "Abilita interfaccia Ethernet (chip W5500 via SPI)"
         default n
+        select ETH_ENABLED
+        select ETH_USE_SPI_ETHERNET
+        select ETH_SPI_ETHERNET_W5500
         help
             A differenza della T-Internet-COM (PHY LAN8720 via RMII, pin
             dati fissati dall'hardware ESP32), qui il W5500 comunica via
             SPI: tutti i pin sotto sono liberamente configurabili, presi
-            dal repository ufficiale LilyGO (LilyGo-Modem-Series,
-            utilities.h, blocco LILYGO_T_ETH_ELITE) ma mai verificati su
-            hardware reale in questo progetto. Disabilitato di default
-            finche' non testato.
+            dal repository ufficiale LilyGO (LilyGO-T-ETH-Series,
+            examples/HelloServer/utilities.h, blocco
+            LILYGO_T_ETH_ELITE_ESP32S3) e verificati su hardware reale
+            (driver installato con successo, MAC assegnato). Disabilitato
+            di default perche' non tutte le schede hanno il modulo W5500
+            montato. I tre "select" sopra abilitano automaticamente le
+            opzioni Kconfig del componente esp_eth necessarie per il W5500
+            (ETH_ENABLED/ETH_USE_SPI_ETHERNET/ETH_SPI_ETHERNET_W5500) -
+            senza le quali il driver W5500 non viene nemmeno compilato nel
+            componente (causa di un errore di compilazione reale trovato
+            la prima volta che questa opzione e' stata davvero attivata:
+            "unknown type name eth_w5500_config_t" e simili, perche' quelle
+            dichiarazioni in esp_eth_mac_spi.h sono dietro
+            #if CONFIG_ETH_SPI_ETHERNET_W5500).
 
     config BASEESP32_ETH_SPI_MISO_PIN
         int "GPIO MISO verso il W5500"

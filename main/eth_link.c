@@ -12,6 +12,7 @@ static const char *TAG = "eth_link";
 
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
+#include "esp_eth_mac_spi.h" // eth_w5500_config_t/ETH_W5500_DEFAULT_CONFIG/esp_eth_mac_new_w5500: non arrivano da esp_eth_mac.h
 #include "esp_eth_phy.h"
 #include "driver/spi_master.h"
 
