@@ -2,6 +2,15 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.38
+
+- Richiesta dell'utente (ulteriori suggerimenti UX proposti e accettati "tutti"): cinque novita':
+  1. Ricerca tra le impostazioni (casella in alto): digita qualche lettera del nome di un parametro e salta direttamente al riquadro giusto, evidenziato, invece di ricordare a memoria in quale scheda si trova.
+  2. "Ultimo salvataggio" per riquadro (localStorage lato browser, non richiede nulla dal firmware): sai quando hai davvero applicato una config, anche dopo aver ricaricato la pagina.
+  3. Pulsante "Scarica log (.txt)" nella scheda Log, oltre alla sola vista a schermo.
+  4. Nuovo "Scarica per clonare su un nuovo dispositivo" nel Backup configurazione: come l'esportazione normale ma senza matricola/SSID AP (identita' che deve restare unica per ogni base fisica).
+  5. Avviso ⚠️ in Firmware se il controllo automatico aggiornamenti e' attivo ma non risulta riuscito da piu' del doppio dell'intervallo configurato - nuovo tracciamento `status_note_online_update_checked()`/`status_get_last_online_update_check_us()` (status.h/.c), aggiornato da `online_update_check()` (condiviso da controllo manuale e automatico) solo quando arriva davvero un manifest valido, non per un tentativo fallito per rete assente.
+
 ## 1.19.37
 
 - Richiesta dell'utente (altri suggerimenti UX proposti e accettati "tutti"): cinque miglioramenti:

@@ -341,6 +341,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     // al browser di calcolare "da quanto" senza affidarsi al proprio
     // orologio (che non ha comunque relazione con l'uptime del dispositivo).
     cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
+    cJSON_AddNumberToObject(root, "last_online_update_check_us", (double) status_get_last_online_update_check_us());
     cJSON_AddStringToObject(root, "gnss_chip", gnss_chip_str(s.gnss_chip));
     cJSON_AddStringToObject(root, "device_mode", device_mode_str(s.device_mode));
     cJSON_AddStringToObject(root, "network_mode", network_mode_str(s.network_mode));

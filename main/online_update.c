@@ -3,6 +3,7 @@
 #include "ota_update.h"
 #include "settings.h"
 #include "fw_archive.h"
+#include "status.h"
 
 #include <string.h>
 #include <strings.h>
@@ -281,6 +282,11 @@ bool online_update_check(char *out_version, size_t out_version_size,
             out_url[0] = '\0';
         }
     }
+
+    // Da qui in poi il controllo e' riuscito davvero (manifest valido
+    // ricevuto e decodificato) - non conta un tentativo mai arrivato a
+    // buon fine per rete assente/irraggiungibile (i return false sopra).
+    status_note_online_update_checked();
 
     bool newer = ota_update_semver_compare(ver_item->valuestring, FIRMWARE_VERSION) > 0;
     if (newer) {

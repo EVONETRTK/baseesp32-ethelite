@@ -53,3 +53,14 @@ int64_t status_get_last_rtcm_time_us(void);
 // arrivo E posizione in uscita), non solo "connesso si/no".
 void status_note_gga_sent(void);
 int64_t status_get_last_gga_sent_time_us(void);
+
+// Timestamp dell'ultimo controllo aggiornamenti online riuscito (arrivata
+// una risposta valida dal manifest, disponibile o no che fosse una nuova
+// versione - non conta un tentativo fallito per rete assente). 0 se mai
+// avvenuto dal boot. Aggiornato sia dal controllo manuale ("Controlla
+// aggiornamenti online" in Firmware) sia da quello automatico
+// (auto_update.c) - la UI lo usa per avvisare se il controllo automatico,
+// pur attivo, non riesce a completarsi da troppo tempo (es. problema di
+// rete persistente che altrimenti si scoprirebbe solo guardando i log).
+void status_note_online_update_checked(void);
+int64_t status_get_last_online_update_check_us(void);
