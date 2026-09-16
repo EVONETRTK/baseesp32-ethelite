@@ -2,6 +2,14 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.45
+
+- **Fix critico trovato verificando il boot dopo il fix precedente**: stack overflow reale nel task "main" ("***ERROR*** A stack overflow in task main has been detected", crash + riavvio automatico ad ogni singolo boot, sempre allo stesso punto) causato da `eth_link_init()` (bus SPI + installazione driver W5500, chiamata direttamente dentro `app_main()`) - probabilmente presente fin dalla 1.19.40 ma non notato perche' la verifica di allora filtrava il log solo per righe contenenti "eth" (che non includono "stack overflow"), e il riavvio automatico nascondeva il sintomo facendo sembrare tutto a posto al boot successivo. Spostata in un task dedicato (`eth_link_init_task`, stack 6144) invece di continuare ad allargare lo stack del task main ad ogni nuova funzionalita' - stessa causa e stessa soluzione gia' viste piu' volte in questo progetto (scansione WiFi, archiviazione firmware su SD).
+
+## 1.19.44
+
+- **Fix segnalato dall'utente ("dove scrivo la ricerca copre le icone")**: il riquadro dei risultati della ricerca impostazioni (1.19.38) era posizionato `position:absolute`, quindi galleggiava sovrapposto ai pulsanti dei tab di navigazione subito sotto invece di spostarli - coprendone le icone mentre si scrive. Tolto il posizionamento assoluto: ora appare nel flusso normale della pagina, spingendo giu' il resto invece di coprirlo.
+
 ## 1.19.43
 
 - Richiesta dell'utente (altri suggerimenti UX proposti e accettati): cinque novita':

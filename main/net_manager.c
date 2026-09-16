@@ -17,6 +17,22 @@
 
 static const char *TAG = "net_manager";
 
+// eth_link_init() (bus SPI + installazione driver W5500, diversi livelli di
+// chiamata annidati dentro esp_eth) fatta girare direttamente nel task
+// "main" (app_main(), stack CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192) causava
+// uno stack overflow reale, confermato su hardware (crash + riavvio
+// automatico ad ogni singolo boot, sempre nello stesso punto) - stesso
+// problema, stessa causa e stessa soluzione gia' visti piu' volte in
+// questo progetto per altre operazioni "pesanti" (scansione WiFi,
+// archiviazione firmware su SD): isolata in un task dedicato con stack
+// suo, invece di continuare ad allargare lo stack del task main ad ogni
+// nuova funzionalita' che lo tocca.
+static void eth_link_init_task(void *arg)
+{
+    eth_link_init();
+    vTaskDelete(NULL);
+}
+
 typedef enum {
     LINK_NONE,
     LINK_WIFI,
@@ -126,8 +142,10 @@ void net_manager_start(void)
 
     // Ethernet e' indipendente dalla selezione WiFi/cellulare qui sopra:
     // se abilitata resta sempre attiva, usata soprattutto per raggiungere
-    // il broadcast UDP NMEA anche via cavo.
-    eth_link_init();
+    // il broadcast UDP NMEA anche via cavo. In un task dedicato (vedi
+    // eth_link_init_task sopra), non chiamata qui direttamente - stack
+    // overflow reale confermato altrimenti.
+    xTaskCreate(eth_link_init_task, "eth_init", 6144, NULL, 5, NULL);
 
     // 4096 non bastava piu': wifi_link_connect_known() (per le reti WiFi
     // "conosciute") scansiona prima di collegarsi, e la scansione tiene
