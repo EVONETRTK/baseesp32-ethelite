@@ -885,7 +885,7 @@ document.getElementById('settings-search').addEventListener('input', (ev) => {
     return;
   }
   const matches = settingsSearchIndex.filter((item) => item.haystack.includes(q)).slice(0, 8);
-  results.style.display = '';
+  results.style.display = 'block';
   results.innerHTML = '';
   if (!matches.length) {
     const empty = document.createElement('div');

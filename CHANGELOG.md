@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.39
+
+- **Fix segnalato dall'utente ("la ricerca non funziona, man mano che scrivo devono apparire le voci")**: la ricerca tra le impostazioni (1.19.38) non mostrava mai i risultati - `results.style.display = ''` rimuoveva lo stile inline ma la regola CSS base per `#settings-search-results` e' `display:none`, quindi il riquadro restava sempre nascosto anche con risultati trovati. Corretto impostando esplicitamente `'block'`.
+
 ## 1.19.38
 
 - Richiesta dell'utente (ulteriori suggerimenti UX proposti e accettati "tutti"): cinque novita':
