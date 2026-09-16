@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.36
+
+- Richiesta dell'utente: la matricola (scheda Sicurezza) e' ora di sola lettura per default - va spuntata esplicitamente "Forza modifica" per poterla cambiare, e il salvataggio chiede conferma esplicita (come gia' per admin_code/AP). Nuovo campo `device_serial_from_mac` in `/api/status` (funzione `settings_device_serial_from_mac()`, stessa logica del default gia' usata in `apply_defaults()`): se la matricola salvata non corrisponde a quella ricavata dal MAC del chip, un avviso ⚠️ compare sia in Sicurezza sia accanto alla Matricola nella scheda Stato.
+
 ## 1.19.35
 
 - Richiesta dell'utente (suggerimenti UX proposti e accettati "tutti"): sei miglioramenti alla UI web:

@@ -372,6 +372,15 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "ntrip_username", s.ntrip_username);
     cJSON_AddStringToObject(root, "ap_ssid", s.ap_ssid);
     cJSON_AddStringToObject(root, "device_serial", s.device_serial);
+    {
+        // Permette alla UI di segnalare quando la matricola e' stata forzata
+        // a un valore diverso da quello ricavato dal MAC di questo chip
+        // fisico (es. dispositivo sostituito ma matricola lasciata uguale
+        // per continuita' di tracciamento, o errore di battitura).
+        char mac_serial[7];
+        settings_device_serial_from_mac(mac_serial, sizeof(mac_serial));
+        cJSON_AddStringToObject(root, "device_serial_from_mac", mac_serial);
+    }
     cJSON_AddStringToObject(root, "firmware_version", FIRMWARE_VERSION);
     cJSON_AddStringToObject(root, "ota_update_url", s.ota_update_url);
     cJSON_AddBoolToObject(root, "auto_update_check_enable", s.auto_update_check_enable);

@@ -397,11 +397,18 @@
 
   <fieldset>
     <legend>🆔 Identificazione dispositivo</legend>
-    <label>Matricola<input name="device_serial" placeholder="es. EVONETRTK-0001"></label>
+    <label>Matricola<input name="device_serial" placeholder="es. EVONETRTK-0001" readonly></label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem; margin-top:.4rem">
+      <input type="checkbox" id="device-serial-unlock" style="width:auto; margin:0">
+      Forza modifica (di norma la matricola resta quella ricavata dal chip - cambiarla e' una scelta deliberata)
+    </label>
     <small class="hint">Per default e' lo stesso numero del nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428") - puoi sostituirlo con un tuo codice se preferisci un altro sistema di tracciamento.</small>
-  
+    <small class="hint" id="device-serial-mismatch" style="display:none; color:#d97706; font-weight:600">
+      ⚠️ Non corrisponde alla matricola ricavata dal chip di questo dispositivo (<span id="device-serial-mac-expected"></span>) - verifica che sia voluto.
+    </small>
+
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="device_serial">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="device_serial" data-risky="1" data-risky-msg="Stai forzando la matricola a un valore diverso da quello ricavato dal chip - assicurati che sia una scelta deliberata. Salvare comunque?">💾 Salva</button>
       <span class="fieldset-save-msg"></span>
     </div>
   </fieldset>
@@ -846,7 +853,17 @@ async function loadStatus() {
     const r = await fetch('/api/status');
     const s = await r.json();
 
-    document.getElementById('st-serial').textContent = s.device_serial || '(non impostata)';
+    const serialMismatch = !!(s.device_serial && s.device_serial_from_mac && s.device_serial !== s.device_serial_from_mac);
+    document.getElementById('st-serial').textContent =
+      (s.device_serial || '(non impostata)') + (serialMismatch ? ' ⚠️' : '');
+    document.getElementById('st-serial').title = serialMismatch
+      ? 'Diversa da quella ricavata dal chip (' + s.device_serial_from_mac + ') - vedi scheda Sicurezza'
+      : '';
+    const serialMismatchEl = document.getElementById('device-serial-mismatch');
+    if (serialMismatchEl) {
+      serialMismatchEl.style.display = serialMismatch ? '' : 'none';
+      document.getElementById('device-serial-mac-expected').textContent = s.device_serial_from_mac || '';
+    }
     document.getElementById('st-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mdns').textContent = s.ap_ssid ? ('http://' + s.ap_ssid + '.local') : '-';
     document.getElementById('st-ip').textContent = s.wifi_ip || s.ap_ip || '-';
@@ -1172,6 +1189,12 @@ function updateBasePosVisibility() {
 }
 document.getElementById('cfg-form').base_position_mode.addEventListener('change', updateBasePosVisibility);
 
+// La matricola e' di sola lettura finche' non si spunta "Forza modifica":
+// va cambiata solo di proposito, non per un click distratto nel campo.
+document.getElementById('device-serial-unlock').addEventListener('change', (ev) => {
+  document.getElementById('cfg-form').device_serial.readOnly = !ev.target.checked;
+});
+
 function renderBasePosCurrent(s) {
   const hintEl = document.getElementById('base-pos-current-hint');
   const btn = document.getElementById('base-pos-use-current-btn');
@@ -1444,10 +1467,12 @@ document.getElementById('cfg-form').addEventListener('input', (ev) => {
 async function saveFieldset(names, btn, msgEl) {
   const f = document.getElementById('cfg-form');
 
-  // Campi che, se sbagliati, possono tagliare fuori dalla pagina stessa
-  // (codice di accesso, SSID/password dell'AP di setup): richiedono una
-  // conferma esplicita invece di un salvataggio silenzioso.
-  if (btn.dataset.risky && !confirm('Questo campo protegge l\'accesso a questa pagina: se sbagliato potresti restare escluso dal dispositivo. Salvare comunque?')) {
+  // Campi che vanno cambiati solo deliberatamente (codice di accesso,
+  // SSID/password dell'AP di setup - se sbagliati tagliano fuori dalla
+  // pagina stessa; matricola - normalmente ricavata dal chip): richiedono
+  // una conferma esplicita invece di un salvataggio silenzioso.
+  const riskyMsg = btn.dataset.riskyMsg || 'Questo campo protegge l\'accesso a questa pagina: se sbagliato potresti restare escluso dal dispositivo. Salvare comunque?';
+  if (btn.dataset.risky && !confirm(riskyMsg)) {
     return;
   }
 

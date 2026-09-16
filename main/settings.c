@@ -64,6 +64,11 @@ static void format_mac_serial(char *out, size_t out_size)
     snprintf(out, out_size, "%02X%02X%02X", mac[3], mac[4], mac[5]);
 }
 
+void settings_device_serial_from_mac(char *out, size_t out_size)
+{
+    format_mac_serial(out, out_size);
+}
+
 static void apply_defaults(void)
 {
     memset(&s_settings, 0, sizeof(s_settings));

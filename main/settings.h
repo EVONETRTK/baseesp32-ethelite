@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "esp_err.h"
@@ -232,3 +233,9 @@ app_settings_t settings_get(void);
 // passati dal chiamante vanno gestiti a monte (es. web_ui.c non sovrascrive
 // una password esistente con una stringa vuota).
 esp_err_t settings_save(const app_settings_t *s);
+
+// Formatta in "out" la matricola che si otterrebbe dal MAC WiFi del chip
+// (stessa logica usata per il default in apply_defaults()) - serve alla UI
+// web per segnalare quando settings.device_serial e' stato cambiato a mano
+// e non corrisponde piu' al chip fisico su cui gira il firmware.
+void settings_device_serial_from_mac(char *out, size_t out_size);
