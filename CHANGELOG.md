@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.32
+
+- **Richiesta dell'utente ("il pulsante salva va messo a fianco di ogni parametro... e non sotto la pagina")**: rimossi i pulsanti "Salva" in fondo alle 4 schede (Rete, GNSS & NTRIP, Sicurezza, Hardware) e il pulsante globale in fondo a Firmware - ogni singolo campo (56 in totale) ha ora il proprio pulsante 💾 accanto, che salva solo quel valore (il backend lascia invariato tutto il resto). Le password vuote ("lascia vuoto per non modificare") non vengono inviate, mostrano solo "—" invece di un falso "Salvato".
+
 ## 1.19.31
 
 - **Richiesta dell'utente ("gli IP aggiornati devono essere sempre in bella vista")**, dopo un caso reale di rover scollegato perche' il PC del caster aveva cambiato rete/IP senza che nessuno se ne accorgesse: la scheda Stato mostra ora "Indirizzo IP attuale" del dispositivo (letto dal driver via `esp_netif_get_ip_info()`, non dalle impostazioni salvate) e "Caster NTRIP configurato" (host:porta/mountpoint), cosi' un disallineamento salta subito all'occhio.
