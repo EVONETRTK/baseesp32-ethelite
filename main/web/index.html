@@ -51,6 +51,8 @@
   .fieldset-save-btn.ok { background:#16a34a; }
   .fieldset-save-btn.err { background:#dc2626; }
   .fieldset-save-msg { font-size:.85rem; color:#666; }
+  .field-dirty { border-color:#d97706 !important; background:#fffbeb !important; }
+  .qs-chip { cursor:pointer; }
 </style>
 </head>
 <body>
@@ -225,7 +227,7 @@
     </label>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="ap_ssid,ap_password">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="ap_ssid,ap_password" data-risky="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span>
     </div>
   </fieldset></div>
@@ -388,7 +390,7 @@
     </label>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="admin_code">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="admin_code" data-risky="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span>
     </div>
   </fieldset>
@@ -581,7 +583,7 @@
     </small>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="gnss_uart_num,gnss_uart_tx_pin,gnss_uart_rx_pin,gnss_uart_baud">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="gnss_uart_num,gnss_uart_tx_pin,gnss_uart_rx_pin,gnss_uart_baud" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span>
     </div>
   </fieldset>
@@ -606,7 +608,7 @@
     <small class="hint">-1 su un pin = non usato/non applicabile al tipo scelto. Richiede un riavvio.</small>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="rgb_led_mode,rgb_led_ws2812_pin,rgb_led_pwm_r_pin,rgb_led_pwm_g_pin,rgb_led_pwm_b_pin,rgb_led_pwm_active_low">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="rgb_led_mode,rgb_led_ws2812_pin,rgb_led_pwm_r_pin,rgb_led_pwm_g_pin,rgb_led_pwm_b_pin,rgb_led_pwm_active_low" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span>
     </div>
   </fieldset>
@@ -644,7 +646,7 @@
     </small>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="oled_controller,oled_sda_pin,oled_scl_pin,oled_i2c_addr,oled_flip_h,oled_flip_v">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="oled_controller,oled_sda_pin,oled_scl_pin,oled_i2c_addr,oled_flip_h,oled_flip_v" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span>
     </div>
   </fieldset>  <small class="hint">Pin GNSS/OLED/RGB richiedono un riavvio manuale (scheda Rete) dopo il salvataggio per applicarsi.</small>
@@ -725,6 +727,19 @@
       <span class="fieldset-save-msg"></span>
     </div>
   </fieldset>
+
+  <fieldset>
+    <legend>💾 Backup configurazione</legend>
+    <button type="button" class="action secondary" id="cfg-export-btn">Scarica configurazione (JSON)</button>
+    <small class="hint">
+      Utile prima di sperimentare, o per clonare la configurazione su un'altra base. Le password non
+      sono incluse (il dispositivo non le restituisce mai in lettura, solo in scrittura): vanno
+      reinserite a mano dopo un'importazione.
+    </small>
+    <label style="margin-top:.8rem">File configurazione (.json)<input type="file" id="cfg-import-file" accept=".json"></label>
+    <button type="button" class="action" id="cfg-import-btn" style="margin-top:.6rem">Importa e applica</button>
+    <div id="cfg-import-msg" class="hint" style="margin-top:.6rem"></div>
+  </fieldset>
 </div>
 <small class="hint">
   Ogni campo si salva da solo con il pulsante 💾 accanto, senza riavviare il dispositivo - molte
@@ -749,16 +764,34 @@
 <div id="save-msg"></div>
 
 <script>
+function goToPage(pageId) {
+  document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
+  const navBtn = document.querySelector('nav.tabs button[data-page="' + pageId + '"]');
+  if (navBtn) navBtn.classList.add('active');
+  document.getElementById(pageId).classList.add('active');
+  if (pageId === 'page-log') {
+    loadLog();
+  }
+}
+
 document.querySelectorAll('nav.tabs button').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.remove('active'));
-    document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById(btn.dataset.page).classList.add('active');
-    if (btn.dataset.page === 'page-log') {
-      loadLog();
-    }
-  });
+  btn.addEventListener('click', () => goToPage(btn.dataset.page));
+});
+
+// I chip di stato in alto (quick-status) portano direttamente alla pagina
+// dove si vede il dettaglio o si corregge il problema, invece di essere
+// solo indicatori passivi.
+const QUICK_STATUS_TARGET = {
+  'qs-wifi': 'page-network',
+  'qs-ntrip': 'page-gnss',
+  'qs-fix': 'page-signals',
+  'qs-sd': 'page-firmware',
+};
+Object.entries(QUICK_STATUS_TARGET).forEach(([chipId, pageId]) => {
+  const chip = document.getElementById(chipId);
+  if (!chip) return;
+  chip.addEventListener('click', () => goToPage(pageId));
 });
 
 // I log arrivano come testo grezzo (non JSON) - piu' semplice sia lato
@@ -1386,14 +1419,38 @@ function typedFieldValue(f, name) {
   return el.value;
 }
 
-// Salvataggio di un singolo campo (pulsante 💾 accanto ad ogni parametro,
-// vedi index.html) - manda insieme tutti i campi elencati in data-fields del
-// riquadro: il backend (copy_field in web_ui.c) lascia invariato tutto il
-// resto. Le password lasciate vuote ("lascia vuoto per non modificare")
+// Segna come "modificato" ogni campo toccato (bordo/sfondo ambra, vedi CSS
+// .field-dirty) finche' non viene salvato dal pulsante del suo riquadro -
+// cosi' si vede subito cosa manca da salvare prima di cambiare pagina.
+document.getElementById('cfg-form').addEventListener('input', (ev) => {
+  const el = ev.target;
+  if (!el.name) return;
+  el.classList.add('field-dirty');
+  // Se il riquadro aveva gia' un messaggio "Salvato"/"Errore" da un giro
+  // precedente, va tolto appena si ritocca qualcosa: non e' piu' vero.
+  const btn = el.closest('fieldset')?.querySelector('.fieldset-save-btn');
+  const msgEl = btn?.nextElementSibling;
+  if (msgEl) msgEl.textContent = '';
+});
+
+// Salvataggio di un riquadro intero (pulsante 💾 in fondo a ciascun
+// fieldset, vedi index.html) - manda insieme tutti i campi elencati in
+// data-fields: il backend (copy_field in web_ui.c) lascia invariato tutto
+// il resto. Le password lasciate vuote ("lascia vuoto per non modificare")
 // vengono escluse dall'invio invece di mandare una stringa vuota che il
 // backend ignorerebbe comunque - solo per chiarezza del messaggio mostrato.
+// Il messaggio di esito resta visibile finche' non si ritocca il riquadro
+// (vedi listener 'input' sopra), non sparisce da solo dopo pochi secondi.
 async function saveFieldset(names, btn, msgEl) {
   const f = document.getElementById('cfg-form');
+
+  // Campi che, se sbagliati, possono tagliare fuori dalla pagina stessa
+  // (codice di accesso, SSID/password dell'AP di setup): richiedono una
+  // conferma esplicita invece di un salvataggio silenzioso.
+  if (btn.dataset.risky && !confirm('Questo campo protegge l\'accesso a questa pagina: se sbagliato potresti restare escluso dal dispositivo. Salvare comunque?')) {
+    return;
+  }
+
   const data = {};
   for (const name of names) {
     const el = f.elements[name];
@@ -1412,17 +1469,16 @@ async function saveFieldset(names, btn, msgEl) {
     const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
     if (!r.ok) throw new Error('errore server');
     btn.classList.add('ok');
-    msgEl.textContent = 'Salvato';
+    msgEl.textContent = btn.dataset.reboot ? 'Salvato — serve un riavvio manuale per applicare' : 'Salvato';
+    for (const name of names) {
+      f.elements[name]?.classList.remove('field-dirty');
+    }
   } catch (e) {
     btn.classList.add('err');
-    msgEl.textContent = 'Errore';
+    msgEl.textContent = 'Errore nel salvataggio';
   }
   btn.disabled = false;
-  setTimeout(() => {
-    btn.textContent = orig;
-    btn.classList.remove('ok', 'err');
-    msgEl.textContent = '';
-  }, 1800);
+  btn.textContent = orig;
 }
 
 document.getElementById('cfg-form').addEventListener('click', (ev) => {
@@ -1800,6 +1856,48 @@ function pollOtaProgress(targetVersion) {
   };
   poll();
 }
+
+document.getElementById('cfg-export-btn').addEventListener('click', async () => {
+  try {
+    const r = await fetch('/api/status');
+    const s = await r.json();
+    const blob = new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'evonetrtk-config-' + (s.device_serial || 'dispositivo') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Errore nello scaricamento della configurazione');
+  }
+});
+
+document.getElementById('cfg-import-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('cfg-import-msg');
+  const fileInput = document.getElementById('cfg-import-file');
+  const file = fileInput.files[0];
+  if (!file) {
+    msg.textContent = 'Seleziona prima un file .json';
+    return;
+  }
+  if (!confirm('Applicare la configurazione dal file "' + file.name + '"? Sovrascrive i valori attuali (le password restano quelle gia\' salvate, il file non le contiene).')) {
+    return;
+  }
+  msg.textContent = 'Importazione...';
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
+    if (!r.ok) throw new Error('errore server');
+    msg.textContent = 'Configurazione importata, ricarico la pagina per mostrare i nuovi valori...';
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    msg.textContent = 'Errore: file non valido o problema di comunicazione col dispositivo';
+  }
+});
 
 document.getElementById('fw-online-btn').addEventListener('click', async () => {
   const msg = document.getElementById('fw-online-msg');

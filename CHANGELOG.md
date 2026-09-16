@@ -2,6 +2,16 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.35
+
+- Richiesta dell'utente (suggerimenti UX proposti e accettati "tutti"): sei miglioramenti alla UI web:
+  1. Conferma esplicita prima di salvare `admin_code` o `ap_ssid`/`ap_password` - campi che, se sbagliati, possono tagliare fuori dalla pagina.
+  2. Campi modificati ma non ancora salvati evidenziati (bordo/sfondo ambra) finche' non si preme il 💾 del loro riquadro.
+  3. I riquadri Hardware che richiedono un riavvio (Antenna GNSS, LED RGB, Display OLED) lo segnalano subito nel messaggio dopo il salvataggio, non solo in una nota generica in fondo pagina.
+  4. Nuova scheda "💾 Backup configurazione" (pagina Firmware): scarica un JSON con tutte le impostazioni (password escluse, il dispositivo non le restituisce mai) e lo puo' reimportare - utile per backup o per clonare la config su un'altra base.
+  5. Il messaggio "Salvato"/"Errore" di un riquadro resta visibile finche' non si ritocca quel riquadro, invece di sparire da solo dopo ~2 secondi.
+  6. I chip di stato in alto (📶 Rete, 📡 NTRIP, 🎯 Fix, 💾 SD) sono ora cliccabili e portano direttamente alla pagina pertinente.
+
 ## 1.19.34
 
 - Richiesta dell'utente: il pulsante 💾 per-campo introdotto in 1.19.32 (uno per ciascuno dei 56 parametri) e' stato sostituito da **un pulsante di salvataggio per riquadro** (18 in totale, uno per fieldset con almeno un campo modificabile) - es. "Server caster NTRIP locale" (porta, mountpoint, username, password) o "Modalita' operativa" (funzione dispositivo, chip GNSS) si salvano insieme con un solo click, invece di uno per campo. La scheda WiFi resta invariata (il pulsante "Connetti" gia' salva da solo al successo).
