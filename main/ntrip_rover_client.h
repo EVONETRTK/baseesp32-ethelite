@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include "driver/uart.h"
 
 // Una voce "STR;" del sourcetable NTRIP del caster - vedi
@@ -30,6 +31,18 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
 // ricevitore GNSS. Si riconnette automaticamente in caso di errore.
 // arg = uart_port_t incapsulato come (void *)(intptr_t) uart_num.
 void ntrip_rover_client_task(void *arg);
+
+// Prova subito una connessione NTRIP con i parametri passati (non
+// necessariamente ancora salvati in settings - stessa idea del "Connetti"
+// gia' usato per il WiFi: testare senza dover salvare e riavviare per
+// scoprire se sono giusti). Si connette, fa l'handshake GET+Basic Auth,
+// legge la prima risposta e chiude subito - non tocca lo stato NTRIP
+// "live" mostrato altrove nella UI (ntrip_status.h), e' solo un test
+// puntuale. Scrive un messaggio leggibile in out_msg in ogni caso (successo
+// o fallimento) e ritorna true solo se il caster ha accettato la richiesta.
+bool ntrip_rover_client_test_connect(const char *host, uint16_t port, const char *mountpoint,
+                                      const char *username, const char *password,
+                                      char *out_msg, size_t out_msg_size);
 
 // Chiamata da gnss_nmea_reader quando intercetta una riga $GxGGA emessa
 // dal GNSS: se il client e' attualmente connesso al caster, la inoltra

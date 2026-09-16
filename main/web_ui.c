@@ -382,6 +382,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddStringToObject(root, "device_serial_from_mac", mac_serial);
     }
     cJSON_AddStringToObject(root, "firmware_version", FIRMWARE_VERSION);
+    cJSON_AddStringToObject(root, "firmware_release_notes", FIRMWARE_RELEASE_NOTES);
     cJSON_AddStringToObject(root, "ota_update_url", s.ota_update_url);
     cJSON_AddBoolToObject(root, "auto_update_check_enable", s.auto_update_check_enable);
     cJSON_AddNumberToObject(root, "auto_update_check_interval_h", s.auto_update_check_interval_h);
@@ -1284,6 +1285,107 @@ static esp_err_t ntrip_mountpoints_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Prova subito una connessione NTRIP con i parametri inviati dalla pagina
+// (non ancora necessariamente salvati) - stessa idea del "Connetti" per il
+// WiFi, ma qui e' una singola richiesta TCP breve (timeout 6s dentro
+// ntrip_rover_client_test_connect()), non tocca la radio: si puo' eseguire
+// direttamente in questo task del server web, senza il task dedicato che
+// serve invece per il test WiFi (quello sposta davvero il canale radio e
+// puo' bloccare la pagina stessa se fatto in linea).
+static esp_err_t ntrip_test_connect_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    if (req->content_len <= 0 || req->content_len > 512) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo non valido");
+        return ESP_FAIL;
+    }
+
+    char buf[513];
+    int received = 0;
+    while (received < req->content_len) {
+        int r = httpd_req_recv(req, buf + received, req->content_len - received);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+            return ESP_FAIL;
+        }
+        received += r;
+    }
+    buf[received] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON non valido");
+        return ESP_FAIL;
+    }
+
+    app_settings_t existing = settings_get();
+
+    char host[65];
+    cJSON *host_item = cJSON_GetObjectItemCaseSensitive(root, "host");
+    if (host_item && cJSON_IsString(host_item) && host_item->valuestring[0] != '\0') {
+        strncpy(host, host_item->valuestring, sizeof(host) - 1);
+        host[sizeof(host) - 1] = '\0';
+    } else {
+        strncpy(host, existing.ntrip_host, sizeof(host) - 1);
+        host[sizeof(host) - 1] = '\0';
+    }
+
+    uint16_t port = existing.ntrip_port;
+    cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "port");
+    if (port_item && cJSON_IsNumber(port_item) && port_item->valueint > 0 && port_item->valueint <= 65535) {
+        port = (uint16_t) port_item->valueint;
+    }
+
+    char mountpoint[33];
+    cJSON *mp_item = cJSON_GetObjectItemCaseSensitive(root, "mountpoint");
+    if (mp_item && cJSON_IsString(mp_item) && mp_item->valuestring[0] != '\0') {
+        strncpy(mountpoint, mp_item->valuestring, sizeof(mountpoint) - 1);
+        mountpoint[sizeof(mountpoint) - 1] = '\0';
+    } else {
+        strncpy(mountpoint, existing.ntrip_mountpoint, sizeof(mountpoint) - 1);
+        mountpoint[sizeof(mountpoint) - 1] = '\0';
+    }
+
+    char username[33];
+    cJSON *user_item = cJSON_GetObjectItemCaseSensitive(root, "username");
+    if (user_item && cJSON_IsString(user_item) && user_item->valuestring[0] != '\0') {
+        strncpy(username, user_item->valuestring, sizeof(username) - 1);
+        username[sizeof(username) - 1] = '\0';
+    } else {
+        strncpy(username, existing.ntrip_username, sizeof(username) - 1);
+        username[sizeof(username) - 1] = '\0';
+    }
+
+    // Password vuota = usa quella gia' salvata (stessa convenzione del
+    // resto della UI: il campo password non torna mai indietro in lettura).
+    char password[65];
+    cJSON *pass_item = cJSON_GetObjectItemCaseSensitive(root, "password");
+    if (pass_item && cJSON_IsString(pass_item) && pass_item->valuestring[0] != '\0') {
+        strncpy(password, pass_item->valuestring, sizeof(password) - 1);
+        password[sizeof(password) - 1] = '\0';
+    } else {
+        strncpy(password, existing.ntrip_password, sizeof(password) - 1);
+        password[sizeof(password) - 1] = '\0';
+    }
+    cJSON_Delete(root);
+
+    char msg[128];
+    bool ok = ntrip_rover_client_test_connect(host, port, mountpoint, username, password, msg, sizeof(msg));
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    cJSON_AddStringToObject(resp, "message", msg);
+    char *json = cJSON_PrintUnformatted(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(resp);
+    return ESP_OK;
+}
+
 static esp_err_t ota_check_online_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -1583,6 +1685,7 @@ void web_ui_start(void)
     httpd_uri_t ota_progress_uri = { .uri = "/api/ota/progress", .method = HTTP_GET, .handler = ota_progress_get_handler };
     httpd_uri_t wifi_scan_uri  = { .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get_handler };
     httpd_uri_t ntrip_mountpoints_uri = { .uri = "/api/ntrip/mountpoints", .method = HTTP_GET, .handler = ntrip_mountpoints_get_handler };
+    httpd_uri_t ntrip_test_uri = { .uri = "/api/ntrip/test-connect", .method = HTTP_POST, .handler = ntrip_test_connect_post_handler };
     httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
     httpd_uri_t wifi_test_progress_uri = { .uri = "/api/wifi/test-progress", .method = HTTP_GET, .handler = wifi_test_progress_get_handler };
     httpd_uri_t wifi_forget_uri = { .uri = "/api/wifi/forget-known", .method = HTTP_POST, .handler = wifi_forget_known_post_handler };
@@ -1597,6 +1700,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
     httpd_register_uri_handler(server, &ntrip_mountpoints_uri);
+    httpd_register_uri_handler(server, &ntrip_test_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);
     httpd_register_uri_handler(server, &wifi_test_progress_uri);
     httpd_register_uri_handler(server, &wifi_forget_uri);

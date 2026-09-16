@@ -2,6 +2,15 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.37
+
+- Richiesta dell'utente (altri suggerimenti UX proposti e accettati "tutti"): cinque miglioramenti:
+  1. Conferma esplicita prima di "Riavvia dispositivo" (scheda Stato) - un click accidentale non interrompe piu' il flusso RTCM senza preavviso.
+  2. Puntino ambra sui pulsanti dei tab di navigazione se quella pagina ha campi modificati-non-salvati - visibile anche cambiando scheda.
+  3. Nuovo pulsante "Prova connessione al caster" nel riquadro NTRIP rover: testa subito l'handshake (host/porta/mountpoint/credenziali, anche non salvati) invece di aspettare il ciclo di retry automatico. Nuova `ntrip_rover_client_test_connect()` + endpoint `POST /api/ntrip/test-connect`.
+  4. Note di rilascio della versione corrente mostrate nella pagina Firmware (nuovo `FIRMWARE_RELEASE_NOTES` in version.h, esposto come `firmware_release_notes`).
+  5. Pulsante "copia" (📋) accanto a IP attuale e indirizzo mDNS in Stato - comodo da mobile.
+
 ## 1.19.36
 
 - Richiesta dell'utente: la matricola (scheda Sicurezza) e' ora di sola lettura per default - va spuntata esplicitamente "Forza modifica" per poterla cambiare, e il salvataggio chiede conferma esplicita (come gia' per admin_code/AP). Nuovo campo `device_serial_from_mac` in `/api/status` (funzione `settings_device_serial_from_mac()`, stessa logica del default gia' usata in `apply_defaults()`): se la matricola salvata non corrisponde a quella ricavata dal MAC del chip, un avviso ⚠️ compare sia in Sicurezza sia accanto alla Matricola nella scheda Stato.

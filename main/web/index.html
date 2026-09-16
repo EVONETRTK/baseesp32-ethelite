@@ -16,6 +16,8 @@
   nav.tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom: 1rem; }
   nav.tabs button { padding:.55rem 1rem; border:1px solid #c5c9d0; background:#fff; border-radius:8px; cursor:pointer; font-size:.9rem; transition: background .15s, color .15s, border-color .15s; }
   nav.tabs button.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+  nav.tabs button.has-dirty { position:relative; }
+  nav.tabs button.has-dirty::after { content:''; position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%; background:#d97706; border:2px solid #f6f7f9; }
   .page { display:none; }
   .page.active { display:block; }
   fieldset { border: 1px solid #d0d3d8; border-radius: 10px; margin-bottom: 1.2rem; padding: 1rem; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
@@ -52,6 +54,7 @@
   .fieldset-save-btn.err { background:#dc2626; }
   .fieldset-save-msg { font-size:.85rem; color:#666; }
   .field-dirty { border-color:#d97706 !important; background:#fffbeb !important; }
+  .copy-btn { border:none; background:none; cursor:pointer; font-size:.9rem; padding:0 .2rem; vertical-align:middle; }
   .qs-chip { cursor:pointer; }
 </style>
 </head>
@@ -109,8 +112,8 @@
         <span id="st-sd-space-text">-</span>
         <div class="sig-bar-track"><div class="sig-bar-fill" id="st-sd-space-bar" style="width:0%"></div></div>
       </dd>
-      <dt>Indirizzo IP attuale</dt><dd id="st-ip" style="font-weight:700">-</dd>
-      <dt>Indirizzo fisso</dt><dd id="st-mdns">-</dd>
+      <dt>Indirizzo IP attuale</dt><dd style="font-weight:700"><span id="st-ip">-</span> <button type="button" class="copy-btn" data-copy-target="st-ip" title="Copia">📋</button></dd>
+      <dt>Indirizzo fisso</dt><dd><span id="st-mdns">-</span> <button type="button" class="copy-btn" data-copy-target="st-mdns" title="Copia">📋</button></dd>
       <dt>Caster NTRIP configurato</dt><dd id="st-ntrip-host">-</dd>
     </dl>
     <small class="hint">
@@ -329,7 +332,14 @@
     <div id="ntrip-mp-results" style="margin-top:.4rem"></div>
     <label>Username <small class="hint">(solo modalita' rover)</small><input name="ntrip_username"></label>
     <label>Password / codice sorgente<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
-  
+    <button type="button" class="action secondary" id="ntrip-test-btn" style="margin-top:.6rem">Prova connessione al caster</button>
+    <div id="ntrip-test-msg" class="hint" style="margin-top:.4rem"></div>
+    <small class="hint">
+      Prova subito l'handshake col caster con questi valori (anche non ancora salvati), senza
+      aspettare il tentativo automatico ogni 5s - utile per scoprire subito se host/porta/mountpoint/
+      credenziali sono giusti.
+    </small>
+
     <div class="fieldset-save-row">
       <button type="button" class="action fieldset-save-btn" data-fields="ntrip_host,ntrip_port,ntrip_mountpoint,ntrip_username,ntrip_password">💾 Salva</button>
       <span class="fieldset-save-msg"></span>
@@ -665,6 +675,7 @@
     <dl class="kv">
       <dt>Versione attuale</dt><dd id="fw-current-version">-</dd>
     </dl>
+    <small class="hint" id="fw-release-notes"></small>
     <label>File firmware (.bin)<input type="file" id="fw-file" accept=".bin"></label>
     <button type="button" class="action" id="fw-upload-btn">Carica e aggiorna</button>
     <div id="fw-progress" class="hint" style="margin-top:.6rem"></div>
@@ -786,6 +797,38 @@ document.querySelectorAll('nav.tabs button').forEach((btn) => {
   btn.addEventListener('click', () => goToPage(btn.dataset.page));
 });
 
+// Copia negli appunti tramite una textarea temporanea + execCommand invece
+// di navigator.clipboard: questa pagina e' servita in HTTP semplice (un
+// dispositivo IoT locale non ha senso in HTTPS) e l'API Clipboard moderna
+// richiede un "secure context" che qui non c'e' - execCommand('copy') non
+// ha quel vincolo e funziona lo stesso da una pagina http://.
+function copyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+document.querySelectorAll('.copy-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const target = document.getElementById(btn.dataset.copyTarget);
+    if (!target) return;
+    const text = target.textContent;
+    if (!text || text === '-') return;
+    const ok = copyText(text);
+    const orig = btn.textContent;
+    btn.textContent = ok ? '✅' : '✗';
+    setTimeout(() => { btn.textContent = orig; }, 1200);
+  });
+});
+
 // I chip di stato in alto (quick-status) portano direttamente alla pagina
 // dove si vede il dettaglio o si corregge il problema, invece di essere
 // solo indicatori passivi.
@@ -898,6 +941,7 @@ async function loadStatus() {
       sdSpaceEl.style.display = 'none';
     }
     document.getElementById('fw-current-version').textContent = s.firmware_version || '-';
+    document.getElementById('fw-release-notes').textContent = s.firmware_release_notes || '';
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
     {
       const netLabels = { wifi: 'WiFi', cellulare: 'Cellulare', nessuna: 'Nessuna' };
@@ -1442,6 +1486,17 @@ function typedFieldValue(f, name) {
   return el.value;
 }
 
+// Aggiorna il puntino ambra sui pulsanti dei tab che hanno almeno un campo
+// modificato-non-salvato nella loro pagina - visibile anche cambiando
+// scheda, non solo guardando il singolo campo.
+function updateTabDirtyBadges() {
+  document.querySelectorAll('.page').forEach((page) => {
+    const hasDirty = !!page.querySelector('.field-dirty');
+    const navBtn = document.querySelector('nav.tabs button[data-page="' + page.id + '"]');
+    if (navBtn) navBtn.classList.toggle('has-dirty', hasDirty);
+  });
+}
+
 // Segna come "modificato" ogni campo toccato (bordo/sfondo ambra, vedi CSS
 // .field-dirty) finche' non viene salvato dal pulsante del suo riquadro -
 // cosi' si vede subito cosa manca da salvare prima di cambiare pagina.
@@ -1454,6 +1509,7 @@ document.getElementById('cfg-form').addEventListener('input', (ev) => {
   const btn = el.closest('fieldset')?.querySelector('.fieldset-save-btn');
   const msgEl = btn?.nextElementSibling;
   if (msgEl) msgEl.textContent = '';
+  updateTabDirtyBadges();
 });
 
 // Salvataggio di un riquadro intero (pulsante 💾 in fondo a ciascun
@@ -1498,6 +1554,7 @@ async function saveFieldset(names, btn, msgEl) {
     for (const name of names) {
       f.elements[name]?.classList.remove('field-dirty');
     }
+    updateTabDirtyBadges();
   } catch (e) {
     btn.classList.add('err');
     msgEl.textContent = 'Errore nel salvataggio';
@@ -1543,6 +1600,9 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
 });
 
 document.getElementById('reboot-btn').addEventListener('click', async () => {
+  if (!confirm('Riavviare il dispositivo ora? Se sta trasmettendo correzioni a dei rover collegati, il flusso si interrompe per qualche secondo.')) {
+    return;
+  }
   document.getElementById('save-msg').textContent = 'Riavvio...';
   try { await fetch('/api/reboot', { method: 'POST' }); } catch (e) {}
 });
@@ -1682,6 +1742,38 @@ document.getElementById('ntrip-mp-scan-btn').addEventListener('click', async () 
     });
   } catch (e) {
     results.textContent = 'Errore durante la ricerca mountpoint';
+  }
+});
+
+// Prova subito l'handshake NTRIP coi valori attuali del form (anche non
+// ancora salvati) - stessa idea del "Connetti" per il WiFi ma sincrona: e'
+// una singola richiesta TCP breve, non tocca la radio, quindi non serve
+// interrogare un esito periodicamente come per il WiFi qui sotto.
+document.getElementById('ntrip-test-btn').addEventListener('click', async () => {
+  const f = document.getElementById('cfg-form');
+  const msg = document.getElementById('ntrip-test-msg');
+  msg.style.color = '';
+  msg.style.fontWeight = '';
+  msg.textContent = 'Connessione in corso...';
+  try {
+    const r = await fetch('/api/ntrip/test-connect', {
+      method: 'POST',
+      body: JSON.stringify({
+        host: f.ntrip_host.value,
+        port: Number(f.ntrip_port.value),
+        mountpoint: f.ntrip_mountpoint.value,
+        username: f.ntrip_username.value,
+        password: f.ntrip_password.value,
+      }),
+    });
+    const s = await r.json();
+    msg.style.color = s.ok ? '#16a34a' : '#dc2626';
+    msg.style.fontWeight = '600';
+    msg.textContent = s.message || (s.ok ? 'Riuscito' : 'Fallito');
+  } catch (e) {
+    msg.style.color = '#dc2626';
+    msg.style.fontWeight = '600';
+    msg.textContent = 'Errore di comunicazione col dispositivo';
   }
 });
 

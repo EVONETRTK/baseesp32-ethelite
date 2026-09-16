@@ -110,6 +110,86 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     return sock;
 }
 
+bool ntrip_rover_client_test_connect(const char *host, uint16_t port, const char *mountpoint,
+                                      const char *username, const char *password,
+                                      char *out_msg, size_t out_msg_size)
+{
+    char port_str[8];
+    snprintf(port_str, sizeof(port_str), "%u", port);
+
+    struct addrinfo hints = {
+        .ai_family = AF_INET,
+        .ai_socktype = SOCK_STREAM,
+    };
+    struct addrinfo *res = NULL;
+    if (getaddrinfo(host, port_str, &hints, &res) != 0 || res == NULL) {
+        snprintf(out_msg, out_msg_size, "DNS lookup fallita per %s", host);
+        return false;
+    }
+
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sock < 0) {
+        freeaddrinfo(res);
+        snprintf(out_msg, out_msg_size, "Creazione socket fallita");
+        return false;
+    }
+
+    // Timeout breve: questo e' un test puntuale dalla UI web, non deve
+    // lasciare la richiesta HTTP del browser in sospeso a lungo se il
+    // caster non risponde affatto.
+    struct timeval tv = { .tv_sec = 6, .tv_usec = 0 };
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
+        int e = errno;
+        close(sock);
+        freeaddrinfo(res);
+        snprintf(out_msg, out_msg_size, "Connessione a %s:%u fallita (errno %d)", host, port, e);
+        return false;
+    }
+    freeaddrinfo(res);
+
+    char credentials[112];
+    int cred_len = snprintf(credentials, sizeof(credentials), "%s:%s", username, password);
+
+    unsigned char b64[160];
+    size_t b64_len = 0;
+    mbedtls_base64_encode(b64, sizeof(b64) - 1, &b64_len, (const unsigned char *) credentials, cred_len);
+    b64[b64_len] = '\0';
+
+    char req[320];
+    int req_len = snprintf(req, sizeof(req),
+        "GET /%s HTTP/1.1\r\n"
+        "User-Agent: NTRIP baseesp32/1.0\r\n"
+        "Authorization: Basic %s\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        mountpoint, (const char *) b64);
+
+    if (send(sock, req, req_len, 0) != req_len) {
+        close(sock);
+        snprintf(out_msg, out_msg_size, "Invio richiesta fallito");
+        return false;
+    }
+
+    char resp[128] = {0};
+    int r = recv(sock, resp, sizeof(resp) - 1, 0);
+    close(sock);
+    if (r <= 0) {
+        snprintf(out_msg, out_msg_size, "Nessuna risposta dal caster");
+        return false;
+    }
+    resp[r] = '\0';
+    if (strncmp(resp, "ICY 200", 7) != 0 && strncmp(resp, "HTTP/1.1 200", 12) != 0) {
+        snprintf(out_msg, out_msg_size, "Caster ha rifiutato: %.60s", resp);
+        return false;
+    }
+
+    snprintf(out_msg, out_msg_size, "Connesso con successo al mountpoint /%s", mountpoint);
+    return true;
+}
+
 // Isola il prossimo campo separato da ';' in *cursor, terminandolo con '\0'
 // - stessa logica di gnss_signal.c/gnss_fix.c, duplicata qui perche' e'
 // privata a quel file e il formato del sourcetable NTRIP usa ';' invece
