@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.48
+
+- **Fix di un fix, trovato subito dopo aver applicato il fix "minore" segnalato a fine revisione**: rimuovere l'inizializzazione "pigra" del mutex in `rtcm3_stats.c` (per chiuderla alla radice invece di lasciarla come rischio residuo) avrebbe fatto crashare `/api/signals` in **modalita' rover** - `rtcm3_stats_init()` veniva chiamata solo nel ramo base di `app_main()`, ma `signals_get_handler()` chiama `rtcm3_stats_get()` a prescindere dalla modalita', quindi in rover il mutex non sarebbe mai stato creato (`xSemaphoreTake(NULL, ...)`). Spostata l'inizializzazione in un punto eseguito sempre in `app_main()`, prima che il server web parta. Verificato sul dispositivo reale (configurato in modalita' rover): avvio pulito, nessun crash.
+
 ## 1.19.47
 
 - **Richiesta dell'utente: revisione approfondita di tutto il codice della sessione (~2100 righe) per cercare errori residui.** Trovati e corretti due bug reali:

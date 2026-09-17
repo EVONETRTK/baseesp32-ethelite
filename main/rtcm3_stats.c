@@ -32,20 +32,19 @@ static uint16_t s_msg_type;
 static size_t s_frame_total_len; // 3 (header) + payload_len + 3 (crc)
 static size_t s_bytes_in_frame;
 
-static void mutex_init(void)
-{
-    if (!s_mutex) {
-        s_mutex = xSemaphoreCreateMutex();
-    }
-}
-
+// Il mutex si crea SOLO qui, non "pigramente" al primo uso in ciascuna
+// funzione (come altrove in questo progetto): rtcm3_stats_init() e' l'unica
+// chiamata sincrona in app_main() (vedi main.c), garantita finire prima
+// che qualunque task possa chiamare rtcm3_stats_feed()/_get() - creare il
+// mutex pigramente in piu' punti avrebbe un margine di corsa teorico se due
+// task lo usassero per la prima volta in contemporanea (due mutex diversi
+// creati, uno dei due perso), evitato qui alla radice invece che accettato
+// come rischio residuo.
 void rtcm3_stats_init(void)
 {
-    mutex_init();
-    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_mutex = xSemaphoreCreateMutex();
     s_table_len = 0;
     s_state = ST_SYNC;
-    xSemaphoreGive(s_mutex);
 }
 
 static void add_bytes(uint16_t type, uint32_t bytes)
@@ -68,8 +67,6 @@ static void add_bytes(uint16_t type, uint32_t bytes)
 
 void rtcm3_stats_feed(const uint8_t *data, size_t len)
 {
-    mutex_init();
-
     for (size_t i = 0; i < len; i++) {
         uint8_t b = data[i];
 
@@ -125,7 +122,6 @@ void rtcm3_stats_feed(const uint8_t *data, size_t len)
 
 size_t rtcm3_stats_get(rtcm3_stat_entry_t *out, size_t max_count)
 {
-    mutex_init();
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     size_t n = s_table_len < max_count ? s_table_len : max_count;
     memcpy(out, s_table, n * sizeof(rtcm3_stat_entry_t));

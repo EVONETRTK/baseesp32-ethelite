@@ -115,6 +115,12 @@ void app_main(void)
     settings_init();
     gnss_signal_init();
     gnss_fix_init();
+    // Va inizializzato qui, incondizionatamente (non solo nel ramo base
+    // sotto): /api/signals chiama rtcm3_stats_get() a prescindere dalla
+    // modalita' (vedi web_ui.c), quindi serve un mutex gia' creato anche
+    // in modalita' rover, dove rtcm3_stats_feed() semplicemente non verra'
+    // mai chiamata e la tabella restera' vuota.
+    rtcm3_stats_init();
 
     status_led_start();
     oled_display_start();
@@ -193,7 +199,6 @@ void app_main(void)
                     (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
     } else {
         rtcm3_1005_init();
-        rtcm3_stats_init();
         rtcm_stream = xStreamBufferCreate(4096, 1);
         xTaskCreate(gnss_uart_task, "gnss_uart", 4096, NULL, 10, NULL);
         xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
