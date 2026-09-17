@@ -232,6 +232,17 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
         freeaddrinfo(res);
         return 0;
     }
+
+    // Senza questo timeout, un caster che accetta la connessione ma non
+    // manda mai il sourcetable (ne' la chiude) blocca qui a oltranza
+    // recv() sotto - trovato rivedendo il codice, mai capitato in
+    // pratica ma un bug reale: bloccherebbe il task del server web che
+    // gestisce questa richiesta, congelando l'intera UI finche' il
+    // caster remoto non decide di chiudere da solo. Stesso valore gia'
+    // usato in ntrip_rover_client_test_connect() per lo stesso motivo.
+    struct timeval tv = { .tv_sec = 8, .tv_usec = 0 };
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
         ESP_LOGW(TAG, "Sourcetable: connessione a %s:%d fallita: errno %d", settings.ntrip_host, settings.ntrip_port, errno);
         close(sock);

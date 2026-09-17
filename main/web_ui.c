@@ -1733,7 +1733,15 @@ void web_ui_start(void)
     s_settings_edit_mutex = xSemaphoreCreateMutex();
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 24; // default 8, non basta piu' con gli endpoint OTA/WiFi/log/avvisi/PPP/archivio/NTRIP aggiunti
+    // default 8, non basta piu' con tutti gli endpoint aggiunti (23 in uso
+    // in questa versione) - portato a 32 invece che al minimo esatto
+    // (avrebbe lasciato solo 1 slot libero): httpd_register_uri_handler()
+    // qui sotto non controlla il valore di ritorno, un nuovo endpoint
+    // aggiunto in futuro senza alzare anche questo numero fallirebbe in
+    // silenzio (nessun log, nessun crash, solo un 404 inspiegabile su
+    // quell'endpoint) - trovato rivedendo il codice, non ancora capitato
+    // in pratica.
+    config.max_uri_handlers = 32;
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne

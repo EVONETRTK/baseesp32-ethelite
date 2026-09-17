@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.47
+
+- **Richiesta dell'utente: revisione approfondita di tutto il codice della sessione (~2100 righe) per cercare errori residui.** Trovati e corretti due bug reali:
+  1. `ntrip_rover_client_fetch_mountpoints()` (il pulsante "Cerca mountpoint disponibili") non aveva nessun timeout sul socket - un caster che accetta la connessione ma non manda mai il sourcetable (ne' la chiude) avrebbe bloccato a oltranza il task del server web, congelando l'intera UI. Aggiunto lo stesso timeout (8s) gia' usato per il test di connessione NTRIP.
+  2. `config.max_uri_handlers` era a 24 con 23 endpoint gia' registrati (1 solo slot libero) - `httpd_register_uri_handler()` non controlla il valore di ritorno, quindi un futuro endpoint aggiunto senza alzare anche questo numero sarebbe fallito in silenzio (nessun log, solo un 404 inspiegabile). Portato a 32 per un margine reale.
+  Nessun altro bug trovato nel resto del codice rivisto (driver GNSS, gestione impostazioni, relay NTRIP del caster) - verificato struttura HTML (tag bilanciati, nessun ID duplicato) e logica dei nuovi handler.
+
 ## 1.19.46
 
 - Richiesta dell'utente ("continuo a mettere le password su rete conosciuta"): il campo password WiFi era percepito come "il dispositivo ha dimenticato la password" perche' appare sempre vuoto - comportamento voluto (nessun campo password viene mai restituito in lettura, per sicurezza), ma spiegato finora solo da un placeholder facile da non notare. Aggiunta una spiegazione permanente sotto il campo.
