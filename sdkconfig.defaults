@@ -78,3 +78,9 @@ CONFIG_FATFS_LFN_HEAP=y
 # il log finiva dentro il ricevitore e il ricevitore non era raggiungibile.
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+# Serve a net_util.h (net_close_now): i client NTRIP chiudono con RST invece
+# di lasciare i socket in TIME_WAIT per 120 s - accumulandosi oltre
+# CONFIG_LWIP_MAX_ACTIVE_TCP bloccavano ogni risposta TCP della scheda
+# (pannello web) mentre il caster rifiutava le connessioni.
+CONFIG_LWIP_SO_LINGER=y

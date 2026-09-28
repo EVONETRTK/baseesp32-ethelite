@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.63
+
+- **Pannello bloccato dopo qualche minuto mentre il caster rifiutava la connessione**, successo due volte provando base e rover su mountpoint rifiutate. Il ping passava e le richieste arrivavano al server web (si vedevano nel log), ma nessuna risposta TCP tornava al browser. Causa: ogni tentativo NTRIP fallito (ogni 5 s) lasciava il socket in TIME_WAIT per 120 s (`CONFIG_LWIP_TCP_MSL` 60 s), cioe' ~24 PCB contro un limite di `CONFIG_LWIP_MAX_ACTIVE_TCP` di 16. Verifica: con i tentativi fermati il pannello restava reattivo.
+  - I client NTRIP (base e rover) chiudono ora con RST (`SO_LINGER` a 0, `net_util.h`, `CONFIG_LWIP_SO_LINGER=y`): nessun TIME_WAIT.
+  - Base: attesa tra i tentativi falliti crescente, 5 → 10 → 20 → 40 → 60 s, e di nuovo 5 s dopo una connessione riuscita.
+
 ## 1.19.62
 
 - **Fix segnalato dall'utente ("nessun satellite")**: lo ZED-F9P aveva il fix GPS con 7-9 satelliti, ma nel grafico risultavano tutti a 0 dB-Hz. Un ricevitore multibanda (NMEA 4.11) manda a ogni epoca un ciclo di GSV per ogni segnale (L1, poi L2, ...), ciascuno che riparte da "messaggio 1". `gnss_signal.c` svuotava la costellazione a ogni "messaggio 1", quindi restava solo l'ultimo segnale (L2, a 0 al chiuso). Ora svuota una volta per epoca (300 ms tra un ciclo e l'altro) e per ogni satellite tiene il segnale migliore tra le bande. `GNSS_SIGNAL_MAX_SATS` portato da 32 a 64: all'aperto un ricevitore a 4 costellazioni ne vede piu' di 32.

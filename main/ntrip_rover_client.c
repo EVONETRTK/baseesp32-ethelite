@@ -2,6 +2,7 @@
 #include "gnss_io.h"
 #include "settings.h"
 #include "status.h"
+#include "net_util.h"
 
 #include <string.h>
 #include <errno.h>
@@ -53,7 +54,7 @@ static int ntrip_rover_connect(const app_settings_t *settings)
 
     if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
         ESP_LOGE(TAG, "Connessione a %s:%d fallita: errno %d", settings->ntrip_host, settings->ntrip_port, errno);
-        close(sock);
+        net_close_now(sock);
         freeaddrinfo(res);
         char msg[128];
         snprintf(msg, sizeof(msg), "Connessione al caster fallita (errno %d)", errno);
@@ -82,7 +83,7 @@ static int ntrip_rover_connect(const app_settings_t *settings)
 
     if (send(sock, req, req_len, 0) != req_len) {
         ESP_LOGE(TAG, "Invio richiesta NTRIP GET fallito: errno %d", errno);
-        close(sock);
+        net_close_now(sock);
         status_ntrip_note_disconnected("Invio richiesta fallito");
         return -1;
     }
@@ -91,14 +92,14 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     int r = recv(sock, resp, sizeof(resp) - 1, 0);
     if (r <= 0) {
         ESP_LOGE(TAG, "Nessuna risposta dal caster");
-        close(sock);
+        net_close_now(sock);
         status_ntrip_note_disconnected("Nessuna risposta dal caster");
         return -1;
     }
     resp[r] = '\0';
     if (strncmp(resp, "ICY 200", 7) != 0 && strncmp(resp, "HTTP/1.1 200", 12) != 0) {
         ESP_LOGE(TAG, "Caster ha rifiutato la richiesta rover: %s", resp);
-        close(sock);
+        net_close_now(sock);
         char msg[128];
         snprintf(msg, sizeof(msg), "Caster ha rifiutato la richiesta: %.50s", resp);
         status_ntrip_note_disconnected(msg);
@@ -162,7 +163,7 @@ bool ntrip_rover_client_test_connect(const char *host, uint16_t port, const char
 
     if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
         int e = errno;
-        close(sock);
+        net_close_now(sock);
         freeaddrinfo(res);
         snprintf(out_msg, out_msg_size, "Connessione a %s:%u fallita (errno %d)", host, port, e);
         return false;
@@ -187,14 +188,14 @@ bool ntrip_rover_client_test_connect(const char *host, uint16_t port, const char
         mountpoint, (const char *) b64);
 
     if (send(sock, req, req_len, 0) != req_len) {
-        close(sock);
+        net_close_now(sock);
         snprintf(out_msg, out_msg_size, "Invio richiesta fallito");
         return false;
     }
 
     char resp[128] = {0};
     int r = recv(sock, resp, sizeof(resp) - 1, 0);
-    close(sock);
+    net_close_now(sock);
     if (r <= 0) {
         snprintf(out_msg, out_msg_size, "Nessuna risposta dal caster");
         return false;
@@ -264,7 +265,7 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
         ESP_LOGW(TAG, "Sourcetable: connessione a %s:%d fallita: errno %d", settings.ntrip_host, settings.ntrip_port, errno);
-        close(sock);
+        net_close_now(sock);
         freeaddrinfo(res);
         return 0;
     }
@@ -276,7 +277,7 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     // il caster prima di autenticarsi su una mountpoint scelta.
     const char req[] = "GET / HTTP/1.1\r\nUser-Agent: NTRIP baseesp32/1.0\r\nConnection: close\r\n\r\n";
     if (send(sock, req, sizeof(req) - 1, 0) != (int) sizeof(req) - 1) {
-        close(sock);
+        net_close_now(sock);
         return 0;
     }
 
@@ -295,7 +296,7 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
         total += (size_t) r;
     }
     buf[total] = '\0';
-    close(sock);
+    net_close_now(sock);
 
     size_t count = 0;
     char *line = buf;
@@ -379,7 +380,7 @@ void ntrip_rover_client_task(void *arg)
         }
 
         set_active_sock(-1);
-        close(sock);
+        net_close_now(sock);
         // 2s era troppo poco: il caster rileva una connessione precedente
         // interrotta bruscamente solo dopo il proprio keepalive TCP (decine
         // di secondi), e nel frattempo tiene occupato lo slot di sessione

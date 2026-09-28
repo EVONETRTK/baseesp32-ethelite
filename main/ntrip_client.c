@@ -9,6 +9,7 @@
 #include "ntrip_client.h"
 #include "settings.h"
 #include "status.h"
+#include "net_util.h"
 
 static const char *TAG = "ntrip_client";
 
@@ -42,7 +43,7 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
 
     if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
         ESP_LOGE(TAG, "Connessione a %s:%d fallita: errno %d", settings->ntrip_host, settings->ntrip_port, errno);
-        close(sock);
+        net_close_now(sock);
         freeaddrinfo(res);
         char msg[128];
         snprintf(msg, sizeof(msg), "Connessione al caster fallita (errno %d)", errno);
@@ -59,7 +60,7 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
         settings->ntrip_password, settings->ntrip_mountpoint);
     if (send(sock, req, req_len, 0) != req_len) {
         ESP_LOGE(TAG, "Invio handshake NTRIP fallito: errno %d", errno);
-        close(sock);
+        net_close_now(sock);
         status_ntrip_note_disconnected("Invio handshake fallito");
         return -1;
     }
@@ -68,14 +69,14 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
     int r = recv(sock, resp, sizeof(resp) - 1, 0);
     if (r <= 0) {
         ESP_LOGE(TAG, "Nessuna risposta dal caster");
-        close(sock);
+        net_close_now(sock);
         status_ntrip_note_disconnected("Nessuna risposta dal caster");
         return -1;
     }
     resp[r] = '\0';
     if (strncmp(resp, "ICY 200", 7) != 0 && strncmp(resp, "OK", 2) != 0) {
         ESP_LOGE(TAG, "Caster ha rifiutato la connessione sorgente: %s", resp);
-        close(sock);
+        net_close_now(sock);
         char msg[128];
         snprintf(msg, sizeof(msg), "Caster ha rifiutato la connessione: %.50s", resp);
         status_ntrip_note_disconnected(msg);
@@ -92,14 +93,21 @@ void ntrip_client_task(void *arg)
 {
     StreamBufferHandle_t rtcm_stream = (StreamBufferHandle_t) arg;
     uint8_t buf[512];
+    // Attesa tra un tentativo fallito e l'altro: 5 s, poi raddoppia fino a
+    // 60 s finche' il caster continua a rifiutare (mountpoint inesistente,
+    // password sbagliata...), per non martellarlo ne' consumare risorse di
+    // rete ogni 5 s all'infinito. Torna a 5 s appena una connessione riesce.
+    uint32_t retry_ms = 5000;
 
     while (1) {
         app_settings_t settings = settings_get();
         int sock = ntrip_connect_and_handshake(&settings);
         if (sock < 0) {
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            vTaskDelay(pdMS_TO_TICKS(retry_ms));
+            retry_ms = (retry_ms * 2 > 60000) ? 60000 : retry_ms * 2;
             continue;
         }
+        retry_ms = 5000;
 
         while (1) {
             size_t len = xStreamBufferReceive(rtcm_stream, buf, sizeof(buf), pdMS_TO_TICKS(1000));
@@ -115,7 +123,7 @@ void ntrip_client_task(void *arg)
                 break;
             }
         }
-        close(sock);
+        net_close_now(sock);
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
