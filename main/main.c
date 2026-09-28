@@ -26,6 +26,7 @@
 #include "gnss_ubx_ack.h"
 #include "gnss_i2c.h"
 #include "gnss_io.h"
+#include "base_stream_demux.h"
 #include "gnss_fix.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_nmea_reader.h"
@@ -59,35 +60,36 @@ static void gnss_uart_init(const app_settings_t *settings)
     gnss_io_init(settings);
 }
 
-// Modalita' BASE: legge i byte RTCM3 grezzi emessi dal GNSS e li inoltra
-// al task NTRIP tramite stream buffer. Il flusso viene anche passato (di
-// sola lettura) a base_monitor_feed() per rilevare un eventuale
-// spostamento dell'antenna dai frame 1005/1006 gia' presenti nello stream -
-// nessun impatto sui byte effettivamente inoltrati al caster, e
-// base_monitor_feed() e' pensata per essere veloce/non bloccante (non fa
-// I/O), per non rallentare questo task.
+// Un frame RTCM3 valido (CRC gia' verificato da base_stream_demux.c): va al
+// caster e agli altri consumatori. base_monitor_feed() e' pensata per essere
+// veloce/non bloccante (non fa I/O), per non rallentare il task.
+static void base_forward_rtcm_frame(const uint8_t *frame, size_t len)
+{
+    status_note_rtcm_bytes((uint32_t) len);
+    base_monitor_feed(frame, len);
+    rtcm3_stats_feed(frame, len);
+    ntrip_caster_server_feed(frame, len);
+    ppp_log_feed(frame, len);
+    xStreamBufferSend(rtcm_stream, frame, len, pdMS_TO_TICKS(1000));
+}
+
+// Modalita' BASE: legge il flusso del GNSS, lo separa (base_stream_demux.c)
+// e inoltra al caster solo i frame RTCM3 validi. Le righe NMEA GGA/GSV (che
+// il ricevitore puo' mandare insieme all'RTCM) alimentano stato fix e
+// grafico satelliti, le risposte UBX vengono scartate.
 static void gnss_uart_task(void *arg)
 {
     uint8_t buf[UART_RX_BUF_SIZE];
     while (1) {
         int len = gnss_io_read(buf, sizeof(buf), pdMS_TO_TICKS(100));
         // Ogni byte passa anche dal parser ACK/NAK UBX (gnss_ubx.c attende
-        // la risposta ai comandi di configurazione mandati all'avvio), ma
-        // qui lo si fa solo osservare: niente viene tolto dallo stream.
-        // Togliere i byte "riconosciuti" corrompeva l'RTCM3, che contiene
-        // 0xB5 0x62 per puro caso; qualche frame UBX di risposta in mezzo
-        // all'RTCM all'avvio e' invece innocuo (i decoder si risincronizzano
-        // sul preambolo 0xD3 + CRC).
+        // la risposta ai comandi di configurazione mandati all'avvio), solo
+        // in osservazione: la separazione dei flussi la fa il demux.
         for (int i = 0; i < len; i++) {
             (void) gnss_ubx_ack_feed_byte(buf[i]);
         }
         if (len > 0) {
-            status_note_rtcm_bytes((uint32_t) len);
-            base_monitor_feed(buf, (size_t) len);
-            rtcm3_stats_feed(buf, (size_t) len);
-            ntrip_caster_server_feed(buf, (size_t) len);
-            ppp_log_feed(buf, (size_t) len);
-            xStreamBufferSend(rtcm_stream, buf, len, pdMS_TO_TICKS(1000));
+            base_stream_demux_feed(buf, (size_t) len, base_forward_rtcm_frame);
         }
     }
 }

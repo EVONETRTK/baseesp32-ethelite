@@ -125,7 +125,7 @@
       <dt>Rete attiva</dt><dd id="st-net">-</dd>
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
       <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
-      <dt data-mode="rover">Fix RTK</dt><dd id="st-fix" data-mode="rover">-</dd>
+      <dt>Fix GNSS</dt><dd id="st-fix">-</dd>
       <dt>Scheda microSD</dt><dd id="st-sd">-</dd>
       <dt id="st-sd-space-label" style="display:none">Spazio SD</dt>
       <dd id="st-sd-space" style="display:none">
@@ -694,7 +694,7 @@
 </div>
 
 <div id="page-signals" class="page">
-  <fieldset data-mode="rover">
+  <fieldset>
     <legend>🎯 Fix GNSS (RTK)</legend>
     <dl class="kv">
       <dt>Stato fix</dt><dd id="fix-quality">-</dd>
@@ -704,7 +704,7 @@
       <dt>Altitudine</dt><dd id="fix-alt">-</dd>
       <dt>Ultimo fix</dt><dd id="fix-age">-</dd>
     </dl>
-    <small class="hint">Dati letti dalle sentenze $xxGGA emesse dal GNSS - popolato solo in modalita' rover, mentre il ricevitore trasmette NMEA.</small>
+    <small class="hint">Dati letti dalle sentenze $xxGGA emesse dal GNSS - in base, durante il survey-in, conferma che l'antenna riceve bene.</small>
   </fieldset>
 
   <fieldset data-mode="rover">
@@ -731,7 +731,7 @@
     </small>
   </fieldset>
 
-  <fieldset data-mode="rover">
+  <fieldset>
     <legend>🛰️ Satelliti GNSS (C/N0 per satellite)</legend>
     <canvas id="sat-chart" width="620" height="180"></canvas>
     <div class="legend-row">
@@ -741,7 +741,7 @@
       <span class="legend-dot" style="background:#d97706; margin-left:.8rem"></span>BeiDou
       <span class="legend-dot" style="background:#6b7280; margin-left:.8rem"></span>altro
     </div>
-    <small class="hint">Dati letti dalle sentenze $xxGSV emesse dal GNSS - popolato solo in modalita' rover, mentre il ricevitore trasmette NMEA.</small>
+    <small class="hint">Dati letti dalle sentenze $xxGSV emesse dal GNSS - disponibile in rover e, con i ricevitori u-blox, anche in base.</small>
   </fieldset>
 
   <fieldset id="rtcm-bytes-fieldset" style="display:none" data-mode="base">

@@ -182,10 +182,13 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     // Gruppi separati come nel rover: VALSET e' tutto-o-niente, un NAK su
     // un gruppo non deve far cadere anche gli altri, e il log dice quale.
     const ubx_cfg_kv32_t kvs_port[] = {
-        // CFG-I2COUTPROT / CFG-UART1OUTPROT: RTCM3 in uscita, NMEA spento
-        // (solo RTCM3 su questa porta)
+        // CFG-I2COUTPROT / CFG-UART1OUTPROT: RTCM3 in uscita, e anche NMEA:
+        // GGA/GSV servono a stato fix e grafico satelliti della base.
+        // base_stream_demux.c separa i flussi, al caster va solo l'RTCM3.
         { i2c ? 0x10720004 : 0x10740004, 1 },
-        { i2c ? 0x10720002 : 0x10740002, 0 },
+        { i2c ? 0x10720002 : 0x10740002, 1 },
+        { 0x209100bb - port_off, 1 },   // CFG-MSGOUT-NMEA_ID_GGA (ogni epoca)
+        { 0x209100c5 - port_off, 1 },   // CFG-MSGOUT-NMEA_ID_GSV
     };
     ubx_valset_group(uart_num, i2c ? "PORTA I2C" : "PORTA UART1", kvs_port, sizeof(kvs_port) / sizeof(kvs_port[0]));
 

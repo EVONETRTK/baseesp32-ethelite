@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.56
+
+- **Richiesta dell'utente ("in segnali non vedo il grafico dei satelliti", in base)**: grafico satelliti, riquadro Fix GNSS e riga fix nella scheda Stato tornano visibili anche in base. Nella 1.19.50 erano stati legati al rover perche' in base il firmware leggeva solo RTCM.
+  - Nuovo `base_stream_demux.c`: in base il flusso del ricevitore viene separato in frame RTCM3, righe NMEA e frame UBX. **Al caster (e a caster locale, statistiche, log PPP, controllo spostamento) vanno solo frame RTCM3 con CRC24Q valido**; GGA/GSV alimentano stato fix e grafico satelliti; le risposte UBX vengono scartate. Prima veniva inoltrato tutto quello che arrivava dalla porta, comprese le risposte ai comandi dell'avvio. Anche il contatore "byte RTCM" ora conta solo RTCM vero.
+  - u-blox in base: NMEA non piu' spento sulla porta del ricevitore, attivi GGA e GSV.
+
 ## 1.19.55
 
 - **Ricevitore u-blox collegabile via I2C** (indirizzo 0x42), richiesto per l'HAT **Syneda uRTK6.0 (ZED-F9P)**: secondo il suo pinout sul connettore a 40 pin porta solo alimentazione e I2C, mentre le seriali sono su connettori laterali (J1 = UART1, fila a 7 pin = UART2). Sulla T-ETH-Elite i pin 3/5 del connettore sono GPIO17/18, lo stesso bus del display OLED.

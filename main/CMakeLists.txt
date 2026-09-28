@@ -19,6 +19,7 @@ idf_component_register(
         "gnss_l76k.c"
         "gnss_i2c.c"
         "gnss_io.c"
+        "base_stream_demux.c"
         "i2c_shared_bus.c"
         "gnss_signal.c"
         "gnss_fix.c"
