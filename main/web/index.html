@@ -20,6 +20,8 @@
   nav.tabs button.has-dirty::after { content:''; position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%; background:#d97706; border:2px solid #f6f7f9; }
   .page { display:none; }
   .page.active { display:block; }
+  /* Senza !important l'attributo hidden perde contro regole come label { display:block } */
+  [hidden] { display:none !important; }
   fieldset { border: 1px solid #d0d3d8; border-radius: 10px; margin-bottom: 1.2rem; padding: 1rem; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
   legend { font-weight: 700; font-size: 1rem; padding: 0 .5rem; }
   label { display:block; margin-top:.6rem; font-size:.9rem; color:#333; }
@@ -121,7 +123,7 @@
       <dt>Rete attiva</dt><dd id="st-net">-</dd>
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
       <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
-      <dt>Fix RTK</dt><dd id="st-fix">-</dd>
+      <dt data-mode="rover">Fix RTK</dt><dd id="st-fix" data-mode="rover">-</dd>
       <dt>Scheda microSD</dt><dd id="st-sd">-</dd>
       <dt id="st-sd-space-label" style="display:none">Spazio SD</dt>
       <dd id="st-sd-space" style="display:none">
@@ -149,7 +151,7 @@
     <div class="sig-bar-track"><div class="sig-bar-fill" id="st-cell-sig-bar" style="width:0%"></div></div>
     <small class="hint" id="st-cell-sig-text">-</small>
     <small class="hint" id="st-cell-operator">-</small>
-    <small class="hint">
+    <small class="hint" data-mode="rover">
       Questa scheda (ESP32-S3) non ha Bluetooth Classic (solo BLE, non
       implementata): l'uscita dati per AgOpenGPS/AgIO in modalita' rover
       e' solo broadcast UDP via WiFi/Ethernet, funziona su qualunque
@@ -327,8 +329,8 @@
     </div>
   </fieldset>
 
-  <fieldset>
-    <legend>📡 Messaggi RTCM inviati (solo base)</legend>
+  <fieldset data-mode="base">
+    <legend>📡 Messaggi RTCM inviati</legend>
     <small class="hint">
       Ogni messaggio si spunta singolarmente, come nella maggior parte degli altri software NTRIP -
       utile per ridurre il volume dati su ricevitori con memoria limitata. Con chip
@@ -420,7 +422,7 @@
     </div>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-mode="base">
     <legend>📍 Posizione base</legend>
     <label>Modalita' posizione
       <select name="base_position_mode">
@@ -457,7 +459,7 @@
     </div>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-mode="base">
     <legend>🎥 Registrazione dati per PPP (posizione base di alta precisione)</legend>
     <small class="hint">
       Registra le osservazioni RTCM3 grezze su SD per diverse ore da un punto fisso - poi converti il file in
@@ -490,9 +492,9 @@
     <label>Host<input name="ntrip_host" data-validate="host" placeholder="es. 192.168.2.158 o caster.esempio.it"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
     <label>Mountpoint<input name="ntrip_mountpoint"></label>
-    <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem">Cerca mountpoint disponibili</button>
-    <div id="ntrip-mp-results" style="margin-top:.4rem"></div>
-    <label>Username <small class="hint">(solo modalita' rover)</small><input name="ntrip_username"></label>
+    <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem" data-mode="rover">Cerca mountpoint disponibili</button>
+    <div id="ntrip-mp-results" style="margin-top:.4rem" data-mode="rover"></div>
+    <label data-mode="rover">Username<input name="ntrip_username"></label>
     <label>Password / codice sorgente<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <button type="button" class="action secondary" id="ntrip-test-btn" style="margin-top:.6rem">Prova connessione al caster</button>
     <div id="ntrip-test-msg" class="hint" style="margin-top:.4rem"></div>
@@ -508,8 +510,8 @@
     </div>
   </fieldset>
 
-  <fieldset>
-    <legend>📡 Server caster NTRIP locale (solo modalita' base)</legend>
+  <fieldset data-mode="base">
+    <legend>📡 Server caster NTRIP locale</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="ntrip_caster_server_enable" type="checkbox" style="width:auto; margin:0">
       Accetta rover collegati direttamente a questo dispositivo (oltre al caster esterno sopra)
@@ -556,8 +558,8 @@
     </small>
   </fieldset>
 
-  <fieldset>
-    <legend>🚜 Uscita dati per software di guida (solo modalita' rover)</legend>
+  <fieldset data-mode="rover">
+    <legend>🚜 Uscita dati per software di guida</legend>
     <label>Porta UDP broadcast NMEA<input name="nmea_udp_port" type="number" min="1" max="65535"></label>
     <small class="hint">
       In modalita' rover, ogni riga NMEA emessa dal GNSS (posizione, satelliti, ecc.) viene
@@ -622,11 +624,11 @@
     </div>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-mode="base">
     <legend>📍 Avviso spostamento base (drift)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="base_drift_alert_enable" type="checkbox" style="width:auto; margin:0">
-      Avvisami se l'antenna della base si sposta (solo modalita' base)
+      Avvisami se l'antenna della base si sposta
     </label>
     <label>Distanza minima considerata uno spostamento reale (metri)<input name="base_drift_threshold_m" type="number" min="0.1" step="0.1"></label>
     <small class="hint">
@@ -689,7 +691,7 @@
 </div>
 
 <div id="page-signals" class="page">
-  <fieldset>
+  <fieldset data-mode="rover">
     <legend>🎯 Fix GNSS (RTK)</legend>
     <dl class="kv">
       <dt>Stato fix</dt><dd id="fix-quality">-</dd>
@@ -702,7 +704,7 @@
     <small class="hint">Dati letti dalle sentenze $xxGGA emesse dal GNSS - popolato solo in modalita' rover, mentre il ricevitore trasmette NMEA.</small>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-mode="rover">
     <legend>🔗 Collegamento NTRIP (rover)</legend>
     <div class="ntrip-flow-row">
       <div class="ntrip-pipe-col">
@@ -726,7 +728,7 @@
     </small>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-mode="rover">
     <legend>🛰️ Satelliti GNSS (C/N0 per satellite)</legend>
     <canvas id="sat-chart" width="620" height="180"></canvas>
     <div class="legend-row">
@@ -739,8 +741,8 @@
     <small class="hint">Dati letti dalle sentenze $xxGSV emesse dal GNSS - popolato solo in modalita' rover, mentre il ricevitore trasmette NMEA.</small>
   </fieldset>
 
-  <fieldset id="rtcm-bytes-fieldset" style="display:none">
-    <legend>📊 Byte RTCM per messaggio (solo base)</legend>
+  <fieldset id="rtcm-bytes-fieldset" style="display:none" data-mode="base">
+    <legend>📊 Byte RTCM per messaggio</legend>
     <small class="hint">
       Quanto pesa davvero ciascun messaggio scelto in GNSS & NTRIP, dal boot - utile per capire
       l'impatto reale delle selezioni sul volume dati verso il rover.
@@ -1058,7 +1060,8 @@ document.getElementById('settings-search').addEventListener('input', (ev) => {
     results.innerHTML = '';
     return;
   }
-  const matches = settingsSearchIndex.filter((item) => item.haystack.includes(q)).slice(0, 8);
+  // Niente risultati per i riquadri nascosti (modalita' base/rover, chip).
+  const matches = settingsSearchIndex.filter((item) => !item.el.hidden && item.haystack.includes(q)).slice(0, 8);
   results.style.display = 'block';
   results.innerHTML = '';
   if (!matches.length) {
@@ -1272,6 +1275,8 @@ async function loadStatus() {
       document.getElementById('auto-update-stale-warn').style.display = stale ? '' : 'none';
     }
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
+    activeDeviceMode = s.device_mode === 'rover' ? 'rover' : 'base';
+    updateModeVisibility();
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
       if (s.gnss_chip === 'bynav_m21d' && s.device_mode === 'rover') {
@@ -2296,9 +2301,26 @@ function updateBynavM21dFieldsetVisibility() {
   const f = document.getElementById('cfg-form');
   const show = f.gnss_chip.value === 'bynav_m21d' && f.device_mode.value === 'rover';
   document.getElementById('bynav-m21d-fieldset').hidden = !show;
+  updateModeVisibility();
 }
 document.getElementById('cfg-form').gnss_chip.addEventListener('change', updateBynavM21dFieldsetVisibility);
 document.getElementById('cfg-form').device_mode.addEventListener('change', updateBynavM21dFieldsetVisibility);
+
+// Mostra solo le voci che servono alla modalita' base o rover (attributo
+// data-mode="base"/"rover" sui riquadri e campi specifici). Le schede di
+// configurazione seguono la scelta nel menu "Funzione del dispositivo"
+// (anche prima di salvare, per vedere subito cosa serve impostare); Stato
+// e Segnali seguono invece la modalita' riportata dal dispositivo, perche'
+// mostrano dati reali.
+let activeDeviceMode = null;
+function updateModeVisibility() {
+  const formMode = document.getElementById('cfg-form').device_mode.value;
+  document.querySelectorAll('[data-mode]').forEach((el) => {
+    const isLivePage = !!el.closest('#page-status, #page-signals');
+    const mode = isLivePage ? (activeDeviceMode || formMode) : formMode;
+    el.hidden = el.dataset.mode !== mode;
+  });
+}
 
 // Ricarica dal dispositivo i soli valori RTCM gia' salvati, scartando
 // modifiche fatte sul form ma non ancora confermate col pulsante 💾 -

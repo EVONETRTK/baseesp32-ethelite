@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.19.49"
+#define FIRMWARE_VERSION "1.19.50"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Supporto Bynav M20/M20D/M21D (non verificato su hardware), modalita' Solo Ethernet, verifica ACK dei comandi u-blox con fix del formato VALSET, rover NTRIP che si riconnette da solo dopo cadute silenziose."
+#define FIRMWARE_RELEASE_NOTES "Il pannello mostra solo le voci che servono alla modalita' scelta (base o rover), anche nella ricerca impostazioni."

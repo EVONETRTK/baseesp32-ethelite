@@ -2,6 +2,14 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.50
+
+- **Richiesta dell'utente ("in modalita' base devono vedersi solo le voci che servono")**: il pannello nasconde le voci dell'altra modalita' (attributo `data-mode="base"`/`"rover"` + `updateModeVisibility()`).
+  - Solo in base: messaggi RTCM, posizione base, registrazione PPP, caster NTRIP locale, avviso spostamento base, byte RTCM per messaggio.
+  - Solo in rover: uscita dati per AgOpenGPS/AgIO, username NTRIP, "Cerca mountpoint disponibili", fix RTK, collegamento NTRIP rover, grafico satelliti.
+  - Le schede di configurazione seguono il menu "Funzione del dispositivo", anche prima di salvare. Stato e Segnali seguono la modalita' riportata dal dispositivo.
+  - La ricerca impostazioni non propone piu' i riquadri nascosti. Aggiunta la regola CSS `[hidden] { display:none !important }`, senza la quale le `label` nascoste restavano visibili.
+
 ## 1.19.49
 
 - **Nuovi chip GNSS Bynav**: M20/M20D (`GNSS_CHIP_BYNAV`, base con survey-in `FIX AUTO` + RTCM3, rover con GGA) e M21D con IMU/INS (`GNSS_CHIP_BYNAV_M21D`: base identica a M20D, rover con lever arm delle due antenne, rotazione RBV e log `#INSPVAXA`/`#HEADINGA` parsati in `gnss_nmea_reader.c` e mostrati nella scheda Stato). Nuovo modulo `gnss_bynav.c`, comandi presi dai manuali ufficiali AN085/AN065 ma **mai verificati su un modulo reale**. Porta COM1 del modulo presunta, da confermare col cablaggio vero. Nove nuovi campi in coda ad `app_settings_t` (compatibili col blob NVS esistente), stack del task main portato a 10240 e del task `nmea_reader` a 4608.
