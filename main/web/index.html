@@ -5,11 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EVONETRTK</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 680px; margin: 1.5rem auto; padding: 0 1rem; background:#f6f7f9; color:#1a1a1a; }
-  h1 { font-size: 1.5rem; margin-bottom: .8rem; display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; position:sticky; top:0; z-index:5; background:#f6f7f9; padding:.5rem 0; }
-  /* Colore della modalita' attiva: blu in base, verde in rover (vedi updateModeBadge()) */
-  :root { --mode-accent:#2563eb; }
-  body[data-active-mode="rover"] { --mode-accent:#15803d; }
+  body { font-family: system-ui, sans-serif; max-width: 680px; margin: 1.5rem auto; padding: 0 1rem; background:var(--page-bg); color:#1a1a1a; transition: background .3s; }
+  h1 { font-size: 1.5rem; margin-bottom: .8rem; display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; position:sticky; top:0; z-index:5; background:var(--page-bg); padding:.5rem 0; transition: background .3s; }
+  /* Colore della modalita' attiva (vedi updateModeBadge()): accento e sfondo
+     di tutte le pagine blu in base, verdi in rover; grigio finche' la
+     modalita' non e' ancora nota. */
+  :root { --mode-accent:#2563eb; --page-bg:#f6f7f9; }
+  body[data-active-mode="base"] { --page-bg:#e8f0fe; }
+  body[data-active-mode="rover"] { --mode-accent:#15803d; --page-bg:#e6f6ea; }
   body::before { content:''; position:fixed; top:0; left:0; right:0; height:6px; background:var(--mode-accent); z-index:10; }
   .mode-badge { font-size:.9rem; font-weight:700; padding:.3rem .8rem; border-radius:20px; border:2px solid transparent; }
   .mode-badge.base { background:#dbeafe; color:#1d4ed8; border-color:#93c5fd; }
@@ -25,7 +28,7 @@
   nav.tabs button { padding:.55rem 1rem; border:1px solid #c5c9d0; background:#fff; border-radius:8px; cursor:pointer; font-size:.9rem; transition: background .15s, color .15s, border-color .15s; }
   nav.tabs button.active { background:var(--mode-accent); color:#fff; border-color:var(--mode-accent); }
   nav.tabs button.has-dirty { position:relative; }
-  nav.tabs button.has-dirty::after { content:''; position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%; background:#d97706; border:2px solid #f6f7f9; }
+  nav.tabs button.has-dirty::after { content:''; position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%; background:#d97706; border:2px solid var(--page-bg); }
   .page { display:none; }
   .page.active { display:block; }
   /* Senza !important l'attributo hidden perde contro regole come label { display:block } */

@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.61
+
+- **Richiesta dell'utente ("il fondo delle pagine a seconda della modalita' fallo di colore diverso")**: sfondo di tutte le pagine azzurro chiaro in base (`#e8f0fe`) e verde chiaro in rover (`#e6f6ea`), secondo la modalita' attiva del dispositivo. Anche il titolo fisso in alto e il bordo del pallino "modifiche non salvate" usano lo stesso sfondo (variabile CSS `--page-bg`). Resta grigio finche' lo stato non e' caricato.
+
 ## 1.19.60
 
 - **Fix segnalato dall'utente ("Salva e riavvia non sono allineati")**: la regola `.fieldset-save-btn { margin-top:0 }` perdeva contro `button.action { margin-top:1rem }`, che e' piu' specifica, quindi Salva restava 1rem piu' in basso del nuovo pulsante (che il margine l'aveva a zero). Ora `.fieldset-save-row button.action { margin:0 }` vale per tutti i pulsanti della riga. Verificato con uno screenshot della pagina.
