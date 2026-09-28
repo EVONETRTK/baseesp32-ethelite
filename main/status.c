@@ -104,3 +104,52 @@ ntrip_conn_status_t status_ntrip_get(void)
     xSemaphoreGive(s_ntrip_mutex);
     return copy;
 }
+
+static bynav_ins_status_t s_bynav_ins;
+static SemaphoreHandle_t s_bynav_ins_mutex;
+
+static void bynav_ins_mutex_init(void)
+{
+    if (!s_bynav_ins_mutex) {
+        s_bynav_ins_mutex = xSemaphoreCreateMutex();
+    }
+}
+
+void status_bynav_ins_note_inspvaxa(const char *ins_status, float roll_deg, float pitch_deg, float heading_deg)
+{
+    bynav_ins_mutex_init();
+    xSemaphoreTake(s_bynav_ins_mutex, portMAX_DELAY);
+    s_bynav_ins.have_attitude = true;
+    if (ins_status) {
+        strncpy(s_bynav_ins.ins_status, ins_status, sizeof(s_bynav_ins.ins_status) - 1);
+        s_bynav_ins.ins_status[sizeof(s_bynav_ins.ins_status) - 1] = '\0';
+    }
+    s_bynav_ins.roll_deg = roll_deg;
+    s_bynav_ins.pitch_deg = pitch_deg;
+    s_bynav_ins.heading_deg = heading_deg;
+    s_bynav_ins.last_update_us = esp_timer_get_time();
+    xSemaphoreGive(s_bynav_ins_mutex);
+}
+
+void status_bynav_ins_note_headinga(float heading_deg, float pitch_deg)
+{
+    bynav_ins_mutex_init();
+    xSemaphoreTake(s_bynav_ins_mutex, portMAX_DELAY);
+    s_bynav_ins.have_attitude = true;
+    s_bynav_ins.heading_deg = heading_deg;
+    s_bynav_ins.pitch_deg = pitch_deg;
+    s_bynav_ins.last_update_us = esp_timer_get_time();
+    xSemaphoreGive(s_bynav_ins_mutex);
+}
+
+bynav_ins_status_t status_bynav_ins_get(void)
+{
+    if (!s_bynav_ins_mutex) {
+        return (bynav_ins_status_t){0};
+    }
+    bynav_ins_status_t copy;
+    xSemaphoreTake(s_bynav_ins_mutex, portMAX_DELAY);
+    copy = s_bynav_ins;
+    xSemaphoreGive(s_bynav_ins_mutex);
+    return copy;
+}

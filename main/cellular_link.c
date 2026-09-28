@@ -51,10 +51,16 @@ static void on_ppp_event(void *arg, esp_event_base_t event_base, int32_t event_i
 
 // Sequenza di accensione e pin confermati dal repository ufficiale
 // Xinyuan-LilyGO/LilyGo-Modem-Series (examples/ATdebug, utilities.h e
-// ATdebug.ino) per T-ETH-Elite + modulo SIM7600X: PWRKEY basso -> 100ms
-// -> alto -> 500ms (durata impulso specifica per SIM7600) -> basso, poi
-// fino a 15s di attesa perche' il SIM7600 e' lento ad avviarsi. DTR va
-// tenuto basso per evitare che il modem entri in sleep.
+// ATdebug.ino) per T-ETH-Elite + modulo SIM7600 (famiglia SIMCom intera:
+// pinout, sequenza PWRKEY e comandi AT sono identici per tutte le varianti
+// regionali A/E/G/CE/SA e le sottovarianti Cat4 "-H", verificato sul
+// documento ufficiale "SIM7600 Series Hardware Design" - la sigla esatta
+// scelta all'acquisto conta solo per le bande radio supportate, non per il
+// firmware; per l'Italia serve una variante con banda B20, es. G-H o
+// CE-H): PWRKEY basso -> 100ms -> alto -> 500ms (durata impulso specifica
+// per SIM7600) -> basso, poi fino a 15s di attesa perche' il SIM7600 e'
+// lento ad avviarsi. DTR va tenuto basso per evitare che il modem entri in
+// sleep.
 //
 // Il SIM868 (progetto gemello baseesp32/T-Internet-COM) usa una polarita'
 // e una durata diverse - PWRKEY alto per 300ms poi basso, confermato dal
@@ -131,11 +137,16 @@ bool cellular_link_init(void)
 
     // Profilo esp_modem dedicato secondo il modulo fisico montato nello
     // slot LTE (vedi settings.cellular_is_sim868 e modem_power_on() sopra
-    // per il perche'). Il SIM7600X e' l'hardware scelto per questo
-    // progetto ma mai testato su hardware reale finche' non si acquista il
-    // modulo; il SIM868 e' quello gia' disponibile (proveniente dal
-    // progetto gemello, li' risultato difettoso) usato per un primo test
-    // sullo slot di questa scheda diversa - vedi README.
+    // per il perche'). SIM7600 (famiglia SIMCom) e' l'hardware scelto per
+    // questo progetto ma mai testato su hardware reale finche' non si
+    // acquista il modulo; il profilo ESP_MODEM_DCE_SIM7600 di esp_modem
+    // copre l'intera famiglia (stesso set di comandi AT per tutte le
+    // varianti regionali A/E/G/CE/SA), quindi la sigla esatta scelta
+    // all'acquisto (in base alle bande radio necessarie, per l'Italia
+    // serve B20 - es. G-H o CE-H) non richiede un profilo diverso. Il
+    // SIM868 e' quello gia' disponibile (proveniente dal progetto gemello,
+    // li' risultato difettoso) usato per un primo test sullo slot di
+    // questa scheda diversa - vedi README.
     esp_modem_dce_device_t dce_device = settings.cellular_is_sim868 ? ESP_MODEM_DCE_SIM800 : ESP_MODEM_DCE_SIM7600;
     s_dce = esp_modem_new_dev(dce_device, &dte_config, &dce_config, s_ppp_netif);
     if (!s_dce) {

@@ -182,6 +182,8 @@ static const char *gnss_chip_str(gnss_chip_t c)
     switch (c) {
     case GNSS_CHIP_UNICORE: return "unicore";
     case GNSS_CHIP_LC29H:   return "lc29h";
+    case GNSS_CHIP_BYNAV:   return "bynav";
+    case GNSS_CHIP_BYNAV_M21D: return "bynav_m21d";
     default:                return "ublox";
     }
 }
@@ -208,9 +210,10 @@ static const char *base_position_mode_str(base_position_mode_t m)
 static const char *network_mode_str(network_mode_t m)
 {
     switch (m) {
-    case NETWORK_MODE_WIFI_ONLY:     return "wifi";
-    case NETWORK_MODE_CELLULAR_ONLY: return "cellular";
-    default:                         return "both";
+    case NETWORK_MODE_WIFI_ONLY:      return "wifi";
+    case NETWORK_MODE_CELLULAR_ONLY:  return "cellular";
+    case NETWORK_MODE_ETHERNET_ONLY:  return "ethernet_only";
+    default:                          return "both";
     }
 }
 
@@ -356,6 +359,25 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
     cJSON_AddNumberToObject(root, "last_online_update_check_us", (double) status_get_last_online_update_check_us());
     cJSON_AddStringToObject(root, "gnss_chip", gnss_chip_str(s.gnss_chip));
+    cJSON_AddNumberToObject(root, "bynav_ant1_x_m", s.bynav_ant1_x_m);
+    cJSON_AddNumberToObject(root, "bynav_ant1_y_m", s.bynav_ant1_y_m);
+    cJSON_AddNumberToObject(root, "bynav_ant1_z_m", s.bynav_ant1_z_m);
+    cJSON_AddNumberToObject(root, "bynav_ant2_x_m", s.bynav_ant2_x_m);
+    cJSON_AddNumberToObject(root, "bynav_ant2_y_m", s.bynav_ant2_y_m);
+    cJSON_AddNumberToObject(root, "bynav_ant2_z_m", s.bynav_ant2_z_m);
+    cJSON_AddNumberToObject(root, "bynav_rbv_roll_deg", s.bynav_rbv_roll_deg);
+    cJSON_AddNumberToObject(root, "bynav_rbv_pitch_deg", s.bynav_rbv_pitch_deg);
+    cJSON_AddNumberToObject(root, "bynav_rbv_yaw_deg", s.bynav_rbv_yaw_deg);
+    if (s.gnss_chip == GNSS_CHIP_BYNAV_M21D && s.device_mode == DEVICE_MODE_ROVER) {
+        bynav_ins_status_t ins = status_bynav_ins_get();
+        cJSON_AddBoolToObject(root, "bynav_ins_have_attitude", ins.have_attitude);
+        if (ins.have_attitude) {
+            cJSON_AddStringToObject(root, "bynav_ins_status", ins.ins_status);
+            cJSON_AddNumberToObject(root, "bynav_ins_heading_deg", ins.heading_deg);
+            cJSON_AddNumberToObject(root, "bynav_ins_pitch_deg", ins.pitch_deg);
+            cJSON_AddNumberToObject(root, "bynav_ins_roll_deg", ins.roll_deg);
+        }
+    }
     cJSON_AddBoolToObject(root, "rtcm_1005_enable", s.rtcm_1005_enable);
     cJSON_AddBoolToObject(root, "rtcm_1230_enable", s.rtcm_1230_enable);
     cJSON_AddBoolToObject(root, "rtcm_1007_enable", s.rtcm_1007_enable);
@@ -790,6 +812,10 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             s.gnss_chip = GNSS_CHIP_UNICORE;
         } else if (strcmp(chip_item->valuestring, "lc29h") == 0) {
             s.gnss_chip = GNSS_CHIP_LC29H;
+        } else if (strcmp(chip_item->valuestring, "bynav") == 0) {
+            s.gnss_chip = GNSS_CHIP_BYNAV;
+        } else if (strcmp(chip_item->valuestring, "bynav_m21d") == 0) {
+            s.gnss_chip = GNSS_CHIP_BYNAV_M21D;
         } else {
             s.gnss_chip = GNSS_CHIP_UBLOX;
         }
@@ -798,6 +824,29 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "device_mode");
     if (mode_item && cJSON_IsString(mode_item)) {
         s.device_mode = (strcmp(mode_item->valuestring, "rover") == 0) ? DEVICE_MODE_ROVER : DEVICE_MODE_BASE;
+    }
+
+    {
+        // Braccio di leva antenne + orientamento RBV (solo GNSS_CHIP_
+        // BYNAV_M21D rover, vedi gnss_bynav_m21d_configure_rover()) - stesso
+        // pattern dei campi RTCM booleani sopra, qui puntatori a float.
+        struct { const char *json_key; float *field; } bynav_float_fields[] = {
+            { "bynav_ant1_x_m", &s.bynav_ant1_x_m },
+            { "bynav_ant1_y_m", &s.bynav_ant1_y_m },
+            { "bynav_ant1_z_m", &s.bynav_ant1_z_m },
+            { "bynav_ant2_x_m", &s.bynav_ant2_x_m },
+            { "bynav_ant2_y_m", &s.bynav_ant2_y_m },
+            { "bynav_ant2_z_m", &s.bynav_ant2_z_m },
+            { "bynav_rbv_roll_deg", &s.bynav_rbv_roll_deg },
+            { "bynav_rbv_pitch_deg", &s.bynav_rbv_pitch_deg },
+            { "bynav_rbv_yaw_deg", &s.bynav_rbv_yaw_deg },
+        };
+        for (size_t i = 0; i < sizeof(bynav_float_fields) / sizeof(bynav_float_fields[0]); i++) {
+            cJSON *item = cJSON_GetObjectItemCaseSensitive(root, bynav_float_fields[i].json_key);
+            if (item && cJSON_IsNumber(item)) {
+                *bynav_float_fields[i].field = (float) item->valuedouble;
+            }
+        }
     }
 
     {
@@ -841,6 +890,8 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             s.network_mode = NETWORK_MODE_WIFI_ONLY;
         } else if (strcmp(net_mode_item->valuestring, "cellular") == 0) {
             s.network_mode = NETWORK_MODE_CELLULAR_ONLY;
+        } else if (strcmp(net_mode_item->valuestring, "ethernet_only") == 0) {
+            s.network_mode = NETWORK_MODE_ETHERNET_ONLY;
         } else {
             s.network_mode = NETWORK_MODE_BOTH;
         }

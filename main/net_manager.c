@@ -48,6 +48,15 @@ static void net_manager_task(void *arg)
 
         switch (active) {
         case LINK_NONE:
+            if (settings.network_mode == NETWORK_MODE_ETHERNET_ONLY) {
+                // Radio WiFi mai avviata (vedi net_manager_start): niente
+                // da tentare qui, l'unica connettivita' e' l'Ethernet
+                // indipendente gestita sotto. Evita anche di chiamare
+                // funzioni wifi_link_* su un driver mai inizializzato.
+                status_set_net(NET_STATUS_NONE);
+                vTaskDelay(pdMS_TO_TICKS(CONFIG_BASEESP32_NET_RETRY_DELAY_MS));
+                break;
+            }
             if (web_ui_wifi_test_in_progress()) {
                 // Un test manuale ("Connetti" dalla UI) e' in corso: non
                 // avviare un tentativo automatico in parallelo, altrimenti
@@ -137,7 +146,15 @@ void net_manager_start(void)
     // wifi_link_init() porta su anche l'AP di setup, sempre attivo: non
     // blocchiamo l'avvio in attesa di WiFi/GPRS, il resto del firmware
     // (UI web, task GNSS/NTRIP) deve partire comunque.
-    wifi_link_init();
+    // NETWORK_MODE_ETHERNET_ONLY e' l'unica eccezione voluta: qui la radio
+    // WiFi non si accende proprio (non solo "non si connette"), per poter
+    // isolare interferenze RF sul GNSS - perde la garanzia "AP sempre
+    // raggiungibile", il tasto fisico di reset resta l'unico recupero.
+    if (settings.network_mode != NETWORK_MODE_ETHERNET_ONLY) {
+        wifi_link_init();
+    } else {
+        ESP_LOGW(TAG, "NETWORK_MODE_ETHERNET_ONLY: radio WiFi non avviata, solo Ethernet");
+    }
     cellular_link_init();
 
     // Ethernet e' indipendente dalla selezione WiFi/cellulare qui sopra:

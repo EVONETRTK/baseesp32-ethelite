@@ -78,7 +78,12 @@ void gnss_signal_parse_gsv(const char *line_in)
         char *snr = next_field(&cursor);
         (void) elev;
         (void) azim;
-        if (!prn || prn[0] == '\0') {
+        if (!prn || prn[0] == '\0' || !elev) {
+            // !elev: gruppo incompleto, es. il campo "Signal ID" che
+            // u-blox (NMEA 4.11) aggiunge in fondo alla sentenza anche
+            // con zero satelliti ("$GPGSV,1,1,00,0*65") - senza questo
+            // controllo veniva scambiato per il PRN di un satellite
+            // inesistente.
             break;
         }
 

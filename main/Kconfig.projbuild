@@ -63,7 +63,7 @@ menu "baseesp32-ethelite Configuration"
         default 15000
 
     config BASEESP32_CELLULAR_ENABLE
-        bool "Abilita fallback cellulare via modem SIM7600X se il WiFi non e' disponibile"
+        bool "Abilita fallback cellulare via modem SIM7600 se il WiFi non e' disponibile"
         default y
 
     config BASEESP32_CELLULAR_APN
@@ -72,23 +72,33 @@ menu "baseesp32-ethelite Configuration"
         depends on BASEESP32_CELLULAR_ENABLE
 
     config BASEESP32_CELLULAR_MODEM_IS_SIM868
-        bool "Modulo montato nello slot LTE e' un SIM868 invece di SIM7600X"
+        bool "Modulo montato nello slot LTE e' un SIM868 invece di SIM7600"
         default y
         depends on BASEESP32_CELLULAR_ENABLE
         help
             Lo slot LTE della T-ETH-Elite e' elettricamente lo stesso (pin
             TX/RX/PWRKEY/DTR fissi) per qualunque shield compatibile ci si
             innesti, ma profilo AT e sequenza di accensione cambiano
-            secondo il modulo fisico. SIM7600X e' l'hardware scelto per
-            questo progetto (default a lungo termine); SIM868 e' qui solo
-            per riutilizzare/testare il modulo del progetto gemello
-            baseesp32/T-Internet-COM, li' risultato difettoso hardware (due
-            SIM diverse, stesso fallimento) - utile verificare se il
-            difetto era del modulo stesso o dello slot di quella scheda.
+            secondo il modulo fisico. "SIM7600" qui indica l'intera
+            famiglia SIMCom (varianti regionali A/E/G/CE/SA e le
+            sottovarianti Cat4 "-H"): verificato sul documento ufficiale
+            "SIM7600 Series Hardware Design" che pinout, sequenza PWRKEY
+            (100-500ms) e comandi AT sono IDENTICI per tutte le varianti -
+            cambiano solo le bande radio supportate (tabella 1 del
+            documento), quindi la sigla esatta scelta all'acquisto non ha
+            alcun effetto sul firmware. Per l'Italia serve una variante con
+            banda B20 (800MHz, copertura rurale TIM/Vodafone/WindTre) - es.
+            SIM7600G-H (globale) o SIM7600CE-H (Europa centrale), entrambe
+            anche Cat4: e' una scelta puramente di banda/acquisto, non una
+            configurazione diversa del firmware. SIM868 e' qui solo per
+            riutilizzare/testare il modulo del progetto gemello baseesp32/
+            T-Internet-COM, li' risultato difettoso hardware (due SIM
+            diverse, stesso fallimento) - utile verificare se il difetto
+            era del modulo stesso o dello slot di quella scheda.
             Impostabile anche dalla UI web (scheda Rete) senza ricompilare.
 
     config BASEESP32_CELLULAR_UART_NUM
-        int "UART verso il modem SIM7600X"
+        int "UART verso il modem SIM7600"
         default 1
         depends on BASEESP32_CELLULAR_ENABLE
 
@@ -101,7 +111,7 @@ menu "baseesp32-ethelite Configuration"
             (Xinyuan-LilyGO/LilyGo-Modem-Series, utilities.h, blocco
             LILYGO_T_ETH_ELITE, MODEM_TX_PIN) per lo shield LTE H744-02
             sulla T-ETH-Elite. Mai verificato su hardware reale: il modulo
-            SIM7600X fisico non era ancora disponibile al momento di
+            SIM7600 fisico non era ancora disponibile al momento di
             scrivere questo firmware.
 
     config BASEESP32_CELLULAR_UART_RX_PIN

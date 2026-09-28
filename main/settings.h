@@ -9,6 +9,15 @@ typedef enum {
     GNSS_CHIP_UBLOX = 0,
     GNSS_CHIP_UNICORE = 1,
     GNSS_CHIP_LC29H = 2, // Quectel LC29H (BA/CA/DA/EA), comandi $PQTM.../$PAIR...
+    GNSS_CHIP_BYNAV = 3, // Bynav M20/M20D, comandi ASCII RTKTYPE/LOG/FIX AUTO - vedi gnss_bynav.h
+    // Bynav M21D: stesso pinout/protocollo di M20D (stessa funzione base,
+    // vedi gnss_bynav_configure_base()), ma con IMU vero a bordo - il rover
+    // usa una configurazione diversa che aggiunge i comandi INS (lever arm,
+    // RBV, log prua/assetto) - vedi gnss_bynav_m21d_configure_rover() in
+    // gnss_bynav.c. Il valore va tenuto DIVERSO da GNSS_CHIP_BYNAV (M20D non
+    // ha IMU, mandargli comandi INS non avrebbe senso e il modulo li
+    // rifiuterebbe/ignorerebbe).
+    GNSS_CHIP_BYNAV_M21D = 4,
 } gnss_chip_t;
 
 typedef enum {
@@ -20,6 +29,13 @@ typedef enum {
     NETWORK_MODE_WIFI_ONLY = 0,     // mai il modem cellulare, anche se collegato
     NETWORK_MODE_CELLULAR_ONLY = 1, // mai il WiFi station (l'AP di setup resta comunque attivo)
     NETWORK_MODE_BOTH = 2,          // WiFi preferito, fallback automatico su GPRS
+    // Spegne la radio WiFi (AP + STA) del tutto - niente piu' garanzia
+    // "l'AP di setup resta sempre raggiungibile". Da usare solo con
+    // Ethernet gia' verificato funzionante, es. per isolare interferenze
+    // RF della radio WiFi sul GNSS. Recupero in caso di problemi: tasto
+    // fisico di reset (tenuto premuto, vedi reset_button.c) cancella le
+    // impostazioni e torna al WiFi.
+    NETWORK_MODE_ETHERNET_ONLY = 3,
 } network_mode_t;
 
 typedef enum {
@@ -85,8 +101,13 @@ typedef struct {
     // Lo slot LTE della T-ETH-Elite e' elettricamente lo stesso (TX/RX/
     // PWRKEY/DTR fissi) per qualunque shield compatibile ci si innesti -
     // cambia pero' il profilo AT/sequenza di accensione da usare secondo
-    // il modulo fisico montato. SIM7600X e' l'hardware target scelto per
-    // questo progetto; SIM868 e' qui solo per riutilizzare/testare il
+    // il modulo fisico montato. SIM7600 (famiglia SIMCom: pinout, PWRKEY
+    // e comandi AT identici per tutte le varianti regionali A/E/G/CE/SA e
+    // le sottovarianti Cat4 "-H", verificato sul documento ufficiale
+    // "SIM7600 Series Hardware Design" - solo le bande radio cambiano tra
+    // varianti, per l'Italia serve banda B20, es. G-H o CE-H, scelta
+    // d'acquisto senza effetto sul firmware) e' l'hardware target scelto
+    // per questo progetto; SIM868 e' qui solo per riutilizzare/testare il
     // modulo del progetto gemello baseesp32/T-Internet-COM (li' risultato
     // difettoso hardware - utile verificare se il difetto era del modulo
     // o dello slot di quella scheda).
@@ -263,6 +284,28 @@ typedef struct {
     bool rtcm_1097_enable; // Galileo MSM7
     bool rtcm_1124_enable; // BeiDou MSM4
     bool rtcm_1127_enable; // BeiDou MSM7
+
+    // Solo per GNSS_CHIP_BYNAV_M21D in modalita' rover (vedi
+    // gnss_bynav_m21d_configure_rover() in gnss_bynav.c): braccio di leva
+    // delle due antenne rispetto al centro del sistema di riferimento
+    // veicolo (asse Y = avanti, X = destra, Z = alto), in metri, e
+    // orientamento del modulo rispetto al veicolo (RBV), in gradi - valori
+    // da misurare fisicamente sull'installazione reale (vedi AN065 sezione
+    // "Antenna Lever Arm Measurement"/"Lever Arm Configuration"), inutili/
+    // ignorati per qualunque altro chip. Default 0 = non ancora misurato;
+    // l'installazione raccomandata da Bynav (modulo vicino al centro
+    // dell'assale posteriore, asse Y parallelo all'asse longitudinale del
+    // veicolo) corrisponde a RBV 0/0/0, ma i lever arm delle antenne vanno
+    // sempre misurati per l'installazione specifica.
+    float bynav_ant1_x_m;
+    float bynav_ant1_y_m;
+    float bynav_ant1_z_m;
+    float bynav_ant2_x_m;
+    float bynav_ant2_y_m;
+    float bynav_ant2_z_m;
+    float bynav_rbv_roll_deg;
+    float bynav_rbv_pitch_deg;
+    float bynav_rbv_yaw_deg;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

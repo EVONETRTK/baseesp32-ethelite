@@ -64,3 +64,35 @@ int64_t status_get_last_gga_sent_time_us(void);
 // rete persistente che altrimenti si scoprirebbe solo guardando i log).
 void status_note_online_update_checked(void);
 int64_t status_get_last_online_update_check_us(void);
+
+// Stato INS/prua per GNSS_CHIP_BYNAV_M21D (vedi gnss_bynav_m21d_configure_
+// rover() e gnss_nmea_reader.c, che parsano le righe #INSPVAXA/#HEADINGA
+// dalla UART e chiamano status_bynav_ins_note()) - ignorato/sempre a zero
+// per qualunque altro chip GNSS. ins_status e' una delle stringhe della
+// state machine di allineamento INS (INS_INACTIVE...INS_SOLUTION_GOOD, vedi
+// Tabella 1-3 di AN065); heading/pitch/roll in gradi, validi solo quando
+// have_attitude e' true (impostato al primo #INSPVAXA/#HEADINGA ricevuto
+// dopo l'avvio). Protetto da mutex per lo stesso motivo di ntrip_conn_
+// status_t sopra (contiene un campo stringa).
+typedef struct {
+    bool have_attitude;
+    char ins_status[24];   // es. "INS_SOLUTION_GOOD", "INS_ALIGNING" - vedi Tabella 1-3 AN065
+    float heading_deg;
+    float pitch_deg;
+    float roll_deg;
+    int64_t last_update_us;
+} bynav_ins_status_t;
+
+// Da chiamare quando si riceve una riga #INSPVAXA valida dalla UART (vedi
+// gnss_nmea_reader.c): porta lo stato di allineamento INS (campo 1) e
+// roll/pitch/azimuth (campi 10/11/12, formato compatibile NovAtel OEM7 -
+// stessi nomi di log riusati da Bynav, non verificato su un modulo M21D
+// reale). azimuth qui e' preso come "heading".
+void status_bynav_ins_note_inspvaxa(const char *ins_status, float roll_deg, float pitch_deg, float heading_deg);
+
+// Da chiamare quando si riceve una riga #HEADINGA valida dalla UART: porta
+// solo heading/pitch (campi 4/5), nessuno stato di allineamento - non
+// tocca ins_status gia' salvato da INSPVAXA.
+void status_bynav_ins_note_headinga(float heading_deg, float pitch_deg);
+
+bynav_ins_status_t status_bynav_ins_get(void);

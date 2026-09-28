@@ -27,3 +27,12 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num);
 // (usata da ntrip_rover_client.c per inoltrare $GxGGA al caster). Stesse
 // avvertenze di gnss_ubx_configure_base sulle chiavi UBX non verificate.
 esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num);
+
+// Manda un poll UBX-MON-VER (nessuna configurazione, solo lettura) e
+// ritorna subito - la risposta (versione SW/HW/protocollo) arriva in modo
+// asincrono e viene loggata da gnss_ubx_ack.c quando arriva. Diagnostica:
+// usata per sapere con certezza cosa risponde davvero il ricevitore, es.
+// quando UBX-CFG-VALSET viene rifiutato per motivi non chiari (potrebbe
+// essere un ricevitore con protocollo troppo vecchio per VALSET, che
+// esiste solo da protocol version 27 in su - vedi PROTVER nella risposta).
+esp_err_t gnss_ubx_poll_version(uart_port_t uart_num);

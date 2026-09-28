@@ -23,6 +23,7 @@
 #include "sd_update.h"
 #include "gnss_driver.h"
 #include "gnss_signal.h"
+#include "gnss_ubx_ack.h"
 #include "gnss_fix.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_nmea_reader.h"
@@ -81,6 +82,16 @@ static void gnss_uart_task(void *arg)
     uint8_t buf[UART_RX_BUF_SIZE];
     while (1) {
         int len = uart_read_bytes(s_gnss_uart_num, buf, sizeof(buf), pdMS_TO_TICKS(100));
+        // Ogni byte passa anche dal parser ACK/NAK UBX (gnss_ubx.c attende
+        // la risposta ai comandi di configurazione mandati all'avvio), ma
+        // qui lo si fa solo osservare: niente viene tolto dallo stream.
+        // Togliere i byte "riconosciuti" corrompeva l'RTCM3, che contiene
+        // 0xB5 0x62 per puro caso; qualche frame UBX di risposta in mezzo
+        // all'RTCM all'avvio e' invece innocuo (i decoder si risincronizzano
+        // sul preambolo 0xD3 + CRC).
+        for (int i = 0; i < len; i++) {
+            (void) gnss_ubx_ack_feed_byte(buf[i]);
+        }
         if (len > 0) {
             status_note_rtcm_bytes((uint32_t) len);
             base_monitor_feed(buf, (size_t) len);
@@ -114,6 +125,7 @@ void app_main(void)
 
     settings_init();
     gnss_signal_init();
+    gnss_ubx_ack_init();
     gnss_fix_init();
     // Va inizializzato qui, incondizionatamente (non solo nel ramo base
     // sotto): /api/signals chiama rtcm3_stats_get() a prescindere dalla
@@ -177,8 +189,14 @@ void app_main(void)
 
     app_settings_t settings = settings_get();
     gnss_uart_init(&settings);
-    gnss_driver_configure(s_gnss_uart_num, settings.gnss_chip, settings.device_mode);
 
+    // Il task che legge la UART va avviato PRIMA di gnss_driver_configure():
+    // e' lui a inoltrare i byte al parser ACK/NAK (gnss_ubx_ack.c) usato da
+    // ubx_valset() per verificare che il ricevitore accetti davvero i
+    // comandi mandati - se il task parte dopo, nessuno legge la UART nella
+    // finestra in cui si aspetta la risposta e il timeout scatta sempre,
+    // indipendentemente da cosa risponda il modulo (bug reale, corretto
+    // qui: prima l'ordine era invertito).
     if (settings.device_mode == DEVICE_MODE_ROVER) {
         // Rover: un solo task legge la UART e smista lo stream NMEA a
         // broadcast UDP (AgOpenGPS/AgIO), inoltro GGA al caster, e stato
@@ -187,8 +205,22 @@ void app_main(void)
         // UART in lettura. Niente Bluetooth Classic su questa scheda
         // (ESP32-S3 non lo supporta, solo BLE non implementata qui): su
         // iOS/qualunque piattaforma resta il broadcast UDP via WiFi/Ethernet.
-        xTaskCreate(gnss_nmea_reader_task, "nmea_reader", 4096,
+        // Stack alzato a 4608 (era 4096) quando e' stato aggiunto il parsing
+        // delle righe #INSPVAXA/#HEADINGA Bynav (buffer riga passato da 128
+        // a 320 byte per non troncarle, vedi gnss_nmea_reader.c) - margine
+        // verificato con build (uso flash/RAM), non ancora su stack reale
+        // via log HWM essendo il path Bynav M21D non esercitato su hardware.
+        xTaskCreate(gnss_nmea_reader_task, "nmea_reader", 4608,
                     (void *)(intptr_t) s_gnss_uart_num, 6, NULL);
+    } else {
+        rtcm3_1005_init();
+        rtcm_stream = xStreamBufferCreate(4096, 1);
+        xTaskCreate(gnss_uart_task, "gnss_uart", 4096, NULL, 10, NULL);
+    }
+
+    gnss_driver_configure(s_gnss_uart_num, settings.gnss_chip, settings.device_mode);
+
+    if (settings.device_mode == DEVICE_MODE_ROVER) {
         // 4096 andava in overflow su hardware reale in ntrip_rover_connect()
         // esattamente al fallimento della DNS lookup (getaddrinfo() e'
         // gia' di per se' pesante di stack su lwIP) - confermato dopo aver
@@ -198,9 +230,6 @@ void app_main(void)
         xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
                     (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
     } else {
-        rtcm3_1005_init();
-        rtcm_stream = xStreamBufferCreate(4096, 1);
-        xTaskCreate(gnss_uart_task, "gnss_uart", 4096, NULL, 10, NULL);
         xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
         ntrip_caster_server_start(); // non fa nulla se disattivato in settings
     }

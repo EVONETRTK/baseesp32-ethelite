@@ -107,6 +107,24 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     ESP_LOGI(TAG, "Rover connesso al caster %s:%d mountpoint /%s",
              settings->ntrip_host, settings->ntrip_port, settings->ntrip_mountpoint);
     status_ntrip_note_connected();
+
+    // Timeout di ricezione sul socket dati: senza, se la connessione si
+    // interrompe in modo silenzioso (es. un blip di rete che lascia il
+    // socket "a zombie" senza che arrivi mai un FIN/RST fino al prossimo
+    // invio nostro, che qui non c'e' perche' questo socket riceve soltanto),
+    // la recv() nel ciclo sotto resta bloccata per sempre: nessun errore,
+    // nessuno 0, quindi il ciclo di riconnessione piu' in basso non scatta
+    // mai. Causa reale osservata in campo: un rover restato scollegato per
+    // ore mentre un altro sulla stessa rete si riconnetteva da solo -
+    // l'unica differenza era che quell'altro client rifaceva comunque una
+    // scrittura periodica (il GGA) che avrebbe fatto emergere l'errore.
+    // Un timeout largo (il flusso RTCM arriva tipicamente almeno ogni
+    // secondo) fa si' che una recv() senza dati per troppo tempo torni con
+    // errore invece di restare appesa, e il ciclo sotto la tratta come
+    // qualunque altro errore: chiude e riprova.
+    struct timeval rcv_tv = { .tv_sec = 20, .tv_usec = 0 };
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &rcv_tv, sizeof(rcv_tv));
+
     return sock;
 }
 
@@ -361,7 +379,13 @@ void ntrip_rover_client_task(void *arg)
 
         set_active_sock(-1);
         close(sock);
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        // 2s era troppo poco: il caster rileva una connessione precedente
+        // interrotta bruscamente solo dopo il proprio keepalive TCP (decine
+        // di secondi), e nel frattempo tiene occupato lo slot di sessione
+        // dell'account (limite anti-condivisione password). Riprovare troppo
+        // in fretta colpiva sempre quella finestra, venendo rifiutati per
+        // "troppe sessioni contemporanee" - osservato in pratica.
+        vTaskDelay(pdMS_TO_TICKS(15000));
     }
 }
 

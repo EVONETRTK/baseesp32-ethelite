@@ -157,6 +157,22 @@
     </small>
   </fieldset>
 
+  <fieldset id="bynav-ins-fieldset" hidden>
+    <legend>🧭 IMU/INS (Bynav M21D)</legend>
+    <dl class="kv">
+      <dt>Stato allineamento INS</dt><dd id="st-ins-status">-</dd>
+      <dt>Prua (heading)</dt><dd id="st-ins-heading">-</dd>
+      <dt>Beccheggio (pitch)</dt><dd id="st-ins-pitch">-</dd>
+      <dt>Rollio (roll)</dt><dd id="st-ins-roll">-</dd>
+    </dl>
+    <small class="hint">
+      Letto dalle righe #INSPVAXA/#HEADINGA sulla UART GNSS - formato compatibile NovAtel OEM7
+      (stessi nomi di log riusati da Bynav), mai verificato contro un modulo M21D reale. "Stato
+      allineamento INS" deve arrivare a <strong>INS_SOLUTION_GOOD</strong> per una prua affidabile;
+      finche' resta su INS_INACTIVE/WAITING_*/INS_ALIGNING i valori non sono ancora significativi.
+    </small>
+  </fieldset>
+
   <fieldset>
     <legend>💻 Sistema</legend>
     <label>CPU core 0</label>
@@ -188,8 +204,9 @@
         <option value="both">WiFi con fallback cellulare (consigliato)</option>
         <option value="wifi">Solo WiFi (ignora il modem cellulare anche se collegato)</option>
         <option value="cellular">Solo cellulare (ignora il WiFi station)</option>
+        <option value="ethernet_only">⚠️ Solo Ethernet (spegne la radio WiFi)</option>
       </select>
-      <small class="hint">L'AP di setup di questa pagina resta sempre attivo in ogni caso. L'Ethernet, se abilitata via menuconfig, e' indipendente da questa scelta.</small>
+      <small class="hint">L'AP di setup di questa pagina resta sempre attivo in ogni caso, <strong>tranne</strong> con "Solo Ethernet": in quel modo la radio WiFi non si accende proprio (utile per isolare interferenze RF sul GNSS), ma se l'Ethernet non funziona perdi ogni accesso remoto - l'unico recupero e' il tasto fisico di reset (tenuto premuto), che cancella le impostazioni. Usalo solo con Ethernet gia' verificato funzionante. L'Ethernet, se abilitata via menuconfig, e' indipendente da questa scelta.</small>
     </label>
   
     <div class="fieldset-save-row">
@@ -231,7 +248,7 @@
     <legend>📱 Rete cellulare (slot LTE)</legend>
     <label>Modulo modem montato
       <select name="cellular_is_sim868">
-        <option value="false">SIM7600X</option>
+        <option value="false">SIM7600</option>
         <option value="true">SIM868</option>
       </select>
       <small class="hint">Stesso slot/pin fisici, ma sequenza di accensione e comandi AT diversi secondo il modulo.</small>
@@ -271,11 +288,41 @@
         <option value="ublox">u-blox (es. ZED-F9P)</option>
         <option value="unicore">Unicore (es. UM980/UM982)</option>
         <option value="lc29h">Quectel LC29H (BA/CA/DA/EA)</option>
+        <option value="bynav">Bynav M20/M20D (non verificato su hardware)</option>
+        <option value="bynav_m21d">Bynav M21D con IMU/INS (non verificato su hardware)</option>
       </select>
     </label>
-  
+
     <div class="fieldset-save-row">
       <button type="button" class="action fieldset-save-btn" data-fields="device_mode,gnss_chip">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset id="bynav-m21d-fieldset" hidden>
+    <legend>🧭 Bynav M21D - installazione IMU/INS (solo rover)</legend>
+    <small class="hint">
+      Solo per chip <strong>Bynav M21D</strong> in modalita' <strong>rover</strong>: il braccio di
+      leva di ciascuna antenna (distanza dal centro del sistema di riferimento veicolo, asse Y =
+      avanti, X = destra, Z = alto, in metri) va misurato fisicamente sull'installazione reale
+      prima dell'uso - vedi manuale "AN065" sez. 1.4 "Antenna Lever Arm Measurement". Lasciare tutto
+      a zero manda comandi con valori palesemente non misurati (segnalato nel log del dispositivo).
+      L'orientamento RBV resta 0/0/0 solo se il modulo e' installato secondo il metodo raccomandato
+      (asse Y parallelo al senso di marcia, vicino al centro dell'assale posteriore) - altre
+      installazioni richiedono valori diversi, vedi Appendix A del manuale.
+    </small>
+    <label>ANT1 (antenna principale) X <input type="number" step="0.001" name="bynav_ant1_x_m"></label>
+    <label>ANT1 Y <input type="number" step="0.001" name="bynav_ant1_y_m"></label>
+    <label>ANT1 Z <input type="number" step="0.001" name="bynav_ant1_z_m"></label>
+    <label>ANT2 (antenna prua) X <input type="number" step="0.001" name="bynav_ant2_x_m"></label>
+    <label>ANT2 Y <input type="number" step="0.001" name="bynav_ant2_y_m"></label>
+    <label>ANT2 Z <input type="number" step="0.001" name="bynav_ant2_z_m"></label>
+    <label>RBV Roll (gradi) <input type="number" step="0.1" name="bynav_rbv_roll_deg"></label>
+    <label>RBV Pitch (gradi) <input type="number" step="0.1" name="bynav_rbv_pitch_deg"></label>
+    <label>RBV Yaw (gradi) <input type="number" step="0.1" name="bynav_rbv_yaw_deg"></label>
+
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="bynav_ant1_x_m,bynav_ant1_y_m,bynav_ant1_z_m,bynav_ant2_x_m,bynav_ant2_y_m,bynav_ant2_z_m,bynav_rbv_roll_deg,bynav_rbv_pitch_deg,bynav_rbv_yaw_deg">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -468,11 +515,34 @@
       Accetta rover collegati direttamente a questo dispositivo (oltre al caster esterno sopra)
     </label>
     <label>Porta<input name="ntrip_caster_server_port" type="number" min="1" max="65535" placeholder="2101"></label>
-    <label>Mountpoint<input name="ntrip_caster_server_mountpoint" placeholder="es. BASE01"></label>
+    <small class="hint">
+      Attivazione e porta richiedono un <strong>riavvio manuale</strong> per essere applicate: il
+      server ci si mette in ascolto una sola volta all'avvio del dispositivo.
+    </small>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_caster_server_enable,ntrip_caster_server_port" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+
+    <label style="margin-top:.8rem">Mountpoint<input name="ntrip_caster_server_mountpoint" placeholder="es. BASE01"></label>
     <label>Username <small class="hint">(vuoto = nessuna autenticazione)</small><input name="ntrip_caster_server_username"></label>
     <label>Password<input name="ntrip_caster_server_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <small class="hint">
+      Questi tre campi invece si applicano <strong>subito</strong>, dal prossimo rover che si
+      collega — nessun riavvio necessario, puoi cambiarli quando vuoi.
+    </small>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_caster_server_mountpoint,ntrip_caster_server_username,ntrip_caster_server_password">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+
     <dl class="kv" style="margin-top:.4rem">
       <dt>Rover collegati ora</dt><dd id="caster-srv-clients">-</dd>
+      <dt>Indirizzo da usare sul rover</dt>
+      <dd style="font-weight:700; font-size:1.05em">
+        <span id="caster-srv-address">-</span>
+        <button type="button" class="copy-btn" data-copy-target="caster-srv-address" title="Copia">📋</button>
+      </dd>
     </dl>
     <small class="hint">
       <strong>Funziona sempre sulla stessa rete locale</strong> (WiFi di casa/campo, hotspot) senza
@@ -484,11 +554,6 @@
       mobili mettono quasi sempre le SIM dietro un NAT condiviso che blocca le connessioni in
       entrata, un limite della rete dell'operatore che nessun firmware puo' aggirare.
     </small>
-  
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_caster_server_enable,ntrip_caster_server_port,ntrip_caster_server_mountpoint,ntrip_caster_server_username,ntrip_caster_server_password">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
   </fieldset>
 
   <fieldset>
@@ -698,7 +763,7 @@
     </dl>
     <small class="hint">
       Con il modulo SIM868 selezionato in Rete, il campo "Tecnologia" mostrera' solo 2G
-      (GSM/EDGE) - e' l'hardware del modulo stesso a non avere 3G/4G/5G. Passando a SIM7600X
+      (GSM/EDGE) - e' l'hardware del modulo stesso a non avere 3G/4G/5G. Passando a SIM7600
       comparira' automaticamente la tecnologia reale (fino a 4G), stesso codice di lettura.
     </small>
   </fieldset>
@@ -1208,6 +1273,25 @@ async function loadStatus() {
     }
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
     {
+      const insFieldset = document.getElementById('bynav-ins-fieldset');
+      if (s.gnss_chip === 'bynav_m21d' && s.device_mode === 'rover') {
+        insFieldset.hidden = false;
+        if (s.bynav_ins_have_attitude) {
+          document.getElementById('st-ins-status').textContent = s.bynav_ins_status || '-';
+          document.getElementById('st-ins-heading').textContent = s.bynav_ins_heading_deg.toFixed(1) + '°';
+          document.getElementById('st-ins-pitch').textContent = s.bynav_ins_pitch_deg.toFixed(1) + '°';
+          document.getElementById('st-ins-roll').textContent = s.bynav_ins_roll_deg.toFixed(1) + '°';
+        } else {
+          document.getElementById('st-ins-status').textContent = 'In attesa del primo dato...';
+          document.getElementById('st-ins-heading').textContent = '-';
+          document.getElementById('st-ins-pitch').textContent = '-';
+          document.getElementById('st-ins-roll').textContent = '-';
+        }
+      } else {
+        insFieldset.hidden = true;
+      }
+    }
+    {
       const netLabels = { wifi: 'WiFi', cellulare: 'Cellulare', nessuna: 'Nessuna' };
       let netText = netLabels[s.net] || s.net;
       if (s.net === 'wifi' && s.wifi_current_ssid) {
@@ -1245,6 +1329,16 @@ async function loadStatus() {
       f.gnss_chip.value = s.gnss_chip || 'ublox';
       f.device_mode.value = s.device_mode || 'base';
       updateRtcmUnsupported();
+      f.bynav_ant1_x_m.value = s.bynav_ant1_x_m ?? '';
+      f.bynav_ant1_y_m.value = s.bynav_ant1_y_m ?? '';
+      f.bynav_ant1_z_m.value = s.bynav_ant1_z_m ?? '';
+      f.bynav_ant2_x_m.value = s.bynav_ant2_x_m ?? '';
+      f.bynav_ant2_y_m.value = s.bynav_ant2_y_m ?? '';
+      f.bynav_ant2_z_m.value = s.bynav_ant2_z_m ?? '';
+      f.bynav_rbv_roll_deg.value = s.bynav_rbv_roll_deg ?? '';
+      f.bynav_rbv_pitch_deg.value = s.bynav_rbv_pitch_deg ?? '';
+      f.bynav_rbv_yaw_deg.value = s.bynav_rbv_yaw_deg ?? '';
+      updateBynavM21dFieldsetVisibility();
       f.rtcm_1005_enable.checked = !!s.rtcm_1005_enable;
       f.rtcm_1007_enable.checked = !!s.rtcm_1007_enable;
       f.rtcm_1008_enable.checked = !!s.rtcm_1008_enable;
@@ -1311,12 +1405,27 @@ async function loadStatus() {
     if (casterClientsEl) {
       casterClientsEl.textContent = s.ntrip_caster_server_enable ? (s.ntrip_caster_server_clients ?? 0) : 'server disattivato';
     }
+    const casterAddrEl = document.getElementById('caster-srv-address');
+    if (casterAddrEl) {
+      if (s.ntrip_caster_server_enable) {
+        const ip = s.wifi_ip || s.ap_ip || '?';
+        const port = s.ntrip_caster_server_port || 2101;
+        const mount = s.ntrip_caster_server_mountpoint || '(mountpoint da impostare)';
+        casterAddrEl.textContent = ip + ':' + port + '/' + mount;
+      } else {
+        casterAddrEl.textContent = 'server disattivato';
+      }
+    }
   } catch (e) {
     document.getElementById('st-net').textContent = 'errore lettura stato';
   }
 }
 
-const SAT_COLORS = { GP: '#2563eb', GL: '#dc2626', GA: '#16a34a', GB: '#d97706' };
+// BD (non GB): u-blox usa questo talker per BeiDou nelle sentenze NMEA
+// (es. "$BDGSV"), a differenza dello standard NMEA 4.10 che userebbe "GB" -
+// con la chiave sbagliata i satelliti BeiDou finivano sempre nel colore di
+// default invece che in arancione, anche quando tracciati.
+const SAT_COLORS = { GP: '#2563eb', GL: '#dc2626', GA: '#16a34a', BD: '#d97706' };
 
 function drawSatChart(sats) {
   const canvas = document.getElementById('sat-chart');
@@ -1779,6 +1888,8 @@ const NUMBER_FIELDS = new Set([
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
   'alert_smtp_port', 'base_drift_threshold_m', 'ntrip_caster_server_port', 'base_fixed_lat_deg',
   'base_fixed_lon_deg', 'base_fixed_height_m', 'auto_update_check_interval_h',
+  'bynav_ant1_x_m', 'bynav_ant1_y_m', 'bynav_ant1_z_m', 'bynav_ant2_x_m', 'bynav_ant2_y_m',
+  'bynav_ant2_z_m', 'bynav_rbv_roll_deg', 'bynav_rbv_pitch_deg', 'bynav_rbv_yaw_deg',
 ]);
 const BOOL_CHECKBOX_FIELDS = new Set([
   'rgb_led_pwm_active_low', 'oled_flip_h', 'oled_flip_v', 'alert_enable',
@@ -2161,6 +2272,8 @@ const RTCM_UNSUPPORTED_BY_CHIP = {
   ublox: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
   lc29h: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable', 'rtcm_1230_enable'],
   unicore: [],
+  bynav: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
+  bynav_m21d: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
 };
 function updateRtcmUnsupported() {
   const f = document.getElementById('cfg-form');
@@ -2174,6 +2287,18 @@ function updateRtcmUnsupported() {
   });
 }
 document.getElementById('cfg-form').gnss_chip.addEventListener('change', updateRtcmUnsupported);
+
+// Il fieldset lever arm/RBV ha senso solo per Bynav M21D in modalita' rover
+// (una base ferma non usa l'INS, vedi gnss_bynav_m21d_configure_rover()) -
+// nascosto per qualunque altra combinazione chip/modalita' invece di
+// lasciarlo sempre visibile e confondere chi usa un altro chip.
+function updateBynavM21dFieldsetVisibility() {
+  const f = document.getElementById('cfg-form');
+  const show = f.gnss_chip.value === 'bynav_m21d' && f.device_mode.value === 'rover';
+  document.getElementById('bynav-m21d-fieldset').hidden = !show;
+}
+document.getElementById('cfg-form').gnss_chip.addEventListener('change', updateBynavM21dFieldsetVisibility);
+document.getElementById('cfg-form').device_mode.addEventListener('change', updateBynavM21dFieldsetVisibility);
 
 // Ricarica dal dispositivo i soli valori RTCM gia' salvati, scartando
 // modifiche fatte sul form ma non ancora confermate col pulsante 💾 -

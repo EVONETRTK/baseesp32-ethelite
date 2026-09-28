@@ -1,8 +1,11 @@
 #include "gnss_ubx.h"
 #include "settings.h"
+#include "gnss_ubx_ack.h"
 
 #include <string.h>
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "gnss_ubx";
 
@@ -26,53 +29,120 @@ static esp_err_t ubx_send(uart_port_t uart_num, uint8_t msg_class, uint8_t msg_i
         return ESP_ERR_INVALID_SIZE;
     }
 
-    uint8_t header[6] = {
-        UBX_SYNC1, UBX_SYNC2, msg_class, msg_id,
-        (uint8_t) (payload_len & 0xFF), (uint8_t) (payload_len >> 8),
-    };
-
-    // Il checksum UBX copre class, id, length e payload (tutto tranne i
-    // due byte di sincronismo iniziali).
-    uint8_t ck_buf[4 + 512];
-    memcpy(ck_buf, &header[2], 4);
+    // Un unico buffer e un'unica uart_write_bytes(), non piu' tre chiamate
+    // separate (header, poi payload, poi checksum) - un piccolo ritardo di
+    // scheduling FreeRTOS tra quelle chiamate poteva far vedere al
+    // ricevitore un frame "a pezzi" se ha un timeout stretto tra un byte e
+    // l'altro, spiegando potenzialmente i NAK visti su ogni singolo
+    // comando mandato finora, incluso un poll MON-VER a payload vuoto che
+    // via USB diretto dallo stesso PC (senza questa frammentazione)
+    // funziona invece perfettamente - da verificare con questo fix.
+    uint8_t frame[6 + 512 + 2];
+    frame[0] = UBX_SYNC1;
+    frame[1] = UBX_SYNC2;
+    frame[2] = msg_class;
+    frame[3] = msg_id;
+    frame[4] = (uint8_t) (payload_len & 0xFF);
+    frame[5] = (uint8_t) (payload_len >> 8);
     if (payload_len > 0) {
-        memcpy(ck_buf + 4, payload, payload_len);
+        memcpy(frame + 6, payload, payload_len);
     }
 
     uint8_t ck_a, ck_b;
-    ubx_checksum(ck_buf, 4 + payload_len, &ck_a, &ck_b);
+    ubx_checksum(frame + 2, 4 + payload_len, &ck_a, &ck_b);
+    frame[6 + payload_len] = ck_a;
+    frame[6 + payload_len + 1] = ck_b;
 
-    uart_write_bytes(uart_num, (const char *) header, sizeof(header));
-    if (payload_len > 0) {
-        uart_write_bytes(uart_num, (const char *) payload, payload_len);
-    }
-    uint8_t cksum[2] = { ck_a, ck_b };
-    uart_write_bytes(uart_num, (const char *) cksum, sizeof(cksum));
+    // Ogni comando mandato qui attende una risposta (ACK/NAK o MON-VER):
+    // finestra aperta prima di scrivere, cosi' anche una risposta
+    // velocissima trova il parser attivo e la coda gia' svuotata.
+    gnss_ubx_ack_arm();
+    uart_write_bytes(uart_num, (const char *) frame, 6 + payload_len + 2);
     return ESP_OK;
 }
 
-// Coppia chiave/valore UBX-CFG-VALSET per chiavi a 32 bit (i tipi piu'
-// comuni per queste impostazioni sono E1/U4, entrambi a 4 byte).
+// Coppia chiave/valore UBX-CFG-VALSET. Il valore e' tenuto qui a 32 bit per
+// comodita' del chiamante, ma sul filo va scritto con un numero di byte
+// diverso a seconda della chiave (vedi ubx_key_value_size sotto) - NON
+// sempre 4, come invece faceva la versione precedente di questo file.
 typedef struct __attribute__((packed)) {
     uint32_t key;
     uint32_t value;
 } ubx_cfg_kv32_t;
 
-static esp_err_t ubx_valset(uart_port_t uart_num, const ubx_cfg_kv32_t *kvs, size_t n)
+// La classe dimensione del valore e' codificata nei bit 28-30 della chiave
+// stessa (u-blox interface manual, formato "Key ID"): 1=1 bit (un byte sul
+// filo), 2=1 byte, 3=2 byte, 4=4 byte, 5=8 byte. Il protocollo CFG-VALSET
+// impacchetta ogni valore con ESATTAMENTE questo numero di byte, senza
+// padding - la maggior parte delle chiavi enable/disable usate in questo
+// file (es. tutte le CFG-MSGOUT-*, CFG-UART1*PROT-*, CFG-TMODE-MODE) sono
+// da 1 byte. Scrivere sempre un uint32_t come faceva il codice precedente
+// disallineava ogni chiave successiva nello stesso messaggio, facendola
+// interpretare come spazzatura dal ricevitore - bug preesistente, mai
+// notato perche' fallisce in silenzio (nessun errore, la chiave semplice-
+// mente non si applica). Confermato contro PX4-GPSDrivers (driver di
+// produzione, usa cfgValset<uint8_t> per le stesse chiavi).
+static size_t ubx_key_value_size(uint32_t key)
+{
+    switch ((key >> 28) & 0x7) {
+        case 1: return 1;
+        case 2: return 1;
+        case 3: return 2;
+        case 4: return 4;
+        case 5: return 8; // nessuna chiave da 8 byte usata qui: il campo value a 32 bit non basterebbe
+        default: return 4;
+    }
+}
+
+static esp_err_t ubx_valset(uart_port_t uart_num, const char *label, const ubx_cfg_kv32_t *kvs, size_t n)
 {
     if (n > 32) {
         return ESP_ERR_INVALID_SIZE;
     }
 
-    uint8_t payload[4 + 32 * sizeof(ubx_cfg_kv32_t)];
+    uint8_t payload[4 + 32 * (4 + 4)];
+    size_t off = 4;
     payload[0] = 0x00; // version
     payload[1] = 0x01; // layer: RAM (applicazione immediata, non persistente su BBR/flash)
     payload[2] = 0x00; // reserved
     payload[3] = 0x00; // reserved
-    memcpy(payload + 4, kvs, n * sizeof(ubx_cfg_kv32_t));
+
+    for (size_t i = 0; i < n; i++) {
+        memcpy(payload + off, &kvs[i].key, 4);
+        off += 4;
+        size_t vsize = ubx_key_value_size(kvs[i].key);
+        if (vsize > sizeof(kvs[i].value)) {
+            vsize = sizeof(kvs[i].value); // difensivo: mai il caso oggi (nessuna chiave da 8 byte)
+        }
+        memcpy(payload + off, &kvs[i].value, vsize); // little-endian: i byte bassi sono quelli giusti
+        off += vsize;
+    }
 
     // UBX-CFG-VALSET = classe 0x06, id 0x8A
-    return ubx_send(uart_num, 0x06, 0x8A, payload, (uint16_t) (4 + n * sizeof(ubx_cfg_kv32_t)));
+    esp_err_t err = ubx_send(uart_num, 0x06, 0x8A, payload, (uint16_t) off);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    // Verifica reale (non piu' "spara e spera"): il ricevitore risponde
+    // sempre con UBX-ACK-ACK o UBX-ACK-NAK a un CFG-VALSET. Il timeout e'
+    // generoso perche' questi comandi girano a bassa priorita' rispetto al
+    // flusso NMEA/RTCM in tempo reale sulla stessa UART.
+    bool acked = false;
+    uint8_t echo_cls = 0, echo_id = 0;
+    if (!gnss_ubx_ack_wait(500, &acked, &echo_cls, &echo_id)) {
+        ESP_LOGW(TAG, "[%s] Nessuna risposta ACK/NAK dal ricevitore entro 500ms (UART sbagliata? "
+                       "ricevitore che non implementa CFG-VALSET?)", label);
+    } else if (!acked) {
+        ESP_LOGE(TAG, "[%s] Ricevitore ha rifiutato la configurazione (UBX-ACK-NAK, riferita a classe "
+                       "0x%02X id 0x%02X - mandato 0x06 0x8A) - una o piu' chiavi in questo gruppo non "
+                       "sono valide per questo modulo, oppure la risposta non si riferisce affatto a "
+                       "questo comando se le classi non combaciano", label, echo_cls, echo_id);
+    } else {
+        ESP_LOGI(TAG, "[%s] Configurazione accettata dal ricevitore (UBX-ACK-ACK)", label);
+    }
+
+    return ESP_OK;
 }
 
 // Chiavi CFG-MSGOUT-RTCM_3X_TYPE*_UART1, verificate contro
@@ -115,27 +185,119 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     kvs[n++] = (ubx_cfg_kv32_t) { 0x40030010, 60 };    // CFG-TMODE-SVIN-MIN-DUR: durata minima survey-in (s) - chiave corretta, era scambiata con quella sotto
     kvs[n++] = (ubx_cfg_kv32_t) { 0x40030011, 2500 };  // CFG-TMODE-SVIN-ACC-LIMIT: precisione richiesta, unita' 0.1mm (2500 = 250mm) - chiave corretta, era scambiata con quella sopra
 
-    esp_err_t err = ubx_valset(uart_num, kvs, n);
+    esp_err_t err = ubx_valset(uart_num, "BASE", kvs, n);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Invio configurazione UBX fallito");
     }
     return err;
 }
 
+// Manda un gruppo di chiavi come invio CFG-VALSET a se stante, loggando
+// quale gruppo (per nome) viene eventualmente rifiutato - un solo grosso
+// invio con chiavi eterogenee nasconde quale parte specifica fallisce,
+// perche' VALSET e' tutto-o-niente: un NAK fa cadere anche le chiavi
+// valide spedite nello stesso messaggio (scoperto in pratica su questo
+// modulo: l'invio unico di prima veniva sempre rifiutato nel suo
+// complesso, senza modo di sapere quale gruppo fosse il colpevole).
+static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
+                                   const ubx_cfg_kv32_t *kvs, size_t n)
+{
+    esp_err_t err = ubx_valset(uart_num, group_name, kvs, n);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "[%s] invio fallito a livello UART", group_name);
+    }
+    return err;
+}
+
+esp_err_t gnss_ubx_poll_version(uart_port_t uart_num)
+{
+    // UBX-MON-VER = classe 0x0A, id 0x04, nessun payload per il poll. La
+    // risposta vera arriva come messaggio a se stante (loggata da
+    // gnss_ubx_ack.c), ma se il ricevitore non la riconosce puo' rispondere
+    // con un ACK-NAK invece - controllato qui esplicitamente, altrimenti la
+    // gnss_ubx_ack_arm() del prossimo ubx_valset_group() lo scarterebbe in
+    // silenzio senza che lo si sappia mai (distingue "nessuna risposta
+    // affatto" da "rifiutata esplicitamente").
+    esp_err_t err = ubx_send(uart_num, 0x0A, 0x04, NULL, 0);
+    if (err != ESP_OK) {
+        return err;
+    }
+    bool acked = false;
+    uint8_t echo_cls = 0, echo_id = 0;
+    if (!gnss_ubx_ack_wait(300, &acked, &echo_cls, &echo_id)) {
+        ESP_LOGW(TAG, "MON-VER: nessun ACK/NAK entro 300ms (se la riga \"UBX-MON-VER: swVersion=...\" "
+                       "non compare qui sopra, il ricevitore non risponde affatto a questo poll)");
+    } else if (!acked) {
+        ESP_LOGW(TAG, "MON-VER: rifiutato con ACK-NAK riferito a classe 0x%02X id 0x%02X (mandato 0x0A 0x04)",
+                  echo_cls, echo_id);
+    }
+    // Se acked==true qui sarebbe un errore di logica: MON-VER non e' un
+    // comando "set", non dovrebbe mai generare un ACK-ACK vero e proprio -
+    // in quel caso il log della vera risposta (se arrivata) resta comunque
+    // quello scritto da gnss_ubx_ack.c per class=0x0A id=0x04.
+    return ESP_OK;
+}
+
 esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
 {
     ESP_LOGI(TAG, "Configuro ricevitore u-blox come rover (riceve RTCM3, emette NMEA/GGA su UART1)");
 
-    const ubx_cfg_kv32_t kvs[] = {
+    gnss_ubx_poll_version(uart_num);
+    vTaskDelay(pdMS_TO_TICKS(300)); // tempo per la risposta, loggata in modo asincrono
+
+    const ubx_cfg_kv32_t kvs_mode[] = {
         { 0x20030001, 0 },    // CFG-TMODE-MODE = 0 (disabilitato: non e' una base fissa)
+    };
+    ubx_valset_group(uart_num, "TMODE", kvs_mode, sizeof(kvs_mode) / sizeof(kvs_mode[0]));
+
+    // Costellazioni abilitate esplicitamente: mai state toccate prima
+    // d'ora in questo file. Osservato in pratica che GLONASS e Galileo
+    // non emettevano MAI una sentenza GSV, nemmeno vuota (a differenza
+    // di BeiDou, che compariva comunque con "00" satelliti) - indizio
+    // che fossero disabilitate a livello di sistema GNSS, non solo
+    // "senza segnale". Gruppo separato: se questo modulo non supporta
+    // una di queste costellazioni, un NAK qui non deve far cadere anche
+    // il resto della configurazione (UART/messaggi) come succedeva
+    // prima con l'invio unico.
+    const ubx_cfg_kv32_t kvs_signals[] = {
+        { 0x1031001f, 1 },    // CFG-SIGNAL-GPS_ENA
+        { 0x10310021, 1 },    // CFG-SIGNAL-GAL_ENA (Galileo)
+        { 0x10310025, 1 },    // CFG-SIGNAL-GLO_ENA (GLONASS)
+        { 0x10310022, 1 },    // CFG-SIGNAL-BDS_ENA (BeiDou)
+    };
+    ubx_valset_group(uart_num, "SIGNAL (costellazioni)", kvs_signals, sizeof(kvs_signals) / sizeof(kvs_signals[0]));
+
+    const ubx_cfg_kv32_t kvs_uart1[] = {
         { 0x10730004, 1 },    // CFG-UART1INPROT-RTCM3X: accetta RTCM3 in ingresso su UART1
         { 0x10740004, 0 },    // CFG-UART1OUTPROT-RTCM3X: non serve piu' emettere RTCM3
         { 0x10740002, 1 },    // CFG-UART1OUTPROT-NMEA: riabilita NMEA in uscita (per il $GxGGA)
+        { 0x209100bb, 1 },    // CFG-MSGOUT-NMEA_ID_GGA_UART1: abilitare il protocollo non basta,
+                               // serve anche abilitare esplicitamente il messaggio GGA (1 = ogni epoca)
+        { 0x209100c5, 1 },    // CFG-MSGOUT-NMEA_ID_GSV_UART1: idem per GSV, da cui gnss_signal.c
+                               // ricava l'elenco satelliti/SNR mostrato in /api/signals
     };
+    ubx_valset_group(uart_num, "UART1", kvs_uart1, sizeof(kvs_uart1) / sizeof(kvs_uart1[0]));
 
-    esp_err_t err = ubx_valset(uart_num, kvs, sizeof(kvs) / sizeof(kvs[0]));
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Invio configurazione UBX fallito");
-    }
-    return err;
+    // Stessa configurazione ripetuta per UART2. Non sappiamo con certezza
+    // su quale delle due UART fisiche del modulo sia cablata questa
+    // specifica breakout board (non verificabile da remoto) - configurare
+    // la porta sbagliata avrebbe fatto sembrare questi comandi applicati
+    // mentre in realta' non toccavano la porta giusta. Gruppo separato per
+    // lo stesso motivo del blocco SIGNAL sopra.
+    const ubx_cfg_kv32_t kvs_uart2[] = {
+        { 0x10750004, 1 },    // CFG-UART2INPROT-RTCM3X
+        { 0x10760004, 0 },    // CFG-UART2OUTPROT-RTCM3X
+        { 0x10760002, 1 },    // CFG-UART2OUTPROT-NMEA
+        { 0x209100bc, 1 },    // CFG-MSGOUT-NMEA_ID_GGA_UART2
+        { 0x209100c6, 1 },    // CFG-MSGOUT-NMEA_ID_GSV_UART2
+    };
+    ubx_valset_group(uart_num, "UART2", kvs_uart2, sizeof(kvs_uart2) / sizeof(kvs_uart2[0]));
+
+    // CFG-HW-ANT_CFG_VOLTCTRL rimossa: dopo averla attivata i satelliti
+    // visti (prima almeno 1 con SNR reale, in modo intermittente) sono
+    // scesi a zero costante anche in condizioni migliori (vicino
+    // finestra) - correlazione sospetta con la regressione osservata,
+    // da capire prima di riattivarla.
+
+    return ESP_OK;
 }

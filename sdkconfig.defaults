@@ -1,6 +1,6 @@
 # Il supporto PPP di lwIP e' disattivato di default in ESP-IDF ma serve a
 # cellular_link.c (ESP_NETIF_DEFAULT_PPP(), usato per il dial-up dati via
-# SIM7600X attraverso esp_modem). Valori ripresi dall'esempio ufficiale
+# SIM7600 attraverso esp_modem). Valori ripresi dall'esempio ufficiale
 # pppos_client di esp_modem (stessi usati con successo sul progetto
 # gemello baseesp32/T-Internet-COM).
 CONFIG_LWIP_PPP_SUPPORT=y
@@ -42,7 +42,16 @@ CONFIG_LWIP_MAX_SOCKETS=16
 # confermato da un crash reale su hardware (T-ETH-Elite) con lo stack
 # default. Stesso valore usato dagli esempi ufficiali di esp_modem che
 # inizializzano il modem/mbedtls direttamente in app_main.
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+# Alzato di nuovo a 10240 (era 8192) quando i 9 nuovi campi float lever-arm/
+# RBV di GNSS_CHIP_BYNAV_M21D (settings.h) hanno fatto ricrescere
+# sizeof(app_settings_t) - bastavano 36 byte in piu' per far ritraboccare
+# lo stack esattamente nello stesso punto (init WiFi), confermato da un
+# secondo crash reale su hardware: app_settings_t viene passata per valore
+# (non per puntatore) in piu' punti della catena di chiamate di app_main(),
+# quindi ogni funzione che ne fa una copia locale aggiunge il suo peso
+# pieno allo stack invece di uno solo condiviso - margine ora piu' ampio
+# per assorbire crescite future analoghe della struct.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=10240
 
 # Serve per calcolare l'uso CPU per core mostrato nella scheda Stato
 # (sys_stats.c, basato sul tempo di esecuzione del task IDLE di ciascun
