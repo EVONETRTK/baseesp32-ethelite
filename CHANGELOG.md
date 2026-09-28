@@ -2,6 +2,14 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.51
+
+- **Richiesta dell'utente ("la chiami caster NTRIP, dovrebbe essere server NTRIP: la base funziona come caster solo in locale")**: terminologia corretta nel pannello.
+  - Il riquadro verso EVONETRTK si chiama "Server NTRIP (invio correzioni al caster EVONETRTK)" in base e "Client NTRIP (correzioni dal caster EVONETRTK)" in rover. Stessa cosa per il riquadro nella scheda Stato.
+  - Etichette specifiche per modalita': "Mountpoint su cui inviare" e "Password sorgente della mountpoint" in base, "Mountpoint da cui ricevere" e "Password" in rover.
+  - "Server caster NTRIP locale" diventa "Caster NTRIP locale (rover sulla stessa rete)".
+  - La ricerca impostazioni mostra solo il titolo della modalita' attiva (`visibleLegendText()`).
+
 ## 1.19.50
 
 - **Richiesta dell'utente ("in modalita' base devono vedersi solo le voci che servono")**: il pannello nasconde le voci dell'altra modalita' (attributo `data-mode="base"`/`"rover"` + `updateModeVisibility()`).

@@ -101,16 +101,18 @@
 
 <div id="page-status" class="page active">
   <fieldset>
-    <legend>📡 Connessione NTRIP (caster)</legend>
+    <legend><span data-mode="base">📡 Server NTRIP (invio correzioni al caster)</span><span data-mode="rover">📡 Client NTRIP (correzioni dal caster)</span></legend>
     <dl class="kv">
       <dt>Stato</dt><dd id="ntrip-status">-</dd>
       <dt id="ntrip-since-label">Connesso da</dt><dd id="ntrip-since">-</dd>
       <dt>Riconnessioni dal boot</dt><dd id="ntrip-count">-</dd>
       <dt>Ultimo errore</dt><dd id="ntrip-error">-</dd>
     </dl>
-    <small class="hint">
-      In modalita' base indica se il flusso RTCM generato da questa stazione arriva al caster;
-      in modalita' rover se le correzioni RTCM stanno arrivando dal caster a questo ricevitore.
+    <small class="hint" data-mode="base">
+      Indica se le correzioni RTCM generate da questa base arrivano al caster EVONETRTK.
+    </small>
+    <small class="hint" data-mode="rover">
+      Indica se le correzioni RTCM stanno arrivando dal caster a questo ricevitore.
     </small>
   </fieldset>
 
@@ -488,14 +490,14 @@
   </fieldset>
 
   <fieldset>
-    <legend>📡 Caster EVONETRTK (NTRIP)</legend>
-    <label>Host<input name="ntrip_host" data-validate="host" placeholder="es. 192.168.2.158 o caster.esempio.it"></label>
+    <legend><span data-mode="base">📡 Server NTRIP (invio correzioni al caster EVONETRTK)</span><span data-mode="rover">📡 Client NTRIP (correzioni dal caster EVONETRTK)</span></legend>
+    <label>Host del caster<input name="ntrip_host" data-validate="host" placeholder="es. rtk.evo-net.it"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
-    <label>Mountpoint<input name="ntrip_mountpoint"></label>
+    <label><span data-mode="base">Mountpoint su cui inviare</span><span data-mode="rover">Mountpoint da cui ricevere</span><input name="ntrip_mountpoint"></label>
     <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem" data-mode="rover">Cerca mountpoint disponibili</button>
     <div id="ntrip-mp-results" style="margin-top:.4rem" data-mode="rover"></div>
     <label data-mode="rover">Username<input name="ntrip_username"></label>
-    <label>Password / codice sorgente<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label><span data-mode="base">Password sorgente della mountpoint</span><span data-mode="rover">Password</span><input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <button type="button" class="action secondary" id="ntrip-test-btn" style="margin-top:.6rem">Prova connessione al caster</button>
     <div id="ntrip-test-msg" class="hint" style="margin-top:.4rem"></div>
     <small class="hint">
@@ -511,10 +513,10 @@
   </fieldset>
 
   <fieldset data-mode="base">
-    <legend>📡 Server caster NTRIP locale</legend>
+    <legend>📡 Caster NTRIP locale (rover sulla stessa rete)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="ntrip_caster_server_enable" type="checkbox" style="width:auto; margin:0">
-      Accetta rover collegati direttamente a questo dispositivo (oltre al caster esterno sopra)
+      Accetta rover collegati direttamente a questa base (oltre all'invio al caster EVONETRTK sopra)
     </label>
     <label>Porta<input name="ntrip_caster_server_port" type="number" min="1" max="65535" placeholder="2101"></label>
     <small class="hint">
@@ -1052,6 +1054,14 @@ document.querySelectorAll('.page fieldset').forEach((fs) => {
   });
 });
 
+// Titolo del riquadro senza le varianti nascoste (alcuni titoli hanno una
+// versione base e una rover, vedi updateModeVisibility()).
+function visibleLegendText(fs) {
+  const legend = fs.querySelector('legend');
+  const parts = Array.from(legend.childNodes).filter((n) => !(n.nodeType === 1 && n.hidden));
+  return parts.map((n) => n.textContent).join('').trim();
+}
+
 document.getElementById('settings-search').addEventListener('input', (ev) => {
   const q = ev.target.value.trim().toLowerCase();
   const results = document.getElementById('settings-search-results');
@@ -1074,7 +1084,7 @@ document.getElementById('settings-search').addEventListener('input', (ev) => {
   matches.forEach((m) => {
     const item = document.createElement('div');
     item.className = 'search-result-item';
-    item.innerHTML = m.legend + ' <span class="search-result-page">— ' + m.pageName + '</span>';
+    item.innerHTML = visibleLegendText(m.el) + ' <span class="search-result-page">— ' + m.pageName + '</span>';
     item.addEventListener('click', () => {
       goToPage(m.pageId);
       m.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
