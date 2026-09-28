@@ -184,6 +184,7 @@ static const char *gnss_chip_str(gnss_chip_t c)
     case GNSS_CHIP_LC29H:   return "lc29h";
     case GNSS_CHIP_BYNAV:   return "bynav";
     case GNSS_CHIP_BYNAV_M21D: return "bynav_m21d";
+    case GNSS_CHIP_L76K:    return "l76k";
     default:                return "ublox";
     }
 }
@@ -816,6 +817,8 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             s.gnss_chip = GNSS_CHIP_BYNAV;
         } else if (strcmp(chip_item->valuestring, "bynav_m21d") == 0) {
             s.gnss_chip = GNSS_CHIP_BYNAV_M21D;
+        } else if (strcmp(chip_item->valuestring, "l76k") == 0) {
+            s.gnss_chip = GNSS_CHIP_L76K;
         } else {
             s.gnss_chip = GNSS_CHIP_UBLOX;
         }

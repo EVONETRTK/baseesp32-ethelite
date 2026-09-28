@@ -294,6 +294,7 @@
         <option value="lc29h">Quectel LC29H (BA/CA/DA/EA)</option>
         <option value="bynav">Bynav M20/M20D (non verificato su hardware)</option>
         <option value="bynav_m21d">Bynav M21D con IMU/INS (non verificato su hardware)</option>
+        <option value="l76k" data-mode="rover">Quectel L76K dello shield (solo prove rover, niente RTK)</option>
       </select>
     </label>
 
@@ -2289,6 +2290,7 @@ const RTCM_UNSUPPORTED_BY_CHIP = {
   unicore: [],
   bynav: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
   bynav_m21d: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
+  l76k: RTCM_ALL_MESSAGE_FIELDS, // non produce RTCM (e non puo' fare da base)
 };
 function updateRtcmUnsupported() {
   const f = document.getElementById('cfg-form');

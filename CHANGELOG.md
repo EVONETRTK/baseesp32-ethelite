@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.53
+
+- **Richiesta dell'utente: usare per le prove il Quectel L76K montato sugli shield LilyGO, con GLONASS attivo.** Nuovo chip `GNSS_CHIP_L76K` (`gnss_l76k.c`), selezionabile nel pannello solo in modalita' rover.
+  - In rover manda `$PCAS04,7` (protocollo CASIC): GPS + BeiDou + GLONASS, mentre di fabbrica l'L76K usa solo GPS + BeiDou. Il checksum NMEA viene calcolato dal codice.
+  - In base non manda nulla e logga un errore, perche' non e' un ricevitore RTK e non produce RTCM.
+- Emerso durante le prove: l'L76K e' collegato ai pin GPS 39/42 della T-ETH-Elite tramite il DIP "GPS" dello shield (documentazione LilyGo-Modem-Series). Con il ricevitore RTK sugli stessi pin il DIP va messo su OFF.
+
 ## 1.19.52
 
 - **Il pulsante di reset impostazioni era disattivato** (`BASEESP32_RESET_BUTTON_PIN=-1`), eppure la modalita' "Solo Ethernet" (1.19.49) lo indica come unico modo di recupero con la radio WiFi spenta. Ora di default usa il pulsante **BOOT** gia' presente sulla T-ETH-Elite (GPIO0, indicato da LilyGO come personalizzabile), senza cablare nulla. Tenuto premuto 5 s a scheda avviata cancella la configurazione e riavvia con i default. Premuto all'accensione continua a servire per la modalita' download.

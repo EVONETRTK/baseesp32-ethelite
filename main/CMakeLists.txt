@@ -16,6 +16,7 @@ idf_component_register(
         "gnss_unicore.c"
         "gnss_lc29h.c"
         "gnss_bynav.c"
+        "gnss_l76k.c"
         "gnss_signal.c"
         "gnss_fix.c"
         "gnss_nmea_reader.c"

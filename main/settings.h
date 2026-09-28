@@ -18,6 +18,9 @@ typedef enum {
     // ha IMU, mandargli comandi INS non avrebbe senso e il modulo li
     // rifiuterebbe/ignorerebbe).
     GNSS_CHIP_BYNAV_M21D = 4,
+    // Quectel L76K: GPS di navigazione degli shield LilyGO, NON RTK - solo
+    // per le prove in rover, vedi gnss_l76k.h.
+    GNSS_CHIP_L76K = 5,
 } gnss_chip_t;
 
 typedef enum {
