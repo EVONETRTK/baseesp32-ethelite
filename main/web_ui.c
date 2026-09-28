@@ -394,6 +394,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "rtcm_1124_enable", s.rtcm_1124_enable);
     cJSON_AddBoolToObject(root, "rtcm_1127_enable", s.rtcm_1127_enable);
     cJSON_AddStringToObject(root, "device_mode", device_mode_str(s.device_mode));
+    cJSON_AddStringToObject(root, "active_device_mode", status_get_active_rover() ? "rover" : "base");
     cJSON_AddStringToObject(root, "network_mode", network_mode_str(s.network_mode));
     {
         char safe_wifi_ssid[65];

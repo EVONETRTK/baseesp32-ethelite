@@ -120,19 +120,31 @@ static esp_err_t ubx_valset(uart_port_t uart_num, const char *label, const ubx_c
     }
 
     // UBX-CFG-VALSET = classe 0x06, id 0x8A
-    esp_err_t err = ubx_send(uart_num, 0x06, 0x8A, payload, (uint16_t) off);
-    if (err != ESP_OK) {
-        return err;
-    }
-
     // Verifica reale (non piu' "spara e spera"): il ricevitore risponde
     // sempre con UBX-ACK-ACK o UBX-ACK-NAK a un CFG-VALSET. Il timeout e'
     // generoso perche' questi comandi girano a bassa priorita' rispetto al
     // flusso NMEA/RTCM in tempo reale sulla stessa UART.
+    // Senza nessuna risposta si riprova: con il ricevitore via I2C i primi
+    // secondi dopo un riavvio dell'ESP32 (con il ricevitore rimasto acceso)
+    // possono dare errori sul bus, e una configurazione persa li' resterebbe
+    // persa fino al riavvio successivo. Un NAK invece non si riprova: e' un
+    // rifiuto vero, riprovare darebbe lo stesso risultato.
     bool acked = false;
     uint8_t echo_cls = 0, echo_id = 0;
-    if (!gnss_ubx_ack_wait(500, &acked, &echo_cls, &echo_id)) {
-        ESP_LOGW(TAG, "[%s] Nessuna risposta ACK/NAK dal ricevitore entro 500ms (UART sbagliata? "
+    bool answered = false;
+    for (int attempt = 1; attempt <= 3 && !answered; attempt++) {
+        esp_err_t err = ubx_send(uart_num, 0x06, 0x8A, payload, (uint16_t) off);
+        if (err != ESP_OK) {
+            return err;
+        }
+        answered = gnss_ubx_ack_wait(500, &acked, &echo_cls, &echo_id);
+        if (!answered && attempt < 3) {
+            ESP_LOGW(TAG, "[%s] Nessuna risposta dal ricevitore, riprovo (%d/3)", label, attempt + 1);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+    if (!answered) {
+        ESP_LOGW(TAG, "[%s] Nessuna risposta ACK/NAK dal ricevitore dopo 3 tentativi (collegamento sbagliato? "
                        "ricevitore che non implementa CFG-VALSET?)", label);
     } else if (!acked) {
         ESP_LOGE(TAG, "[%s] Ricevitore ha rifiutato la configurazione (UBX-ACK-NAK, riferita a classe "

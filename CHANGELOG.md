@@ -2,6 +2,16 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.57
+
+- **Richiesta dell'utente ("a colpo d'occhio si deve vedere se e' in modo rover o base")**:
+  - Etichetta **🏠 BASE** (blu) o **🚜 ROVER** (verde) nel titolo, che resta fisso in alto scorrendo. Se la modalita' salvata e' diversa da quella con cui il dispositivo sta girando, diventa arancione: "BASE → ROVER dopo il riavvio".
+  - Barra colorata in cima alla pagina e linguetta della scheda attiva dello stesso colore.
+  - Titolo della scheda del browser: "BASE – <nome rete del dispositivo>" o "ROVER – ...".
+  - Firmware: nuovo campo `active_device_mode` in /api/status (modalita' di questo avvio, `status_set_active_rover()`), distinto da `device_mode` salvato. Stato e Segnali ora seguono la modalita' attiva vera, non quella salvata.
+- **Stack overflow del task main a ogni avvio**, trovato provando questa versione sul dispositivo: una sola copia in piu' di `app_settings_t` in `app_main()` bastava. Riusata la copia gia' esistente, e stack del task main portato da 10240 a 12288.
+- **u-blox: nuovo tentativo dei gruppi di configurazione senza risposta** (fino a 3, un secondo tra l'uno e l'altro; un NAK non si riprova). Con il ricevitore via I2C, nei primi secondi dopo un riavvio dell'ESP32 con lo ZED rimasto acceso capitano errori sul bus che poi si risolvono da soli: senza nuovo tentativo la configurazione di quel momento andava persa.
+
 ## 1.19.56
 
 - **Richiesta dell'utente ("in segnali non vedo il grafico dei satelliti", in base)**: grafico satelliti, riquadro Fix GNSS e riga fix nella scheda Stato tornano visibili anche in base. Nella 1.19.50 erano stati legati al rover perche' in base il firmware leggeva solo RTCM.

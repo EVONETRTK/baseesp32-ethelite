@@ -131,7 +131,12 @@ void app_main(void)
     {
         // Diagnostica: ricevitore u-blox via I2C (HAT sul connettore a 40
         // pin) sullo stesso bus dell'OLED, vedi gnss_i2c.h.
+        // Stessa copia usata anche per la modalita' di questo avvio (per la
+        // UI: etichetta BASE/ROVER e avviso "riavvio necessario"): ogni
+        // app_settings_t in piu' qui pesa ~1.7 KB sullo stack del task main,
+        // gia' andato in overflow per questo (vedi sdkconfig.defaults).
         app_settings_t s = settings_get();
+        status_set_active_rover(s.device_mode == DEVICE_MODE_ROVER);
         gnss_i2c_probe(s.oled_sda_pin, s.oled_scl_pin);
     }
 

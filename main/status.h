@@ -96,3 +96,9 @@ void status_bynav_ins_note_inspvaxa(const char *ins_status, float roll_deg, floa
 void status_bynav_ins_note_headinga(float heading_deg, float pitch_deg);
 
 bynav_ins_status_t status_bynav_ins_get(void);
+
+// Modalita' (base/rover) con cui il firmware e' partito a questo avvio: la
+// UI la confronta con quella salvata (settings.device_mode), che cambia
+// subito al salvataggio ma si applica solo dopo il riavvio. true = rover.
+void status_set_active_rover(bool rover);
+bool status_get_active_rover(void);

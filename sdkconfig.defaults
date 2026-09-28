@@ -51,7 +51,10 @@ CONFIG_LWIP_MAX_SOCKETS=16
 # quindi ogni funzione che ne fa una copia locale aggiunge il suo peso
 # pieno allo stack invece di uno solo condiviso - margine ora piu' ampio
 # per assorbire crescite future analoghe della struct.
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=10240
+# Alzato a 12288 in 1.19.57: una sola copia in piu' di app_settings_t in
+# app_main() (per la modalita' attiva) bastava a mandarlo in overflow a ogni
+# avvio - margine per le prossime aggiunte.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288
 
 # Serve per calcolare l'uso CPU per core mostrato nella scheda Stato
 # (sys_stats.c, basato sul tempo di esecuzione del task IDLE di ciascun

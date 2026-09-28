@@ -153,3 +153,15 @@ bynav_ins_status_t status_bynav_ins_get(void)
     xSemaphoreGive(s_bynav_ins_mutex);
     return copy;
 }
+
+static bool s_active_rover;
+
+void status_set_active_rover(bool rover)
+{
+    s_active_rover = rover;
+}
+
+bool status_get_active_rover(void)
+{
+    return s_active_rover;
+}

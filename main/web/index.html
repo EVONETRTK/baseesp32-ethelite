@@ -6,7 +6,15 @@
 <title>EVONETRTK</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 680px; margin: 1.5rem auto; padding: 0 1rem; background:#f6f7f9; color:#1a1a1a; }
-  h1 { font-size: 1.5rem; margin-bottom: .8rem; display:flex; align-items:center; gap:.4rem; }
+  h1 { font-size: 1.5rem; margin-bottom: .8rem; display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; position:sticky; top:0; z-index:5; background:#f6f7f9; padding:.5rem 0; }
+  /* Colore della modalita' attiva: blu in base, verde in rover (vedi updateModeBadge()) */
+  :root { --mode-accent:#2563eb; }
+  body[data-mode="rover"] { --mode-accent:#15803d; }
+  body::before { content:''; position:fixed; top:0; left:0; right:0; height:6px; background:var(--mode-accent); z-index:10; }
+  .mode-badge { font-size:.9rem; font-weight:700; padding:.3rem .8rem; border-radius:20px; border:2px solid transparent; }
+  .mode-badge.base { background:#dbeafe; color:#1d4ed8; border-color:#93c5fd; }
+  .mode-badge.rover { background:#dcfce7; color:#15803d; border-color:#86efac; }
+  .mode-badge.pending { background:#fef3c7; color:#b45309; border-color:#fcd34d; }
   .quick-status { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom: 1rem; }
   .qs-chip { display:flex; align-items:center; gap:.35rem; padding:.45rem .8rem; border-radius:20px; background:#eef0f2; color:#6b7280; font-size:.82rem; font-weight:600; border:1px solid transparent; transition: background .2s, color .2s, border-color .2s; }
   .qs-chip .qs-icon { font-size:1.05rem; }
@@ -15,7 +23,7 @@
   .qs-chip.qs-bad { background:#fee2e2; color:#b91c1c; border-color:#fca5a5; }
   nav.tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom: 1rem; }
   nav.tabs button { padding:.55rem 1rem; border:1px solid #c5c9d0; background:#fff; border-radius:8px; cursor:pointer; font-size:.9rem; transition: background .15s, color .15s, border-color .15s; }
-  nav.tabs button.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+  nav.tabs button.active { background:var(--mode-accent); color:#fff; border-color:var(--mode-accent); }
   nav.tabs button.has-dirty { position:relative; }
   nav.tabs button.has-dirty::after { content:''; position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%; background:#d97706; border:2px solid #f6f7f9; }
   .page { display:none; }
@@ -72,7 +80,7 @@
 </style>
 </head>
 <body>
-<h1>🛰️ EVONETRTK</h1>
+<h1>🛰️ EVONETRTK <span id="mode-badge" class="mode-badge" hidden></span></h1>
 
 <div id="quick-status" class="quick-status">
   <div class="qs-chip" id="qs-wifi"><span class="qs-icon">📶</span><span class="qs-label">Rete</span></div>
@@ -1297,7 +1305,8 @@ async function loadStatus() {
       document.getElementById('auto-update-stale-warn').style.display = stale ? '' : 'none';
     }
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
-    activeDeviceMode = s.device_mode === 'rover' ? 'rover' : 'base';
+    activeDeviceMode = s.active_device_mode || (s.device_mode === 'rover' ? 'rover' : 'base');
+    updateModeBadge(activeDeviceMode, s.device_mode === 'rover' ? 'rover' : 'base', s.ap_ssid);
     updateModeVisibility();
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
@@ -2348,6 +2357,25 @@ document.getElementById('cfg-form').gnss_link.addEventListener('change', updateG
 // e Segnali seguono invece la modalita' riportata dal dispositivo, perche'
 // mostrano dati reali.
 let activeDeviceMode = null;
+
+// Modalita' riconoscibile a colpo d'occhio: etichetta nel titolo, colore di
+// barra in alto e linguette (blu base, verde rover), titolo della scheda del
+// browser. "active" e' la modalita' con cui il dispositivo sta girando,
+// "saved" quella salvata: se diverse, la nuova vale solo dopo il riavvio.
+function updateModeBadge(active, saved, name) {
+  const badge = document.getElementById('mode-badge');
+  const label = active === 'rover' ? '🚜 ROVER' : '🏠 BASE';
+  if (saved !== active) {
+    badge.textContent = label + ' → ' + saved.toUpperCase() + ' dopo il riavvio';
+    badge.className = 'mode-badge pending';
+  } else {
+    badge.textContent = label;
+    badge.className = 'mode-badge ' + active;
+  }
+  badge.hidden = false;
+  document.body.dataset.mode = active;
+  document.title = (active === 'rover' ? 'ROVER' : 'BASE') + ' – ' + (name || 'EVONETRTK');
+}
 function updateModeVisibility() {
   const formMode = document.getElementById('cfg-form').device_mode.value;
   document.querySelectorAll('[data-mode]').forEach((el) => {
