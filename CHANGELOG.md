@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.58
+
+- **Fix segnalato dall'utente ("quando cambio modalita' sparisce la pagina e quando riappare e' sempre nella stessa modalita'")**: la 1.19.57 metteva `data-mode` sul `<body>` per il colore del pannello, ma `data-mode` e' anche il marcatore delle voci solo base/rover. Cambiando il menu "Funzione del dispositivo", `updateModeVisibility()` nascondeva quindi l'intero body, compreso il pulsante Salva, e la modalita' non si poteva salvare. Attributo del body rinominato in `data-active-mode`. Verificato sul pannello del dispositivo: cambio modalita', pagina visibile, salvataggio ok.
+
 ## 1.19.57
 
 - **Richiesta dell'utente ("a colpo d'occhio si deve vedere se e' in modo rover o base")**:

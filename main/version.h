@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.19.57"
+#define FIRMWARE_VERSION "1.19.58"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Modalita' visibile a colpo d'occhio: etichetta BASE/ROVER nel titolo, colore del pannello (blu base, verde rover), titolo del browser."
+#define FIRMWARE_RELEASE_NOTES "Fix: cambiando modalita' nel pannello spariva l'intera pagina e non si poteva salvare."

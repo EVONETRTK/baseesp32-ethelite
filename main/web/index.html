@@ -9,7 +9,7 @@
   h1 { font-size: 1.5rem; margin-bottom: .8rem; display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; position:sticky; top:0; z-index:5; background:#f6f7f9; padding:.5rem 0; }
   /* Colore della modalita' attiva: blu in base, verde in rover (vedi updateModeBadge()) */
   :root { --mode-accent:#2563eb; }
-  body[data-mode="rover"] { --mode-accent:#15803d; }
+  body[data-active-mode="rover"] { --mode-accent:#15803d; }
   body::before { content:''; position:fixed; top:0; left:0; right:0; height:6px; background:var(--mode-accent); z-index:10; }
   .mode-badge { font-size:.9rem; font-weight:700; padding:.3rem .8rem; border-radius:20px; border:2px solid transparent; }
   .mode-badge.base { background:#dbeafe; color:#1d4ed8; border-color:#93c5fd; }
@@ -2373,7 +2373,7 @@ function updateModeBadge(active, saved, name) {
     badge.className = 'mode-badge ' + active;
   }
   badge.hidden = false;
-  document.body.dataset.mode = active;
+  document.body.dataset.activeMode = active; // non "data-mode": quello e' il marcatore delle voci solo base/rover, updateModeVisibility() nasconderebbe tutta la pagina
   document.title = (active === 'rover' ? 'ROVER' : 'BASE') + ' – ' + (name || 'EVONETRTK');
 }
 function updateModeVisibility() {
