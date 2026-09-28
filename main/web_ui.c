@@ -1802,6 +1802,14 @@ void web_ui_start(void)
     // quell'endpoint) - trovato rivedendo il codice, non ancora capitato
     // in pratica.
     config.max_uri_handlers = 32;
+    // Con il default (7 socket, nessuna chiusura automatica) bastavano un
+    // paio di browser/schede aperte, che tengono le connessioni in
+    // keep-alive e interrogano /api/status e /api/signals ogni pochi
+    // secondi, per esaurire i socket: ogni nuova connessione veniva
+    // rifiutata e il pannello sembrava morto per minuti (visto sul
+    // dispositivo). Con lru_purge il socket usato meno di recente viene
+    // chiuso per fare posto al nuovo.
+    config.lru_purge_enable = true;
     // Il default (4096 byte) va in overflow quando un handler fa una
     // richiesta HTTPS in uscita (es. ota_check_online_post_handler verso
     // GitHub): l'handshake TLS/mbedTLS richiede piu' stack di quanto ne

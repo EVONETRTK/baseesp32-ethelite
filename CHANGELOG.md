@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.59
+
+- **Richiesta dell'utente ("il riavvio lo devi mettere a fianco a Salva")**: nei riquadri le cui impostazioni valgono solo dopo un riavvio (`data-reboot`: modalita' operativa e chip, collegamento ricevitore GNSS, caster NTRIP locale, LED RGB, OLED) c'e' ora, accanto a 💾 Salva, il pulsante **🔄 Salva e riavvia**: salva, riavvia e ricarica la pagina da solo dopo ~25 s. Il riquadro "Modalita' operativa" prima non era nemmeno segnato come "serve riavvio". I messaggi "Salvato"/data dell'ultimo salvataggio vengono ora cercati nella riga del pulsante e non piu' nell'elemento subito dopo, che adesso e' il nuovo pulsante.
+- **Pannello bloccato per minuti con piu' browser aperti**, visto sul dispositivo provando il pulsante: il server web usava i default (7 socket, nessuna chiusura automatica) e i browser tengono aperte le connessioni in keep-alive interrogando lo stato ogni pochi secondi. Esauriti i socket, ogni nuova connessione veniva rifiutata. Attivato `lru_purge_enable`: il socket usato meno di recente viene chiuso per fare posto.
+
 ## 1.19.58
 
 - **Fix segnalato dall'utente ("quando cambio modalita' sparisce la pagina e quando riappare e' sempre nella stessa modalita'")**: la 1.19.57 metteva `data-mode` sul `<body>` per il colore del pannello, ma `data-mode` e' anche il marcatore delle voci solo base/rover. Cambiando il menu "Funzione del dispositivo", `updateModeVisibility()` nascondeva quindi l'intero body, compreso il pulsante Salva, e la modalita' non si poteva salvare. Attributo del body rinominato in `data-active-mode`. Verificato sul pannello del dispositivo: cambio modalita', pagina visibile, salvataggio ok.
