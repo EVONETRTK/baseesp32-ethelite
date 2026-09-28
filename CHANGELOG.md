@@ -2,6 +2,16 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.55
+
+- **Ricevitore u-blox collegabile via I2C** (indirizzo 0x42), richiesto per l'HAT **Syneda uRTK6.0 (ZED-F9P)**: secondo il suo pinout sul connettore a 40 pin porta solo alimentazione e I2C, mentre le seriali sono su connettori laterali (J1 = UART1, fila a 7 pin = UART2). Sulla T-ETH-Elite i pin 3/5 del connettore sono GPIO17/18, lo stesso bus del display OLED.
+  - Nuova impostazione "Collegamento: Seriale / I2C" nella scheda Hardware (`gnss_i2c` in coda ad `app_settings_t`, API `gnss_link`). Con I2C i campi della seriale sono nascosti.
+  - Nuovo modulo `gnss_io.c`: tutto il firmware legge e scrive verso il ricevitore solo da li'. Con I2C un unico task sul core 1 manda le scritture in coda e legge i byte pronti (registri DDC 0xFD/0xFE/0xFF).
+  - Bus I2C condiviso con l'OLED (`i2c_shared_bus.c`). All'avvio `gnss_i2c_probe()` logga se a 0x42 risponde un ricevitore.
+  - `gnss_ubx.c`: con I2C configura la porta I2C del modulo (CFG-I2CINPROT/OUTPROT, messaggi `_I2C` = chiave `_UART1` meno 1) invece di UART1/UART2. Anche la configurazione base ora e' divisa in gruppi (porta, messaggi RTCM, survey-in) e legge la versione del modulo.
+  - Verificato sul dispositivo: ZED-F9P HPG 1.51 trovato via I2C, configurazione rover accettata (ACK su tutti i gruppi), GGA ogni secondo, correzioni dal caster scritte nel modulo.
+- **Blocco trovato e corretto durante la prova**: a 400 kHz, con l'attesa del clock di default, lo ZED rispondeva NACK alla prima scrittura, e il driver I2C di ESP-IDF 5.3 dopo un NACK aspetta il bus libero senza limite di tempo: task main bloccato e watchdog. Ora il bus va a 100 kHz, `scl_wait_us` e' alto (il modulo tiene basso il clock mentre elabora), le scritture passano tutte dal task di polling e dopo ogni errore il bus viene resettato.
+
 ## 1.19.54
 
 - **Ricevitore GNSS di default sui pin fisici 8/10 del connettore a 40 pin (GPIO43 TX / GPIO44 RX)**, dove gli HAT GNSS per Raspberry Pi (es. ZED-F9P) portano la seriale, secondo il pinout ufficiale LilyGO della T-ETH-Elite. I vecchi default 42/39 sono i pin "GPS" di LilyGO, collegati all'L76K degli shield tramite il DIP "GPS": vanno bene per le prove con l'L76K. Tutti i pin restano modificabili dal pannello.

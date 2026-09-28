@@ -1,4 +1,5 @@
 #include "gnss_lc29h.h"
+#include "gnss_io.h"
 #include "settings.h"
 #include "geo_convert.h"
 
@@ -31,7 +32,7 @@ static esp_err_t send_cmd(uart_port_t uart_num, const char *body)
     char line[128];
     int n = snprintf(line, sizeof(line), "$%s*%02X\r\n", body, nmea_checksum(body));
     ESP_LOGI(TAG, "-> %s", body);
-    int written = uart_write_bytes(uart_num, line, n);
+    int written = gnss_io_write(line, n);
     vTaskDelay(pdMS_TO_TICKS(100));
     return (written == n) ? ESP_OK : ESP_FAIL;
 }

@@ -511,6 +511,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "gnss_uart_tx_pin", s.gnss_uart_tx_pin);
     cJSON_AddNumberToObject(root, "gnss_uart_rx_pin", s.gnss_uart_rx_pin);
     cJSON_AddNumberToObject(root, "gnss_uart_baud", s.gnss_uart_baud);
+    cJSON_AddStringToObject(root, "gnss_link", s.gnss_i2c ? "i2c" : "uart");
 
     cJSON_AddStringToObject(root, "rgb_led_mode", rgb_mode_str(s.rgb_led_mode));
     cJSON_AddNumberToObject(root, "rgb_led_ws2812_pin", s.rgb_led_ws2812_pin);
@@ -909,6 +910,10 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     cJSON *gnss_baud_item = cJSON_GetObjectItemCaseSensitive(root, "gnss_uart_baud");
     if (gnss_baud_item && cJSON_IsNumber(gnss_baud_item) && gnss_baud_item->valueint > 0) {
         s.gnss_uart_baud = gnss_baud_item->valueint;
+    }
+    cJSON *gnss_link_item = cJSON_GetObjectItemCaseSensitive(root, "gnss_link");
+    if (gnss_link_item && cJSON_IsString(gnss_link_item)) {
+        s.gnss_i2c = (strcmp(gnss_link_item->valuestring, "i2c") == 0);
     }
 
     cJSON *rgb_mode_item = cJSON_GetObjectItemCaseSensitive(root, "rgb_led_mode");

@@ -1,4 +1,5 @@
 #include "gnss_unicore.h"
+#include "gnss_io.h"
 #include "settings.h"
 
 #include <stdio.h>
@@ -13,8 +14,8 @@ static esp_err_t send_cmd(uart_port_t uart_num, const char *cmd)
 {
     ESP_LOGI(TAG, "-> %s", cmd);
     int len = (int) strlen(cmd);
-    int written = uart_write_bytes(uart_num, cmd, len);
-    uart_write_bytes(uart_num, "\r\n", 2);
+    int written = gnss_io_write(cmd, len);
+    gnss_io_write("\r\n", 2);
     vTaskDelay(pdMS_TO_TICKS(100));
     return (written == len) ? ESP_OK : ESP_FAIL;
 }

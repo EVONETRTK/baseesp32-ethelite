@@ -309,6 +309,13 @@ typedef struct {
     float bynav_rbv_roll_deg;
     float bynav_rbv_pitch_deg;
     float bynav_rbv_yaw_deg;
+
+    // true = ricevitore u-blox collegato via I2C (indirizzo 0x42) sul bus
+    // SDA/SCL del display OLED (oled_sda_pin/oled_scl_pin, sulla T-ETH-Elite
+    // GPIO17/18 = pin 3/5 del connettore a 40 pin) invece che via seriale -
+    // es. HAT Syneda uRTK6.0, vedi gnss_i2c.h. Solo chip u-blox. Default
+    // false (zero dal blob NVS di versioni precedenti = seriale, come prima).
+    bool gnss_i2c;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

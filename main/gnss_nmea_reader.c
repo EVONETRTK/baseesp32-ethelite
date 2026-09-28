@@ -1,4 +1,5 @@
 #include "gnss_nmea_reader.h"
+#include "gnss_io.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_signal.h"
 #include "gnss_fix.h"
@@ -99,13 +100,13 @@ static void handle_bynav_line(const char *line)
 
 void gnss_nmea_reader_task(void *arg)
 {
-    uart_port_t uart_num = (uart_port_t)(intptr_t) arg;
+    (void) arg; // porta verso il ricevitore gestita da gnss_io (seriale o I2C)
     uint8_t read_buf[READ_BUF_SIZE];
     char line[LINE_BUF_SIZE];
     size_t line_len = 0;
 
     while (1) {
-        int n = uart_read_bytes(uart_num, read_buf, sizeof(read_buf), pdMS_TO_TICKS(100));
+        int n = gnss_io_read(read_buf, sizeof(read_buf), pdMS_TO_TICKS(100));
         for (int i = 0; i < n; i++) {
             char c = (char) read_buf[i];
 

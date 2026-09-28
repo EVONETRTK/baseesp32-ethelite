@@ -1,4 +1,5 @@
 #include "ntrip_rover_client.h"
+#include "gnss_io.h"
 #include "settings.h"
 #include "status.h"
 
@@ -342,7 +343,7 @@ static void set_active_sock(int sock)
 
 void ntrip_rover_client_task(void *arg)
 {
-    uart_port_t uart_num = (uart_port_t)(intptr_t) arg;
+    (void) arg; // porta verso il ricevitore gestita da gnss_io (seriale o I2C)
     uint8_t net_buf[512];
 
     if (!s_sock_mutex) {
@@ -362,7 +363,7 @@ void ntrip_rover_client_task(void *arg)
         while (1) {
             int n = recv(sock, net_buf, sizeof(net_buf), 0);
             if (n > 0) {
-                uart_write_bytes(uart_num, (const char *) net_buf, n);
+                gnss_io_write((const char *) net_buf, n);
                 status_note_rtcm_bytes((uint32_t) n);
             } else if (n == 0) {
                 ESP_LOGW(TAG, "Caster ha chiuso la connessione");

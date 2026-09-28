@@ -24,6 +24,8 @@
 #include "gnss_driver.h"
 #include "gnss_signal.h"
 #include "gnss_ubx_ack.h"
+#include "gnss_i2c.h"
+#include "gnss_io.h"
 #include "gnss_fix.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_nmea_reader.h"
@@ -48,26 +50,13 @@ static StreamBufferHandle_t rtcm_stream;
 static uart_port_t s_gnss_uart_num;
 
 // A differenza dei pin del modem/Ethernet (fissati dallo shield, restano
-// solo in Kconfig), i pin verso il GNSS esterno variano per installazione
-// e sono configurabili a runtime dalla UI web (scheda Hardware) - vedi
-// settings.h. Qui si leggono i valori effettivi, non le macro Kconfig
-// (che restano solo come default iniziale in settings.c).
+// solo in Kconfig), il collegamento al GNSS esterno (seriale con i suoi
+// pin, oppure I2C) varia per installazione ed e' configurabile a runtime
+// dalla UI web (scheda Hardware) - vedi settings.h e gnss_io.c.
 static void gnss_uart_init(const app_settings_t *settings)
 {
     s_gnss_uart_num = (uart_port_t) settings->gnss_uart_num;
-
-    uart_config_t uart_config = {
-        .baud_rate = settings->gnss_uart_baud,
-        .data_bits = UART_DATA_8_BITS,
-        .parity    = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
-    };
-    ESP_ERROR_CHECK(uart_driver_install(s_gnss_uart_num, UART_RX_BUF_SIZE * 2, UART_RX_BUF_SIZE * 2, 0, NULL, 0));
-    ESP_ERROR_CHECK(uart_param_config(s_gnss_uart_num, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(s_gnss_uart_num, settings->gnss_uart_tx_pin, settings->gnss_uart_rx_pin,
-                                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    gnss_io_init(settings);
 }
 
 // Modalita' BASE: legge i byte RTCM3 grezzi emessi dal GNSS e li inoltra
@@ -81,7 +70,7 @@ static void gnss_uart_task(void *arg)
 {
     uint8_t buf[UART_RX_BUF_SIZE];
     while (1) {
-        int len = uart_read_bytes(s_gnss_uart_num, buf, sizeof(buf), pdMS_TO_TICKS(100));
+        int len = gnss_io_read(buf, sizeof(buf), pdMS_TO_TICKS(100));
         // Ogni byte passa anche dal parser ACK/NAK UBX (gnss_ubx.c attende
         // la risposta ai comandi di configurazione mandati all'avvio), ma
         // qui lo si fa solo osservare: niente viene tolto dallo stream.
@@ -137,6 +126,12 @@ void app_main(void)
     status_led_start();
     oled_display_start();
     reset_button_start();
+    {
+        // Diagnostica: ricevitore u-blox via I2C (HAT sul connettore a 40
+        // pin) sullo stesso bus dell'OLED, vedi gnss_i2c.h.
+        app_settings_t s = settings_get();
+        gnss_i2c_probe(s.oled_sda_pin, s.oled_scl_pin);
+    }
 
     // Porta su l'AP di setup + tenta WiFi/cellulare/Ethernet in background
     // (non blocca): la UI web deve restare raggiungibile anche senza rete

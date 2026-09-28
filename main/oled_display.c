@@ -5,6 +5,7 @@
 #include "wifi_link.h"
 #include "cellular_link.h"
 #include "font8x8_basic.h"
+#include "i2c_shared_bus.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -198,17 +199,10 @@ static bool oled_hw_init(int sda_pin, int scl_pin, uint8_t addr, bool is_sh1106,
 {
     s_is_sh1106 = is_sh1106;
 
-    i2c_master_bus_config_t bus_cfg = {
-        .i2c_port = -1,
-        .sda_io_num = sda_pin,
-        .scl_io_num = scl_pin,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-    };
-    i2c_master_bus_handle_t bus;
-    if (i2c_new_master_bus(&bus_cfg, &bus) != ESP_OK) {
-        ESP_LOGE(TAG, "Init bus I2C fallita (SDA=%d SCL=%d)", sda_pin, scl_pin);
+    // Bus condiviso: sugli stessi pin puo' esserci anche il ricevitore GNSS
+    // u-blox via I2C (HAT sul connettore a 40 pin, vedi gnss_i2c.c).
+    i2c_master_bus_handle_t bus = i2c_shared_bus_get(sda_pin, scl_pin);
+    if (!bus) {
         return false;
     }
 

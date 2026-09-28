@@ -1,4 +1,5 @@
 #include "gnss_ubx.h"
+#include "gnss_io.h"
 #include "settings.h"
 #include "gnss_ubx_ack.h"
 
@@ -29,7 +30,7 @@ static esp_err_t ubx_send(uart_port_t uart_num, uint8_t msg_class, uint8_t msg_i
         return ESP_ERR_INVALID_SIZE;
     }
 
-    // Un unico buffer e un'unica uart_write_bytes(), non piu' tre chiamate
+    // Un unico buffer e un'unica gnss_io_write(), non piu' tre chiamate
     // separate (header, poi payload, poi checksum) - un piccolo ritardo di
     // scheduling FreeRTOS tra quelle chiamate poteva far vedere al
     // ricevitore un frame "a pezzi" se ha un timeout stretto tra un byte e
@@ -57,7 +58,7 @@ static esp_err_t ubx_send(uart_port_t uart_num, uint8_t msg_class, uint8_t msg_i
     // finestra aperta prima di scrivere, cosi' anche una risposta
     // velocissima trova il parser attivo e la coda gia' svuotata.
     gnss_ubx_ack_arm();
-    uart_write_bytes(uart_num, (const char *) frame, 6 + payload_len + 2);
+    gnss_io_write((const char *) frame, 6 + payload_len + 2);
     return ESP_OK;
 }
 
@@ -157,9 +158,13 @@ static esp_err_t ubx_valset(uart_port_t uart_num, const char *label, const ubx_c
 // supporta affatto 1007/1008/1019/1020 in uscita (nessuna chiave
 // corrispondente esiste in quella libreria): se richiesti dalle
 // impostazioni vengono ignorati con un log, non c'e' modo di inviarli.
+static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
+                                   const ubx_cfg_kv32_t *kvs, size_t n);
+
 esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
 {
-    ESP_LOGI(TAG, "Configuro ricevitore u-blox come base RTK (Survey-In + RTCM3 su UART1)");
+    bool i2c = gnss_io_is_i2c();
+    ESP_LOGI(TAG, "Configuro ricevitore u-blox come base RTK (Survey-In + RTCM3 su %s)", i2c ? "I2C" : "UART1");
 
     app_settings_t s = settings_get();
 
@@ -167,29 +172,45 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
         ESP_LOGW(TAG, "1007/1008/1019/1020 richiesti nelle impostazioni ma non supportati da u-blox in uscita: ignorati");
     }
 
-    ubx_cfg_kv32_t kvs[32];
-    size_t n = 0;
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x10740004, 1 }; // CFG-UART1OUTPROT-RTCM3X: abilita RTCM3 in uscita su UART1
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x10740002, 0 }; // CFG-UART1OUTPROT-NMEA: disabilita NMEA in uscita (solo RTCM3 su questa porta)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102be, s.rtcm_1005_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1005_UART1 (posizione base)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910304, s.rtcm_1230_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1230_UART1 (bias GLONASS)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x2091035f, s.rtcm_1074_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1074_UART1 (GPS MSM4)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102cd, s.rtcm_1077_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1077_UART1 (GPS MSM7)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910364, s.rtcm_1084_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1084_UART1 (GLONASS MSM4)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102d2, s.rtcm_1087_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1087_UART1 (GLONASS MSM7)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910369, s.rtcm_1094_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1094_UART1 (Galileo MSM4)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910319, s.rtcm_1097_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1097_UART1 (Galileo MSM7)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x2091036e, s.rtcm_1124_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1124_UART1 (BeiDou MSM4)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102d7, s.rtcm_1127_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1127_UART1 (BeiDou MSM7)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x20030001, 1 };     // CFG-TMODE-MODE = 1 (Survey-In)
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x40030010, 60 };    // CFG-TMODE-SVIN-MIN-DUR: durata minima survey-in (s) - chiave corretta, era scambiata con quella sotto
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x40030011, 2500 };  // CFG-TMODE-SVIN-ACC-LIMIT: precisione richiesta, unita' 0.1mm (2500 = 250mm) - chiave corretta, era scambiata con quella sopra
+    gnss_ubx_poll_version(uart_num);
+    vTaskDelay(pdMS_TO_TICKS(300)); // tempo per la risposta, loggata in modo asincrono
 
-    esp_err_t err = ubx_valset(uart_num, "BASE", kvs, n);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Invio configurazione UBX fallito");
-    }
-    return err;
+    // Ogni chiave CFG-MSGOUT esiste per porta, in ordine I2C, UART1, UART2,
+    // USB, SPI: la variante _I2C vale quella _UART1 meno 1.
+    const uint32_t port_off = i2c ? 1 : 0;
+
+    // Gruppi separati come nel rover: VALSET e' tutto-o-niente, un NAK su
+    // un gruppo non deve far cadere anche gli altri, e il log dice quale.
+    const ubx_cfg_kv32_t kvs_port[] = {
+        // CFG-I2COUTPROT / CFG-UART1OUTPROT: RTCM3 in uscita, NMEA spento
+        // (solo RTCM3 su questa porta)
+        { i2c ? 0x10720004 : 0x10740004, 1 },
+        { i2c ? 0x10720002 : 0x10740002, 0 },
+    };
+    ubx_valset_group(uart_num, i2c ? "PORTA I2C" : "PORTA UART1", kvs_port, sizeof(kvs_port) / sizeof(kvs_port[0]));
+
+    ubx_cfg_kv32_t kvs[16];
+    size_t n = 0;
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102be - port_off, s.rtcm_1005_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1005 (posizione base)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910304 - port_off, s.rtcm_1230_enable ? 1u : 0u }; // TYPE1230 (bias GLONASS)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x2091035f - port_off, s.rtcm_1074_enable ? 1u : 0u }; // TYPE1074 (GPS MSM4)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102cd - port_off, s.rtcm_1077_enable ? 1u : 0u }; // TYPE1077 (GPS MSM7)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910364 - port_off, s.rtcm_1084_enable ? 1u : 0u }; // TYPE1084 (GLONASS MSM4)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102d2 - port_off, s.rtcm_1087_enable ? 1u : 0u }; // TYPE1087 (GLONASS MSM7)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910369 - port_off, s.rtcm_1094_enable ? 1u : 0u }; // TYPE1094 (Galileo MSM4)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x20910319 - port_off, s.rtcm_1097_enable ? 1u : 0u }; // TYPE1097 (Galileo MSM7)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x2091036e - port_off, s.rtcm_1124_enable ? 1u : 0u }; // TYPE1124 (BeiDou MSM4)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102d7 - port_off, s.rtcm_1127_enable ? 1u : 0u }; // TYPE1127 (BeiDou MSM7)
+    ubx_valset_group(uart_num, "MESSAGGI RTCM", kvs, n);
+
+    const ubx_cfg_kv32_t kvs_tmode[] = {
+        { 0x20030001, 1 },     // CFG-TMODE-MODE = 1 (Survey-In)
+        { 0x40030010, 60 },    // CFG-TMODE-SVIN-MIN-DUR: durata minima survey-in (s) - chiave corretta, era scambiata con quella sotto
+        { 0x40030011, 2500 },  // CFG-TMODE-SVIN-ACC-LIMIT: precisione richiesta, unita' 0.1mm (2500 = 250mm) - chiave corretta, era scambiata con quella sopra
+    };
+    ubx_valset_group(uart_num, "TMODE (survey-in)", kvs_tmode, sizeof(kvs_tmode) / sizeof(kvs_tmode[0]));
+
+    return ESP_OK;
 }
 
 // Manda un gruppo di chiavi come invio CFG-VALSET a se stante, loggando
@@ -204,7 +225,7 @@ static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
 {
     esp_err_t err = ubx_valset(uart_num, group_name, kvs, n);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "[%s] invio fallito a livello UART", group_name);
+        ESP_LOGE(TAG, "[%s] invio fallito verso il ricevitore", group_name);
     }
     return err;
 }
@@ -225,8 +246,11 @@ esp_err_t gnss_ubx_poll_version(uart_port_t uart_num)
     bool acked = false;
     uint8_t echo_cls = 0, echo_id = 0;
     if (!gnss_ubx_ack_wait(300, &acked, &echo_cls, &echo_id)) {
-        ESP_LOGW(TAG, "MON-VER: nessun ACK/NAK entro 300ms (se la riga \"UBX-MON-VER: swVersion=...\" "
-                       "non compare qui sopra, il ricevitore non risponde affatto a questo poll)");
+        // Normale: un ricevitore che risponde a MON-VER manda la versione,
+        // non un ACK. Il problema c'e' solo se manca anche la riga
+        // "UBX-MON-VER: swVersion=..." di gnss_ubx_ack.c.
+        ESP_LOGI(TAG, "MON-VER: nessun ACK/NAK (normale). Se sopra manca la riga \"UBX-MON-VER: swVersion=...\", "
+                      "il ricevitore non risponde affatto");
     } else if (!acked) {
         ESP_LOGW(TAG, "MON-VER: rifiutato con ACK-NAK riferito a classe 0x%02X id 0x%02X (mandato 0x0A 0x04)",
                   echo_cls, echo_id);
@@ -240,7 +264,8 @@ esp_err_t gnss_ubx_poll_version(uart_port_t uart_num)
 
 esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
 {
-    ESP_LOGI(TAG, "Configuro ricevitore u-blox come rover (riceve RTCM3, emette NMEA/GGA su UART1)");
+    bool i2c = gnss_io_is_i2c();
+    ESP_LOGI(TAG, "Configuro ricevitore u-blox come rover (riceve RTCM3, emette NMEA/GGA su %s)", i2c ? "I2C" : "UART1");
 
     gnss_ubx_poll_version(uart_num);
     vTaskDelay(pdMS_TO_TICKS(300)); // tempo per la risposta, loggata in modo asincrono
@@ -266,6 +291,21 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
         { 0x10310022, 1 },    // CFG-SIGNAL-BDS_ENA (BeiDou)
     };
     ubx_valset_group(uart_num, "SIGNAL (costellazioni)", kvs_signals, sizeof(kvs_signals) / sizeof(kvs_signals[0]));
+
+    if (i2c) {
+        // Ricevitore collegato via I2C (es. HAT Syneda uRTK6.0): stessa
+        // configurazione dei gruppi UART sotto, ma sulla porta I2C. Le UART
+        // del modulo non arrivano all'ESP32, inutile configurarle.
+        const ubx_cfg_kv32_t kvs_i2c[] = {
+            { 0x10710004, 1 },    // CFG-I2CINPROT-RTCM3X: accetta RTCM3 in ingresso via I2C
+            { 0x10720004, 0 },    // CFG-I2COUTPROT-RTCM3X
+            { 0x10720002, 1 },    // CFG-I2COUTPROT-NMEA
+            { 0x209100ba, 1 },    // CFG-MSGOUT-NMEA_ID_GGA_I2C
+            { 0x209100c4, 1 },    // CFG-MSGOUT-NMEA_ID_GSV_I2C
+        };
+        ubx_valset_group(uart_num, "I2C", kvs_i2c, sizeof(kvs_i2c) / sizeof(kvs_i2c[0]));
+        return ESP_OK;
+    }
 
     const ubx_cfg_kv32_t kvs_uart1[] = {
         { 0x10730004, 1 },    // CFG-UART1INPROT-RTCM3X: accetta RTCM3 in ingresso su UART1

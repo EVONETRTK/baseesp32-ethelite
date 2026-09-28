@@ -1,4 +1,5 @@
 #include "gnss_l76k.h"
+#include "gnss_io.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -23,7 +24,7 @@ static esp_err_t send_pcas(uart_port_t uart_num, const char *body)
         return ESP_ERR_INVALID_SIZE;
     }
     ESP_LOGI(TAG, "-> %.*s", len - 2, cmd);
-    int written = uart_write_bytes(uart_num, cmd, len);
+    int written = gnss_io_write(cmd, len);
     vTaskDelay(pdMS_TO_TICKS(100));
     return (written == len) ? ESP_OK : ESP_FAIL;
 }

@@ -776,25 +776,36 @@
 
 <div id="page-hardware" class="page">
   <fieldset>
-    <legend>🎛️ Antenna GNSS (u-blox/Unicore/LC29H)</legend>
-    <label>UART ESP32
+    <legend>🎛️ Collegamento ricevitore GNSS</legend>
+    <label>Collegamento
+      <select name="gnss_link">
+        <option value="uart">Seriale (UART)</option>
+        <option value="i2c">I2C - solo u-blox, es. HAT ZED-F9P sul connettore (pin 3/5, stesso bus dell'OLED)</option>
+      </select>
+    </label>
+    <label data-link="uart">UART ESP32
       <select name="gnss_uart_num">
         <option value="0">UART0</option>
         <option value="1">UART1</option>
         <option value="2">UART2</option>
       </select>
     </label>
-    <label>GPIO TX (ESP32 &rarr; GNSS)<input name="gnss_uart_tx_pin" type="number" min="-1" max="48"></label>
-    <label>GPIO RX (GNSS &rarr; ESP32, riceve RTCM3)<input name="gnss_uart_rx_pin" type="number" min="-1" max="48"></label>
-    <label>Baud rate<input name="gnss_uart_baud" type="number" min="4800"></label>
-    <small class="hint">
+    <label data-link="uart">GPIO TX (ESP32 &rarr; GNSS)<input name="gnss_uart_tx_pin" type="number" min="-1" max="48"></label>
+    <label data-link="uart">GPIO RX (GNSS &rarr; ESP32, riceve RTCM3)<input name="gnss_uart_rx_pin" type="number" min="-1" max="48"></label>
+    <label data-link="uart">Baud rate<input name="gnss_uart_baud" type="number" min="4800"></label>
+    <small class="hint" data-link="uart">
       Pin verso il modulo GNSS esterno - variano per installazione. Richiede un riavvio per applicarsi.
-      Il modulo Quectel LC29H di fabbrica usa 460800 (non 115200) - impostalo qui invece di
-      cambiare la velocita' del modulo via comando.
+      HAT per Raspberry con seriale sul connettore: TX 43 / RX 44 (pin 8/10). L76K degli shield
+      LilyGO: TX 42 / RX 39. Il modulo Quectel LC29H di fabbrica usa 460800 (non 115200).
     </small>
-  
+    <small class="hint" data-link="i2c">
+      Ricevitore u-blox all'indirizzo I2C 0x42, sugli stessi pin SDA/SCL del display OLED (scheda
+      Hardware, riquadro OLED - sulla T-ETH-Elite 17/18). Nessuna velocita' da impostare.
+      Richiede un riavvio per applicarsi.
+    </small>
+
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="gnss_uart_num,gnss_uart_tx_pin,gnss_uart_rx_pin,gnss_uart_baud" data-reboot="1">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="gnss_link,gnss_uart_num,gnss_uart_tx_pin,gnss_uart_rx_pin,gnss_uart_baud" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -1377,6 +1388,8 @@ async function loadStatus() {
       f.gnss_uart_tx_pin.value = s.gnss_uart_tx_pin ?? -1;
       f.gnss_uart_rx_pin.value = s.gnss_uart_rx_pin ?? -1;
       f.gnss_uart_baud.value = s.gnss_uart_baud ?? 115200;
+      f.gnss_link.value = s.gnss_link || 'uart';
+      updateGnssLinkVisibility();
       f.rgb_led_mode.value = s.rgb_led_mode || 'none';
       f.rgb_led_ws2812_pin.value = s.rgb_led_ws2812_pin ?? -1;
       f.rgb_led_pwm_r_pin.value = s.rgb_led_pwm_r_pin ?? -1;
@@ -2317,6 +2330,16 @@ function updateBynavM21dFieldsetVisibility() {
 }
 document.getElementById('cfg-form').gnss_chip.addEventListener('change', updateBynavM21dFieldsetVisibility);
 document.getElementById('cfg-form').device_mode.addEventListener('change', updateBynavM21dFieldsetVisibility);
+
+// Campi seriale (pin, baud) nascosti quando il ricevitore e' collegato via
+// I2C, e viceversa la nota I2C (attributo data-link="uart"/"i2c").
+function updateGnssLinkVisibility() {
+  const link = document.getElementById('cfg-form').gnss_link.value;
+  document.querySelectorAll('[data-link]').forEach((el) => {
+    el.hidden = el.dataset.link !== link;
+  });
+}
+document.getElementById('cfg-form').gnss_link.addEventListener('change', updateGnssLinkVisibility);
 
 // Mostra solo le voci che servono alla modalita' base o rover (attributo
 // data-mode="base"/"rover" sui riquadri e campi specifici). Le schede di
