@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.54
+
+- **Ricevitore GNSS di default sui pin fisici 8/10 del connettore a 40 pin (GPIO43 TX / GPIO44 RX)**, dove gli HAT GNSS per Raspberry Pi (es. ZED-F9P) portano la seriale, secondo il pinout ufficiale LilyGO della T-ETH-Elite. I vecchi default 42/39 sono i pin "GPS" di LilyGO, collegati all'L76K degli shield tramite il DIP "GPS": vanno bene per le prove con l'L76K. Tutti i pin restano modificabili dal pannello.
+- **Console di log solo su USB** (USB-Serial-JTAG). Prima la console primaria era la UART0, che sulla T-ETH-Elite esce proprio su GPIO43/44: il log finiva dentro il ricevitore sull'HAT.
+- Probabile causa dei problemi con lo ZED-F9P di fine settembre (NAK a ogni comando, niente GSV GLONASS/Galileo, satelliti a zero): l'L76K dello shield trasmetteva sulla stessa linea (vedi 1.19.53). Il ricevitore sull'HAT pero' non risponde ancora nemmeno su 43/44 a 9600-460800 baud: resta da verificare l'hardware dell'HAT.
+
 ## 1.19.53
 
 - **Richiesta dell'utente: usare per le prove il Quectel L76K montato sugli shield LilyGO, con GLONASS attivo.** Nuovo chip `GNSS_CHIP_L76K` (`gnss_l76k.c`), selezionabile nel pannello solo in modalita' rover.

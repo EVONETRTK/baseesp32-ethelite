@@ -67,3 +67,11 @@ CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
 # stack dei task che toccano la SD, gia' causa di piu' di uno stack
 # overflow reale in questo stesso progetto.
 CONFIG_FATFS_LFN_HEAP=y
+
+# Console di log solo su USB (USB-Serial-JTAG, la porta COM del PC), NON
+# sulla UART0: sulla T-ETH-Elite la UART0 esce su GPIO43/44, cioe' i pin
+# fisici 8/10 (TX/RX) del connettore a 40 pin, gli stessi dove un HAT GNSS
+# per Raspberry Pi (es. ZED-F9P) porta la sua seriale. Con la console li'
+# il log finiva dentro il ricevitore e il ricevitore non era raggiungibile.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

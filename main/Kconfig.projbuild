@@ -40,19 +40,24 @@ menu "baseesp32-ethelite Configuration"
 
     config BASEESP32_GNSS_UART_TX_PIN
         int "GNSS UART TX GPIO (ESP32 -> GNSS)"
-        default 42
+        default 43
         help
-            Valore dal repository ufficiale LilyGO (LilyGo-Modem-Series,
-            utilities.h, blocco LILYGO_T_ETH_ELITE, GPS_TX_PIN) - il pin
-            pensato dalla scheda stessa per un ricevitore GPS/GNSS esterno,
-            non un pin scelto arbitrariamente.
+            43 = pin fisico 8 (TX) del connettore a 40 pin della T-ETH-Elite,
+            dove un HAT GNSS per Raspberry Pi (es. ZED-F9P) porta la sua
+            seriale (verificato sulla serigrafia/pinout ufficiale LilyGO).
+            Richiede la console di log solo su USB (sdkconfig.defaults),
+            altrimenti la UART0 occupa gli stessi pin.
+            42 (con RX 39) sono invece i pin "GPS" di LilyGO (utilities.h,
+            GPS_TX_PIN/GPS_RX_PIN): ci arriva il Quectel L76K degli shield
+            tramite il DIP "GPS" - da usare per le prove con l'L76K.
+            Modificabili anche dal pannello senza ricompilare.
 
     config BASEESP32_GNSS_UART_RX_PIN
         int "GNSS UART RX GPIO (GNSS -> ESP32, riceve RTCM3)"
-        default 39
+        default 44
         help
-            Valore dal repository ufficiale (GPS_RX_PIN), stessa fonte del
-            campo TX sopra.
+            44 = pin fisico 10 (RX) del connettore a 40 pin, vedi TX sopra.
+            39 per l'L76K degli shield LilyGO.
 
     config BASEESP32_GNSS_UART_BAUD
         int "GNSS UART baud rate"

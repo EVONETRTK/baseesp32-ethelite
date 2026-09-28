@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.19.53"
+#define FIRMWARE_VERSION "1.19.54"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Nuovo chip Quectel L76K (il GPS degli shield LilyGO) per le prove in rover, con GLONASS attivo oltre a GPS e BeiDou. Niente RTK."
+#define FIRMWARE_RELEASE_NOTES "Ricevitore GNSS di default sui pin 8/10 del connettore (GPIO43/44, dove gli HAT per Raspberry come lo ZED-F9P portano la seriale); log solo su USB."
