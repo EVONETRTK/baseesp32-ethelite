@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.62
+
+- **Fix segnalato dall'utente ("nessun satellite")**: lo ZED-F9P aveva il fix GPS con 7-9 satelliti, ma nel grafico risultavano tutti a 0 dB-Hz. Un ricevitore multibanda (NMEA 4.11) manda a ogni epoca un ciclo di GSV per ogni segnale (L1, poi L2, ...), ciascuno che riparte da "messaggio 1". `gnss_signal.c` svuotava la costellazione a ogni "messaggio 1", quindi restava solo l'ultimo segnale (L2, a 0 al chiuso). Ora svuota una volta per epoca (300 ms tra un ciclo e l'altro) e per ogni satellite tiene il segnale migliore tra le bande. `GNSS_SIGNAL_MAX_SATS` portato da 32 a 64: all'aperto un ricevitore a 4 costellazioni ne vede piu' di 32.
+
 ## 1.19.61
 
 - **Richiesta dell'utente ("il fondo delle pagine a seconda della modalita' fallo di colore diverso")**: sfondo di tutte le pagine azzurro chiaro in base (`#e8f0fe`) e verde chiaro in rover (`#e6f6ea`), secondo la modalita' attiva del dispositivo. Anche il titolo fisso in alto e il bordo del pallino "modifiche non salvate" usano lo stesso sfondo (variabile CSS `--page-bg`). Resta grigio finche' lo stato non e' caricato.

@@ -4,7 +4,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define GNSS_SIGNAL_MAX_SATS 32
+// 64: all'aperto un ricevitore a 4 costellazioni (es. ZED-F9P) ne vede
+// facilmente piu' di 32.
+#define GNSS_SIGNAL_MAX_SATS 64
 
 typedef struct {
     char constellation[3]; // talker id NMEA: "GP","GL","GA","GB", ecc. (senza terminatore garantito nell'array, vedi .c)

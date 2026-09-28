@@ -5,9 +5,48 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "esp_timer.h"
 
 static gnss_sat_signal_t s_sats[GNSS_SIGNAL_MAX_SATS];
 static SemaphoreHandle_t s_mutex;
+
+// Ultimo svuotamento per costellazione (talker "GP", "GL", ...). Un
+// ricevitore multibanda (es. ZED-F9P, NMEA 4.11) manda a ogni epoca un
+// ciclo di GSV per ciascun segnale (L1, poi L2, ...), ognuno che riparte da
+// "messaggio 1": svuotare a ogni "messaggio 1" lasciava solo l'ultimo
+// segnale, tipicamente L2, spesso a 0 dB-Hz al chiuso - grafico con tutti i
+// satelliti a zero anche con il fix valido (visto sul dispositivo). Ora si
+// svuota una volta per epoca e si tiene il segnale migliore tra le bande.
+#define GSV_EPOCH_GAP_US 300000
+#define GSV_MAX_TALKERS  8
+static struct {
+    char talker[2];
+    int64_t last_clear_us;
+} s_clears[GSV_MAX_TALKERS];
+
+static bool should_clear_constellation(const char *talker)
+{
+    int64_t now = esp_timer_get_time();
+    int free_slot = -1;
+    for (int i = 0; i < GSV_MAX_TALKERS; i++) {
+        if (s_clears[i].talker[0] == talker[0] && s_clears[i].talker[1] == talker[1]) {
+            if (now - s_clears[i].last_clear_us < GSV_EPOCH_GAP_US) {
+                return false; // stessa epoca, altro segnale: si aggiunge
+            }
+            s_clears[i].last_clear_us = now;
+            return true;
+        }
+        if (free_slot < 0 && s_clears[i].talker[0] == '\0') {
+            free_slot = i;
+        }
+    }
+    if (free_slot >= 0) {
+        s_clears[free_slot].talker[0] = talker[0];
+        s_clears[free_slot].talker[1] = talker[1];
+        s_clears[free_slot].last_clear_us = now;
+    }
+    return true;
+}
 
 void gnss_signal_init(void)
 {
@@ -60,10 +99,11 @@ void gnss_signal_parse_gsv(const char *line_in)
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
 
-    if (is_first_message) {
+    if (is_first_message && should_clear_constellation(constellation)) {
         // Ripulisce le vecchie voci di questa costellazione a inizio
-        // ciclo, cosi' un satellite non piu' in vista sparisce dal
-        // grafico invece di restare "congelato" con l'ultimo SNR noto.
+        // epoca (non a ogni segnale, vedi s_clears), cosi' un satellite
+        // non piu' in vista sparisce dal grafico invece di restare
+        // "congelato" con l'ultimo SNR noto.
         for (int i = 0; i < GNSS_SIGNAL_MAX_SATS; i++) {
             if (s_sats[i].used && memcmp(s_sats[i].constellation, constellation, 2) == 0) {
                 s_sats[i].used = false;
@@ -107,9 +147,14 @@ void gnss_signal_parse_gsv(const char *line_in)
             }
         }
         if (slot >= 0) {
+            // Stesso satellite gia' visto in questa epoca su un'altra banda:
+            // si tiene il segnale migliore.
+            bool already = s_sats[slot].used;
+            if (!already || snr_val > s_sats[slot].snr) {
+                s_sats[slot].snr = (uint8_t) snr_val;
+            }
             s_sats[slot].used = true;
             s_sats[slot].prn = (uint16_t) prn_val;
-            s_sats[slot].snr = (uint8_t) snr_val;
             memcpy(s_sats[slot].constellation, constellation, 3);
         }
 
