@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.60
+
+- **Fix segnalato dall'utente ("Salva e riavvia non sono allineati")**: la regola `.fieldset-save-btn { margin-top:0 }` perdeva contro `button.action { margin-top:1rem }`, che e' piu' specifica, quindi Salva restava 1rem piu' in basso del nuovo pulsante (che il margine l'aveva a zero). Ora `.fieldset-save-row button.action { margin:0 }` vale per tutti i pulsanti della riga. Verificato con uno screenshot della pagina.
+
 ## 1.19.59
 
 - **Richiesta dell'utente ("il riavvio lo devi mettere a fianco a Salva")**: nei riquadri le cui impostazioni valgono solo dopo un riavvio (`data-reboot`: modalita' operativa e chip, collegamento ricevitore GNSS, caster NTRIP locale, LED RGB, OLED) c'e' ora, accanto a 💾 Salva, il pulsante **🔄 Salva e riavvia**: salva, riavvia e ricarica la pagina da solo dopo ~25 s. Il riquadro "Modalita' operativa" prima non era nemmeno segnato come "serve riavvio". I messaggi "Salvato"/data dell'ultimo salvataggio vengono ora cercati nella riga del pulsante e non piu' nell'elemento subito dopo, che adesso e' il nuovo pulsante.

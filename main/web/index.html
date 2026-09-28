@@ -59,7 +59,9 @@
   .ntrip-tank-fill.full { background:#16a34a; }
   .ntrip-tank-fill.partial { background:#d97706; }
   .fieldset-save-row { display:flex; align-items:center; gap:.6rem; margin-top:.9rem; flex-wrap:wrap; }
-  button.fieldset-save-reboot-btn { margin-top:0; margin-left:0; }
+  /* Specificita' piu' alta di "button.action" (margin-top:1rem) e "button.secondary" (margin-left):
+     Salva e "Salva e riavvia" allineati sulla stessa riga */
+  .fieldset-save-row button.action { margin:0; }
   .fieldset-save-btn { margin-top:0; }
   .fieldset-save-btn.ok { background:#16a34a; }
   .fieldset-save-btn.err { background:#dc2626; }
