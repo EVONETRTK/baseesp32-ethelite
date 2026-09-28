@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.52
+
+- **Il pulsante di reset impostazioni era disattivato** (`BASEESP32_RESET_BUTTON_PIN=-1`), eppure la modalita' "Solo Ethernet" (1.19.49) lo indica come unico modo di recupero con la radio WiFi spenta. Ora di default usa il pulsante **BOOT** gia' presente sulla T-ETH-Elite (GPIO0, indicato da LilyGO come personalizzabile), senza cablare nulla. Tenuto premuto 5 s a scheda avviata cancella la configurazione e riavvia con i default. Premuto all'accensione continua a servire per la modalita' download.
+
 ## 1.19.51
 
 - **Richiesta dell'utente ("la chiami caster NTRIP, dovrebbe essere server NTRIP: la base funziona come caster solo in locale")**: terminologia corretta nel pannello.

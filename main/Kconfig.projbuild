@@ -280,12 +280,19 @@ menu "baseesp32-ethelite Configuration"
 
     config BASEESP32_RESET_BUTTON_PIN
         int "GPIO del pulsante di reset configurazione (-1 per disabilitare)"
-        default -1
+        default 0
         help
             Pulsante verso massa (GND) con pull-up interno abilitato dal
             firmware: tenendolo premuto per BASEESP32_RESET_BUTTON_HOLD_MS
             la configurazione salvata in NVS viene cancellata e il
             dispositivo riparte con i default di fabbrica.
+            Default 0 = pulsante BOOT gia' presente sulla T-ETH-Elite
+            (indicato da LilyGO come "funzione personalizzabile"): nessun
+            pulsante esterno da cablare. Premuto all'accensione continua a
+            mettere la scheda in modalita' download (strapping pin), il
+            reset configurazione scatta solo tenendolo premuto a scheda
+            gia' avviata. Senza un pulsante attivo la modalita' "Solo
+            Ethernet" (radio WiFi spenta) non avrebbe nessun recupero.
 
     config BASEESP32_RESET_BUTTON_HOLD_MS
         int "Tempo di pressione (ms) per attivare il reset configurazione"

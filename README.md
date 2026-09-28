@@ -194,9 +194,11 @@ scheda, quindi restano impostazioni di build come i pin UART.
   (blu=WiFi, verde=cellulare) e un lampo bianco sui dati.
 - Se i LED montati sono collegati con il catodo verso il GPIO (logica
   invertita), abilitare `BASEESP32_LED_ACTIVE_LOW`.
-- **Pulsante di reset** (`BASEESP32_RESET_BUTTON_PIN`): va collegato tra
-  il GPIO scelto e massa (il firmware abilita il pull-up interno). Tenuto
-  premuto per `BASEESP32_RESET_BUTTON_HOLD_MS` (default 5s) cancella
+- **Pulsante di reset** (`BASEESP32_RESET_BUTTON_PIN`): di default e' il
+  pulsante **BOOT** gia' presente sulla scheda (GPIO0); in alternativa un
+  pulsante esterno tra il GPIO scelto e massa (il firmware abilita il
+  pull-up interno). Tenuto premuto **a scheda gia' avviata** per
+  `BASEESP32_RESET_BUTTON_HOLD_MS` (default 5s) cancella
   tutta la configurazione in NVS — WiFi, NTRIP, chip GNSS, modalita',
   SSID/password dell'AP **e il codice di accesso alla UI** — e riavvia
   con i default di fabbrica (AP `EVONETRTK-XXXXXX` / password
