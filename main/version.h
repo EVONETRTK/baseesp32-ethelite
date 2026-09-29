@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.19.67"
+#define FIRMWARE_VERSION "1.19.68"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Survey-in configurabile dal pannello; campi avvisi e utente del caster locale svuotabili; pannello non piu' bloccato durante la prova di connessione."
+#define FIRMWARE_RELEASE_NOTES "Fix Ethernet via cavo (interrupt W5500 mai attivato) e microSD che spesso non si montava all'avvio."

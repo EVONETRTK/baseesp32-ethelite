@@ -40,3 +40,17 @@ void sd_mutex_init(void);
 // ogni take() va abbinato a un give(), anche quando annidati.
 void sd_mutex_take(void);
 void sd_mutex_give(void);
+
+#include "esp_err.h"
+#include "esp_vfs_fat.h"
+#include "driver/sdspi_host.h"
+
+// esp_vfs_fat_sdspi_mount() con qualche nuovo tentativo se la scheda non
+// risponde (ESP_ERR_TIMEOUT). Visto sul dispositivo: in molti avvii il
+// primo montaggio (~3,8 s dall'accensione, mentre il modem si sta
+// accendendo) falliva con "sdmmc_card_init failed (0x107)" e SD, archivio
+// firmware e log diagnostico restavano disattivati per tutto l'avvio.
+// Stessi parametri di esp_vfs_fat_sdspi_mount.
+esp_err_t sd_mount_retry(const char *base_path, const sdmmc_host_t *host,
+                         const sdspi_device_config_t *slot, const esp_vfs_fat_mount_config_t *cfg,
+                         sdmmc_card_t **out_card);

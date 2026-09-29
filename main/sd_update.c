@@ -124,7 +124,7 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
     };
     ESP_LOGI(TAG, "Mount scheda SD in corso...");
     sdmmc_card_t *card = NULL;
-    err = esp_vfs_fat_sdspi_mount(MOUNT_POINT, &host, &slot_cfg, &mount_cfg, &card);
+    err = sd_mount_retry(MOUNT_POINT, &host, &slot_cfg, &mount_cfg, &card);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Scheda SD non montata: %s (assente, non inserita, o non formattata FAT32?)", esp_err_to_name(err));
         SET_MSG("Nessuna scheda SD rilevata (verifica inserimento e formato FAT32)");

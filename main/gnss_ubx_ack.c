@@ -163,11 +163,11 @@ bool gnss_ubx_ack_feed_byte(uint8_t c)
                 size_t hw_len = (s_payload_idx - 30) < 10 ? (s_payload_idx - 30) : 10;
                 memcpy(hw, s_payload + 30, hw_len);
             }
-            ESP_LOGW(TAG, "UBX-MON-VER: swVersion=\"%s\" hwVersion=\"%s\"", sw, hw);
+            ESP_LOGI(TAG, "UBX-MON-VER: swVersion=\"%s\" hwVersion=\"%s\"", sw, hw);
             for (size_t off = 40; off + 30 <= s_payload_idx && off + 30 <= sizeof(s_payload); off += 30) {
                 char ext[31] = {0};
                 memcpy(ext, s_payload + off, 30);
-                ESP_LOGW(TAG, "UBX-MON-VER extension: \"%s\"", ext);
+                ESP_LOGI(TAG, "UBX-MON-VER extension: \"%s\"", ext);
             }
         } else if (!checksum_ok) {
             ESP_LOGD(TAG, "Frame UBX con checksum non valido scartato (classe 0x%02X id 0x%02X)", s_class, s_id);

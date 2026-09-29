@@ -14,6 +14,7 @@ static const char *TAG = "eth_link";
 #include "esp_eth_mac.h"
 #include "esp_eth_mac_spi.h" // eth_w5500_config_t/ETH_W5500_DEFAULT_CONFIG/esp_eth_mac_new_w5500: non arrivano da esp_eth_mac.h
 #include "esp_eth_phy.h"
+#include "driver/gpio.h"
 #include "driver/spi_master.h"
 
 static esp_netif_t *s_eth_netif = NULL;
@@ -75,6 +76,16 @@ void eth_link_init(void)
 
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI2_HOST, &devcfg);
     w5500_config.int_gpio_num = CONFIG_BASEESP32_ETH_SPI_INT_PIN;
+    // Il driver W5500 registra l'interrupt sul pin INT con
+    // gpio_isr_handler_add(), che richiede il servizio ISR GPIO gia'
+    // installato (come negli esempi ufficiali ESP-IDF). Non lo installava
+    // nessuno: ad ogni avvio "GPIO isr service is not installed" nel log e
+    // il W5500 senza interrupt, quindi senza ricezione dei pacchetti.
+    // ESP_ERR_INVALID_STATE = gia' installato da qualcun altro, va bene.
+    esp_err_t isr_err = gpio_install_isr_service(0);
+    if (isr_err != ESP_OK && isr_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGE(TAG, "Installazione servizio ISR GPIO fallita: %s", esp_err_to_name(isr_err));
+    }
 
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
     esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);

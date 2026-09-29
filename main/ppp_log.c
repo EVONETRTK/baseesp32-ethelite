@@ -77,7 +77,7 @@ static bool mount_sd(void)
         .format_if_mount_failed = false,
         .max_files = 2,
     };
-    err = esp_vfs_fat_sdspi_mount(MOUNT_POINT, &host, &slot_cfg, &mount_cfg, &s_card);
+    err = sd_mount_retry(MOUNT_POINT, &host, &slot_cfg, &mount_cfg, &s_card);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Scheda SD non montata: %s", esp_err_to_name(err));
         spi_bus_free((spi_host_device_t) host.slot);

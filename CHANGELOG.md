@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.68
+
+- **Ethernet via cavo senza interrupt**: il driver W5500 registra l'interrupt del pin INT con `gpio_isr_handler_add()`, che richiede il servizio ISR GPIO gia' installato, ma nessuno lo installava. A ogni avvio compariva "GPIO isr service is not installed" e il W5500 restava senza interrupt, quindi senza ricezione dei pacchetti. Nessuno se ne era accorto perche' l'Ethernet non era mai stata provata con un cavo. Ora `eth_link.c` chiama `gpio_install_isr_service(0)` prima di creare il MAC, come gli esempi ufficiali ESP-IDF.
+- **microSD che spesso non si montava all'avvio** ("sdmmc_card_init failed (0x107)", in 6 avvii su 8 dalla 1.19.63): il montaggio avveniva a ~3,8 s, mentre il modem si stava accendendo (probabile calo di tensione con l'alimentazione USB del PC). Nuovo `sd_mount_retry()` in `sd_mutex.c`, usato da tutti e quattro i moduli che montano la SD: fino a 3 tentativi, 1,5 s tra l'uno e l'altro, solo in caso di timeout. Se un montaggio e' fallito da meno di 60 s, i moduli successivi fanno un solo tentativo, cosi' una scheda assente non rallenta l'avvio. Sul dispositivo di prova pero' la SD continua a non rispondere anche ritentando per 10 s: probabile causa fisica (scheda mossa nello slot, oppure shield/HAT che usano i pin SPI del connettore, GPIO 9/10/11/12, gli stessi della microSD).
+- La versione del ricevitore u-blox (UBX-MON-VER) ora e' loggata come informazione e non come avviso.
+
 ## 1.19.67
 
 - **Survey-in configurabile dal pannello** (scheda GNSS & NTRIP → Posizione base, modalita' automatica): durata minima (s) e precisione richiesta (m), nuovi campi `base_svin_min_dur_s`/`base_svin_acc_m` in coda ad `app_settings_t`. 0 = predefinito del chip, invariato rispetto a prima: u-blox 60 s / 0,25 m, Unicore e LC29H 60 s / 2,5 m. Serve per esempio vicino a una finestra, dove 0,25 m non si raggiunge mai e senza survey-in completo la base non manda 1005. Il riquadro ora ha anche "Salva e riavvia", perche' il survey-in si imposta all'avvio.
