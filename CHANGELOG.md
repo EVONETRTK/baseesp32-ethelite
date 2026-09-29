@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.72
+
+- **Conteggio dei satelliti in vista** (richiesta dell'utente): sotto il grafico dei satelliti compare il totale in vista, diviso per costellazione, e quanti hanno un segnale buono (>= 35 dB-Hz). Nel riquadro "Fix GNSS" c'e' la nuova riga "Satelliti in vista" accanto a quelli usati nel fix.
+
 ## 1.19.71
 
 - **microSD e ricevitore via I2C ora convivono, via software** (richiesta dell'utente, invece del ripiego della 1.19.70). Il filo resta condiviso (GPIO10: clock della SD e linea I2C tramite l'HAT), ma i due non lo usano mai insieme:

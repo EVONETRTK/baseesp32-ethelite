@@ -730,6 +730,7 @@
     <dl class="kv">
       <dt>Stato fix</dt><dd id="fix-quality">-</dd>
       <dt>Satelliti usati nel fix</dt><dd id="fix-sats">-</dd>
+      <dt>Satelliti in vista</dt><dd id="st-sats-view">-</dd>
       <dt>HDOP</dt><dd id="fix-hdop">-</dd>
       <dt>Eta' correzioni RTCM</dt><dd id="fix-diffage">-</dd>
       <dt>Altitudine</dt><dd id="fix-alt">-</dd>
@@ -772,6 +773,7 @@
       <span class="legend-dot" style="background:#d97706; margin-left:.8rem"></span>BeiDou
       <span class="legend-dot" style="background:#6b7280; margin-left:.8rem"></span>altro
     </div>
+    <div id="sat-count" class="legend-row"><b>In vista:</b> -</div>
     <small class="hint">Dati letti dalle sentenze $xxGSV emesse dal GNSS - disponibile in rover e, con i ricevitori u-blox, anche in base.</small>
   </fieldset>
 
@@ -1511,6 +1513,25 @@ async function loadStatus() {
 // default invece che in arancione, anche quando tracciati.
 const SAT_COLORS = { GP: '#2563eb', GL: '#dc2626', GA: '#16a34a', BD: '#d97706' };
 
+// Riepilogo dei satelliti in vista: totale, per costellazione e quanti
+// hanno un segnale buono (>= 35 dB-Hz, la soglia utile per l'RTK).
+const SAT_NAMES = { GP: 'GPS', GL: 'GLONASS', GA: 'Galileo', GB: 'BeiDou', BD: 'BeiDou', GQ: 'QZSS', GI: 'NavIC' };
+function updateSatCount(sats) {
+  const per = {};
+  let good = 0;
+  for (const x of sats) {
+    const name = SAT_NAMES[x.constellation] || 'altro';
+    per[name] = (per[name] || 0) + 1;
+    if (x.snr >= 35) good++;
+  }
+  const parts = Object.keys(per).map(k => k + ' ' + per[k]).join(' · ');
+  const short = sats.length ? sats.length + ' (' + good + ' con segnale buono)' : 'nessuno';
+  document.getElementById('st-sats-view').textContent = short;
+  document.getElementById('sat-count').innerHTML = sats.length
+    ? '<b>In vista: ' + sats.length + '</b> — ' + parts + ' — <b>segnale buono (≥35 dB): ' + good + '</b>'
+    : '<b>In vista:</b> nessun satellite';
+}
+
 function drawSatChart(sats) {
   const canvas = document.getElementById('sat-chart');
   const ctx = canvas.getContext('2d');
@@ -1902,6 +1923,7 @@ async function loadSignals() {
     const s = await r.json();
     updateNtripFlow(s);
     drawSatChart(s.satellites || []);
+    updateSatCount(s.satellites || []);
     setSignalBar('wifi-sig-bar', 'wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
     setSignalBar('cell-sig-bar', 'cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
     setSignalBar('st-wifi-sig-bar', 'st-wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
