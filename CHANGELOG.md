@@ -5,6 +5,7 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 ## 1.19.72
 
 - **Conteggio dei satelliti in vista** (richiesta dell'utente): sotto il grafico dei satelliti compare il totale in vista, diviso per costellazione, e quanti hanno un segnale buono (>= 35 dB-Hz). Nel riquadro "Fix GNSS" c'e' la nuova riga "Satelliti in vista" accanto a quelli usati nel fix.
+- **Log in memoria leggibile**: le richieste GET del pannello (ogni 3 s) e le righe dei moduli gpio/sdspi a ogni montaggio della SD riempivano il log da 8 KB in un paio di minuti, cancellando i messaggi di avvio. Ora sono nascoste; restano i comandi (POST), gli avvisi e gli errori.
 
 ## 1.19.71
 

@@ -109,6 +109,11 @@ void app_main(void)
 {
     log_buffer_init(); // il prima possibile, per non perdere i log di avvio
     sd_mutex_init(); // prima che qualunque cosa possa toccare la SD (vedi sd_mutex.h)
+    // Ogni montaggio della SD (ogni 30 s, log diagnostico) stampava 8 righe
+    // informative di questi due moduli: riempivano il log in memoria (8 KB)
+    // e cancellavano i messaggi di avvio. Restano visibili avvisi ed errori.
+    esp_log_level_set("gpio", ESP_LOG_WARN);
+    esp_log_level_set("sdspi_transaction", ESP_LOG_WARN);
 
     ESP_LOGI(TAG, "EVONETRTK firmware v%s", FIRMWARE_VERSION);
 

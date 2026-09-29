@@ -121,7 +121,14 @@ static esp_err_t require_auth(httpd_req_t *req)
     // conferma se una richiesta arriva davvero al dispositivo, cosa non
     // ovvia dal solo log applicativo dato che molti handler non
     // scrivono nulla quando vanno a buon fine.
-    ESP_LOGI(TAG, "Richiesta %s %s", http_method_str(req->method), req->uri);
+    // Le GET arrivano ogni 3 s dal pannello aperto: a livello INFO
+    // riempivano il log in memoria in un paio di minuti. Solo i comandi
+    // (POST) restano visibili.
+    if (req->method == HTTP_GET) {
+        ESP_LOGD(TAG, "Richiesta %s %s", http_method_str(req->method), req->uri);
+    } else {
+        ESP_LOGI(TAG, "Richiesta %s %s", http_method_str(req->method), req->uri);
+    }
 
     app_settings_t s = settings_get();
 
