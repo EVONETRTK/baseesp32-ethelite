@@ -27,3 +27,11 @@ typedef struct {
 // pulsante manuale nella UI web) - utile per mostrare nella scheda Stato
 // se la scheda SD e' stata rilevata, senza dover guardare il log seriale.
 sd_update_status_t sd_update_get_status(void);
+
+// Formatta la microSD inserita in FAT32 (cancella tutto), per le schede che
+// la base non sa leggere: exFAT (le schede oltre 32 GB escono cosi' di
+// fabbrica, e il FatFs di questa versione di ESP-IDF non lo supporta) o con
+// le partizioni di un Raspberry Pi. Operazione lunga su schede grandi (fino
+// a qualche minuto): va chiamata da un task apposito, non da quello del
+// server web. out_msg riceve l'esito in una frase leggibile.
+bool sd_format_card(char *out_msg, size_t out_msg_size);

@@ -1626,6 +1626,67 @@ static esp_err_t ntrip_test_connect_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Formattazione della microSD in FAT32 dal pannello. Cancella tutto, quindi
+// la richiesta deve contenere {"confirm":"FORMATTA"} (la pagina la manda solo
+// dopo la conferma esplicita dell'utente). Su schede grandi dura anche
+// minuti: gira in un task a parte con la richiesta HTTP asincrona, come la
+// prova di connessione al caster, per non bloccare il pannello.
+static void sd_format_task(void *arg)
+{
+    httpd_req_t *req = arg;
+    char msg[128];
+    bool ok = sd_format_card(msg, sizeof(msg));
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    cJSON_AddStringToObject(resp, "message", msg);
+    char *json = cJSON_PrintUnformatted(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    cJSON_Delete(resp);
+    httpd_req_async_handler_complete(req);
+    vTaskDelete(NULL);
+}
+
+static esp_err_t sd_format_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char buf[64] = {0};
+    int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
+    int received = 0;
+    while (received < len) {
+        int r = httpd_req_recv(req, buf + received, len - received);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+            return ESP_FAIL;
+        }
+        received += r;
+    }
+    cJSON *root = cJSON_Parse(buf);
+    cJSON *confirm = root ? cJSON_GetObjectItemCaseSensitive(root, "confirm") : NULL;
+    bool confirmed = confirm && cJSON_IsString(confirm) && strcmp(confirm->valuestring, "FORMATTA") == 0;
+    cJSON_Delete(root);
+    if (!confirmed) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "conferma mancante");
+        return ESP_FAIL;
+    }
+
+    httpd_req_t *async_req = NULL;
+    if (httpd_req_async_handler_begin(req, &async_req) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "richiesta asincrona non disponibile");
+        return ESP_FAIL;
+    }
+    if (xTaskCreate(sd_format_task, "sd_format", 6144, async_req, 3, NULL) != pdPASS) {
+        httpd_resp_send_err(async_req, HTTPD_500_INTERNAL_SERVER_ERROR, "task di formattazione non avviato");
+        httpd_req_async_handler_complete(async_req);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
 static esp_err_t ota_check_online_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -1936,6 +1997,7 @@ void web_ui_start(void)
     httpd_uri_t reboot_uri     = { .uri = "/api/reboot",     .method = HTTP_POST, .handler = reboot_post_handler };
     httpd_uri_t ota_upload_uri = { .uri = "/api/ota/upload",    .method = HTTP_POST, .handler = ota_upload_post_handler };
     httpd_uri_t ota_sd_uri     = { .uri = "/api/ota/sd-update", .method = HTTP_POST, .handler = ota_sd_post_handler };
+    httpd_uri_t sd_format_uri  = { .uri = "/api/sd/format",     .method = HTTP_POST, .handler = sd_format_post_handler };
     httpd_uri_t ota_check_uri  = { .uri = "/api/ota/check-online", .method = HTTP_POST, .handler = ota_check_online_post_handler };
     httpd_uri_t ota_apply_uri  = { .uri = "/api/ota/apply-online", .method = HTTP_POST, .handler = ota_apply_online_post_handler };
     httpd_uri_t ota_progress_uri = { .uri = "/api/ota/progress", .method = HTTP_GET, .handler = ota_progress_get_handler };
@@ -1966,6 +2028,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &reboot_uri);
     httpd_register_uri_handler(server, &ota_upload_uri);
     httpd_register_uri_handler(server, &ota_sd_uri);
+    httpd_register_uri_handler(server, &sd_format_uri);
     httpd_register_uri_handler(server, &ota_check_uri);
     httpd_register_uri_handler(server, &ota_apply_uri);
     httpd_register_uri_handler(server, &ota_progress_uri);

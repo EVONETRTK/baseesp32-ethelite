@@ -279,3 +279,69 @@ bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size)
     free(ctx);
     return result;
 }
+
+bool sd_format_card(char *out_msg, size_t out_msg_size)
+{
+    sd_mutex_take();
+
+    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+    host.slot = SPI3_HOST;
+    spi_bus_config_t bus_cfg = {
+        .mosi_io_num = CONFIG_BASEESP32_SD_MOSI_PIN,
+        .miso_io_num = CONFIG_BASEESP32_SD_MISO_PIN,
+        .sclk_io_num = CONFIG_BASEESP32_SD_SCLK_PIN,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 4000,
+    };
+    if (spi_bus_initialize((spi_host_device_t) host.slot, &bus_cfg, SDSPI_DEFAULT_DMA) != ESP_OK) {
+        snprintf(out_msg, out_msg_size, "Bus SPI verso la scheda SD non inizializzabile");
+        sd_mutex_give();
+        return false;
+    }
+    sdspi_device_config_t slot_cfg = SDSPI_DEVICE_CONFIG_DEFAULT();
+    slot_cfg.gpio_cs = CONFIG_BASEESP32_SD_CS_PIN;
+    slot_cfg.host_id = (spi_host_device_t) host.slot;
+
+    // Cluster da 32 KB: FAT piu' piccola (formattazione piu' veloce su schede
+    // grandi) e valore standard per FAT32.
+    esp_vfs_fat_sdmmc_mount_config_t mount_cfg = {
+        .format_if_mount_failed = false,
+        .max_files = 2,
+        .allocation_unit_size = 32 * 1024,
+    };
+    sdmmc_card_t *card = NULL;
+    ESP_LOGW(TAG, "Formattazione microSD in FAT32 richiesta dal pannello");
+    esp_err_t err = esp_vfs_fat_sdspi_mount(MOUNT_POINT, &host, &slot_cfg, &mount_cfg, &card);
+    if (err == ESP_OK) {
+        // Filesystem gia' leggibile: formattazione esplicita (cancella tutto).
+        err = esp_vfs_fat_sdcard_format_cfg(MOUNT_POINT, card, &mount_cfg);
+    } else if (err == ESP_FAIL) {
+        // La scheda risponde ma il formato non e' leggibile (exFAT, partizioni
+        // di un Raspberry...): la formatta il montaggio stesso, una volta sola.
+        mount_cfg.format_if_mount_failed = true;
+        err = esp_vfs_fat_sdspi_mount(MOUNT_POINT, &host, &slot_cfg, &mount_cfg, &card);
+    }
+
+    bool ok = (err == ESP_OK);
+    if (ok) {
+        uint64_t total_bytes = 0, free_bytes = 0;
+        esp_vfs_fat_info(MOUNT_POINT, &total_bytes, &free_bytes);
+        snprintf(out_msg, out_msg_size, "microSD formattata in FAT32: %llu MB disponibili",
+                 (unsigned long long) (total_bytes / (1024 * 1024)));
+        ESP_LOGI(TAG, "%s", out_msg);
+        s_last_card_present = true;
+        s_last_total_bytes = total_bytes;
+        s_last_used_bytes = total_bytes - free_bytes;
+        set_status(true, "microSD formattata in FAT32", total_bytes, total_bytes - free_bytes);
+        esp_vfs_fat_sdcard_unmount(MOUNT_POINT, card);
+    } else if (err == ESP_ERR_TIMEOUT) {
+        snprintf(out_msg, out_msg_size, "Nessuna microSD risponde: controlla che sia inserita bene");
+    } else {
+        snprintf(out_msg, out_msg_size, "Formattazione non riuscita (%s)", esp_err_to_name(err));
+        ESP_LOGE(TAG, "%s", out_msg);
+    }
+    spi_bus_free((spi_host_device_t) host.slot);
+    sd_mutex_give();
+    return ok;
+}

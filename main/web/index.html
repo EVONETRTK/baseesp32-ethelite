@@ -934,6 +934,13 @@
     </p>
     <button type="button" class="action" id="fw-sd-btn">Controlla e aggiorna da SD</button>
     <div id="fw-sd-msg" class="hint" style="margin-top:.6rem"></div>
+    <button type="button" class="action secondary" id="sd-format-btn" style="margin-top:1rem">🧹 Formatta microSD (FAT32)</button>
+    <small class="hint">
+      Per le schede che la base non sa leggere: formattate in exFAT (tutte quelle oltre 32 GB escono
+      cosi' di fabbrica) o usate prima su un Raspberry Pi. <strong>Cancella tutto il contenuto della
+      scheda.</strong> Su schede grandi puo' richiedere qualche minuto.
+    </small>
+    <div id="sd-format-msg" class="hint" style="margin-top:.4rem"></div>
   </fieldset>
 
   <fieldset>
@@ -2195,6 +2202,27 @@ document.getElementById('fw-upload-btn').addEventListener('click', () => {
   });
   progress.textContent = 'Caricamento: 0%';
   xhr.send(file);
+});
+
+document.getElementById('sd-format-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('sd-format-msg');
+  if (!confirm('Formattare la microSD in FAT32? TUTTO il contenuto della scheda verra\' cancellato.')) {
+    return;
+  }
+  const btn = document.getElementById('sd-format-btn');
+  btn.disabled = true;
+  msg.style.color = '';
+  msg.textContent = 'Formattazione in corso, puo\' richiedere qualche minuto: non togliere la scheda...';
+  try {
+    const r = await fetch('/api/sd/format', { method: 'POST', body: JSON.stringify({ confirm: 'FORMATTA' }) });
+    const s = await r.json();
+    msg.style.color = s.ok ? '#16a34a' : '#dc2626';
+    msg.textContent = s.message || (s.ok ? 'Formattata' : 'Formattazione non riuscita');
+  } catch (e) {
+    msg.style.color = '#dc2626';
+    msg.textContent = 'Errore di comunicazione durante la formattazione';
+  }
+  btn.disabled = false;
 });
 
 document.getElementById('fw-sd-btn').addEventListener('click', async () => {

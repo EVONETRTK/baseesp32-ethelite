@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.70
+
+- **Richiesta dell'utente: formattare la microSD dalla base.** Nuovo pulsante "🧹 Formatta microSD (FAT32)" nella scheda Firmware, con conferma perche' cancella tutto (endpoint `POST /api/sd/format` con `{"confirm":"FORMATTA"}`, `sd_format_card()` in `sd_update.c`, eseguito in un task con richiesta HTTP asincrona perche' su schede grandi dura minuti). Serve per le schede che la base non legge: exFAT (le schede oltre 32 GB escono cosi' di fabbrica, e il FatFs di ESP-IDF 5.3 ha l'exFAT disattivato nel sorgente, `FF_FS_EXFAT 0`) o con le partizioni di un Raspberry Pi. Trovato provando una seconda microSD, che la base vedeva ma non montava (ESP_FAIL). Se il filesystem e' gia' leggibile riformatta esplicitamente, altrimenti formatta una sola volta durante il montaggio. Cluster da 32 KB.
+
 ## 1.19.69
 
 - **Stato del survey-in della base visibile nel pannello** (scheda Stato, riga "Survey-in", solo u-blox in base): in corso da quanto e con quale precisione, oppure completato. Nuovo `svin_poll_task` in `gnss_ubx.c`, che ogni 10 s interroga UBX-NAV-SVIN (risposta letta da `gnss_ubx_ack.c`, campi `svin_*` in /api/status). Nel log, una riga ogni 5 minuti durante il survey-in e una quando si completa. La finestra di ascolto e' di 1,2 s, perche' i messaggi NAV interrogati partono alla soluzione di navigazione successiva: con 300 ms, come per MON-VER, la risposta non arrivava mai.
