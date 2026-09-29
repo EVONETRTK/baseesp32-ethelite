@@ -571,12 +571,17 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddNumberToObject(root, "chip_temp_c", stats.chip_temp_c);
     }
 
+    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
+    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -662,12 +667,17 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "last_gga_sent_us", (double) status_get_last_gga_sent_time_us());
     cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
 
+    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
+    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -1096,12 +1106,17 @@ static esp_err_t ota_sd_post_handler(httpd_req_t *req)
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "applied", applied);
     cJSON_AddStringToObject(root, "message", msg);
+    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
+    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(root);
 
     if (applied) {
         ESP_LOGI(TAG, "Firmware aggiornato da microSD, riavvio in corso");
@@ -1126,12 +1141,17 @@ static esp_err_t fw_archive_list_get_handler(httpd_req_t *req)
         cJSON_AddItemToArray(arr, cJSON_CreateString(entries[i].filename));
     }
     cJSON_AddItemToObject(root, "files", arr);
+    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
+    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -1445,12 +1465,17 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
     }
     cJSON_AddItemToObject(root, "networks", networks);
 
+    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
+    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -1473,12 +1498,17 @@ static esp_err_t ntrip_mountpoints_get_handler(httpd_req_t *req)
     }
     cJSON_AddItemToObject(root, "mountpoints", mountpoints);
 
+    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
+    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -1710,12 +1740,17 @@ static esp_err_t ota_check_online_post_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "version", version);
     cJSON_AddStringToObject(root, "url", url);
     cJSON_AddStringToObject(root, "message", msg);
+    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
+    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -1787,12 +1822,17 @@ static esp_err_t ota_progress_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "bytes_read", p.bytes_read);
     cJSON_AddNumberToObject(root, "bytes_total", p.bytes_total);
     cJSON_AddStringToObject(root, "message", p.message);
+    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
+    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     httpd_resp_sendstr(req, json);
     free(json);
-    cJSON_Delete(root);
     return ESP_OK;
 }
 

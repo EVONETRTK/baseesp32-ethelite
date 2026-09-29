@@ -5,6 +5,7 @@
 
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_system.h"
 
 #include "ntrip_client.h"
 #include "settings.h"
@@ -133,8 +134,36 @@ bool ntrip_client_test_source(const char *host, uint16_t port, const char *mount
     return true;
 }
 
+// Connessione attiva verso il caster, per chiuderla prima di un riavvio.
+// Senza questa chiusura il caster continuava a considerare la vecchia
+// connessione aperta e per circa 30 s dopo ogni riavvio rifiutava la base
+// ("mountpoint gia' occupata"): niente correzioni ai rover in quel tempo.
+static volatile int s_active_sock = -1;
+
+static void close_active_sock(int sock)
+{
+    if (s_active_sock == sock) {
+        s_active_sock = -1;
+        net_close_now(sock);
+    }
+}
+
+// Chiamata da esp_restart(). I gestori di spegnimento girano in ordine
+// inverso di registrazione, quindi questo parte prima dello stop del
+// WiFi/Ethernet (registrati all'avvio della rete, prima di questo task):
+// il reset della connessione (SO_LINGER 0) fa in tempo a uscire.
+static void ntrip_client_shutdown(void)
+{
+    int sock = s_active_sock;
+    if (sock >= 0) {
+        close_active_sock(sock);
+        vTaskDelay(pdMS_TO_TICKS(150));
+    }
+}
+
 void ntrip_client_task(void *arg)
 {
+    esp_register_shutdown_handler(ntrip_client_shutdown);
     StreamBufferHandle_t rtcm_stream = (StreamBufferHandle_t) arg;
     uint8_t buf[512];
     // Attesa tra un tentativo fallito e l'altro: 5 s, poi raddoppia fino a
@@ -152,6 +181,7 @@ void ntrip_client_task(void *arg)
             continue;
         }
         retry_ms = 5000;
+        s_active_sock = sock;
 
         while (1) {
             size_t len = xStreamBufferReceive(rtcm_stream, buf, sizeof(buf), pdMS_TO_TICKS(1000));
@@ -167,7 +197,7 @@ void ntrip_client_task(void *arg)
                 break;
             }
         }
-        net_close_now(sock);
+        close_active_sock(sock);
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }

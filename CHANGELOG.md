@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.73
+
+- **Correzioni di nuovo disponibili subito dopo un riavvio**: prima di riavviarsi la base chiude la connessione con il caster. Prima il caster la teneva per buona e per circa 30 s rifiutava la base ("mountpoint gia' occupata"). Verificato: collegata al caster 11 s dopo il riavvio, contro i 40 s di prima.
+- **Meno memoria usata dal pannello**: le risposte JSON (stato, segnali...) liberano i dati intermedi prima dell'invio. Dopo l'aggiornamento precedente la memoria libera era scesa a 2 KB; con archiviazione del firmware e pannello aperto ora il minimo misurato e' 18 KB.
+- L'archiviazione del firmware sulla SD scrive nel log la memoria libera, per tenerla sotto controllo.
+
 ## 1.19.72
 
 - **Conteggio dei satelliti in vista** (richiesta dell'utente): sotto il grafico dei satelliti compare il totale in vista, diviso per costellazione, e quanti hanno un segnale buono (>= 35 dB-Hz). Nel riquadro "Fix GNSS" c'e' la nuova riga "Satelliti in vista" accanto a quelli usati nel fix.
