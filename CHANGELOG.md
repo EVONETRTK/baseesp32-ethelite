@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.66
+
+- **Credenziali del caster separate per base e rover.** Prima mountpoint, utente e password erano un solo gruppo di campi: passando a base la password sorgente sostituiva quella del rover (trovato in pratica, la password rover di "pippo" e' andata persa) e una base poteva partire sulla mountpoint del rover (es. ALTAMURA, di produzione). Ora:
+  - base: `ntrip_mountpoint` + `ntrip_password` (sorgente); rover: nuovi `rover_mountpoint`, `rover_username`, `rover_password` in coda ad `app_settings_t`. Host e porta restano comuni.
+  - Al primo avvio con una configurazione di versioni precedenti i campi rover vengono riempiti copiando quelli condivisi, cosi' un rover gia' configurato continua a funzionare.
+  - Pannello: in base solo mountpoint e password sorgente, in rover mountpoint, utente, password e "Cerca mountpoint". "Prova connessione" usa i campi della modalita' scelta; la scheda Stato mostra la mountpoint della modalita' attiva.
+
 ## 1.19.65
 
 - **Richiesta dell'utente (non si capiva "Caster ha rifiutato: SOURCETABLE 200 OK")**: i rifiuti del caster sono ora spiegati in italiano (`ntrip_reply.h`). Per una base, SOURCETABLE vuol dire "mountpoint sconosciuta al caster" (con password sbagliata il caster EVONETRTK risponde 401, verificato sul suo codice e con prove dirette); per 401, 409, 402 e 429 ci sono frasi dedicate. Vale per stato, log e pulsante di prova.

@@ -86,6 +86,7 @@ static void apply_defaults(void)
     strncpy(s_settings.ntrip_host, CONFIG_BASEESP32_NTRIP_HOST, sizeof(s_settings.ntrip_host) - 1);
     s_settings.ntrip_port = CONFIG_BASEESP32_NTRIP_PORT;
     strncpy(s_settings.ntrip_mountpoint, CONFIG_BASEESP32_NTRIP_MOUNTPOINT, sizeof(s_settings.ntrip_mountpoint) - 1);
+    strncpy(s_settings.rover_mountpoint, CONFIG_BASEESP32_NTRIP_MOUNTPOINT, sizeof(s_settings.rover_mountpoint) - 1);
     strncpy(s_settings.ota_update_url, CONFIG_BASEESP32_OTA_UPDATE_URL, sizeof(s_settings.ota_update_url) - 1);
     s_settings.alert_enable = false;
     s_settings.alert_threshold_min = 15;
@@ -319,6 +320,8 @@ void settings_init(void)
                 { s_settings.alert_whatsapp_phone, sizeof(s_settings.alert_whatsapp_phone), "alert_whatsapp_phone" },
                 { s_settings.ntrip_caster_server_mountpoint, sizeof(s_settings.ntrip_caster_server_mountpoint), "ntrip_caster_server_mountpoint" },
                 { s_settings.ntrip_caster_server_username, sizeof(s_settings.ntrip_caster_server_username), "ntrip_caster_server_username" },
+                { s_settings.rover_mountpoint, sizeof(s_settings.rover_mountpoint), "rover_mountpoint" },
+                { s_settings.rover_username, sizeof(s_settings.rover_username), "rover_username" },
                 // device_serial NON e' qui: ha gia' la sua gestione dedicata
                 // sopra (rigenera dal MAC se vuota) - includerla anche qui
                 // la svuoterebbe DOPO che quel controllo e' gia' passato,
@@ -338,6 +341,15 @@ void settings_init(void)
                     ascii_fields[i].field[0] = '\0';
                 }
             }
+        }
+        // Blob di una versione precedente alla 1.19.66: credenziali rover
+        // ancora vuote. Si copiano i vecchi campi condivisi, cosi' un
+        // dispositivo gia' configurato come rover continua a collegarsi.
+        if (s_settings.rover_mountpoint[0] == '\0' && s_settings.rover_username[0] == '\0') {
+            memcpy(s_settings.rover_mountpoint, s_settings.ntrip_mountpoint, sizeof(s_settings.rover_mountpoint));
+            memcpy(s_settings.rover_username, s_settings.ntrip_username, sizeof(s_settings.rover_username));
+            memcpy(s_settings.rover_password, s_settings.ntrip_password, sizeof(s_settings.rover_password));
+            ESP_LOGI(TAG, "Credenziali rover separate da quelle della base (copiate dai campi condivisi)");
         }
         ESP_LOGI(TAG, "Configurazione caricata da NVS (AP=%s)", s_settings.ap_ssid);
     } else {

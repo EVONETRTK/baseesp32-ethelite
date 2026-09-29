@@ -508,21 +508,27 @@
     <legend><span data-mode="base">📡 Server NTRIP (invio correzioni al caster EVONETRTK)</span><span data-mode="rover">📡 Client NTRIP (correzioni dal caster EVONETRTK)</span></legend>
     <label>Host del caster<input name="ntrip_host" data-validate="host" placeholder="es. rtk.evo-net.it"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
-    <label><span data-mode="base">Mountpoint su cui inviare</span><span data-mode="rover">Mountpoint da cui ricevere</span><input name="ntrip_mountpoint"></label>
+    <!-- Credenziali separate per base e rover (1.19.66): passando da una
+         modalita' all'altra ognuna tiene le sue. -->
+    <label data-mode="base">Mountpoint su cui inviare<input name="ntrip_mountpoint"></label>
+    <label data-mode="base">Password sorgente della mountpoint<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label data-mode="rover">Mountpoint da cui ricevere<input name="rover_mountpoint"></label>
     <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem" data-mode="rover">Cerca mountpoint disponibili</button>
     <div id="ntrip-mp-results" style="margin-top:.4rem" data-mode="rover"></div>
-    <label data-mode="rover">Username<input name="ntrip_username"></label>
-    <label><span data-mode="base">Password sorgente della mountpoint</span><span data-mode="rover">Password</span><input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label data-mode="rover">Utente<input name="rover_username"></label>
+    <label data-mode="rover">Password<input name="rover_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <button type="button" class="action secondary" id="ntrip-test-btn" style="margin-top:.6rem">Prova connessione al caster</button>
     <div id="ntrip-test-msg" class="hint" style="margin-top:.4rem"></div>
     <small class="hint">
-      Prova subito l'handshake col caster con questi valori (anche non ancora salvati), senza
-      aspettare il tentativo automatico ogni 5s - utile per scoprire subito se host/porta/mountpoint/
-      credenziali sono giusti.
+      Prova subito il collegamento col caster con questi valori (anche non ancora salvati): in base
+      come sorgente con la password sorgente, in rover come ricevitore con utente e password.
+    </small>
+    <small class="hint">
+      Base e rover hanno credenziali separate: passando da una modalita' all'altra ognuna tiene le sue.
     </small>
 
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_host,ntrip_port,ntrip_mountpoint,ntrip_username,ntrip_password">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_host,ntrip_port,ntrip_mountpoint,ntrip_password,rover_mountpoint,rover_username,rover_password">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -1264,7 +1270,7 @@ async function loadStatus() {
         ethEl.style.color = '';
       }
     }
-    document.getElementById('st-ntrip-host').textContent = s.ntrip_host ? (s.ntrip_host + ':' + s.ntrip_port + '/' + (s.ntrip_mountpoint || '')) : '-';
+    document.getElementById('st-ntrip-host').textContent = s.ntrip_host ? (s.ntrip_host + ':' + s.ntrip_port + '/' + ((s.active_device_mode === 'rover' ? s.rover_mountpoint : s.ntrip_mountpoint) || '')) : '-';
     const sdEl = document.getElementById('st-sd');
     if (!s.sd_checked) {
       sdEl.textContent = '⬜ non ancora controllata';
@@ -1366,7 +1372,8 @@ async function loadStatus() {
       f.ntrip_host.value = s.ntrip_host || '';
       f.ntrip_port.value = s.ntrip_port || '';
       f.ntrip_mountpoint.value = s.ntrip_mountpoint || '';
-      f.ntrip_username.value = s.ntrip_username || '';
+      f.rover_mountpoint.value = s.rover_mountpoint || '';
+      f.rover_username.value = s.rover_username || '';
       f.nmea_udp_port.value = s.nmea_udp_port || '';
       f.gnss_chip.value = s.gnss_chip || 'ublox';
       f.device_mode.value = s.device_mode || 'base';
@@ -2253,7 +2260,7 @@ document.getElementById('ntrip-mp-scan-btn').addEventListener('click', async () 
       btn.textContent = mp.name + (mp.description ? '  —  ' + mp.description : '');
       btn.addEventListener('click', () => {
         const f = document.getElementById('cfg-form');
-        f.ntrip_mountpoint.value = mp.name;
+        f.rover_mountpoint.value = mp.name;
         f.dataset.touched = '1';
         results.innerHTML = '';
       });
@@ -2280,9 +2287,10 @@ document.getElementById('ntrip-test-btn').addEventListener('click', async () => 
       body: JSON.stringify({
         host: f.ntrip_host.value,
         port: Number(f.ntrip_port.value),
-        mountpoint: f.ntrip_mountpoint.value,
-        username: f.ntrip_username.value,
-        password: f.ntrip_password.value,
+        // Credenziali della modalita' scelta nel menu (base e rover separate)
+        mountpoint: f.device_mode.value === 'rover' ? f.rover_mountpoint.value : f.ntrip_mountpoint.value,
+        username: f.rover_username.value,
+        password: f.device_mode.value === 'rover' ? f.rover_password.value : f.ntrip_password.value,
         device_mode: f.device_mode.value, // base: prova come sorgente, rover: come ricevitore
       }),
     });

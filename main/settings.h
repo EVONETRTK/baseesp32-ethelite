@@ -115,10 +115,17 @@ typedef struct {
     // difettoso hardware - utile verificare se il difetto era del modulo
     // o dello slot di quella scheda).
     bool cellular_is_sim868;
-    char ntrip_host[64];
+    char ntrip_host[64];      // caster, comune a base e rover
     uint16_t ntrip_port;
+    // Dalla 1.19.66 mountpoint e password qui sono SOLO della base
+    // (SOURCE <password> /<mountpoint>). Il rover ha i suoi campi in fondo
+    // alla struct (rover_*): con un solo gruppo di campi, passando da base
+    // a rover la password sorgente sostituiva quella del rover e una base
+    // poteva partire sulla mountpoint del rover. ntrip_username resta solo
+    // per il passaggio automatico dei valori verso rover_username (vedi
+    // settings.c), non e' piu' usato altrove.
     char ntrip_mountpoint[33];
-    char ntrip_username[33];  // usato solo in modalita' rover (NTRIP GET, Basic Auth)
+    char ntrip_username[33];
     char ntrip_password[64];
     gnss_chip_t gnss_chip;
     device_mode_t device_mode;
@@ -316,6 +323,15 @@ typedef struct {
     // es. HAT Syneda uRTK6.0, vedi gnss_i2c.h. Solo chip u-blox. Default
     // false (zero dal blob NVS di versioni precedenti = seriale, come prima).
     bool gnss_i2c;
+
+    // Credenziali del rover verso il caster (GET /<mountpoint>, Basic Auth),
+    // separate da quelle della base (ntrip_mountpoint/ntrip_password sopra),
+    // vedi il commento li'. Al primo avvio con un blob di versioni
+    // precedenti (campi a zero) vengono riempite copiando i vecchi campi
+    // condivisi, cosi' un rover gia' configurato continua a funzionare.
+    char rover_mountpoint[33];
+    char rover_username[33];
+    char rover_password[64];
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

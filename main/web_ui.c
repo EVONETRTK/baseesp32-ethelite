@@ -422,7 +422,10 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "ntrip_host", s.ntrip_host);
     cJSON_AddNumberToObject(root, "ntrip_port", s.ntrip_port);
     cJSON_AddStringToObject(root, "ntrip_mountpoint", s.ntrip_mountpoint);
-    cJSON_AddStringToObject(root, "ntrip_username", s.ntrip_username);
+    // Credenziali del rover separate da quelle della base (1.19.66): la
+    // password non viene mai restituita, come le altre.
+    cJSON_AddStringToObject(root, "rover_mountpoint", s.rover_mountpoint);
+    cJSON_AddStringToObject(root, "rover_username", s.rover_username);
     cJSON_AddStringToObject(root, "ap_ssid", s.ap_ssid);
     cJSON_AddStringToObject(root, "device_serial", s.device_serial);
     {
@@ -725,7 +728,9 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_field(root, "cellular_apn", s.cellular_apn, sizeof(s.cellular_apn));
     copy_field(root, "ntrip_host", s.ntrip_host, sizeof(s.ntrip_host));
     copy_field(root, "ntrip_mountpoint", s.ntrip_mountpoint, sizeof(s.ntrip_mountpoint));
-    copy_field(root, "ntrip_username", s.ntrip_username, sizeof(s.ntrip_username));
+    copy_field(root, "rover_mountpoint", s.rover_mountpoint, sizeof(s.rover_mountpoint));
+    copy_field(root, "rover_username", s.rover_username, sizeof(s.rover_username));
+    copy_field(root, "rover_password", s.rover_password, sizeof(s.rover_password));
     copy_field(root, "ntrip_password", s.ntrip_password, sizeof(s.ntrip_password));
     copy_field(root, "ap_ssid", s.ap_ssid, sizeof(s.ap_ssid));
     copy_field(root, "ap_password", s.ap_password, sizeof(s.ap_password));
@@ -1474,46 +1479,42 @@ static esp_err_t ntrip_test_connect_post_handler(httpd_req_t *req)
         port = (uint16_t) port_item->valueint;
     }
 
-    char mountpoint[33];
-    cJSON *mp_item = cJSON_GetObjectItemCaseSensitive(root, "mountpoint");
-    if (mp_item && cJSON_IsString(mp_item) && mp_item->valuestring[0] != '\0') {
-        strncpy(mountpoint, mp_item->valuestring, sizeof(mountpoint) - 1);
-        mountpoint[sizeof(mountpoint) - 1] = '\0';
-    } else {
-        strncpy(mountpoint, existing.ntrip_mountpoint, sizeof(mountpoint) - 1);
-        mountpoint[sizeof(mountpoint) - 1] = '\0';
-    }
-
-    char username[33];
-    cJSON *user_item = cJSON_GetObjectItemCaseSensitive(root, "username");
-    if (user_item && cJSON_IsString(user_item) && user_item->valuestring[0] != '\0') {
-        strncpy(username, user_item->valuestring, sizeof(username) - 1);
-        username[sizeof(username) - 1] = '\0';
-    } else {
-        strncpy(username, existing.ntrip_username, sizeof(username) - 1);
-        username[sizeof(username) - 1] = '\0';
-    }
-
-    // Password vuota = usa quella gia' salvata (stessa convenzione del
-    // resto della UI: il campo password non torna mai indietro in lettura).
-    char password[65];
-    cJSON *pass_item = cJSON_GetObjectItemCaseSensitive(root, "password");
-    if (pass_item && cJSON_IsString(pass_item) && pass_item->valuestring[0] != '\0') {
-        strncpy(password, pass_item->valuestring, sizeof(password) - 1);
-        password[sizeof(password) - 1] = '\0';
-    } else {
-        strncpy(password, existing.ntrip_password, sizeof(password) - 1);
-        password[sizeof(password) - 1] = '\0';
-    }
     // Modalita' da provare: quella scelta nel pannello (anche se non ancora
     // salvata), altrimenti quella salvata. In base si prova come sorgente
-    // (SOURCE + password sorgente, come fa davvero la base); prima la prova
-    // era sempre da rover, e in base non verificava la password giusta.
+    // (SOURCE + password sorgente, come fa davvero la base), in rover come
+    // ricevitore. I campi non inviati si prendono dalle credenziali salvate
+    // della stessa modalita' (base: ntrip_*, rover: rover_*, dalla 1.19.66).
     bool as_base = (existing.device_mode == DEVICE_MODE_BASE);
     cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "device_mode");
     if (mode_item && cJSON_IsString(mode_item)) {
         as_base = (strcmp(mode_item->valuestring, "rover") != 0);
     }
+
+    char mountpoint[33];
+    cJSON *mp_item = cJSON_GetObjectItemCaseSensitive(root, "mountpoint");
+    const char *mp_src = (mp_item && cJSON_IsString(mp_item) && mp_item->valuestring[0] != '\0')
+        ? mp_item->valuestring
+        : (as_base ? existing.ntrip_mountpoint : existing.rover_mountpoint);
+    strncpy(mountpoint, mp_src, sizeof(mountpoint) - 1);
+    mountpoint[sizeof(mountpoint) - 1] = '\0';
+
+    char username[33];
+    cJSON *user_item = cJSON_GetObjectItemCaseSensitive(root, "username");
+    const char *user_src = (user_item && cJSON_IsString(user_item) && user_item->valuestring[0] != '\0')
+        ? user_item->valuestring
+        : existing.rover_username;
+    strncpy(username, user_src, sizeof(username) - 1);
+    username[sizeof(username) - 1] = '\0';
+
+    // Password vuota = usa quella gia' salvata (stessa convenzione del
+    // resto della UI: il campo password non torna mai indietro in lettura).
+    char password[65];
+    cJSON *pass_item = cJSON_GetObjectItemCaseSensitive(root, "password");
+    const char *pass_src = (pass_item && cJSON_IsString(pass_item) && pass_item->valuestring[0] != '\0')
+        ? pass_item->valuestring
+        : (as_base ? existing.ntrip_password : existing.rover_password);
+    strncpy(password, pass_src, sizeof(password) - 1);
+    password[sizeof(password) - 1] = '\0';
     cJSON_Delete(root);
 
     char msg[200];

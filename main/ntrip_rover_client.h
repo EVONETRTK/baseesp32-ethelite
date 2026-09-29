@@ -26,7 +26,7 @@ typedef struct {
 size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_t max_count);
 
 // Si connette al caster EVONETRTK come client NTRIP (richiesta GET sulla
-// mountpoint, autenticazione Basic con ntrip_username/ntrip_password),
+// mountpoint, autenticazione Basic con rover_username/rover_password),
 // riceve il flusso RTCM3 e lo scrive in tempo reale sulla UART verso il
 // ricevitore GNSS. Si riconnette automaticamente in caso di errore.
 // arg = uart_port_t incapsulato come (void *)(intptr_t) uart_num.

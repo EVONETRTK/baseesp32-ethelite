@@ -66,7 +66,7 @@ static int ntrip_rover_connect(const app_settings_t *settings)
 
     char credentials[112];
     int cred_len = snprintf(credentials, sizeof(credentials), "%s:%s",
-                             settings->ntrip_username, settings->ntrip_password);
+                             settings->rover_username, settings->rover_password);
 
     unsigned char b64[160];
     size_t b64_len = 0;
@@ -80,7 +80,7 @@ static int ntrip_rover_connect(const app_settings_t *settings)
         "Authorization: Basic %s\r\n"
         "Connection: close\r\n"
         "\r\n",
-        settings->ntrip_mountpoint, (const char *) b64);
+        settings->rover_mountpoint, (const char *) b64);
 
     if (send(sock, req, req_len, 0) != req_len) {
         ESP_LOGE(TAG, "Invio richiesta NTRIP GET fallito: errno %d", errno);
@@ -113,7 +113,7 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     }
 
     ESP_LOGI(TAG, "Rover connesso al caster %s:%d mountpoint /%s",
-             settings->ntrip_host, settings->ntrip_port, settings->ntrip_mountpoint);
+             settings->ntrip_host, settings->ntrip_port, settings->rover_mountpoint);
     status_ntrip_note_connected();
 
     // Timeout di ricezione sul socket dati: senza, se la connessione si
