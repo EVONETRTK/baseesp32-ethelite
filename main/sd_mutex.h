@@ -54,3 +54,4 @@ void sd_mutex_give(void);
 esp_err_t sd_mount_retry(const char *base_path, const sdmmc_host_t *host,
                          const sdspi_device_config_t *slot, const esp_vfs_fat_mount_config_t *cfg,
                          sdmmc_card_t **out_card);
+

@@ -5,6 +5,12 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 ## 1.19.70
 
 - **Richiesta dell'utente: formattare la microSD dalla base.** Nuovo pulsante "🧹 Formatta microSD (FAT32)" nella scheda Firmware, con conferma perche' cancella tutto (endpoint `POST /api/sd/format` con `{"confirm":"FORMATTA"}`, `sd_format_card()` in `sd_update.c`, eseguito in un task con richiesta HTTP asincrona perche' su schede grandi dura minuti). Serve per le schede che la base non legge: exFAT (le schede oltre 32 GB escono cosi' di fabbrica, e il FatFs di ESP-IDF 5.3 ha l'exFAT disattivato nel sorgente, `FF_FS_EXFAT 0`) o con le partizioni di un Raspberry Pi. Trovato provando una seconda microSD, che la base vedeva ma non montava (ESP_FAIL). Se il filesystem e' gia' leggibile riformatta esplicitamente, altrimenti formatta una sola volta durante il montaggio. Cluster da 32 KB.
+- **Trovata la vera causa degli errori I2C con lo ZED-F9P** (1.19.57, 1.19.68, 1.19.69): **il clock della microSD (GPIO10, pin 23 del connettore a 40 pin) e' collegato a una linea I2C** tramite l'HAT Syneda uRTK6.0. Passi della verifica:
+  1. con una seconda microSD, durante una registrazione PPP l'I2C e' rimasto bloccato per tutti i 33 s (123 errori);
+  2. con il bus SD rallentato a 4 MHz non cambiava nulla, e l'I2C restava bloccato anche con la SD montata e ferma (0 byte scritti), quindi non e' diafonia;
+  3. con la SD smontata, pilotando un pin alla volta: GPIO10 basso o alto blocca l'I2C (20 errori in 4,8 s in entrambi i casi) e rilasciato torna a funzionare; GPIO 9, 11 e 12 non hanno effetto.
+  
+  Quindi SD e ricevitore condividono un filo, e ogni uso della SD ferma l'I2C. Il vero rimedio e' hardware: interrompere il pin 23 tra scheda e HAT, che comunica gia' sui pin 3/5. Nel frattempo, **con il ricevitore via I2C la base non usa piu' la microSD in automatico**: niente log diagnostico, che la montava ogni 30 s, e niente archiviazione del firmware all'avvio (resta quella durante gli aggiornamenti, quando lo ZED si ferma comunque). Aggiornamento da SD, formattazione e registrazione PPP restano disponibili come azioni esplicite, con un avviso nel pannello. Le spiegazioni date nella 1.19.68 (cache della flash) e nella 1.19.69 (interferenza elettrica) erano sbagliate; `CONFIG_I2C_ISR_IRAM_SAFE` e i doppi tentativi restano, perche' innocui e utili.
 
 ## 1.19.69
 

@@ -101,6 +101,15 @@ static void fw_archive_save_current_task(void *arg)
     // coincideva esattamente con gli errori I2C verso il ricevitore u-blox
     // all'avvio (visto sul dispositivo, 1.19.68).
     vTaskDelay(pdMS_TO_TICKS(30000));
+    // Con il ricevitore via I2C niente archiviazione automatica all'avvio:
+    // montare la SD blocca l'I2C con lo ZED (vedi diag_log_start). Resta
+    // quella fatta durante gli aggiornamenti, quando lo ZED si ferma
+    // comunque per il riavvio.
+    if (settings_get().gnss_i2c) {
+        ESP_LOGI(TAG, "Archiviazione firmware su SD all'avvio saltata: ricevitore via I2C");
+        vTaskDelete(NULL);
+        return;
+    }
     fw_archive_save_current();
     vTaskDelete(NULL);
 }

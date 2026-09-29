@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Pulsante per formattare la microSD in FAT32 dal pannello (schede exFAT o usate su Raspberry); stato del survey-in nella scheda Stato."
+#define FIRMWARE_RELEASE_NOTES "Pulsante formattazione microSD (FAT32); con ricevitore via I2C la SD non si usa piu' in automatico (sulla base di prova blocca l'I2C)."
