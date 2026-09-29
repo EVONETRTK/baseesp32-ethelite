@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.65
+
+- **Richiesta dell'utente (non si capiva "Caster ha rifiutato: SOURCETABLE 200 OK")**: i rifiuti del caster sono ora spiegati in italiano (`ntrip_reply.h`). Per una base, SOURCETABLE vuol dire "mountpoint sconosciuta al caster" (con password sbagliata il caster EVONETRTK risponde 401, verificato sul suo codice e con prove dirette); per 401, 409, 402 e 429 ci sono frasi dedicate. Vale per stato, log e pulsante di prova.
+- **Il pulsante "Prova connessione al caster" in base provava come rover**, cioè GET con utente e password e non SOURCE con la password sorgente: non verificava cio' che usa davvero la base. Ora in base prova come sorgente (`ntrip_client_test_source()`, stesso handshake della base, `source_handshake()`), in rover come prima. La modalita' e' quella scelta nel pannello, anche se non ancora salvata.
+
 ## 1.19.64
 
 - **Fix critico: attivando il caster NTRIP locale la scheda si riavviava a ripetizione** (stack overflow in `ntrip_cst_listen`, trovato attivandolo per provare la base senza il caster in cloud). Il task aveva due copie intere di `app_settings_t` (~1,7 KB l'una) piu' ~1,2 KB di buffer dell'handshake in 4096 byte di stack. Copie rese statiche (un solo task le usa) e stack portato a 6144.

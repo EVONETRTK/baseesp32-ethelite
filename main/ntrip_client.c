@@ -10,44 +10,48 @@
 #include "settings.h"
 #include "status.h"
 #include "net_util.h"
+#include "ntrip_reply.h"
 
 static const char *TAG = "ntrip_client";
 
-// Handshake NTRIP 1.0 "source": funziona con la maggior parte dei caster,
-// ma va verificato contro l'implementazione reale del caster EVONETRTK
-// (formato risposta attesa, eventuale differenza NTRIP 2.0/HTTP).
-static int ntrip_connect_and_handshake(const app_settings_t *settings)
+// Handshake NTRIP 1.0 "source" (SOURCE <password> /<mountpoint>) verso il
+// caster. Usato sia dal task della base sia dal pulsante "Prova connessione"
+// del pannello (ntrip_client_test_source), cosi' la prova fa esattamente la
+// stessa cosa della base vera. Ritorna il socket collegato, oppure -1 con il
+// motivo in err (frase leggibile, vedi ntrip_reply.h).
+static int source_handshake(const char *host, uint16_t port, const char *mountpoint,
+                            const char *password, int timeout_s, char *err, size_t err_size)
 {
     char port_str[8];
-    snprintf(port_str, sizeof(port_str), "%u", settings->ntrip_port);
+    snprintf(port_str, sizeof(port_str), "%u", port);
 
     struct addrinfo hints = {
         .ai_family = AF_INET,
         .ai_socktype = SOCK_STREAM,
     };
     struct addrinfo *res = NULL;
-    int err = getaddrinfo(settings->ntrip_host, port_str, &hints, &res);
-    if (err != 0 || res == NULL) {
-        ESP_LOGE(TAG, "DNS lookup fallita per %s: %d", settings->ntrip_host, err);
-        status_ntrip_note_disconnected("DNS lookup fallita");
+    int rc = getaddrinfo(host, port_str, &hints, &res);
+    if (rc != 0 || res == NULL) {
+        snprintf(err, err_size, "Indirizzo del caster non trovato (DNS): %s", host);
         return -1;
     }
 
     int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sock < 0) {
-        ESP_LOGE(TAG, "Creazione socket fallita: errno %d", errno);
         freeaddrinfo(res);
-        status_ntrip_note_disconnected("Creazione socket fallita");
+        snprintf(err, err_size, "Creazione socket fallita (errno %d)", errno);
         return -1;
+    }
+    if (timeout_s > 0) {
+        struct timeval tv = { .tv_sec = timeout_s, .tv_usec = 0 };
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     }
 
     if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
-        ESP_LOGE(TAG, "Connessione a %s:%d fallita: errno %d", settings->ntrip_host, settings->ntrip_port, errno);
+        snprintf(err, err_size, "Connessione a %s:%u fallita (errno %d)", host, port, errno);
         net_close_now(sock);
         freeaddrinfo(res);
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Connessione al caster fallita (errno %d)", errno);
-        status_ntrip_note_disconnected(msg);
         return -1;
     }
     freeaddrinfo(res);
@@ -57,36 +61,70 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
         "SOURCE %s /%s\r\n"
         "Source-Agent: NTRIP baseesp32/1.0\r\n"
         "\r\n",
-        settings->ntrip_password, settings->ntrip_mountpoint);
+        password, mountpoint);
     if (send(sock, req, req_len, 0) != req_len) {
-        ESP_LOGE(TAG, "Invio handshake NTRIP fallito: errno %d", errno);
+        snprintf(err, err_size, "Invio richiesta al caster fallito (errno %d)", errno);
         net_close_now(sock);
-        status_ntrip_note_disconnected("Invio handshake fallito");
         return -1;
     }
 
     char resp[128] = {0};
     int r = recv(sock, resp, sizeof(resp) - 1, 0);
     if (r <= 0) {
-        ESP_LOGE(TAG, "Nessuna risposta dal caster");
+        snprintf(err, err_size, "Nessuna risposta dal caster");
         net_close_now(sock);
-        status_ntrip_note_disconnected("Nessuna risposta dal caster");
         return -1;
     }
     resp[r] = '\0';
     if (strncmp(resp, "ICY 200", 7) != 0 && strncmp(resp, "OK", 2) != 0) {
-        ESP_LOGE(TAG, "Caster ha rifiutato la connessione sorgente: %s", resp);
+        char *eol = strpbrk(resp, "\r\n");
+        if (eol) {
+            *eol = '\0'; // solo la prima riga della risposta
+        }
+        const char *why = ntrip_explain_reply(resp, true);
+        if (why) {
+            snprintf(err, err_size, "Caster ha rifiutato: %s", why);
+        } else {
+            snprintf(err, err_size, "Caster ha rifiutato: %.60s", resp);
+        }
         net_close_now(sock);
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Caster ha rifiutato la connessione: %.50s", resp);
-        status_ntrip_note_disconnected(msg);
         return -1;
     }
+    return sock;
+}
+
+static int ntrip_connect_and_handshake(const app_settings_t *settings)
+{
+    char err[200];
+    int sock = source_handshake(settings->ntrip_host, settings->ntrip_port, settings->ntrip_mountpoint,
+                                settings->ntrip_password, 10, err, sizeof(err));
+    if (sock < 0) {
+        ESP_LOGE(TAG, "%s", err);
+        status_ntrip_note_disconnected(err);
+        return -1;
+    }
+    // I timeout servivano solo all'handshake: per l'invio dei dati resta il
+    // comportamento di prima (bloccante, errori gestiti dal task).
+    struct timeval none = { 0 };
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &none, sizeof(none));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &none, sizeof(none));
 
     ESP_LOGI(TAG, "Connesso al caster %s:%d mountpoint /%s",
              settings->ntrip_host, settings->ntrip_port, settings->ntrip_mountpoint);
     status_ntrip_note_connected();
     return sock;
+}
+
+bool ntrip_client_test_source(const char *host, uint16_t port, const char *mountpoint,
+                              const char *password, char *out_msg, size_t out_msg_size)
+{
+    int sock = source_handshake(host, port, mountpoint, password, 6, out_msg, out_msg_size);
+    if (sock < 0) {
+        return false;
+    }
+    net_close_now(sock);
+    snprintf(out_msg, out_msg_size, "Caster ha accettato la base sulla mountpoint /%s", mountpoint);
+    return true;
 }
 
 void ntrip_client_task(void *arg)

@@ -13,6 +13,7 @@
 #include "wifi_link.h"
 #include "eth_link.h"
 #include "ntrip_rover_client.h"
+#include "ntrip_client.h"
 #include "cellular_link.h"
 #include "alerts.h"
 #include "base_monitor.h"
@@ -1504,10 +1505,21 @@ static esp_err_t ntrip_test_connect_post_handler(httpd_req_t *req)
         strncpy(password, existing.ntrip_password, sizeof(password) - 1);
         password[sizeof(password) - 1] = '\0';
     }
+    // Modalita' da provare: quella scelta nel pannello (anche se non ancora
+    // salvata), altrimenti quella salvata. In base si prova come sorgente
+    // (SOURCE + password sorgente, come fa davvero la base); prima la prova
+    // era sempre da rover, e in base non verificava la password giusta.
+    bool as_base = (existing.device_mode == DEVICE_MODE_BASE);
+    cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "device_mode");
+    if (mode_item && cJSON_IsString(mode_item)) {
+        as_base = (strcmp(mode_item->valuestring, "rover") != 0);
+    }
     cJSON_Delete(root);
 
-    char msg[128];
-    bool ok = ntrip_rover_client_test_connect(host, port, mountpoint, username, password, msg, sizeof(msg));
+    char msg[200];
+    bool ok = as_base
+        ? ntrip_client_test_source(host, port, mountpoint, password, msg, sizeof(msg))
+        : ntrip_rover_client_test_connect(host, port, mountpoint, username, password, msg, sizeof(msg));
 
     cJSON *resp = cJSON_CreateObject();
     cJSON_AddBoolToObject(resp, "ok", ok);

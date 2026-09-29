@@ -3,6 +3,7 @@
 #include "settings.h"
 #include "status.h"
 #include "net_util.h"
+#include "ntrip_reply.h"
 
 #include <string.h>
 #include <errno.h>
@@ -98,10 +99,15 @@ static int ntrip_rover_connect(const app_settings_t *settings)
     }
     resp[r] = '\0';
     if (strncmp(resp, "ICY 200", 7) != 0 && strncmp(resp, "HTTP/1.1 200", 12) != 0) {
-        ESP_LOGE(TAG, "Caster ha rifiutato la richiesta rover: %s", resp);
         net_close_now(sock);
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Caster ha rifiutato la richiesta: %.50s", resp);
+        char *eol = strpbrk(resp, "\r\n");
+        if (eol) {
+            *eol = '\0'; // solo la prima riga della risposta
+        }
+        const char *why = ntrip_explain_reply(resp, false);
+        char msg[200];
+        snprintf(msg, sizeof(msg), "Caster ha rifiutato: %.150s", why ? why : resp);
+        ESP_LOGE(TAG, "%s", msg);
         status_ntrip_note_disconnected(msg);
         return -1;
     }
@@ -202,7 +208,12 @@ bool ntrip_rover_client_test_connect(const char *host, uint16_t port, const char
     }
     resp[r] = '\0';
     if (strncmp(resp, "ICY 200", 7) != 0 && strncmp(resp, "HTTP/1.1 200", 12) != 0) {
-        snprintf(out_msg, out_msg_size, "Caster ha rifiutato: %.60s", resp);
+        char *eol = strpbrk(resp, "\r\n");
+        if (eol) {
+            *eol = '\0'; // solo la prima riga della risposta
+        }
+        const char *why = ntrip_explain_reply(resp, false);
+        snprintf(out_msg, out_msg_size, "Caster ha rifiutato: %.100s", why ? why : resp);
         return false;
     }
 

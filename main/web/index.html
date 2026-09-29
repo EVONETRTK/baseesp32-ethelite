@@ -2283,6 +2283,7 @@ document.getElementById('ntrip-test-btn').addEventListener('click', async () => 
         mountpoint: f.ntrip_mountpoint.value,
         username: f.ntrip_username.value,
         password: f.ntrip_password.value,
+        device_mode: f.device_mode.value, // base: prova come sorgente, rover: come ricevitore
       }),
     });
     const s = await r.json();
