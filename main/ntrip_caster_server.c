@@ -116,7 +116,12 @@ static bool handle_handshake(int sock, const app_settings_t *s)
 
 static void listen_task(void *arg)
 {
-    app_settings_t s = settings_get();
+    // app_settings_t pesa ~1.7 KB. Con due copie intere sullo stack (questa
+    // e quella per ogni rover sotto) piu' i buffer dell'handshake il task
+    // andava in stack overflow appena attivato il caster locale: riavvii a
+    // ripetizione (visto sul dispositivo). Statiche: un solo task le usa.
+    static app_settings_t s;
+    s = settings_get();
 
     int listen_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listen_sock < 0) {
@@ -162,7 +167,10 @@ static void listen_task(void *arg)
         struct timeval rcv_tv = { .tv_sec = CLIENT_HANDSHAKE_TIMEOUT_S, .tv_usec = 0 };
         setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, &rcv_tv, sizeof(rcv_tv));
 
-        app_settings_t cur = settings_get(); // rilegge: la configurazione puo' essere cambiata da avvio
+        // Rilegge: la configurazione puo' essere cambiata dall'avvio. Statica,
+        // vedi sopra.
+        static app_settings_t cur;
+        cur = settings_get();
         if (!handle_handshake(client_sock, &cur)) {
             close(client_sock);
             continue;
@@ -208,7 +216,7 @@ void ntrip_caster_server_start(void)
     s_feed_stream = xStreamBufferCreate(4096, 1);
 
     xTaskCreate(broadcast_task, "ntrip_cst_bc", 4096, NULL, 5, NULL);
-    xTaskCreate(listen_task, "ntrip_cst_listen", 4096, NULL, 5, NULL);
+    xTaskCreate(listen_task, "ntrip_cst_listen", 6144, NULL, 5, NULL);
 }
 
 void ntrip_caster_server_feed(const uint8_t *data, size_t len)

@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.19.63"
+#define FIRMWARE_VERSION "1.19.64"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Fix pannello che si bloccava dopo pochi minuti mentre il caster rifiutava la connessione; tentativi verso il caster sempre piu' distanziati (fino a 60 s)."
+#define FIRMWARE_RELEASE_NOTES "Fix: attivando il caster NTRIP locale la scheda si riavviava a ripetizione (stack overflow)."

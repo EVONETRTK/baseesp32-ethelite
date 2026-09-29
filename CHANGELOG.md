@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.64
+
+- **Fix critico: attivando il caster NTRIP locale la scheda si riavviava a ripetizione** (stack overflow in `ntrip_cst_listen`, trovato attivandolo per provare la base senza il caster in cloud). Il task aveva due copie intere di `app_settings_t` (~1,7 KB l'una) piu' ~1,2 KB di buffer dell'handshake in 4096 byte di stack. Copie rese statiche (un solo task le usa) e stack portato a 6144.
+
 ## 1.19.63
 
 - **Pannello bloccato dopo qualche minuto mentre il caster rifiutava la connessione**, successo due volte provando base e rover su mountpoint rifiutate. Il ping passava e le richieste arrivavano al server web (si vedevano nel log), ma nessuna risposta TCP tornava al browser. Causa: ogni tentativo NTRIP fallito (ogni 5 s) lasciava il socket in TIME_WAIT per 120 s (`CONFIG_LWIP_TCP_MSL` 60 s), cioe' ~24 PCB contro un limite di `CONFIG_LWIP_MAX_ACTIVE_TCP` di 16. Verifica: con i tentativi fermati il pannello restava reattivo.
