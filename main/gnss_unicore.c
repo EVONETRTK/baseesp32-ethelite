@@ -46,7 +46,12 @@ esp_err_t gnss_unicore_configure_base(uart_port_t uart_num)
     // UNLOG azzera tutti i log/messaggi attivi: non serve disattivare
     // esplicitamente un messaggio non scelto, parte gia' da zero.
     esp_err_t err = send_cmd(uart_num, "UNLOG");
-    esp_err_t e = send_cmd(uart_num, "MODE BASE TIME 60 2.5");
+    // Durata e precisione del survey-in dal pannello (0 = predefinito: 60 s, 2,5 m).
+    char mode_cmd[48];
+    snprintf(mode_cmd, sizeof(mode_cmd), "MODE BASE TIME %u %.2f",
+             (unsigned) (s.base_svin_min_dur_s ? s.base_svin_min_dur_s : 60),
+             (double) (s.base_svin_acc_m > 0 ? s.base_svin_acc_m : 2.5f));
+    esp_err_t e = send_cmd(uart_num, mode_cmd);
     if (e != ESP_OK) err = e;
     e = send_rtcm_if(uart_num, s.rtcm_1005_enable, 1005);
     if (e != ESP_OK) err = e;

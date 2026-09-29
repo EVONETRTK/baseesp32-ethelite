@@ -218,10 +218,14 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     kvs[n++] = (ubx_cfg_kv32_t) { 0x209102d7 - port_off, s.rtcm_1127_enable ? 1u : 0u }; // TYPE1127 (BeiDou MSM7)
     ubx_valset_group(uart_num, "MESSAGGI RTCM", kvs, n);
 
+    // Durata e precisione dal pannello (0 = predefinito: 60 s, 0,25 m).
+    uint32_t svin_dur_s = s.base_svin_min_dur_s ? s.base_svin_min_dur_s : 60;
+    uint32_t svin_acc_01mm = (s.base_svin_acc_m > 0) ? (uint32_t) (s.base_svin_acc_m * 10000.0f + 0.5f) : 2500;
+    ESP_LOGI(TAG, "Survey-in: almeno %u s, precisione %.2f m", (unsigned) svin_dur_s, svin_acc_01mm / 10000.0);
     const ubx_cfg_kv32_t kvs_tmode[] = {
-        { 0x20030001, 1 },     // CFG-TMODE-MODE = 1 (Survey-In)
-        { 0x40030010, 60 },    // CFG-TMODE-SVIN-MIN-DUR: durata minima survey-in (s) - chiave corretta, era scambiata con quella sotto
-        { 0x40030011, 2500 },  // CFG-TMODE-SVIN-ACC-LIMIT: precisione richiesta, unita' 0.1mm (2500 = 250mm) - chiave corretta, era scambiata con quella sopra
+        { 0x20030001, 1 },              // CFG-TMODE-MODE = 1 (Survey-In)
+        { 0x40030010, svin_dur_s },     // CFG-TMODE-SVIN-MIN-DUR: durata minima survey-in (s) - chiave corretta, era scambiata con quella sotto
+        { 0x40030011, svin_acc_01mm },  // CFG-TMODE-SVIN-ACC-LIMIT: precisione richiesta, unita' 0.1mm (2500 = 250mm) - chiave corretta, era scambiata con quella sopra
     };
     ubx_valset_group(uart_num, "TMODE (survey-in)", kvs_tmode, sizeof(kvs_tmode) / sizeof(kvs_tmode[0]));
 

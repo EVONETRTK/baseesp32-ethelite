@@ -1,7 +1,59 @@
 #pragma once
 
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+
+// Spiegazione leggibile degli errori di connessione piu' comuni, per il
+// pannello e i log (invece di "errno 116"). NULL se non e' tra questi.
+static inline const char *net_errno_text(int e)
+{
+    switch (e) {
+    case ETIMEDOUT:    return "il caster non risponde (nessuna risposta entro il tempo limite)";
+    case ECONNREFUSED: return "connessione rifiutata: porta sbagliata o caster spento";
+    case EHOSTUNREACH:
+    case ENETUNREACH:  return "caster non raggiungibile: la scheda non ha accesso alla rete";
+    case ECONNRESET:   return "connessione interrotta dal caster";
+    default:           return NULL;
+    }
+}
+
+// connect() con un limite di tempo vero. SO_SNDTIMEO/SO_RCVTIMEO non valgono
+// per connect(): verso un indirizzo che non risponde restava bloccata ~18 s
+// (misurato), e il pulsante "Prova connessione" teneva fermo il pannello per
+// tutto quel tempo. Ritorna 0 se collegato, -1 con errno impostato
+// (ETIMEDOUT allo scadere).
+static inline int net_connect_timeout(int sock, const struct sockaddr *addr, socklen_t len, int timeout_s)
+{
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+    int rc = connect(sock, addr, len);
+    if (rc != 0 && errno == EINPROGRESS) {
+        fd_set wfds;
+        FD_ZERO(&wfds);
+        FD_SET(sock, &wfds);
+        struct timeval tv = { .tv_sec = timeout_s, .tv_usec = 0 };
+        rc = select(sock + 1, NULL, &wfds, NULL, &tv);
+        if (rc == 1) {
+            int so_err = 0;
+            socklen_t so_len = sizeof(so_err);
+            getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_err, &so_len);
+            rc = so_err ? -1 : 0;
+            if (so_err) {
+                errno = so_err;
+            }
+        } else {
+            if (rc == 0) {
+                errno = ETIMEDOUT;
+            }
+            rc = -1;
+        }
+    }
+    fcntl(sock, F_SETFL, flags);
+    return rc;
+}
 
 // Chiude subito un socket TCP client con un RST (SO_LINGER a 0), senza
 // lasciarlo nello stato TIME_WAIT per 2*MSL (120 s con CONFIG_LWIP_TCP_MSL

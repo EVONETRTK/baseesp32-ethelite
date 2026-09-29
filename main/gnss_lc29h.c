@@ -84,7 +84,10 @@ esp_err_t gnss_lc29h_configure_base(uart_port_t uart_num)
     } else {
         ESP_LOGI(TAG, "Configuro ricevitore Quectel LC29H come base RTK (survey-in + RTCM3 %s)",
                  use_msm7 ? "MSM7" : "MSM4");
-        snprintf(svin_cmd, sizeof(svin_cmd), "PQTMCFGSVIN,W,1,60,2.5,0,0,0");
+        // Durata e precisione dal pannello (0 = predefinito: 60 s, 2,5 m).
+        snprintf(svin_cmd, sizeof(svin_cmd), "PQTMCFGSVIN,W,1,%u,%.2f,0,0,0",
+                 (unsigned) (s.base_svin_min_dur_s ? s.base_svin_min_dur_s : 60),
+                 (double) (s.base_svin_acc_m > 0 ? s.base_svin_acc_m : 2.5f));
     }
 
     // PQTMCFGRCVRMODE,W,2: modalita' base - abilita da sola RTCM MSM4+1005

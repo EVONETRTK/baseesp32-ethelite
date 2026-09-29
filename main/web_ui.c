@@ -467,6 +467,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "base_fixed_lat_deg", s.base_fixed_lat_deg);
     cJSON_AddNumberToObject(root, "base_fixed_lon_deg", s.base_fixed_lon_deg);
     cJSON_AddNumberToObject(root, "base_fixed_height_m", s.base_fixed_height_m);
+    cJSON_AddNumberToObject(root, "base_svin_min_dur_s", s.base_svin_min_dur_s);
+    cJSON_AddNumberToObject(root, "base_svin_acc_m", s.base_svin_acc_m);
     // Ultima posizione rilevata dal ricevitore (ECEF, dallo stesso stream
     // RTCM 1005/1006 usato sopra per il rilevamento spostamenti) convertita
     // in lat/lon/quota - proposta dalla UI come default quando si passa a
@@ -664,6 +666,20 @@ static void copy_field(const cJSON *root, const char *key, char *dst, size_t dst
     }
 }
 
+// Come copy_field, ma applica anche la stringa vuota: solo per i campi dove
+// "vuoto" ha un significato preciso (es. canale di avviso spento). Ritorna
+// true se il campo era presente nella richiesta.
+static bool copy_field_allow_empty(const cJSON *root, const char *key, char *dst, size_t dst_size)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
+    if (!item || !cJSON_IsString(item) || !item->valuestring) {
+        return false;
+    }
+    strncpy(dst, item->valuestring, dst_size - 1);
+    dst[dst_size - 1] = '\0';
+    return true;
+}
+
 // Campo numerico di pin/GPIO: -1 = non usato, valido anche come "assente"
 // esplicito dal form (a differenza delle stringhe, qui il valore va
 // sempre applicato se presente, incluso -1).
@@ -737,15 +753,25 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_field(root, "admin_code", s.admin_code, sizeof(s.admin_code));
     copy_field(root, "device_serial", s.device_serial, sizeof(s.device_serial));
     copy_field(root, "ota_update_url", s.ota_update_url, sizeof(s.ota_update_url));
-    copy_field(root, "alert_smtp_host", s.alert_smtp_host, sizeof(s.alert_smtp_host));
+    // Host SMTP, destinatario email e numero WhatsApp: vuoto = canale spento
+    // (vedi alerts.c), quindi si puo' salvare anche vuoto.
+    copy_field_allow_empty(root, "alert_smtp_host", s.alert_smtp_host, sizeof(s.alert_smtp_host));
     copy_field(root, "alert_smtp_user", s.alert_smtp_user, sizeof(s.alert_smtp_user));
     copy_field(root, "alert_smtp_password", s.alert_smtp_password, sizeof(s.alert_smtp_password));
-    copy_field(root, "alert_email_to", s.alert_email_to, sizeof(s.alert_email_to));
-    copy_field(root, "alert_whatsapp_phone", s.alert_whatsapp_phone, sizeof(s.alert_whatsapp_phone));
+    copy_field_allow_empty(root, "alert_email_to", s.alert_email_to, sizeof(s.alert_email_to));
+    copy_field_allow_empty(root, "alert_whatsapp_phone", s.alert_whatsapp_phone, sizeof(s.alert_whatsapp_phone));
     copy_field(root, "alert_whatsapp_apikey", s.alert_whatsapp_apikey, sizeof(s.alert_whatsapp_apikey));
     copy_field(root, "ntrip_caster_server_mountpoint", s.ntrip_caster_server_mountpoint, sizeof(s.ntrip_caster_server_mountpoint));
-    copy_field(root, "ntrip_caster_server_username", s.ntrip_caster_server_username, sizeof(s.ntrip_caster_server_username));
     copy_field(root, "ntrip_caster_server_password", s.ntrip_caster_server_password, sizeof(s.ntrip_caster_server_password));
+    // Utente del caster locale vuoto = rover accettati senza credenziali. Il
+    // caster locale le chiede se utente O password non sono vuoti, e la
+    // password vuota nel form vuol dire "non modificare": senza cancellarla
+    // qui non ci sarebbe modo di togliere l'autenticazione.
+    if (copy_field_allow_empty(root, "ntrip_caster_server_username", s.ntrip_caster_server_username,
+                               sizeof(s.ntrip_caster_server_username))
+        && s.ntrip_caster_server_username[0] == '\0') {
+        s.ntrip_caster_server_password[0] = '\0';
+    }
 
     cJSON *alert_enable_item = cJSON_GetObjectItemCaseSensitive(root, "alert_enable");
     if (alert_enable_item && cJSON_IsBool(alert_enable_item)) {
@@ -794,6 +820,18 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     cJSON *base_height_item = cJSON_GetObjectItemCaseSensitive(root, "base_fixed_height_m");
     if (base_height_item && cJSON_IsNumber(base_height_item)) {
         s.base_fixed_height_m = base_height_item->valuedouble;
+    }
+    // Survey-in: 0 = predefinito del chip. Durata fino a 65535 s (~18 h),
+    // precisione tra 1 cm e 100 m.
+    cJSON *svin_dur_item = cJSON_GetObjectItemCaseSensitive(root, "base_svin_min_dur_s");
+    if (svin_dur_item && cJSON_IsNumber(svin_dur_item) && svin_dur_item->valuedouble >= 0 &&
+        svin_dur_item->valuedouble <= 65535) {
+        s.base_svin_min_dur_s = (uint16_t) svin_dur_item->valuedouble;
+    }
+    cJSON *svin_acc_item = cJSON_GetObjectItemCaseSensitive(root, "base_svin_acc_m");
+    if (svin_acc_item && cJSON_IsNumber(svin_acc_item) &&
+        (svin_acc_item->valuedouble == 0 || (svin_acc_item->valuedouble >= 0.01 && svin_acc_item->valuedouble <= 100))) {
+        s.base_svin_acc_m = (float) svin_acc_item->valuedouble;
     }
 
     cJSON *auto_update_enable_item = cJSON_GetObjectItemCaseSensitive(root, "auto_update_check_enable");
@@ -1426,13 +1464,44 @@ static esp_err_t ntrip_mountpoints_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+typedef struct {
+    httpd_req_t *req;   // copia asincrona della richiesta HTTP
+    bool as_base;
+    char host[65];
+    uint16_t port;
+    char mountpoint[33];
+    char username[33];
+    char password[65];
+} ntrip_test_job_t;
+
+static void ntrip_test_task(void *arg)
+{
+    ntrip_test_job_t *job = arg;
+    char msg[200];
+    bool ok = job->as_base
+        ? ntrip_client_test_source(job->host, job->port, job->mountpoint, job->password, msg, sizeof(msg))
+        : ntrip_rover_client_test_connect(job->host, job->port, job->mountpoint, job->username,
+                                          job->password, msg, sizeof(msg));
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    cJSON_AddStringToObject(resp, "message", msg);
+    char *json = cJSON_PrintUnformatted(resp);
+    httpd_resp_set_type(job->req, "application/json");
+    httpd_resp_set_hdr(job->req, "Cache-Control", "no-store, no-cache, must-revalidate");
+    httpd_resp_sendstr(job->req, json);
+    free(json);
+    cJSON_Delete(resp);
+
+    httpd_req_async_handler_complete(job->req);
+    memset(job->password, 0, sizeof(job->password));
+    free(job);
+    vTaskDelete(NULL);
+}
+
 // Prova subito una connessione NTRIP con i parametri inviati dalla pagina
 // (non ancora necessariamente salvati) - stessa idea del "Connetti" per il
-// WiFi, ma qui e' una singola richiesta TCP breve (timeout 6s dentro
-// ntrip_rover_client_test_connect()), non tocca la radio: si puo' eseguire
-// direttamente in questo task del server web, senza il task dedicato che
-// serve invece per il test WiFi (quello sposta davvero il canale radio e
-// puo' bloccare la pagina stessa se fatto in linea).
+// WiFi. La prova vera gira in ntrip_test_task, vedi in fondo alla funzione.
 static esp_err_t ntrip_test_connect_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -1517,20 +1586,32 @@ static esp_err_t ntrip_test_connect_post_handler(httpd_req_t *req)
     password[sizeof(password) - 1] = '\0';
     cJSON_Delete(root);
 
-    char msg[200];
-    bool ok = as_base
-        ? ntrip_client_test_source(host, port, mountpoint, password, msg, sizeof(msg))
-        : ntrip_rover_client_test_connect(host, port, mountpoint, username, password, msg, sizeof(msg));
-
-    cJSON *resp = cJSON_CreateObject();
-    cJSON_AddBoolToObject(resp, "ok", ok);
-    cJSON_AddStringToObject(resp, "message", msg);
-    char *json = cJSON_PrintUnformatted(resp);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
-    httpd_resp_sendstr(req, json);
-    free(json);
-    cJSON_Delete(resp);
+    // La prova (DNS + connessione + risposta del caster, fino a ~15 s con un
+    // caster che non risponde) gira in un task a parte con la richiesta resa
+    // asincrona: fatta qui teneva fermo l'intero server web e il pannello
+    // non rispondeva a nessuno per tutto quel tempo (misurato: 18 s).
+    ntrip_test_job_t *job = calloc(1, sizeof(*job));
+    if (!job) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+        return ESP_FAIL;
+    }
+    job->as_base = as_base;
+    job->port = port;
+    memcpy(job->host, host, sizeof(job->host));
+    memcpy(job->mountpoint, mountpoint, sizeof(job->mountpoint));
+    memcpy(job->username, username, sizeof(job->username));
+    memcpy(job->password, password, sizeof(job->password));
+    if (httpd_req_async_handler_begin(req, &job->req) != ESP_OK) {
+        free(job);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "richiesta asincrona non disponibile");
+        return ESP_FAIL;
+    }
+    if (xTaskCreate(ntrip_test_task, "ntrip_test", 6144, job, 5, NULL) != pdPASS) {
+        httpd_resp_send_err(job->req, HTTPD_500_INTERNAL_SERVER_ERROR, "task di prova non avviato");
+        httpd_req_async_handler_complete(job->req);
+        free(job);
+        return ESP_FAIL;
+    }
     return ESP_OK;
 }
 

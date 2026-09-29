@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.19.66"
+#define FIRMWARE_VERSION "1.19.67"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Credenziali caster separate per base e rover: passando da una modalita' all'altra ognuna tiene le sue."
+#define FIRMWARE_RELEASE_NOTES "Survey-in configurabile dal pannello; campi avvisi e utente del caster locale svuotabili; pannello non piu' bloccato durante la prova di connessione."

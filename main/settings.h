@@ -332,6 +332,14 @@ typedef struct {
     char rover_mountpoint[33];
     char rover_username[33];
     char rover_password[64];
+
+    // Survey-in automatico della base: durata minima (s) e precisione
+    // richiesta (m) prima di fissare la posizione e iniziare a mandare 1005.
+    // 0 = valore predefinito del chip (u-blox 60 s / 0,25 m; Unicore e
+    // LC29H 60 s / 2,5 m, come prima della 1.19.66), cosi' un blob di
+    // versioni precedenti (campi a zero) non cambia comportamento.
+    uint16_t base_svin_min_dur_s;
+    float base_svin_acc_m;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

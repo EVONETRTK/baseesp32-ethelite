@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.67
+
+- **Survey-in configurabile dal pannello** (scheda GNSS & NTRIP → Posizione base, modalita' automatica): durata minima (s) e precisione richiesta (m), nuovi campi `base_svin_min_dur_s`/`base_svin_acc_m` in coda ad `app_settings_t`. 0 = predefinito del chip, invariato rispetto a prima: u-blox 60 s / 0,25 m, Unicore e LC29H 60 s / 2,5 m. Serve per esempio vicino a una finestra, dove 0,25 m non si raggiunge mai e senza survey-in completo la base non manda 1005. Il riquadro ora ha anche "Salva e riavvia", perche' il survey-in si imposta all'avvio.
+- **Campi che ora si possono svuotare** (`copy_field_allow_empty()`), prima la stringa vuota veniva ignorata: host SMTP, destinatario email e numero WhatsApp degli avvisi (vuoto = canale spento) e utente del caster locale. Utente del caster locale vuoto = rover accettati senza credenziali: il firmware cancella anche la password, che altrimenti dal form non si poteva togliere.
+
+- **Pannello bloccato durante "Prova connessione al caster"**: la prova girava dentro il server web e, verso un caster che non risponde, `connect()` restava bloccata ~18 s (i timeout di invio e ricezione non valgono per la connessione). Misurato: una richiesta di stato fatta nel frattempo ha aspettato 15 s. Ora la prova gira in un task a parte con richiesta HTTP asincrona (`httpd_req_async_handler_begin`), e tutte le connessioni al caster (base, rover, prova, elenco mountpoint) hanno un timeout vero di 8 s (`net_connect_timeout()` in `net_util.h`).
+
 ## 1.19.66
 
 - **Credenziali del caster separate per base e rover.** Prima mountpoint, utente e password erano un solo gruppo di campi: passando a base la password sorgente sostituiva quella del rover (trovato in pratica, la password rover di "pippo" e' andata persa) e una base poteva partire sulla mountpoint del rover (es. ALTAMURA, di produzione). Ora:

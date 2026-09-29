@@ -48,8 +48,14 @@ static int source_handshake(const char *host, uint16_t port, const char *mountpo
         setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     }
 
-    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
-        snprintf(err, err_size, "Connessione a %s:%u fallita (errno %d)", host, port, errno);
+    if (net_connect_timeout(sock, res->ai_addr, res->ai_addrlen, 8) != 0) {
+        int e = errno;
+        const char *why = net_errno_text(e);
+        if (why) {
+            snprintf(err, err_size, "Connessione a %s:%u fallita: %s", host, port, why);
+        } else {
+            snprintf(err, err_size, "Connessione a %s:%u fallita (errno %d)", host, port, e);
+        }
         net_close_now(sock);
         freeaddrinfo(res);
         return -1;

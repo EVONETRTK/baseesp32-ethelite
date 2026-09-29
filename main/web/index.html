@@ -447,6 +447,16 @@
         <option value="manual">Manuale (coordinate fisse)</option>
       </select>
     </label>
+    <div id="base-pos-auto-fields">
+      <label>Durata minima del survey-in (secondi)<input name="base_svin_min_dur_s" type="number" min="0" max="65535" step="1" placeholder="0 = predefinito (60)"></label>
+      <label>Precisione richiesta (metri)<input name="base_svin_acc_m" type="number" min="0" max="100" step="0.01" placeholder="0 = predefinito del ricevitore"></label>
+      <small class="hint">
+        La base inizia a trasmettere la sua posizione (1005) solo dopo almeno questa durata e con
+        precisione migliore di questo valore. 0 = predefinito: u-blox 60 s e 0,25 m, Unicore e
+        LC29H 60 s e 2,5 m. Con cielo parzialmente coperto (vicino a una finestra) una precisione
+        di 0,25 m puo' non arrivare mai: prova 1-2 m. Vale dal prossimo avvio.
+      </small>
+    </div>
     <div id="base-pos-manual-fields" style="display:none">
       <label>Latitudine (gradi decimali)<input name="base_fixed_lat_deg" type="number" step="0.0000001"></label>
       <label>Longitudine (gradi decimali)<input name="base_fixed_lon_deg" type="number" step="0.0000001"></label>
@@ -471,7 +481,7 @@
     </small>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="base_position_mode,base_fixed_lat_deg,base_fixed_lon_deg,base_fixed_height_m">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="base_position_mode,base_fixed_lat_deg,base_fixed_lon_deg,base_fixed_height_m,base_svin_min_dur_s,base_svin_acc_m" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -1444,6 +1454,8 @@ async function loadStatus() {
       f.base_fixed_lat_deg.value = s.base_fixed_lat_deg || 0;
       f.base_fixed_lon_deg.value = s.base_fixed_lon_deg || 0;
       f.base_fixed_height_m.value = s.base_fixed_height_m || 0;
+      f.base_svin_min_dur_s.value = s.base_svin_min_dur_s || 0;
+      f.base_svin_acc_m.value = s.base_svin_acc_m ? Number(s.base_svin_acc_m.toFixed(2)) : 0;
       updateOledAddrHex();
       updateBasePosVisibility();
     }
@@ -1668,6 +1680,10 @@ function updateBasePosVisibility() {
   const fields = document.getElementById('base-pos-manual-fields');
   if (f && fields) {
     fields.style.display = (f.base_position_mode.value === 'manual') ? '' : 'none';
+  }
+  const autoFields = document.getElementById('base-pos-auto-fields');
+  if (f && autoFields) {
+    autoFields.style.display = (f.base_position_mode.value === 'manual') ? 'none' : '';
   }
 }
 document.getElementById('cfg-form').base_position_mode.addEventListener('change', updateBasePosVisibility);
@@ -1939,6 +1955,7 @@ const NUMBER_FIELDS = new Set([
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
   'alert_smtp_port', 'base_drift_threshold_m', 'ntrip_caster_server_port', 'base_fixed_lat_deg',
   'base_fixed_lon_deg', 'base_fixed_height_m', 'auto_update_check_interval_h',
+  'base_svin_min_dur_s', 'base_svin_acc_m',
   'bynav_ant1_x_m', 'bynav_ant1_y_m', 'bynav_ant1_z_m', 'bynav_ant2_x_m', 'bynav_ant2_y_m',
   'bynav_ant2_z_m', 'bynav_rbv_roll_deg', 'bynav_rbv_pitch_deg', 'bynav_rbv_yaw_deg',
 ]);

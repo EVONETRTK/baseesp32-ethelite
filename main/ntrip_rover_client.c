@@ -53,12 +53,18 @@ static int ntrip_rover_connect(const app_settings_t *settings)
         return -1;
     }
 
-    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
-        ESP_LOGE(TAG, "Connessione a %s:%d fallita: errno %d", settings->ntrip_host, settings->ntrip_port, errno);
+    if (net_connect_timeout(sock, res->ai_addr, res->ai_addrlen, 8) != 0) {
+        int e = errno;
+        ESP_LOGE(TAG, "Connessione a %s:%d fallita: errno %d", settings->ntrip_host, settings->ntrip_port, e);
         net_close_now(sock);
         freeaddrinfo(res);
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Connessione al caster fallita (errno %d)", errno);
+        char msg[160];
+        const char *why = net_errno_text(e);
+        if (why) {
+            snprintf(msg, sizeof(msg), "Connessione al caster fallita: %s", why);
+        } else {
+            snprintf(msg, sizeof(msg), "Connessione al caster fallita (errno %d)", e);
+        }
         status_ntrip_note_disconnected(msg);
         return -1;
     }
@@ -167,11 +173,16 @@ bool ntrip_rover_client_test_connect(const char *host, uint16_t port, const char
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
-    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
+    if (net_connect_timeout(sock, res->ai_addr, res->ai_addrlen, 8) != 0) {
         int e = errno;
         net_close_now(sock);
         freeaddrinfo(res);
-        snprintf(out_msg, out_msg_size, "Connessione a %s:%u fallita (errno %d)", host, port, e);
+        const char *why = net_errno_text(e);
+        if (why) {
+            snprintf(out_msg, out_msg_size, "Connessione a %s:%u fallita: %s", host, port, why);
+        } else {
+            snprintf(out_msg, out_msg_size, "Connessione a %s:%u fallita (errno %d)", host, port, e);
+        }
         return false;
     }
     freeaddrinfo(res);
@@ -274,7 +285,7 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     struct timeval tv = { .tv_sec = 8, .tv_usec = 0 };
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
+    if (net_connect_timeout(sock, res->ai_addr, res->ai_addrlen, 8) != 0) {
         ESP_LOGW(TAG, "Sourcetable: connessione a %s:%d fallita: errno %d", settings.ntrip_host, settings.ntrip_port, errno);
         net_close_now(sock);
         freeaddrinfo(res);
