@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.69
+
+- **Stato del survey-in della base visibile nel pannello** (scheda Stato, riga "Survey-in", solo u-blox in base): in corso da quanto e con quale precisione, oppure completato. Nuovo `svin_poll_task` in `gnss_ubx.c`, che ogni 10 s interroga UBX-NAV-SVIN (risposta letta da `gnss_ubx_ack.c`, campi `svin_*` in /api/status). Nel log, una riga ogni 5 minuti durante il survey-in e una quando si completa. La finestra di ascolto e' di 1,2 s, perche' i messaggi NAV interrogati partono alla soluzione di navigazione successiva: con 300 ms, come per MON-VER, la risposta non arrivava mai.
+- **Trovata con questa funzione la causa del 1005 mancante sul dispositivo di prova**: survey-in attivo da 20.083 s (5,6 h) con precisione ferma a 12,7 m contro i 2 m richiesti, quindi mai completato e posizione della base mai inviata. Causa: antenna con cielo coperto. Si nota anche che i riavvii dell'ESP32 non fanno ripartire il survey-in, perche' lo ZED resta acceso.
+- **Indicatore CPU falso dopo lunghe assenze** (98% su entrambi i core, 2% alla lettura successiva): il contatore di runtime FreeRTOS e' a 32 bit in µs e torna a zero ogni ~71 minuti. Oltre un'ora dall'ultima lettura ora si riparte dal campione attuale.
+- **Correzione a quanto scritto nella 1.19.68 sugli errori I2C**: `CONFIG_I2C_ISR_IRAM_SAFE` e i doppi tentativi non bastano. Le prove senza errori erano state fatte con l'archiviazione saltata (versione gia' presente sulla SD). Con una versione nuova, durante i ~3 s di scrittura del firmware sulla SD l'I2C verso lo ZED fallisce del tutto (9 errori di fila) e torna appena la SD viene smontata. Questo non e' un disturbo casuale ma un'interferenza sistematica tra microSD e bus I2C, probabilmente hardware: i pin della microSD (GPIO 9/10/11/12) sono i pin SPI del connettore a 40 pin, collegati a shield e HAT. Da verificare fisicamente. Effetto pratico: una breve interruzione dei dati dal ricevitore a ogni archiviazione (una volta per versione) e brevi disturbi a ogni montaggio della SD per il log diagnostico.
+
 ## 1.19.68
 
 - **Ethernet via cavo senza interrupt**: il driver W5500 registra l'interrupt del pin INT con `gpio_isr_handler_add()`, che richiede il servizio ISR GPIO gia' installato, ma nessuno lo installava. A ogni avvio compariva "GPIO isr service is not installed" e il W5500 restava senza interrupt, quindi senza ricezione dei pacchetti. Nessuno se ne era accorto perche' l'Ethernet non era mai stata provata con un cavo. Ora `eth_link.c` chiama `gpio_install_isr_service(0)` prima di creare il MAC, come gli esempi ufficiali ESP-IDF.

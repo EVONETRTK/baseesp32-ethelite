@@ -165,3 +165,29 @@ bool status_get_active_rover(void)
 {
     return s_active_rover;
 }
+
+// Scritto dal task che legge il ricevitore, letto dal server web: struct
+// piccola, copiata sotto sezione critica.
+static svin_status_t s_svin;
+static portMUX_TYPE s_svin_lock = portMUX_INITIALIZER_UNLOCKED;
+
+void status_svin_note(bool active, bool valid, uint32_t duration_s, float mean_acc_m, uint32_t observations)
+{
+    portENTER_CRITICAL(&s_svin_lock);
+    s_svin.have = true;
+    s_svin.active = active;
+    s_svin.valid = valid;
+    s_svin.duration_s = duration_s;
+    s_svin.mean_acc_m = mean_acc_m;
+    s_svin.observations = observations;
+    s_svin.last_update_us = esp_timer_get_time();
+    portEXIT_CRITICAL(&s_svin_lock);
+}
+
+svin_status_t status_svin_get(void)
+{
+    portENTER_CRITICAL(&s_svin_lock);
+    svin_status_t copy = s_svin;
+    portEXIT_CRITICAL(&s_svin_lock);
+    return copy;
+}

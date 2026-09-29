@@ -469,6 +469,17 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "base_fixed_height_m", s.base_fixed_height_m);
     cJSON_AddNumberToObject(root, "base_svin_min_dur_s", s.base_svin_min_dur_s);
     cJSON_AddNumberToObject(root, "base_svin_acc_m", s.base_svin_acc_m);
+    {
+        // Stato del survey-in letto dal ricevitore u-blox (solo base, vedi
+        // svin_poll_task in gnss_ubx.c). Assente se mai ricevuto.
+        svin_status_t sv = status_svin_get();
+        if (sv.have) {
+            cJSON_AddBoolToObject(root, "svin_active", sv.active);
+            cJSON_AddBoolToObject(root, "svin_valid", sv.valid);
+            cJSON_AddNumberToObject(root, "svin_duration_s", sv.duration_s);
+            cJSON_AddNumberToObject(root, "svin_mean_acc_m", sv.mean_acc_m);
+        }
+    }
     // Ultima posizione rilevata dal ricevitore (ECEF, dallo stesso stream
     // RTCM 1005/1006 usato sopra per il rilevamento spostamenti) convertita
     // in lat/lon/quota - proposta dalla UI come default quando si passa a

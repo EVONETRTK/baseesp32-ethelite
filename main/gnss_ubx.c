@@ -2,6 +2,8 @@
 #include "gnss_io.h"
 #include "settings.h"
 #include "gnss_ubx_ack.h"
+#include "status.h"
+#include "esp_timer.h"
 
 #include <string.h>
 #include "esp_log.h"
@@ -172,6 +174,7 @@ static esp_err_t ubx_valset(uart_port_t uart_num, const char *label, const ubx_c
 // impostazioni vengono ignorati con un log, non c'e' modo di inviarli.
 static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
                                    const ubx_cfg_kv32_t *kvs, size_t n);
+static void svin_poll_task(void *arg);
 
 esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
 {
@@ -229,6 +232,9 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     };
     ubx_valset_group(uart_num, "TMODE (survey-in)", kvs_tmode, sizeof(kvs_tmode) / sizeof(kvs_tmode[0]));
 
+    // Stato del survey-in per log e pannello (vedi svin_poll_task).
+    xTaskCreate(svin_poll_task, "ubx_svin", 3072, (void *) (intptr_t) uart_num, 3, NULL);
+
     return ESP_OK;
 }
 
@@ -247,6 +253,40 @@ static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
         ESP_LOGE(TAG, "[%s] invio fallito verso il ricevitore", group_name);
     }
     return err;
+}
+
+// Ogni 10 s chiede al ricevitore lo stato del survey-in (UBX-NAV-SVIN, la
+// risposta la legge gnss_ubx_ack.c e la mette in status.c per il pannello).
+// Prima non si sapeva se il survey-in stesse andando avanti: una base senza
+// survey-in completato non manda mai 1005 (la sua posizione) e i rover non
+// possono usarla, senza nessun segno visibile.
+static void svin_poll_task(void *arg)
+{
+    uart_port_t uart_num = (uart_port_t) (intptr_t) arg;
+    bool logged_valid = false;
+    int64_t last_log_us = 0;
+    while (1) {
+        if (ubx_send(uart_num, 0x01, 0x3B, NULL, 0) == ESP_OK) {
+            // Nessun ACK per un poll: l'attesa serve solo a tenere aperta la
+            // finestra di ascolto (vedi gnss_ubx_ack.h) finche' arriva la
+            // risposta. I messaggi NAV polled partono alla soluzione di
+            // navigazione successiva, fino a 1 s dopo (con 300 ms, come per
+            // MON-VER, la risposta non arrivava mai in tempo).
+            gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
+        }
+        svin_status_t sv = status_svin_get();
+        int64_t now = esp_timer_get_time();
+        if (sv.have && sv.valid && !logged_valid) {
+            ESP_LOGI(TAG, "Survey-in completato: %u s, precisione %.2f m, %u osservazioni - la base manda la sua posizione (1005)",
+                     (unsigned) sv.duration_s, sv.mean_acc_m, (unsigned) sv.observations);
+            logged_valid = true;
+        } else if (sv.have && !sv.valid && now - last_log_us > 5LL * 60 * 1000000) {
+            ESP_LOGI(TAG, "Survey-in %s: %u s, precisione attuale %.2f m",
+                     sv.active ? "in corso" : "non attivo", (unsigned) sv.duration_s, sv.mean_acc_m);
+            last_log_us = now;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
 }
 
 esp_err_t gnss_ubx_poll_version(uart_port_t uart_num)

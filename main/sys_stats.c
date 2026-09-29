@@ -38,7 +38,12 @@ static float compute_cpu_percent(int core_idx, TaskHandle_t idle_handle, int64_t
     if (prev->have_baseline) {
         uint32_t idle_delta = idle_us - prev->idle_us;
         int64_t wall_delta = now_wall_us - prev->wall_us;
-        if (wall_delta > 0) {
+        // ulRunTimeCounter e' a 32 bit in microsecondi: torna a zero ogni
+        // ~71 minuti. Se dall'ultima lettura e' passato piu' di un giro (il
+        // pannello e' rimasto chiuso a lungo), il delta non e' affidabile:
+        // si riparte da questa lettura invece di mostrare un valore falso
+        // (visto: 98% su entrambi i core dopo 5 h, 2% alla lettura dopo).
+        if (wall_delta > 0 && wall_delta < 60LL * 60 * 1000000) {
             float idle_pct = ((float) idle_delta / (float) wall_delta) * 100.0f;
             if (idle_pct < 0) idle_pct = 0;
             if (idle_pct > 100) idle_pct = 100;

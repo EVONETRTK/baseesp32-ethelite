@@ -140,6 +140,7 @@
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
       <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
       <dt>Fix GNSS</dt><dd id="st-fix">-</dd>
+      <dt data-mode="base">Survey-in (posizione base)</dt><dd id="st-svin" data-mode="base">-</dd>
       <dt>Scheda microSD</dt><dd id="st-sd">-</dd>
       <dt id="st-sd-space-label" style="display:none">Spazio SD</dt>
       <dd id="st-sd-space" style="display:none">
@@ -1328,6 +1329,19 @@ async function loadStatus() {
     }
     document.getElementById('st-mode').textContent = s.device_mode === 'rover' ? 'Rover' : 'Base';
     activeDeviceMode = s.active_device_mode || (s.device_mode === 'rover' ? 'rover' : 'base');
+    {
+      // Stato del survey-in letto dal ricevitore (solo u-blox in base)
+      const el = document.getElementById('st-svin');
+      if (s.svin_valid === undefined) {
+        el.textContent = 'non disponibile';
+      } else if (s.svin_valid) {
+        el.textContent = '✅ completato (' + s.svin_duration_s + ' s, precisione ' + s.svin_mean_acc_m.toFixed(2) + ' m): la base manda la sua posizione';
+      } else if (s.svin_active) {
+        el.textContent = '⏳ in corso da ' + s.svin_duration_s + ' s, precisione attuale ' + s.svin_mean_acc_m.toFixed(2) + ' m';
+      } else {
+        el.textContent = '⚠️ non attivo: la base non manda la sua posizione (1005)';
+      }
+    }
     updateModeBadge(activeDeviceMode, s.device_mode === 'rover' ? 'rover' : 'base', s.ap_ssid);
     updateModeVisibility();
     {

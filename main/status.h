@@ -102,3 +102,20 @@ bynav_ins_status_t status_bynav_ins_get(void);
 // subito al salvataggio ma si applica solo dopo il riavvio. true = rover.
 void status_set_active_rover(bool rover);
 bool status_get_active_rover(void);
+
+// Stato del survey-in della base, letto dal ricevitore u-blox (UBX-NAV-SVIN,
+// interrogato ogni 10 s da gnss_ubx.c in modalita' base). have = almeno una
+// risposta ricevuta; valid = survey-in completato (posizione fissata, il
+// ricevitore manda 1005); active = in corso.
+typedef struct {
+    bool have;
+    bool active;
+    bool valid;
+    uint32_t duration_s;
+    float mean_acc_m;
+    uint32_t observations;
+    int64_t last_update_us;
+} svin_status_t;
+
+void status_svin_note(bool active, bool valid, uint32_t duration_s, float mean_acc_m, uint32_t observations);
+svin_status_t status_svin_get(void);

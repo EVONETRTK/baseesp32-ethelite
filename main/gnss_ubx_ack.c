@@ -1,4 +1,5 @@
 #include "gnss_ubx_ack.h"
+#include "status.h"
 
 #include <string.h>
 
@@ -150,6 +151,16 @@ bool gnss_ubx_ack_feed_byte(uint8_t c)
             if (s_ack_queue) {
                 xQueueOverwrite(s_ack_queue, &res); // solo l'ultimo interessa
             }
+        } else if (checksum_ok && s_class == 0x01 && s_id == 0x3B && s_len >= 40) {
+            // UBX-NAV-SVIN (u-blox Interface Description): dur U4 @8 (s),
+            // meanAcc U4 @28 (0,1 mm), obs U4 @32, valid U1 @36, active U1 @37.
+            uint32_t dur = (uint32_t) s_payload[8] | ((uint32_t) s_payload[9] << 8) |
+                           ((uint32_t) s_payload[10] << 16) | ((uint32_t) s_payload[11] << 24);
+            uint32_t acc = (uint32_t) s_payload[28] | ((uint32_t) s_payload[29] << 8) |
+                           ((uint32_t) s_payload[30] << 16) | ((uint32_t) s_payload[31] << 24);
+            uint32_t obs = (uint32_t) s_payload[32] | ((uint32_t) s_payload[33] << 8) |
+                           ((uint32_t) s_payload[34] << 16) | ((uint32_t) s_payload[35] << 24);
+            status_svin_note(s_payload[37] != 0, s_payload[36] != 0, dur, acc / 10000.0f, obs);
         } else if (checksum_ok && s_class == 0x0A && s_id == 0x04) {
             // UBX-MON-VER: risposta a un poll diagnostico (non un ACK/NAK),
             // usata per sapere con certezza cosa risponde davvero questo
