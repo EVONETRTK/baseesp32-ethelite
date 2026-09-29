@@ -96,6 +96,11 @@ static void gnss_uart_task(void *arg)
 
 static void fw_archive_save_current_task(void *arg)
 {
+    // Non urgente: si aspetta che l'avvio sia finito (configurazione del
+    // ricevitore, rete, caster). Fatta subito, la copia di ~1,5 MB sulla SD
+    // coincideva esattamente con gli errori I2C verso il ricevitore u-blox
+    // all'avvio (visto sul dispositivo, 1.19.68).
+    vTaskDelay(pdMS_TO_TICKS(30000));
     fw_archive_save_current();
     vTaskDelete(NULL);
 }

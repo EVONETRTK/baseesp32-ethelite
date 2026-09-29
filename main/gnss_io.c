@@ -6,6 +6,7 @@
 #include "driver/uart.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/task.h"
 #include "freertos/stream_buffer.h"
 
@@ -38,11 +39,29 @@ static i2c_master_dev_handle_t s_dev;
 static StreamBufferHandle_t s_i2c_rx;
 static StreamBufferHandle_t s_i2c_tx;
 
+// Serie di errori consecutivi, per un riepilogo nel log quando il bus torna
+// a funzionare (quanti errori e per quanto tempo): serve a capire con cosa
+// coincidono (es. scritture sulla SD, attivita' WiFi all'avvio).
+static int s_err_streak;
+static int64_t s_err_streak_start_us;
+
 static void i2c_recover(const char *what, esp_err_t err)
 {
+    if (s_err_streak++ == 0) {
+        s_err_streak_start_us = esp_timer_get_time();
+    }
     ESP_LOGW(TAG, "I2C %s fallita (%s): reset del bus", what, esp_err_to_name(err));
     i2c_master_bus_reset(s_bus);
     vTaskDelay(pdMS_TO_TICKS(50));
+}
+
+static void i2c_note_ok(void)
+{
+    if (s_err_streak > 0) {
+        ESP_LOGI(TAG, "I2C di nuovo funzionante dopo %d errori in %lld ms", s_err_streak,
+                 (esp_timer_get_time() - s_err_streak_start_us) / 1000);
+        s_err_streak = 0;
+    }
 }
 
 // Unico task che parla con il ricevitore via I2C: manda quello che gli
@@ -72,7 +91,16 @@ static void i2c_poll_task(void *arg)
         if (off == 1) {
             pending = buf[0];
         } else if (off > 1) {
+            // Un secondo tentativo immediato prima di dare errore: un disturbo
+            // isolato sul bus (visto sul dispositivo a ogni montaggio della
+            // microSD, con i soli pull-up interni dell'ESP32) faceva perdere
+            // la scrittura, cioe' un comando o un pezzo di RTCM verso il
+            // ricevitore.
             esp_err_t err = i2c_master_transmit(s_dev, buf, off, 500);
+            if (err != ESP_OK) {
+                i2c_master_bus_reset(s_bus);
+                err = i2c_master_transmit(s_dev, buf, off, 500);
+            }
             if (err != ESP_OK) {
                 i2c_recover("scrittura", err);
             }
@@ -83,14 +111,29 @@ static void i2c_poll_task(void *arg)
         uint8_t avail_be[2];
         esp_err_t err = i2c_master_transmit_receive(s_dev, &reg, 1, avail_be, 2, 100);
         if (err != ESP_OK) {
+            // Come sopra: si ripete una volta prima di considerarlo un errore.
+            i2c_master_bus_reset(s_bus);
+            err = i2c_master_transmit_receive(s_dev, &reg, 1, avail_be, 2, 100);
+        }
+        if (err != ESP_OK) {
             i2c_recover("lettura byte pronti", err);
             continue;
         }
+        i2c_note_ok();
         uint16_t avail = (uint16_t) ((avail_be[0] << 8) | avail_be[1]);
         if (avail != 0 && avail != 0xFFFF) {
             size_t n = avail < I2C_READ_CHUNK ? avail : I2C_READ_CHUNK;
             reg = UBX_I2C_REG_STREAM;
-            err = i2c_master_transmit_receive(s_dev, &reg, 1, buf, n, 200);
+            err = i2c_master_transmit_receive(s_dev, &reg, 1, buf, n, 400);
+            if (err != ESP_OK) {
+                // Stesso secondo tentativo delle altre transazioni (visto un
+                // timeout qui durante lo smontaggio della microSD). Se il
+                // primo tentativo aveva gia' letto una parte dei byte, quei
+                // byte sono persi: il frame RTCM interessato verra' scartato
+                // dal controllo CRC, i successivi arrivano normalmente.
+                i2c_master_bus_reset(s_bus);
+                err = i2c_master_transmit_receive(s_dev, &reg, 1, buf, n, 400);
+            }
             if (err == ESP_OK) {
                 xStreamBufferSend(s_i2c_rx, buf, n, pdMS_TO_TICKS(100));
             } else {

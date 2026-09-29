@@ -84,3 +84,10 @@ CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 # CONFIG_LWIP_MAX_ACTIVE_TCP bloccavano ogni risposta TCP della scheda
 # (pannello web) mentre il caster rifiutava le connessioni.
 CONFIG_LWIP_SO_LINGER=y
+
+# Interrupt del driver I2C eseguibile anche con la cache disabilitata
+# (letture/scritture della flash: archiviazione del firmware su SD, salvataggio
+# impostazioni NVS, aggiornamenti OTA). Senza, durante quelle operazioni
+# l'interrupt veniva ritardato e le transazioni verso il ricevitore u-blox
+# via I2C fallivano (errori all'avvio visti sul dispositivo, 1.19.68).
+CONFIG_I2C_ISR_IRAM_SAFE=y

@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Fix Ethernet via cavo (interrupt W5500 mai attivato) e microSD che spesso non si montava all'avvio."
+#define FIRMWARE_RELEASE_NOTES "Fix Ethernet via cavo (interrupt W5500), microSD a volte non montata, errori I2C col ricevitore u-blox all'avvio."
