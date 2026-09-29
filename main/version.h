@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "microSD e ricevitore via I2C non si bloccano piu' a vicenda; registrazione PPP a blocchi; pulsante formattazione microSD."
+#define FIRMWARE_RELEASE_NOTES "Conteggio satelliti in vista; base di nuovo sul caster subito dopo un riavvio; microSD e ricevitore I2C non si bloccano piu'; stato del survey-in nel pannello."
