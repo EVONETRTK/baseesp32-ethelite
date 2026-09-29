@@ -49,3 +49,8 @@ esp_err_t sd_mount_retry(const char *base_path, const sdmmc_host_t *host,
     s_last_fail_us = (err == ESP_OK) ? -1 : esp_timer_get_time();
     return err;
 }
+
+bool sd_mutex_try_take(TickType_t ticks)
+{
+    return xSemaphoreTakeRecursive(s_sd_mutex, ticks) == pdTRUE;
+}

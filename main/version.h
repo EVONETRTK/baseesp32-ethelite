@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.19.70"
+#define FIRMWARE_VERSION "1.19.71"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Pulsante formattazione microSD (FAT32); con ricevitore via I2C la SD non si usa piu' in automatico (sulla base di prova blocca l'I2C)."
+#define FIRMWARE_RELEASE_NOTES "microSD e ricevitore via I2C non si bloccano piu' a vicenda; registrazione PPP a blocchi; pulsante formattazione microSD."

@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.71
+
+- **microSD e ricevitore via I2C ora convivono, via software** (richiesta dell'utente, invece del ripiego della 1.19.70). Il filo resta condiviso (GPIO10: clock della SD e linea I2C tramite l'HAT), ma i due non lo usano mai insieme:
+  - il task che parla con il ricevitore (`gnss_io.c`) usa l'I2C solo se riesce a prendere lo stesso lucchetto dei moduli della SD (`sd_mutex_try_take()`), cioe' mai mentre la SD e' montata. Smontata la SD il pin torna libero e l'I2C riprende; nelle brevi pause il ricevitore tiene i dati nel suo buffer;
+  - log diagnostico e archiviazione del firmware all'avvio di nuovo attivi (disattivati nella 1.19.70);
+  - **registrazione PPP a blocchi**: prima teneva la SD montata per tutta la durata, e con il ricevitore via I2C non riceveva nulla (0 byte). Ora accumula in memoria (12 KB) e scrive ogni 10 s (monta, aggiunge, smonta).
+
 ## 1.19.70
 
 - **Richiesta dell'utente: formattare la microSD dalla base.** Nuovo pulsante "🧹 Formatta microSD (FAT32)" nella scheda Firmware, con conferma perche' cancella tutto (endpoint `POST /api/sd/format` con `{"confirm":"FORMATTA"}`, `sd_format_card()` in `sd_update.c`, eseguito in un task con richiesta HTTP asincrona perche' su schede grandi dura minuti). Serve per le schede che la base non legge: exFAT (le schede oltre 32 GB escono cosi' di fabbrica, e il FatFs di ESP-IDF 5.3 ha l'exFAT disattivato nel sorgente, `FF_FS_EXFAT 0`) o con le partizioni di un Raspberry Pi. Trovato provando una seconda microSD, che la base vedeva ma non montava (ESP_FAIL). Se il filesystem e' gia' leggibile riformatta esplicitamente, altrimenti formatta una sola volta durante il montaggio. Cluster da 32 KB.

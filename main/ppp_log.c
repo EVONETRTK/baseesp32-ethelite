@@ -2,6 +2,8 @@
 #include "sd_mutex.h"
 
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include "sdkconfig.h"
 #include "esp_log.h"
@@ -105,52 +107,97 @@ static void unmount_sd(void)
 // qui al massimo ogni 500ms) ed e' l'unico a scrivere byte sul file,
 // cosi' non serve nessun lock sul FILE* stesso (solo sullo status
 // condiviso con la UI, protetto da s_status_mutex).
+// I dati si accumulano in memoria e vengono scritti sulla SD a blocchi
+// (monta, aggiunge, smonta) invece di tenerla montata per tutta la
+// registrazione: con il ricevitore via I2C, finche' la SD e' montata il
+// ricevitore non puo' comunicare (clock della SD e linea I2C condividono un
+// filo sulla base di prova, vedi gnss_io.c), quindi una registrazione con la
+// SD sempre montata non riceveva nulla da registrare (misurato: 0 byte).
+// Una scrittura ogni 10 s ferma il ricevitore per pochi decimi di secondo,
+// che il suo buffer assorbe. Utile anche per l'usura della scheda.
+#define PPP_CHUNK_BYTES     (12 * 1024)
+#define PPP_FLUSH_EVERY_US  (10LL * 1000 * 1000)
+
+static bool ppp_append(const uint8_t *data, size_t len, bool truncate)
+{
+    if (!mount_sd()) {
+        return false;
+    }
+    FILE *f = fopen(LOG_FILENAME, truncate ? "wb" : "ab");
+    if (!f) {
+        ESP_LOGE(TAG, "Impossibile aprire %s in scrittura", LOG_FILENAME);
+        unmount_sd();
+        return false;
+    }
+    size_t written = len ? fwrite(data, 1, len, f) : 0;
+    fclose(f);
+    unmount_sd();
+    if (written > 0) {
+        xSemaphoreTake(s_status_mutex, portMAX_DELAY);
+        s_bytes_written += written;
+        xSemaphoreGive(s_status_mutex);
+    }
+    return written == len;
+}
+
 static void ppp_log_task(void *arg)
 {
-    FILE *f = NULL;
     uint8_t buf[512];
+    uint8_t *chunk = NULL;
+    size_t chunk_len = 0;
+    int64_t last_flush_us = 0;
 
     while (1) {
         size_t n = xStreamBufferReceive(s_feed_stream, buf, sizeof(buf), pdMS_TO_TICKS(500));
 
-        if (s_should_record && !f) {
-            if (mount_sd()) {
-                f = fopen(LOG_FILENAME, "wb");
-                if (!f) {
-                    ESP_LOGE(TAG, "Impossibile aprire %s in scrittura", LOG_FILENAME);
-                    unmount_sd();
-                    s_should_record = false;
-                } else {
-                    ESP_LOGI(TAG, "Registrazione PPP avviata: %s", LOG_FILENAME);
-                    status_mutex_init();
-                    xSemaphoreTake(s_status_mutex, portMAX_DELAY);
-                    s_recording = true;
-                    s_bytes_written = 0;
-                    s_started_at_us = esp_timer_get_time();
-                    xSemaphoreGive(s_status_mutex);
-                }
-            } else {
+        if (s_should_record && !s_recording) {
+            chunk = malloc(PPP_CHUNK_BYTES);
+            // File nuovo e vuoto: le scritture successive si aggiungono.
+            if (!chunk || !ppp_append(NULL, 0, true)) {
+                ESP_LOGE(TAG, "Registrazione PPP non avviata (%s)", chunk ? "SD non disponibile" : "memoria insufficiente");
+                free(chunk);
+                chunk = NULL;
                 s_should_record = false;
+                continue;
             }
-        } else if (!s_should_record && f) {
-            fclose(f);
-            f = NULL;
-            unmount_sd();
+            chunk_len = 0;
+            last_flush_us = esp_timer_get_time();
+            ESP_LOGI(TAG, "Registrazione PPP avviata: %s (scrittura a blocchi ogni 10 s)", LOG_FILENAME);
+            xSemaphoreTake(s_status_mutex, portMAX_DELAY);
+            s_recording = true;
+            s_bytes_written = 0;
+            s_started_at_us = esp_timer_get_time();
+            xSemaphoreGive(s_status_mutex);
+        }
+
+        if (s_recording && n > 0) {
+            size_t take = n;
+            if (chunk_len + take > PPP_CHUNK_BYTES) {
+                take = PPP_CHUNK_BYTES - chunk_len; // il resto andrebbe perso: non dovrebbe succedere, flush sotto
+            }
+            memcpy(chunk + chunk_len, buf, take);
+            chunk_len += take;
+        }
+
+        bool stopping = s_recording && !s_should_record;
+        if (s_recording && chunk_len > 0 &&
+            (stopping || chunk_len >= PPP_CHUNK_BYTES - sizeof(buf) ||
+             esp_timer_get_time() - last_flush_us >= PPP_FLUSH_EVERY_US)) {
+            if (!ppp_append(chunk, chunk_len, false)) {
+                ESP_LOGW(TAG, "Scrittura di %u byte sulla SD fallita", (unsigned) chunk_len);
+            }
+            chunk_len = 0;
+            last_flush_us = esp_timer_get_time();
+        }
+
+        if (stopping) {
+            free(chunk);
+            chunk = NULL;
             ESP_LOGI(TAG, "Registrazione PPP fermata (%llu byte)", (unsigned long long) s_bytes_written);
-            status_mutex_init();
             xSemaphoreTake(s_status_mutex, portMAX_DELAY);
             s_recording = false;
             s_file_exists = true;
             xSemaphoreGive(s_status_mutex);
-        }
-
-        if (f && n > 0) {
-            size_t written = fwrite(buf, 1, n, f);
-            if (written > 0) {
-                xSemaphoreTake(s_status_mutex, portMAX_DELAY);
-                s_bytes_written += written;
-                xSemaphoreGive(s_status_mutex);
-            }
         }
     }
 }

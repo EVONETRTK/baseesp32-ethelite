@@ -55,3 +55,10 @@ esp_err_t sd_mount_retry(const char *base_path, const sdmmc_host_t *host,
                          const sdspi_device_config_t *slot, const esp_vfs_fat_mount_config_t *cfg,
                          sdmmc_card_t **out_card);
 
+
+// Come sd_mutex_take() ma senza aspettare oltre ticks: true se preso (va poi
+// rilasciato con sd_mutex_give()). Usato dal task che parla con il ricevitore
+// via I2C per non usare il bus mentre la microSD e' montata: sulla base di
+// prova il clock della SD (GPIO10) e' collegato a una linea I2C tramite l'HAT
+// del ricevitore, quindi i due non possono lavorare nello stesso momento.
+bool sd_mutex_try_take(TickType_t ticks);

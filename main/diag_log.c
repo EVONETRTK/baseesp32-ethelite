@@ -162,25 +162,8 @@ static void diag_log_task(void *arg)
     }
 }
 
-// Funzione a parte (non inline): la copia di app_settings_t (~1,7 KB) resta
-// nel suo stack e non in quello del task main, che chiama diag_log_start().
-static __attribute__((noinline)) bool gnss_on_i2c(void)
-{
-    return settings_get().gnss_i2c;
-}
-
 void diag_log_start(void)
 {
-    // Con il ricevitore u-blox via I2C la microSD non si usa in automatico:
-    // sulla base di prova (T-ETH-Elite + HAT Syneda uRTK6.0) il pin 23 del
-    // connettore, cioe' il clock della SD (GPIO10), risulta collegato a una
-    // linea I2C tramite l'HAT, e ogni montaggio della SD bloccava l'I2C con
-    // lo ZED (verificato pilotando un pin alla volta). Il log diagnostico
-    // montava la SD ogni 30 s.
-    if (gnss_on_i2c()) {
-        ESP_LOGW(TAG, "Log diagnostico su SD disattivato: ricevitore via I2C, la SD bloccherebbe l'I2C (vedi CHANGELOG 1.19.70)");
-        return;
-    }
     s_stream = xStreamBufferCreate(4096, 1);
     log_buffer_set_sink(s_stream);
     xTaskCreate(diag_log_task, "diag_log", 4096, NULL, 2, NULL);

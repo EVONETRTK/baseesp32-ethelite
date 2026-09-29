@@ -505,11 +505,6 @@
       <dt>Dimensione</dt><dd id="ppp-log-size">-</dd>
     </dl>
     <div id="ppp-log-msg" class="hint" style="margin-top:.4rem"></div>
-    <small class="hint i2c-sd-warn" hidden style="color:#b45309">
-      ⚠️ Ricevitore collegato via I2C: mentre la microSD e' in uso il ricevitore non comunica (sulla base
-      di prova il clock della SD, pin 23 del connettore, e' collegato a una linea I2C tramite l'HAT).
-      Per questo log diagnostico e archivio firmware automatici su SD sono disattivati.
-    </small>
     <small class="hint">
       Nessun invio automatico: il file resta sul dispositivo finche' non lo scarichi tu. Per convertirlo in
       RINEX (formato richiesto da tutti i servizi PPP), sul tuo PC con
@@ -939,11 +934,6 @@
     </p>
     <button type="button" class="action" id="fw-sd-btn">Controlla e aggiorna da SD</button>
     <div id="fw-sd-msg" class="hint" style="margin-top:.6rem"></div>
-    <small class="hint i2c-sd-warn" hidden style="color:#b45309">
-      ⚠️ Ricevitore collegato via I2C: mentre la microSD e' in uso il ricevitore non comunica (sulla base
-      di prova il clock della SD, pin 23 del connettore, e' collegato a una linea I2C tramite l'HAT).
-      Per questo log diagnostico e archivio firmware automatici su SD sono disattivati.
-    </small>
     <button type="button" class="action secondary" id="sd-format-btn" style="margin-top:1rem">🧹 Formatta microSD (FAT32)</button>
     <small class="hint">
       Per le schede che la base non sa leggere: formattate in exFAT (tutte quelle oltre 32 GB escono
@@ -1359,7 +1349,6 @@ async function loadStatus() {
         el.textContent = '⚠️ non attivo: la base non manda la sua posizione (1005)';
       }
     }
-    document.querySelectorAll('.i2c-sd-warn').forEach((el) => { el.hidden = s.gnss_link !== 'i2c'; });
     updateModeBadge(activeDeviceMode, s.device_mode === 'rover' ? 'rover' : 'base', s.ap_ssid);
     updateModeVisibility();
     {

@@ -1,5 +1,6 @@
 #include "gnss_io.h"
 #include "i2c_shared_bus.h"
+#include "sd_mutex.h"
 
 #include <string.h>
 
@@ -80,6 +81,16 @@ static void i2c_poll_task(void *arg)
     int pending = -1;
 
     while (1) {
+        // Mai I2C mentre la microSD e' montata: sulla base di prova il clock
+        // della SD (GPIO10) e' collegato a una linea I2C tramite l'HAT, e le
+        // due cose insieme bloccano il bus (verificato pilotando un pin alla
+        // volta, vedi CHANGELOG 1.19.70). Il lucchetto e' quello gia' usato da
+        // tutti i moduli che montano la SD; durante le brevi pause il
+        // ricevitore tiene i dati nel suo buffer.
+        if (!sd_mutex_try_take(0)) {
+            vTaskDelay(pdMS_TO_TICKS(I2C_POLL_IDLE_MS));
+            continue;
+        }
         bool did_work = false;
 
         size_t off = 0;
@@ -116,7 +127,8 @@ static void i2c_poll_task(void *arg)
             err = i2c_master_transmit_receive(s_dev, &reg, 1, avail_be, 2, 100);
         }
         if (err != ESP_OK) {
-            i2c_recover("lettura byte pronti", err);
+            i2c_recover("lettura byte pronti", err); // col lucchetto ancora preso: il reset del bus agita le linee I2C
+            sd_mutex_give();
             continue;
         }
         i2c_note_ok();
@@ -142,6 +154,7 @@ static void i2c_poll_task(void *arg)
             did_work = true;
         }
 
+        sd_mutex_give();
         if (!did_work) {
             vTaskDelay(pdMS_TO_TICKS(I2C_POLL_IDLE_MS));
         }
