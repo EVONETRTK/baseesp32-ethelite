@@ -570,6 +570,9 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     if (stats.chip_temp_c > -1000) {
         cJSON_AddNumberToObject(root, "chip_temp_c", stats.chip_temp_c);
     }
+    if (stats.chip_temp_max_c > -1000) {
+        cJSON_AddNumberToObject(root, "chip_temp_max_c", stats.chip_temp_max_c);
+    }
 
     // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
     // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.

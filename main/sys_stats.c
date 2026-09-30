@@ -15,6 +15,11 @@ typedef struct {
 
 static core_sample_t s_prev[2];
 
+// Temperatura del chip letta dal task di sorveglianza ogni 5 s (unico a
+// usare il sensore), con il massimo dall'accensione. -1000 = non ancora letta.
+static volatile float s_temp_now = -1000;
+static volatile float s_temp_max = -1000;
+
 // Percentuale di uso CPU per un core, calcolata come 100% meno la
 // percentuale di tempo passata dal suo task IDLE nell'intervallo trascorso
 // dall'ultimo campione. La sottrazione tra due valori uint32_t e'
@@ -104,7 +109,8 @@ sys_stats_t sys_stats_get(void)
     s.cpu0_percent = compute_cpu_percent(0, xTaskGetIdleTaskHandleForCore(0), now);
     s.cpu1_percent = compute_cpu_percent(1, xTaskGetIdleTaskHandleForCore(1), now);
 
-    s.chip_temp_c = read_chip_temp_c();
+    s.chip_temp_c = s_temp_now;
+    s.chip_temp_max_c = s_temp_max;
 
     return s;
 }
@@ -189,9 +195,25 @@ static void sys_monitor_task(void *arg)
     uint32_t logged_min_heap = UINT32_MAX;
     static uint32_t delta[MON_MAX_TASKS];
     char top[160];
+    bool temp_high = false;
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(MON_PERIOD_MS));
+
+        float t = read_chip_temp_c();
+        if (t > -1000) {
+            s_temp_now = t;
+            if (t > s_temp_max) {
+                s_temp_max = t;
+            }
+            if (!temp_high && t >= SYS_TEMP_ALERT_C) {
+                temp_high = true;
+                ESP_LOGW(MON_TAG, "Temperatura del chip alta: %.1f C (soglia %.0f C). Controlla sole diretto o ventilazione della custodia", (double) t, (double) SYS_TEMP_ALERT_C);
+            } else if (temp_high && t < SYS_TEMP_REARM_C) {
+                temp_high = false;
+                ESP_LOGI(MON_TAG, "Temperatura del chip rientrata: %.1f C (massima %.1f C)", (double) t, (double) s_temp_max);
+            }
+        }
 
         UBaseType_t n = uxTaskGetSystemState(s_mon_tasks, MON_MAX_TASKS, NULL);
         int64_t now = esp_timer_get_time();

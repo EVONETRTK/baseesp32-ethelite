@@ -2,6 +2,7 @@
 #include "settings.h"
 #include "status.h"
 #include "base_monitor.h"
+#include "sys_stats.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -272,6 +273,7 @@ static void alerts_task(void *arg)
 {
     bool already_alerted = false;
     bool already_alerted_drift = false;
+    bool already_alerted_temp = false;
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
 
@@ -279,6 +281,7 @@ static void alerts_task(void *arg)
         if (!s.alert_enable) {
             already_alerted = false;
             already_alerted_drift = false;
+            already_alerted_temp = false;
             continue;
         }
 
@@ -326,6 +329,27 @@ static void alerts_task(void *arg)
             }
         } else {
             already_alerted_drift = false;
+        }
+
+        // Temperatura del chip (letta da sys_stats.c): un avviso oltre la
+        // soglia, uno quando torna sotto la soglia di rientro.
+        sys_stats_t st = sys_stats_get();
+        if (st.chip_temp_c > -1000) {
+            if (!already_alerted_temp && st.chip_temp_c >= SYS_TEMP_ALERT_C) {
+                char body[192];
+                snprintf(body, sizeof(body),
+                         "EVONETRTK %s: temperatura del chip a %.1f C (soglia %.0f C). "
+                         "Controlla sole diretto o ventilazione della custodia.",
+                         s.device_serial, (double) st.chip_temp_c, (double) SYS_TEMP_ALERT_C);
+                send_on_configured_channels(&s, "EVONETRTK - temperatura alta", body, NULL, 0);
+                already_alerted_temp = true;
+            } else if (already_alerted_temp && st.chip_temp_c < SYS_TEMP_REARM_C) {
+                char body[160];
+                snprintf(body, sizeof(body), "EVONETRTK %s: temperatura del chip rientrata a %.1f C (massima %.1f C).",
+                         s.device_serial, (double) st.chip_temp_c, (double) st.chip_temp_max_c);
+                send_on_configured_channels(&s, "EVONETRTK - temperatura rientrata", body, NULL, 0);
+                already_alerted_temp = false;
+            }
         }
     }
 }

@@ -640,16 +640,18 @@
   </fieldset>
 
   <fieldset>
-    <legend>🔌 Avviso disconnessione caster</legend>
+    <legend>🔌 Avvisi: caster disconnesso e temperatura</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="alert_enable" type="checkbox" style="width:auto; margin:0">
-      Avvisami se la connessione al caster resta interrotta troppo a lungo
+      Avvisami se la connessione al caster resta interrotta troppo a lungo o se la base si scalda troppo
     </label>
     <label>Minuti di disconnessione prima di avvisare<input name="alert_threshold_min" type="number" min="1"></label>
     <small class="hint">
       Pensato per una base lasciata incustodita in campo: un avviso quando la connessione NTRIP
       resta giu' (e uno quando torna a funzionare). Basta configurare almeno un canale qui sotto,
-      email e WhatsApp insieme oppure uno solo.
+      email e WhatsApp insieme oppure uno solo.<br>
+      Con questa opzione attiva arriva anche un avviso se la temperatura del chip supera 70 °C
+      (es. sole diretto sulla custodia) e uno quando scende sotto 65 °C.
     </small>
   
     <div class="fieldset-save-row">
@@ -1389,7 +1391,7 @@ async function loadStatus() {
 
     renderCpuBar('cpu0-bar', 'cpu0-text', s.cpu0_percent, 'Core 0');
     renderCpuBar('cpu1-bar', 'cpu1-text', s.cpu1_percent, 'Core 1');
-    renderChipTemp(s.chip_temp_c);
+    renderChipTemp(s.chip_temp_c, s.chip_temp_max_c);
     document.getElementById('st-heap-free').textContent = formatBytes(s.free_heap_bytes);
     document.getElementById('st-heap-min').textContent = formatBytes(s.min_free_heap_bytes);
     document.getElementById('st-heap-total').textContent = formatBytes(s.total_heap_bytes);
@@ -1615,7 +1617,7 @@ function renderCpuBar(barId, textId, percent, label) {
 // temperature ben piu' alte) - servono solo a capire a colpo d'occhio se
 // il dispositivo si sta scaldando piu' del normale, es. per il sole diretto
 // su una custodia chiusa in campo.
-function renderChipTemp(celsius) {
+function renderChipTemp(celsius, maxCelsius) {
   const el = document.getElementById('st-temp');
   if (celsius === null || celsius === undefined) {
     el.textContent = 'non disponibile';
@@ -1623,7 +1625,8 @@ function renderChipTemp(celsius) {
     el.style.fontWeight = '';
     return;
   }
-  el.textContent = celsius.toFixed(1) + ' °C';
+  el.textContent = celsius.toFixed(1) + ' °C' +
+    (maxCelsius !== null && maxCelsius !== undefined ? ' (max ' + maxCelsius.toFixed(1) + ' °C)' : '');
   el.style.fontWeight = '600';
   if (celsius < 50) {
     el.style.color = '#16a34a';

@@ -2,6 +2,15 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.75
+
+- **Controllo della temperatura** (richiesta dell'utente). Prima il pannello mostrava solo il valore attuale e non restava nessuna traccia:
+  - la scheda Stato mostra anche la **massima dall'accensione**, es. "38.8 °C (max 52.1 °C)";
+  - **avviso nel log** quando il chip supera 70 °C, e una riga quando scende sotto 65 °C;
+  - **avviso via email/WhatsApp** con gli stessi valori, se gli avvisi sono attivi (riquadro "Avvisi: caster disconnesso e temperatura").
+  
+  La temperatura ora la legge solo il task di sorveglianza (`sys_mon`) ogni 5 s; il pannello e gli avvisi usano il valore memorizzato. La soglia di rientro e' sempre 5 °C sotto quella di avviso: in una prova con soglia a 30 °C, una soglia di rientro fissa a 65 °C faceva alternare "alta"/"rientrata" ogni 5 s. Verificato sul dispositivo con la soglia di prova, poi installata la versione con 70 °C.
+
 ## 1.19.74
 
 - **Sorveglianza di CPU e memoria nel log** (richiesta dell'utente, dopo due episodi notturni senza spiegazione: core 0 al 100% per alcuni minuti e memoria libera minima a 10 KB). Un task a bassa priorita' (`sys_mon` in `sys_stats.c`) controlla ogni 5 s e scrive un avviso solo se un core supera l'80% (al massimo uno al minuto) o se la memoria libera minima scende sotto 16 KB. L'avviso dice quali task stavano lavorando. Esempio reale: "Memoria libera minima scesa a 15912 byte negli ultimi 5 s (ora libera 41988, blocco piu' grande 24576). Task piu' attivi: wifi 2%, tiT 2%, ..."
