@@ -1513,7 +1513,8 @@ async function loadStatus() {
 // (es. "$BDGSV"), a differenza dello standard NMEA 4.10 che userebbe "GB" -
 // con la chiave sbagliata i satelliti BeiDou finivano sempre nel colore di
 // default invece che in arancione, anche quando tracciati.
-const SAT_COLORS = { GP: '#2563eb', GL: '#dc2626', GA: '#16a34a', BD: '#d97706' };
+// BeiDou: 'GB' dai u-blox (NMEA 4.11), 'BD' da altri ricevitori.
+const SAT_COLORS = { GP: '#2563eb', GL: '#dc2626', GA: '#16a34a', BD: '#d97706', GB: '#d97706' };
 
 // Riepilogo dei satelliti in vista: totale, per costellazione e quanti
 // hanno un segnale buono (>= 35 dB-Hz, la soglia utile per l'RTK).
@@ -1565,6 +1566,28 @@ function drawSatChart(sats) {
     ctx.textAlign = 'center';
     ctx.fillText(String(sat.prn), x + barW / 2, h - 6);
   });
+
+  // Linea dei 35 dB-Hz: sopra, segnale buono per l'RTK (stessa soglia del
+  // conteggio 'segnale buono' sotto il grafico).
+  const goodY = Math.round(baseline - (35 / maxSnr) * (baseline - 4)) + 0.5;
+  ctx.save();
+  ctx.strokeStyle = '#111827';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, goodY);
+  ctx.lineTo(w, goodY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'right';
+  const label = '35 dB (segnale buono)';
+  const lw = ctx.measureText(label).width;
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.fillRect(w - lw - 8, goodY - 15, lw + 6, 13);
+  ctx.fillStyle = '#111827';
+  ctx.fillText(label, w - 4, goodY - 4);
+  ctx.restore();
 }
 
 function rssiToPercent(dbm, min, max) {

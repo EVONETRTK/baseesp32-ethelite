@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.76
+
+- **Linea dei 35 dB nel grafico dei satelliti** (richiesta dell'utente): linea tratteggiata con scritta "35 dB (segnale buono)". Le barre sopra la linea sono i satelliti utili per l'RTK, la stessa soglia del conteggio sotto il grafico.
+- **BeiDou colorato nel grafico**: i ricevitori u-blox lo indicano come "GB" (NMEA 4.11) e il grafico conosceva solo "BD", quindi le barre BeiDou uscivano grigie come "altro".
+
 ## 1.19.75
 
 - **Controllo della temperatura** (richiesta dell'utente). Prima il pannello mostrava solo il valore attuale e non restava nessuna traccia:
