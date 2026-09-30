@@ -91,3 +91,11 @@ CONFIG_LWIP_SO_LINGER=y
 # l'interrupt veniva ritardato e le transazioni verso il ricevitore u-blox
 # via I2C fallivano (errori all'avvio visti sul dispositivo, 1.19.68).
 CONFIG_I2C_ISR_IRAM_SAFE=y
+
+# Settore FATFS da 512 byte (era 4096): le microSD usano sempre settori da
+# 512, e con 4096 ogni montaggio riservava ~4 KB in piu' di buffer (piu'
+# altri ~3,5 KB per ogni file aperto). Con il pannello molto usato il
+# montaggio della SD falliva per memoria insufficiente (ESP_ERR_NO_MEM,
+# visto il 30/09/2026). Nessun FAT su flash interna in questo firmware.
+CONFIG_FATFS_SECTOR_512=y
+# CONFIG_FATFS_SECTOR_4096 is not set

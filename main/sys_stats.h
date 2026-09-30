@@ -21,3 +21,6 @@ typedef struct {
 // restituisce -1 per i campi cpuN_percent, in attesa di un secondo
 // campione di riferimento.
 sys_stats_t sys_stats_get(void);
+
+// Avvia la sorveglianza in background di CPU e memoria (avvisi nel log).
+void sys_stats_monitor_start(void);

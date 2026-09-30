@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.74
+
+- **Sorveglianza di CPU e memoria nel log** (richiesta dell'utente, dopo due episodi notturni senza spiegazione: core 0 al 100% per alcuni minuti e memoria libera minima a 10 KB). Un task a bassa priorita' (`sys_mon` in `sys_stats.c`) controlla ogni 5 s e scrive un avviso solo se un core supera l'80% (al massimo uno al minuto) o se la memoria libera minima scende sotto 16 KB. L'avviso dice quali task stavano lavorando. Esempio reale: "Memoria libera minima scesa a 15912 byte negli ultimi 5 s (ora libera 41988, blocco piu' grande 24576). Task piu' attivi: wifi 2%, tiT 2%, ..."
+- **La microSD non si monta piu' per mancanza di memoria**: con molte richieste al pannello insieme il montaggio falliva (`mount_to_vfs failed (0x101)`, ESP_ERR_NO_MEM). Settore FATFS da 512 byte invece di 4096: le microSD usano sempre 512 e i buffer si riducono di ~3,5 KB per il montaggio e per ogni file aperto. Verificato: 70 s di richieste continue (8 in parallelo) con due scritture del log sulla SD, nessun errore.
+
 ## 1.19.73
 
 - **Correzioni di nuovo disponibili subito dopo un riavvio**: prima di riavviarsi la base chiude la connessione con il caster. Prima il caster la teneva per buona e per circa 30 s rifiutava la base ("mountpoint gia' occupata"). Verificato: collegata al caster 11 s dopo il riavvio, contro i 40 s di prima.

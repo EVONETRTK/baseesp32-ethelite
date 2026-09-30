@@ -5,6 +5,7 @@
 #include "freertos/stream_buffer.h"
 
 #include "esp_log.h"
+#include "sys_stats.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
 #include "driver/uart.h"
@@ -198,6 +199,7 @@ void app_main(void)
     // gia' in uso da un altro modulo in quel momento.
     xTaskCreate(fw_archive_save_current_task, "fw_archive_boot", 8192, NULL, 2, NULL);
     diag_log_start();
+    sys_stats_monitor_start();
 
     app_settings_t settings = settings_get();
     gnss_uart_init(&settings);

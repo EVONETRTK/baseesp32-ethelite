@@ -108,3 +108,145 @@ sys_stats_t sys_stats_get(void)
 
     return s;
 }
+
+// ---------------------------------------------------------------------------
+// Sorveglianza in background: ogni 5 s controlla uso CPU e memoria e, solo
+// se qualcosa esce dalla norma, scrive nel log quali task stavano lavorando.
+// Aggiunta dopo due episodi notturni senza spiegazione (core 0 al 100% per
+// alcuni minuti, memoria libera minima scesa a 10 KB): il pannello mostra
+// solo il valore, non la causa.
+// ---------------------------------------------------------------------------
+
+#include "esp_log.h"
+#include <stdio.h>
+#include <string.h>
+
+#define MON_PERIOD_MS       5000
+#define MON_MAX_TASKS       40
+#define MON_CPU_ALERT_PCT   80.0f
+#define MON_HEAP_ALERT      16384
+#define MON_LOG_GAP_US      (60LL * 1000000) // al massimo un avviso CPU al minuto
+
+static const char *MON_TAG = "sys_mon";
+
+typedef struct {
+    TaskHandle_t handle;
+    uint32_t runtime;
+} mon_prev_t;
+
+// Statici: la sorveglianza deve funzionare proprio quando la memoria scarseggia.
+static TaskStatus_t s_mon_tasks[MON_MAX_TASKS];
+static mon_prev_t s_mon_prev[MON_MAX_TASKS];
+static UBaseType_t s_mon_prev_n;
+
+static uint32_t prev_runtime(TaskHandle_t h, bool *found)
+{
+    for (UBaseType_t i = 0; i < s_mon_prev_n; i++) {
+        if (s_mon_prev[i].handle == h) {
+            *found = true;
+            return s_mon_prev[i].runtime;
+        }
+    }
+    *found = false;
+    return 0;
+}
+
+// Scrive in out i 4 task (esclusi gli IDLE) che hanno usato piu' CPU
+// nell'intervallo, in % di un core.
+static void top_tasks(const uint32_t *delta, UBaseType_t n, int64_t wall_us,
+                      TaskHandle_t idle0, TaskHandle_t idle1, char *out, size_t out_size)
+{
+    bool used[MON_MAX_TASKS] = {0};
+    size_t pos = 0;
+    out[0] = '\0';
+    for (int k = 0; k < 4; k++) {
+        int best = -1;
+        for (UBaseType_t i = 0; i < n; i++) {
+            if (used[i] || s_mon_tasks[i].xHandle == idle0 || s_mon_tasks[i].xHandle == idle1) {
+                continue;
+            }
+            if (best < 0 || delta[i] > delta[best]) {
+                best = (int) i;
+            }
+        }
+        if (best < 0 || delta[best] == 0) {
+            break;
+        }
+        used[best] = true;
+        int w = snprintf(out + pos, out_size - pos, "%s%s %.0f%%", pos ? ", " : "",
+                         s_mon_tasks[best].pcTaskName, (double) delta[best] * 100.0 / (double) wall_us);
+        if (w < 0 || (size_t) w >= out_size - pos) {
+            break;
+        }
+        pos += (size_t) w;
+    }
+}
+
+static void sys_monitor_task(void *arg)
+{
+    int64_t prev_wall = esp_timer_get_time();
+    int64_t last_cpu_log = -MON_LOG_GAP_US;
+    uint32_t logged_min_heap = UINT32_MAX;
+    static uint32_t delta[MON_MAX_TASKS];
+    char top[160];
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(MON_PERIOD_MS));
+
+        UBaseType_t n = uxTaskGetSystemState(s_mon_tasks, MON_MAX_TASKS, NULL);
+        int64_t now = esp_timer_get_time();
+        int64_t wall = now - prev_wall;
+        prev_wall = now;
+        if (n == 0 || wall <= 0) {
+            continue; // array troppo piccolo: non dovrebbe succedere
+        }
+
+        bool have_prev = s_mon_prev_n > 0;
+        for (UBaseType_t i = 0; i < n; i++) {
+            bool found;
+            uint32_t p = prev_runtime(s_mon_tasks[i].xHandle, &found);
+            delta[i] = found ? s_mon_tasks[i].ulRunTimeCounter - p : 0;
+        }
+        for (UBaseType_t i = 0; i < n; i++) {
+            s_mon_prev[i].handle = s_mon_tasks[i].xHandle;
+            s_mon_prev[i].runtime = s_mon_tasks[i].ulRunTimeCounter;
+        }
+        s_mon_prev_n = n;
+        if (!have_prev) {
+            continue;
+        }
+
+        TaskHandle_t idle0 = xTaskGetIdleTaskHandleForCore(0);
+        TaskHandle_t idle1 = xTaskGetIdleTaskHandleForCore(1);
+        float busy[2] = { -1, -1 };
+        for (UBaseType_t i = 0; i < n; i++) {
+            int core = s_mon_tasks[i].xHandle == idle0 ? 0 : (s_mon_tasks[i].xHandle == idle1 ? 1 : -1);
+            if (core >= 0) {
+                float idle_pct = (float) delta[i] * 100.0f / (float) wall;
+                busy[core] = idle_pct > 100 ? 0 : 100.0f - idle_pct;
+            }
+        }
+
+        if ((busy[0] >= MON_CPU_ALERT_PCT || busy[1] >= MON_CPU_ALERT_PCT) &&
+            now - last_cpu_log >= MON_LOG_GAP_US) {
+            last_cpu_log = now;
+            top_tasks(delta, n, wall, idle0, idle1, top, sizeof(top));
+            ESP_LOGW(MON_TAG, "CPU alta negli ultimi %lld s: core0 %.0f%%, core1 %.0f%%. Task piu' attivi: %s",
+                     wall / 1000000, (double) busy[0], (double) busy[1], top);
+        }
+
+        uint32_t min_heap = esp_get_minimum_free_heap_size();
+        if (min_heap < MON_HEAP_ALERT && min_heap < logged_min_heap) {
+            logged_min_heap = min_heap;
+            top_tasks(delta, n, wall, idle0, idle1, top, sizeof(top));
+            ESP_LOGW(MON_TAG, "Memoria libera minima scesa a %u byte negli ultimi %lld s (ora libera %u, blocco piu' grande %u). Task piu' attivi: %s",
+                     (unsigned) min_heap, wall / 1000000, (unsigned) esp_get_free_heap_size(),
+                     (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), top);
+        }
+    }
+}
+
+void sys_stats_monitor_start(void)
+{
+    xTaskCreate(sys_monitor_task, "sys_mon", 3584, NULL, 1, NULL);
+}
