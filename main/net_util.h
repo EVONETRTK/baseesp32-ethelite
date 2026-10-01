@@ -6,6 +6,11 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "status.h"
+#include "eth_link.h"
+
 // Spiegazione leggibile degli errori di connessione piu' comuni, per il
 // pannello e i log (invece di "errno 116"). NULL se non e' tra questi.
 static inline const char *net_errno_text(int e)
@@ -67,4 +72,22 @@ static inline void net_close_now(int sock)
     struct linger lin = { .l_onoff = 1, .l_linger = 0 };
     setsockopt(sock, SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
     close(sock);
+}
+
+// Aspetta che ci sia una rete attiva (WiFi o cellulare con IP, oppure
+// Ethernet), al massimo timeout_ms. Usata dai client NTRIP prima di ogni
+// tentativo: all'avvio il primo partiva prima del WiFi e falliva sempre con
+// "Indirizzo del caster non trovato (DNS)", poi 5 s di attesa inutile.
+// Scaduto il tempo si prova comunque, cosi' l'errore vero arriva al pannello.
+static inline bool net_wait_ready(uint32_t timeout_ms)
+{
+    for (uint32_t waited = 0; ; waited += 250) {
+        if (status_get_net() != NET_STATUS_NONE || eth_link_is_connected()) {
+            return true;
+        }
+        if (waited >= timeout_ms) {
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
 }

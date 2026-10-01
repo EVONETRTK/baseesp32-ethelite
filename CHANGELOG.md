@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.77
+
+- **Niente piu' falso errore DNS all'avvio**: il primo tentativo di collegamento al caster partiva prima che il WiFi avesse un indirizzo, quindi falliva sempre con "Indirizzo del caster non trovato (DNS)" e aspettava 5 s. Ora i client NTRIP (base e rover) aspettano la rete, al massimo 30 s (`net_wait_ready()` in `net_util.h`); scaduto il tempo provano comunque, cosi' l'errore vero arriva al pannello. Verificato: collegata al caster a 9,7 s dall'avvio (prima 11 s), senza errori nel log.
+
 ## 1.19.76
 
 - **Linea dei 35 dB nel grafico dei satelliti** (richiesta dell'utente): linea tratteggiata con scritta "35 dB (segnale buono)". Le barre sopra la linea sono i satelliti utili per l'RTK, la stessa soglia del conteggio sotto il grafico.

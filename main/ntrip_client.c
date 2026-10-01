@@ -173,6 +173,7 @@ void ntrip_client_task(void *arg)
     uint32_t retry_ms = 5000;
 
     while (1) {
+        net_wait_ready(30000);
         app_settings_t settings = settings_get();
         int sock = ntrip_connect_and_handshake(&settings);
         if (sock < 0) {

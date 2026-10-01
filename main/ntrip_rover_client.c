@@ -374,6 +374,7 @@ void ntrip_rover_client_task(void *arg)
     }
 
     while (1) {
+        net_wait_ready(30000);
         app_settings_t settings = settings_get();
         int sock = ntrip_rover_connect(&settings);
         if (sock < 0) {
