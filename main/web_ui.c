@@ -3,6 +3,9 @@
 #include "settings.h"
 #include "ota_update.h"
 #include "sd_update.h"
+#include "base_measure.h"
+#include "time_sync.h"
+#include "diag_log.h"
 #include "online_update.h"
 #include "status.h"
 #include "log_buffer.h"
@@ -365,6 +368,13 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     // e last_disconnect_us) al momento di generare questa risposta - permette
     // al browser di calcolare "da quanto" senza affidarsi al proprio
     // orologio (che non ha comunque relazione con l'uptime del dispositivo).
+    {
+        char now[24];
+        time_sync_format_now(now, sizeof(now));
+        if (now[0]) {
+            cJSON_AddStringToObject(root, "local_time", now); // assente finche' l'NTP non sincronizza
+        }
+    }
     cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
     cJSON_AddNumberToObject(root, "last_online_update_check_us", (double) status_get_last_online_update_check_us());
     cJSON_AddStringToObject(root, "gnss_chip", gnss_chip_str(s.gnss_chip));
@@ -494,6 +504,22 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     // trascrivere a mano da un'altra fonte (es. il display di un altro
     // ricevitore, o un servizio PPP).
     cJSON_AddBoolToObject(root, "base_current_position_set", drift.last_position_set);
+    {
+        base_measure_progress_t mp = base_measure_get_progress();
+        cJSON_AddBoolToObject(root, "base_measure_active", mp.active);
+        cJSON_AddStringToObject(root, "base_measure_msg", s.base_measure_msg);
+        if (mp.active) {
+            cJSON_AddNumberToObject(root, "base_measure_elapsed_s", mp.elapsed_s);
+            cJSON_AddNumberToObject(root, "base_measure_fixed_n", mp.fixed_n);
+            cJSON_AddNumberToObject(root, "base_measure_float_n", mp.float_n);
+            cJSON_AddNumberToObject(root, "base_measure_target_n", mp.target_n);
+            cJSON_AddNumberToObject(root, "base_measure_timeout_s", mp.timeout_s);
+            cJSON_AddNumberToObject(root, "base_measure_quality", mp.quality);
+        }
+    }
+    // Secondi dall'ultimo 1005/1006 inviato (-1 = mai dall'avvio).
+    cJSON_AddNumberToObject(root, "base_position_age_s", drift.last_position_us > 0
+        ? (double) ((esp_timer_get_time() - drift.last_position_us) / 1000000) : -1.0);
     if (drift.last_position_set) {
         double lat, lon, height;
         geo_ecef_to_llh(drift.last_ecef_x_m, drift.last_ecef_y_m, drift.last_ecef_z_m, &lat, &lon, &height);
@@ -572,6 +598,13 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     }
     if (stats.chip_temp_max_c > -1000) {
         cJSON_AddNumberToObject(root, "chip_temp_max_c", stats.chip_temp_max_c);
+        // Quando: ora locale se l'NTP ha sincronizzato, altrimenti secondi fa.
+        char when[24];
+        time_sync_format_uptime(stats.chip_temp_max_us, when, sizeof(when));
+        if (when[0]) {
+            cJSON_AddStringToObject(root, "chip_temp_max_at", when);
+        }
+        cJSON_AddNumberToObject(root, "chip_temp_max_ago_s", (double) ((esp_timer_get_time() - stats.chip_temp_max_us) / 1000000));
     }
 
     // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
@@ -1992,6 +2025,97 @@ static esp_err_t wifi_forget_known_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Misura della posizione base con RTK (base_measure.c): {"action":"start"}
+// o {"action":"cancel"}. In entrambi i casi il dispositivo si riavvia.
+static esp_err_t base_measure_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char buf[64] = {0};
+    int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
+    int received = 0;
+    while (received < len) {
+        int r = httpd_req_recv(req, buf + received, len - received);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+            return ESP_FAIL;
+        }
+        received += r;
+    }
+    cJSON *root = cJSON_Parse(buf);
+    cJSON *action = root ? cJSON_GetObjectItemCaseSensitive(root, "action") : NULL;
+    bool start = action && cJSON_IsString(action) && strcmp(action->valuestring, "start") == 0;
+    bool cancel = action && cJSON_IsString(action) && strcmp(action->valuestring, "cancel") == 0;
+    cJSON_Delete(root);
+
+    char err[160] = {0};
+    if (start) {
+        if (!base_measure_request_start(err, sizeof(err))) {
+            httpd_resp_set_type(req, "application/json");
+            cJSON *resp = cJSON_CreateObject();
+            cJSON_AddBoolToObject(resp, "ok", false);
+            cJSON_AddStringToObject(resp, "error", err);
+            char *json = cJSON_PrintUnformatted(resp);
+            cJSON_Delete(resp);
+            httpd_resp_sendstr(req, json ? json : "{\"ok\":false}");
+            free(json);
+            return ESP_OK;
+        }
+    } else if (cancel) {
+        base_measure_request_cancel();
+    } else {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "action deve essere start o cancel");
+        return ESP_FAIL;
+    }
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    vTaskDelay(pdMS_TO_TICKS(300));
+    esp_restart();
+    return ESP_OK;
+}
+
+// Log salvati sulla microSD: elenco e scaricamento (diag_log.c).
+static esp_err_t diag_list_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    diag_log_file_t files[5];
+    int n = diag_log_list(files, 5);
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "sd_ok", n >= 0);
+    cJSON *arr = cJSON_AddArrayToObject(root, "files");
+    for (int i = 0; i < n; i++) {
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddNumberToObject(o, "index", files[i].index);
+        cJSON_AddNumberToObject(o, "size", files[i].size);
+        cJSON_AddBoolToObject(o, "current", files[i].current);
+        cJSON_AddItemToArray(arr, o);
+    }
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    return ESP_OK;
+}
+
+static esp_err_t diag_download_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char query[32] = {0}, val[8] = {0};
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "n", val, sizeof(val)) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "manca ?n=");
+    }
+    return diag_log_send_http(req, atoi(val));
+}
+
 static esp_err_t reboot_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -2045,6 +2169,9 @@ void web_ui_start(void)
     httpd_uri_t signals_uri    = { .uri = "/api/signals",    .method = HTTP_GET,  .handler = signals_get_handler };
     httpd_uri_t settings_uri   = { .uri = "/api/settings",   .method = HTTP_POST, .handler = settings_post_handler };
     httpd_uri_t reboot_uri     = { .uri = "/api/reboot",     .method = HTTP_POST, .handler = reboot_post_handler };
+    httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
+    httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
+    httpd_uri_t base_measure_uri = { .uri = "/api/base/measure", .method = HTTP_POST, .handler = base_measure_post_handler };
     httpd_uri_t ota_upload_uri = { .uri = "/api/ota/upload",    .method = HTTP_POST, .handler = ota_upload_post_handler };
     httpd_uri_t ota_sd_uri     = { .uri = "/api/ota/sd-update", .method = HTTP_POST, .handler = ota_sd_post_handler };
     httpd_uri_t sd_format_uri  = { .uri = "/api/sd/format",     .method = HTTP_POST, .handler = sd_format_post_handler };
@@ -2076,6 +2203,9 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &signals_uri);
     httpd_register_uri_handler(server, &settings_uri);
     httpd_register_uri_handler(server, &reboot_uri);
+    httpd_register_uri_handler(server, &base_measure_uri);
+    httpd_register_uri_handler(server, &diag_list_uri);
+    httpd_register_uri_handler(server, &diag_dl_uri);
     httpd_register_uri_handler(server, &ota_upload_uri);
     httpd_register_uri_handler(server, &ota_sd_uri);
     httpd_register_uri_handler(server, &sd_format_uri);

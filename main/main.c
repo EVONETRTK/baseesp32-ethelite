@@ -43,6 +43,8 @@
 #include "diag_log.h"
 #include "fw_archive.h"
 #include "sd_mutex.h"
+#include "base_measure.h"
+#include "time_sync.h"
 
 static const char *TAG = "main";
 
@@ -155,6 +157,7 @@ void app_main(void)
     // (non blocca): la UI web deve restare raggiungibile anche senza rete
     // configurata.
     net_manager_start();
+    time_sync_start(); // ora vera via NTP (log, temperatura massima)
     nmea_udp_broadcast_init();
     web_ui_start();
 
@@ -243,6 +246,7 @@ void app_main(void)
         // gia' incontrato piu' volte in questo progetto per altri task.
         xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
                     (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
+        base_measure_start_if_active(); // misura della posizione base in corso
     } else {
         xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
         ntrip_caster_server_start(); // non fa nulla se disattivato in settings

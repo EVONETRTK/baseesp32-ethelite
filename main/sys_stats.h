@@ -14,6 +14,7 @@ typedef struct {
     float cpu1_percent;           // -1 se non ancora disponibile o scheda mono-core
     float chip_temp_c;            // temperatura interna del chip (°C), -1000 se il sensore non e' disponibile
     float chip_temp_max_c;        // massima dall'accensione (°C), -1000 se non disponibile
+    int64_t chip_temp_max_us;     // quando e' stata raggiunta la massima (esp_timer, us)
 } sys_stats_t;
 
 // Legge lo stato corrente di memoria e uso CPU. L'uso CPU e' calcolato come

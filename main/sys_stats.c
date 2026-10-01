@@ -19,6 +19,7 @@ static core_sample_t s_prev[2];
 // usare il sensore), con il massimo dall'accensione. -1000 = non ancora letta.
 static volatile float s_temp_now = -1000;
 static volatile float s_temp_max = -1000;
+static volatile int64_t s_temp_max_us; // quando e' stata raggiunta (esp_timer)
 
 // Percentuale di uso CPU per un core, calcolata come 100% meno la
 // percentuale di tempo passata dal suo task IDLE nell'intervallo trascorso
@@ -111,6 +112,7 @@ sys_stats_t sys_stats_get(void)
 
     s.chip_temp_c = s_temp_now;
     s.chip_temp_max_c = s_temp_max;
+    s.chip_temp_max_us = s_temp_max_us;
 
     return s;
 }
@@ -205,6 +207,7 @@ static void sys_monitor_task(void *arg)
             s_temp_now = t;
             if (t > s_temp_max) {
                 s_temp_max = t;
+                s_temp_max_us = esp_timer_get_time();
             }
             if (!temp_high && t >= SYS_TEMP_ALERT_C) {
                 temp_high = true;

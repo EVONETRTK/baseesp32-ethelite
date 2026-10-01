@@ -10,6 +10,8 @@ idf_component_register(
         "status.c"
         "log_buffer.c"
         "sys_stats.c"
+        "base_measure.c"
+        "time_sync.c"
         "gnss_driver.c"
         "gnss_ubx.c"
         "gnss_ubx_ack.c"

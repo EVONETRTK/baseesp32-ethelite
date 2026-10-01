@@ -274,6 +274,7 @@ static void alerts_task(void *arg)
     bool already_alerted = false;
     bool already_alerted_drift = false;
     bool already_alerted_temp = false;
+    bool already_alerted_1005 = false;
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
 
@@ -282,6 +283,7 @@ static void alerts_task(void *arg)
             already_alerted = false;
             already_alerted_drift = false;
             already_alerted_temp = false;
+            already_alerted_1005 = false;
             continue;
         }
 
@@ -329,6 +331,31 @@ static void alerts_task(void *arg)
             }
         } else {
             already_alerted_drift = false;
+        }
+
+        // Base senza posizione (1005/1006): i rover non possono fare RTK, ma
+        // tutto il resto sembra funzionare (caster collegato, dati in uscita).
+        // Soglia: 30 minuti, o i minuti di disconnessione se piu' alti, per
+        // non avvisare durante un normale survey-in all'avvio.
+        if (!status_get_active_rover()) {
+            base_monitor_status_t bm = base_monitor_get_status();
+            int64_t now = esp_timer_get_time();
+            int64_t since_us = bm.last_position_us > 0 ? now - bm.last_position_us : now;
+            int limit_min = s.alert_threshold_min > 30 ? s.alert_threshold_min : 30;
+            if (!already_alerted_1005 && since_us >= (int64_t) limit_min * 60 * 1000000) {
+                char body[224];
+                snprintf(body, sizeof(body),
+                         "EVONETRTK %s: la base non invia la sua posizione (RTCM 1005) da oltre %d minuti, "
+                         "i rover non possono fare RTK. Di solito: survey-in non completato (cielo coperto).",
+                         s.device_serial, limit_min);
+                send_on_configured_channels(&s, "EVONETRTK - base senza posizione", body, NULL, 0);
+                already_alerted_1005 = true;
+            } else if (already_alerted_1005 && bm.last_position_us > 0 && now - bm.last_position_us < 60 * 1000000) {
+                char body[128];
+                snprintf(body, sizeof(body), "EVONETRTK %s: la base invia di nuovo la sua posizione (1005).", s.device_serial);
+                send_on_configured_channels(&s, "EVONETRTK - posizione base ripristinata", body, NULL, 0);
+                already_alerted_1005 = false;
+            }
         }
 
         // Temperatura del chip (letta da sys_stats.c): un avviso oltre la

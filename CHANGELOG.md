@@ -2,6 +2,27 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.78
+
+Miglioramenti richiesti dall'utente (punti 1-6 dell'elenco proposto il 01/10).
+
+- **Coordinate fisse anche con u-blox (ZED-F9P)**: prima la modalita' "Manuale (coordinate fisse)" valeva solo per il Quectel LC29H e con un u-blox le coordinate venivano ignorate senza avviso (la base continuava il survey-in). Ora `gnss_ubx.c` imposta CFG-TMODE-MODE = 2 con lat/lon/quota LLH ad alta precisione (1e-9 gradi, 0,1 mm). Verificato: il 1005 inviato, riconvertito, coincide con le coordinate inserite entro 0,1 mm.
+- **Misura della posizione base con RTK** (nuovo `base_measure.c`, pulsante "📡 Avvia misura" nel riquadro Posizione base):
+  - la base si riavvia come rover sul mountpoint del rover e fa la media di 180 s di fix RTK fisso (NMEA ad alta precisione durante la misura);
+  - poi salva le coordinate come posizione fissa e torna base da sola;
+  - massimo 20 minuti: a tempo scaduto bastano 30 campioni fissi, oppure 5 minuti di float (precisione di decimetri, segnalata nell'esito); altrimenti le coordinate non cambiano;
+  - se il caster non manda correzioni la misura si ferma dopo 3 minuti e ne dice il motivo. Visto alla prima prova: la password del rover per ALTAMURA veniva rifiutata e la misura aspettava tutti i 20 minuti per niente;
+  - avanzamento in cima alla scheda Stato (fix attuale, campioni, tempo, pulsante "Annulla misura"); esito dell'ultima misura nel riquadro Posizione base;
+  - verificato: avvio, riavvio come rover, ritorno a base dopo 20 min (versione precedente) e dopo 3 min (questa), sempre senza cambiare le coordinate. Il caso riuscito non e' ancora provato: servono credenziali valide per il rover.
+- **Avviso "la base NON sta inviando la sua posizione"**:
+  - riquadro rosso in cima alla scheda Stato quando in modalita' base non esce un 1005/1006 da oltre 30 s, con il motivo piu' probabile (survey-in non completato con la sua precisione, 1005 disattivato, nessun dato dal ricevitore...). Basato sui 1005 realmente inviati (`base_monitor.c`, nuovo campo `base_position_age_s` in /api/status);
+  - con gli avvisi attivi, email/WhatsApp dopo 30 minuti senza posizione e quando torna.
+- **Ora vera via NTP** (nuovo `time_sync.c`, fuso orario italiano con ora legale). I log mostrano l'ora del giorno invece dei ms dall'accensione (`CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM`); nel log c'e' una riga alla prima sincronizzazione. Nella scheda Stato, nuova riga "Ora della base" con anche da quanto e' accesa. Dopo un riavvio senza perdita di alimentazione l'ora resta giusta da subito; dopo uno spegnimento parte dal 1970 fino alla sincronizzazione.
+- **Log della microSD scaricabili dal pannello** (scheda Log, "Log salvati sulla microSD"): un file per accensione, gli ultimi 5, senza codici colore. Letti a blocchi da 4 KB montando e smontando la SD, per non fermare a lungo l'I2C del ricevitore. Verificato: 72 KB in 2,7 s, nessun errore I2C.
+- **Corretto: i log sulla microSD non ripartivano a ogni accensione.** Il file veniva aperto solo in aggiunta, quindi a ogni giro della rotazione conteneva anche le sessioni di 5 avvii prima e cresceva senza limite (trovato un file da 81 KB con piu' sessioni).
+- **Ora della temperatura massima**: "max 65.8 °C, il 01/10 alle 15:32" (oppure "2 h fa" se l'ora non e' sincronizzata).
+- Pannello: corretta la nota della posizione manuale (ora vale anche per u-blox; la quota e' ellissoidica, in Italia circa 40-50 m piu' alta di quella sul livello del mare).
+
 ## 1.19.77
 
 - **Niente piu' falso errore DNS all'avvio**: il primo tentativo di collegamento al caster partiva prima che il WiFi avesse un indirizzo, quindi falliva sempre con "Indirizzo del caster non trovato (DNS)" e aspettava 5 s. Ora i client NTRIP (base e rover) aspettano la rete, al massimo 30 s (`net_wait_ready()` in `net_util.h`); scaduto il tempo provano comunque, cosi' l'errore vero arriva al pannello. Verificato: collegata al caster a 9,7 s dall'avvio (prima 11 s), senza errori nel log.

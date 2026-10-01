@@ -340,6 +340,15 @@ typedef struct {
     // versioni precedenti (campi a zero) non cambia comportamento.
     uint16_t base_svin_min_dur_s;
     float base_svin_acc_m;
+
+    // Misura della posizione della base con RTK (base_measure.c): la base
+    // si riavvia come rover sul mountpoint rover_mountpoint, media le
+    // posizioni con fix RTK, salva le coordinate fisse e torna base.
+    // base_measure_active resta true per tutta la misura (anche dopo un
+    // riavvio imprevisto); base_measure_msg = esito dell'ultima misura,
+    // mostrato nel pannello. Zero dai blob precedenti = nessuna misura.
+    bool base_measure_active;
+    char base_measure_msg[128];
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

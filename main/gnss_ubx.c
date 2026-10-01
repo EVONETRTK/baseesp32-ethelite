@@ -6,6 +6,7 @@
 #include "esp_timer.h"
 
 #include <string.h>
+#include <math.h>
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -221,6 +222,36 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     kvs[n++] = (ubx_cfg_kv32_t) { 0x209102d7 - port_off, s.rtcm_1127_enable ? 1u : 0u }; // TYPE1127 (BeiDou MSM7)
     ubx_valset_group(uart_num, "MESSAGGI RTCM", kvs, n);
 
+    if (s.base_position_mode == BASE_POSITION_MANUAL) {
+        // Posizione fissa nota (CFG-TMODE-MODE = 2, coordinate LLH): niente
+        // survey-in, la base manda subito il 1005 con queste coordinate.
+        // Prima questo ramo mancava e con un u-blox le coordinate inserite
+        // nel pannello venivano ignorate senza avviso (valeva solo per LC29H).
+        // Lat/lon in 1e-7 gradi + parte fine in 1e-9; quota in cm + parte fine
+        // in 0,1 mm (formato richiesto dal ricevitore, interface description).
+        int64_t lat_e9 = llround(s.base_fixed_lat_deg * 1e9);
+        int64_t lon_e9 = llround(s.base_fixed_lon_deg * 1e9);
+        int64_t h_01mm = llround(s.base_fixed_height_m * 1e4);
+        int32_t lat = (int32_t) (lat_e9 / 100), lat_hp = (int32_t) (lat_e9 % 100);
+        int32_t lon = (int32_t) (lon_e9 / 100), lon_hp = (int32_t) (lon_e9 % 100);
+        int32_t h_cm = (int32_t) (h_01mm / 100), h_hp = (int32_t) (h_01mm % 100);
+        ESP_LOGI(TAG, "Posizione base fissa: lat %.9f lon %.9f quota ellissoidica %.4f m",
+                 s.base_fixed_lat_deg, s.base_fixed_lon_deg, s.base_fixed_height_m);
+        const ubx_cfg_kv32_t kvs_fixed[] = {
+            { 0x20030001, 2 },                 // CFG-TMODE-MODE = 2 (posizione fissa)
+            { 0x20030002, 1 },                 // CFG-TMODE-POS_TYPE = 1 (LLH)
+            { 0x40030009, (uint32_t) lat },    // CFG-TMODE-LAT (1e-7 gradi)
+            { 0x2003000c, (uint32_t) lat_hp }, // CFG-TMODE-LAT_HP (1e-9 gradi)
+            { 0x4003000a, (uint32_t) lon },    // CFG-TMODE-LON
+            { 0x2003000d, (uint32_t) lon_hp }, // CFG-TMODE-LON_HP
+            { 0x4003000b, (uint32_t) h_cm },   // CFG-TMODE-HEIGHT (cm)
+            { 0x2003000e, (uint32_t) h_hp },   // CFG-TMODE-HEIGHT_HP (0,1 mm)
+            { 0x4003000f, 100 },               // CFG-TMODE-FIXED_POS_ACC: 10 mm (0,1 mm)
+        };
+        ubx_valset_group(uart_num, "TMODE (posizione fissa)", kvs_fixed, sizeof(kvs_fixed) / sizeof(kvs_fixed[0]));
+        return ESP_OK;
+    }
+
     // Durata e precisione dal pannello (0 = predefinito: 60 s, 0,25 m).
     uint32_t svin_dur_s = s.base_svin_min_dur_s ? s.base_svin_min_dur_s : 60;
     uint32_t svin_acc_01mm = (s.base_svin_acc_m > 0) ? (uint32_t) (s.base_svin_acc_m * 10000.0f + 0.5f) : 2500;
@@ -333,6 +364,21 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
         { 0x20030001, 0 },    // CFG-TMODE-MODE = 0 (disabilitato: non e' una base fissa)
     };
     ubx_valset_group(uart_num, "TMODE", kvs_mode, sizeof(kvs_mode) / sizeof(kvs_mode[0]));
+
+    // Durante la misura della posizione base (base_measure.c) NMEA ad alta
+    // precisione: 7 decimali di minuto invece di 5 (da ~2 cm a ~0,2 mm di
+    // risoluzione). Solo in quel caso, per non cambiare il formato che
+    // vedono le app dei rover normali. Statica: lo stack del chiamante
+    // (task main) ha gia' avuto overflow con copie di app_settings_t.
+    static app_settings_t st;
+    st = settings_get();
+    // Mandata sempre, anche a 0: la configurazione va nella RAM del
+    // ricevitore, che resta acceso quando l'ESP32 si riavvia, quindi
+    // dopo una misura resterebbe attiva.
+    const ubx_cfg_kv32_t kvs_hp[] = {
+        { 0x10930006, st.base_measure_active ? 1u : 0u },    // CFG-NMEA-HIGHPREC
+    };
+    ubx_valset_group(uart_num, "NMEA alta precisione", kvs_hp, 1);
 
     // Costellazioni abilitate esplicitamente: mai state toccate prima
     // d'ora in questo file. Osservato in pratica che GLONASS e Galileo

@@ -29,6 +29,9 @@ typedef struct {
     double last_ecef_x_m;
     double last_ecef_y_m;
     double last_ecef_z_m;
+    // Quando e' arrivato l'ultimo 1005/1006 (esp_timer, us; 0 = mai): una
+    // base che non lo manda e' inutile ai rover, il pannello lo segnala.
+    int64_t last_position_us;
 } base_monitor_status_t;
 
 base_monitor_status_t base_monitor_get_status(void);

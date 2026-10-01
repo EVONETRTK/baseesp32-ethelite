@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <stdlib.h>
 
 #include "sdkconfig.h"
 #include "esp_log.h"
@@ -31,6 +32,7 @@ static StreamBufferHandle_t s_stream;
 
 static sdmmc_card_t *s_card;
 static bool s_sd_mounted;
+static int s_session_idx = -1; // file di questo avvio (boot_N.log), -1 se SD assente
 
 // Stesso schema di montaggio di ppp_log.c/fw_archive.c - duplicato per
 // tenere ogni modulo autonomo.
@@ -126,6 +128,14 @@ static void diag_log_task(void *arg)
         int idx = read_next_index();
         snprintf(session_path, sizeof(session_path), "%s/boot_%d.log", LOG_DIR, idx);
         write_next_index((idx + 1) % ROTATE_COUNT);
+        // File nuovo a ogni avvio: prima si apriva solo in aggiunta, quindi
+        // a ogni giro della rotazione il file conteneva anche le sessioni di
+        // 5 avvii prima e cresceva senza limite.
+        FILE *trunc = fopen(session_path, "w");
+        if (trunc) {
+            fclose(trunc);
+        }
+        s_session_idx = idx;
         unmount_sd();
         ESP_LOGI(TAG, "Log diagnostico di questo avvio: %s", session_path);
     } else {
@@ -167,4 +177,100 @@ void diag_log_start(void)
     s_stream = xStreamBufferCreate(4096, 1);
     log_buffer_set_sink(s_stream);
     xTaskCreate(diag_log_task, "diag_log", 4096, NULL, 2, NULL);
+}
+
+int diag_log_list(diag_log_file_t *out, int max)
+{
+    int n = 0;
+    if (!mount_sd()) {
+        return -1;
+    }
+    for (int i = 0; i < ROTATE_COUNT && n < max; i++) {
+        char path[64];
+        snprintf(path, sizeof(path), "%s/boot_%d.log", LOG_DIR, i);
+        struct stat st;
+        if (stat(path, &st) == 0) {
+            out[n].index = i;
+            out[n].size = (uint32_t) st.st_size;
+            out[n].current = (i == s_session_idx);
+            n++;
+        }
+    }
+    unmount_sd();
+    return n;
+}
+
+// Toglie i codici colore ANSI (ESC [ ... m) pensati per il terminale.
+// Lo stato resta tra un blocco e l'altro: un codice puo' essere spezzato.
+static size_t strip_ansi(char *buf, size_t len, int *in_esc)
+{
+    size_t w = 0;
+    for (size_t r = 0; r < len; r++) {
+        char c = buf[r];
+        if (*in_esc) {
+            if (c == 'm') {
+                *in_esc = 0;
+            }
+            continue;
+        }
+        if (c == 0x1b) {
+            *in_esc = 1;
+            continue;
+        }
+        buf[w++] = c;
+    }
+    return w;
+}
+
+esp_err_t diag_log_send_http(httpd_req_t *req, int index)
+{
+    if (index < 0 || index >= ROTATE_COUNT) {
+        return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "indice non valido");
+    }
+    char path[64];
+    snprintf(path, sizeof(path), "%s/boot_%d.log", LOG_DIR, index);
+    char *buf = malloc(4096);
+    if (!buf) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    char disp[64];
+    snprintf(disp, sizeof(disp), "attachment; filename=\"evonetrtk_boot_%d.log\"", index);
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    httpd_resp_set_hdr(req, "Content-Disposition", disp);
+
+    // A blocchi da 4 KB, montando e smontando la SD ogni volta: con il
+    // ricevitore via I2C, finche' la SD e' montata l'I2C e' fermo (vedi
+    // gnss_io.c), quindi niente montaggi lunghi mentre il file viaggia in rete.
+    long offset = 0;
+    int in_esc = 0;
+    bool found = false;
+    while (1) {
+        if (!mount_sd()) {
+            break;
+        }
+        FILE *f = fopen(path, "r");
+        size_t n = 0;
+        if (f) {
+            found = true;
+            fseek(f, offset, SEEK_SET);
+            n = fread(buf, 1, 4096, f);
+            fclose(f);
+        }
+        unmount_sd();
+        if (n == 0) {
+            break;
+        }
+        offset += (long) n;
+        size_t out = strip_ansi(buf, n, &in_esc);
+        if (out && httpd_resp_send_chunk(req, buf, out) != ESP_OK) {
+            free(buf);
+            return ESP_FAIL;
+        }
+        vTaskDelay(pdMS_TO_TICKS(20)); // spazio all'I2C tra un blocco e l'altro
+    }
+    free(buf);
+    if (!found) {
+        httpd_resp_sendstr_chunk(req, "File non trovato o microSD non disponibile.\n");
+    }
+    return httpd_resp_send_chunk(req, NULL, 0);
 }

@@ -25,6 +25,12 @@ typedef struct {
     float altitude_m;            // -9999 se non riportato
     float diff_age_s;            // -1 se non riportato (nessuna correzione differenziale)
     int64_t last_update_us;      // esp_timer_get_time() all'ultimo aggiornamento, valido solo se "valid"
+    // Posizione dell'ultima GGA (usata dalla misura della posizione base,
+    // base_measure.c). has_position = lat/lon presenti nella sentenza.
+    bool has_position;
+    double lat_deg;
+    double lon_deg;
+    float geoid_sep_m;           // separazione geoide; quota ellissoidica = altitude_m + geoid_sep_m (-9999 se assente)
 } gnss_fix_status_t;
 
 // Inizializza lo stato condiviso del fix. Va chiamata una volta all'avvio

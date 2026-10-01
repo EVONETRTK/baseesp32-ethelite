@@ -16,6 +16,7 @@ void gnss_fix_init(void)
     s_status.hdop = -1;
     s_status.altitude_m = -9999;
     s_status.diff_age_s = -1;
+    s_status.geoid_sep_m = -9999;
     s_mutex = xSemaphoreCreateMutex();
 }
 
@@ -43,6 +44,16 @@ static char *next_field(char **cursor)
     return start;
 }
 
+// "ddmm.mmmmmmm" / "dddmm.mmmmmmm" -> gradi decimali (strtod per non
+// perdere le cifre della modalita' NMEA ad alta precisione).
+static double nmea_coord_deg(const char *field, bool negative)
+{
+    double v = strtod(field, NULL);
+    double deg = (double) ((int) (v / 100));
+    double d = deg + (v - deg * 100) / 60.0;
+    return negative ? -d : d;
+}
+
 void gnss_fix_parse_gga(const char *line_in)
 {
     if (!s_mutex || !line_in || line_in[0] != '$' || strlen(line_in) < 6) {
@@ -57,16 +68,16 @@ void gnss_fix_parse_gga(const char *line_in)
     char *cursor = line;
     next_field(&cursor); // "$xxGGA"
     next_field(&cursor); // ora
-    next_field(&cursor); // latitudine
-    next_field(&cursor); // N/S
-    next_field(&cursor); // longitudine
-    next_field(&cursor); // E/W
+    char *lat = next_field(&cursor);
+    char *ns = next_field(&cursor);
+    char *lon = next_field(&cursor);
+    char *ew = next_field(&cursor);
     char *quality = next_field(&cursor);
     char *num_sv = next_field(&cursor);
     char *hdop = next_field(&cursor);
     char *alt = next_field(&cursor);
     next_field(&cursor); // unita' altitudine (sempre "M")
-    next_field(&cursor); // separazione geoide
+    char *sep = next_field(&cursor);
     next_field(&cursor); // unita' separazione (sempre "M")
     char *diff_age = next_field(&cursor);
 
@@ -81,6 +92,12 @@ void gnss_fix_parse_gga(const char *line_in)
     s_status.hdop = (hdop && hdop[0] != '\0') ? (float) atof(hdop) : -1;
     s_status.altitude_m = (alt && alt[0] != '\0') ? (float) atof(alt) : -9999;
     s_status.diff_age_s = (diff_age && diff_age[0] != '\0') ? (float) atof(diff_age) : -1;
+    s_status.geoid_sep_m = (sep && sep[0] != '\0') ? (float) atof(sep) : -9999;
+    s_status.has_position = lat && lat[0] != '\0' && lon && lon[0] != '\0' && ns && ew;
+    if (s_status.has_position) {
+        s_status.lat_deg = nmea_coord_deg(lat, ns[0] == 'S');
+        s_status.lon_deg = nmea_coord_deg(lon, ew[0] == 'W');
+    }
     s_status.last_update_us = esp_timer_get_time();
     xSemaphoreGive(s_mutex);
 }

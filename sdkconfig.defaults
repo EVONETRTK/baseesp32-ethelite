@@ -99,3 +99,9 @@ CONFIG_I2C_ISR_IRAM_SAFE=y
 # visto il 30/09/2026). Nessun FAT su flash interna in questo firmware.
 CONFIG_FATFS_SECTOR_512=y
 # CONFIG_FATFS_SECTOR_4096 is not set
+
+# Ora del giorno nei log ("I (15:32:05.123) tag: ...") invece dei ms
+# dall'avvio: con l'NTP (time_sync.c) si sa quando e' successo qualcosa.
+# Prima della sincronizzazione parte da 00:00:00 all'accensione.
+CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM=y
+# CONFIG_LOG_TIMESTAMP_SOURCE_RTOS is not set

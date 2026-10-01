@@ -3,6 +3,7 @@
 
 #include <math.h>
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
@@ -14,6 +15,7 @@ static rtcm3_position_t s_baseline;
 static double s_drift_m;
 static bool s_last_position_set;
 static rtcm3_position_t s_last_position;
+static int64_t s_last_position_us;
 
 static void mutex_init(void)
 {
@@ -33,6 +35,7 @@ void base_monitor_feed(const uint8_t *data, size_t len)
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_last_position = pos;
     s_last_position_set = true;
+    s_last_position_us = esp_timer_get_time();
     if (!s_baseline_set) {
         s_baseline = pos;
         s_baseline_set = true;
@@ -63,6 +66,7 @@ base_monitor_status_t base_monitor_get_status(void)
     st.last_ecef_x_m = s_last_position.ecef_x_m;
     st.last_ecef_y_m = s_last_position.ecef_y_m;
     st.last_ecef_z_m = s_last_position.ecef_z_m;
+    st.last_position_us = s_last_position_us;
     xSemaphoreGive(s_mutex);
     return st;
 }

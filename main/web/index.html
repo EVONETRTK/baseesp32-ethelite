@@ -114,6 +114,16 @@
 <form id="cfg-form">
 
 <div id="page-status" class="page active">
+  <div id="measure-banner" style="display:none; background:#dbeafe; color:#1e3a8a; border:2px solid #60a5fa; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
+    <b>📡 Misura della posizione base in corso</b> (la base lavora come rover, poi torna base da sola)
+    <div id="measure-progress" style="margin-top:.3rem; font-size:.9rem"></div>
+    <div style="background:#bfdbfe; border-radius:4px; height:10px; margin:.5rem 0"><div id="measure-bar" style="background:#2563eb; height:10px; border-radius:4px; width:0"></div></div>
+    <button type="button" class="action secondary" id="measure-cancel-btn">Annulla misura (torna base senza cambiare le coordinate)</button>
+  </div>
+  <div id="no-1005-banner" style="display:none; background:#fee2e2; color:#7f1d1d; border:2px solid #f87171; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
+    <b>⚠️ La base NON sta inviando la sua posizione (RTCM 1005): i rover non possono fare RTK.</b>
+    <div id="no-1005-reason" style="margin-top:.3rem; font-size:.9rem"></div>
+  </div>
   <fieldset>
     <legend><span data-mode="base">📡 Server NTRIP (invio correzioni al caster)</span><span data-mode="rover">📡 Client NTRIP (correzioni dal caster)</span></legend>
     <dl class="kv">
@@ -201,6 +211,7 @@
     <div class="sig-bar-track"><div class="sig-bar-fill" id="cpu1-bar" style="width:0%"></div></div>
     <small class="hint" id="cpu1-text">-</small>
     <dl class="kv" style="margin-top:.6rem">
+      <dt>Ora della base</dt><dd id="st-time">-</dd>
       <dt>Temperatura chip</dt><dd id="st-temp">-</dd>
       <dt>Memoria libera</dt><dd id="st-heap-free">-</dd>
       <dt>Memoria minima mai raggiunta</dt><dd id="st-heap-min">-</dd>
@@ -458,6 +469,17 @@
         di 0,25 m puo' non arrivare mai: prova 1-2 m. Vale dal prossimo avvio.
       </small>
     </div>
+    <div style="border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; padding:.6rem .8rem; margin:.6rem 0">
+      <b>📡 Misura la posizione con RTK (consigliato)</b>
+      <small class="hint" style="display:block; margin:.3rem 0">
+        La base si riavvia come rover, riceve le correzioni dal mountpoint del rover
+        (<span id="measure-mp">-</span>), aspetta il fix RTK e fa la media delle posizioni per 3 minuti.
+        Poi salva le coordinate come posizione fissa e torna base da sola. Precisione di centimetri,
+        invece dei metri del survey-in. Massimo 20 minuti (3 se il caster non manda correzioni, es. password del rover sbagliata); se non arriva il fix, le coordinate non cambiano.
+      </small>
+      <button type="button" class="action" id="measure-start-btn">📡 Avvia misura</button>
+      <div id="measure-last" class="hint" style="margin-top:.4rem"></div>
+    </div>
     <div id="base-pos-manual-fields" style="display:none">
       <label>Latitudine (gradi decimali)<input name="base_fixed_lat_deg" type="number" step="0.0000001"></label>
       <label>Longitudine (gradi decimali)<input name="base_fixed_lon_deg" type="number" step="0.0000001"></label>
@@ -476,9 +498,10 @@
       che restituisce una posizione accurata a livello di centimetri, molto migliore del solo survey-in.
       Il pulsante "Usa posizione attuale rilevata" precompila i campi con l'ultima posizione vista dal
       ricevitore (dal messaggio RTCM 1005/1006 gia' inviato al caster) cosi', nella maggior parte dei casi,
-      basta verificarla e confermare invece di doverla scrivere a mano. Effettivo solo con chip GNSS
-      Quectel LC29H selezionato sopra; il cambio modalita' richiede lo spegnimento/riaccensione fisico del
-      modulo GNSS per avere effetto (vedi avviso nella pagina Hardware).
+      basta verificarla e confermare invece di doverla scrivere a mano. Attenzione: e' la posizione del
+      survey-in, quindi con la sua stessa imprecisione (metri). Funziona con u-blox (ZED-F9P), applicata
+      al riavvio, e con Quectel LC29H (qui serve spegnere e riaccendere il modulo GNSS, vedi pagina Hardware).
+      La quota e' ellissoidica: in Italia circa 40-50 m piu' alta di quella sul livello del mare.
     </small>
   
     <div class="fieldset-save-row">
@@ -650,6 +673,8 @@
       Pensato per una base lasciata incustodita in campo: un avviso quando la connessione NTRIP
       resta giu' (e uno quando torna a funzionare). Basta configurare almeno un canale qui sotto,
       email e WhatsApp insieme oppure uno solo.<br>
+      In modalita' base arriva anche un avviso se la base non invia la sua posizione (1005) da oltre
+      30 minuti: i rover in quel caso non possono fare RTK.<br>
       Con questa opzione attiva arriva anche un avviso se la temperatura del chip supera 70 °C
       (es. sole diretto sulla custodia) e uno quando scende sotto 65 °C.
     </small>
@@ -1034,6 +1059,16 @@
     <button type="button" class="action secondary" id="log-download-btn" style="margin-top:.6rem">Scarica log (.txt)</button>
     <pre id="log-view" style="margin-top:.6rem; max-height:60vh; overflow:auto; background:#111827; color:#e5e7eb; padding:.6rem; border-radius:6px; font-size:.78rem; white-space:pre-wrap; word-break:break-all;">-</pre>
   </fieldset>
+
+  <fieldset>
+    <legend>💾 Log salvati sulla microSD</legend>
+    <small class="hint">
+      Un file per ogni accensione, gli ultimi 5: servono per capire cosa e' successo prima di un
+      riavvio o mentre nessuno guardava. Il log qui sopra invece copre solo le ultime ore.
+    </small>
+    <button type="button" class="action secondary" id="diag-list-btn" style="margin-top:.6rem">Mostra file</button>
+    <ul id="diag-list" style="margin:.6rem 0 0; padding-left:1.2rem"></ul>
+  </fieldset>
 </div>
 
 <div id="save-msg"></div>
@@ -1199,6 +1234,28 @@ Object.entries(QUICK_STATUS_TARGET).forEach(([chipId, pageId]) => {
 // firmware (nessuna escape/quoting da gestire) sia qui, dove basta uno
 // strip dei codici colore ANSI (pensati per un terminale seriale, non per
 // una pagina web) prima di mostrarli in un <pre>.
+async function loadDiagList() {
+  const ul = document.getElementById('diag-list');
+  ul.innerHTML = '<li>Lettura della microSD...</li>';
+  try {
+    const r = await fetch('/api/diag/list');
+    const j = await r.json();
+    if (!j.sd_ok) { ul.innerHTML = '<li>microSD non disponibile</li>'; return; }
+    if (!j.files.length) { ul.innerHTML = '<li>Nessun log salvato</li>'; return; }
+    // L'avvio in corso per primo, poi gli altri dal piu' recente.
+    const cur = (j.files.find(f => f.current) || { index: 0 }).index;
+    j.files.sort((a, b) => ((cur - a.index + 5) % 5) - ((cur - b.index + 5) % 5));
+    ul.innerHTML = j.files.map(f => {
+      const age = (cur - f.index + 5) % 5;
+      const label = f.current ? 'accensione attuale' : (age === 1 ? 'accensione precedente' : age + ' accensioni fa');
+      return '<li><a href="/api/diag/download?n=' + f.index + '">' + label + '</a> (' + formatBytes(f.size) + ')</li>';
+    }).join('');
+  } catch (e) {
+    ul.innerHTML = '<li>Errore di comunicazione con la base</li>';
+  }
+}
+document.getElementById('diag-list-btn').addEventListener('click', loadDiagList);
+
 async function loadLog() {
   const view = document.getElementById('log-view');
   try {
@@ -1343,7 +1400,9 @@ async function loadStatus() {
     {
       // Stato del survey-in letto dal ricevitore (solo u-blox in base)
       const el = document.getElementById('st-svin');
-      if (s.svin_valid === undefined) {
+      if (s.base_position_mode === 'manual') {
+        el.textContent = '📌 non serve: posizione fissa inserita a mano (' + Number(s.base_fixed_lat_deg).toFixed(7) + ', ' + Number(s.base_fixed_lon_deg).toFixed(7) + ')';
+      } else if (s.svin_valid === undefined) {
         el.textContent = 'non disponibile';
       } else if (s.svin_valid) {
         el.textContent = '✅ completato (' + s.svin_duration_s + ' s, precisione ' + s.svin_mean_acc_m.toFixed(2) + ' m): la base manda la sua posizione';
@@ -1355,6 +1414,8 @@ async function loadStatus() {
     }
     updateModeBadge(activeDeviceMode, s.device_mode === 'rover' ? 'rover' : 'base', s.ap_ssid);
     updateModeVisibility();
+    update1005Banner(s);
+    updateMeasureUi(s);
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
       if (s.gnss_chip === 'bynav_m21d' && s.device_mode === 'rover') {
@@ -1391,7 +1452,9 @@ async function loadStatus() {
 
     renderCpuBar('cpu0-bar', 'cpu0-text', s.cpu0_percent, 'Core 0');
     renderCpuBar('cpu1-bar', 'cpu1-text', s.cpu1_percent, 'Core 1');
-    renderChipTemp(s.chip_temp_c, s.chip_temp_max_c);
+    renderChipTemp(s.chip_temp_c, s.chip_temp_max_c, s.chip_temp_max_at, s.chip_temp_max_ago_s);
+    document.getElementById('st-time').textContent = (s.local_time || 'non sincronizzata (manca internet?)') +
+      ' · accesa da ' + fmtDuration(s.now_us / 1e6);
     document.getElementById('st-heap-free').textContent = formatBytes(s.free_heap_bytes);
     document.getElementById('st-heap-min').textContent = formatBytes(s.min_free_heap_bytes);
     document.getElementById('st-heap-total').textContent = formatBytes(s.total_heap_bytes);
@@ -1640,7 +1703,17 @@ function renderCpuBar(barId, textId, percent, label) {
 // temperature ben piu' alte) - servono solo a capire a colpo d'occhio se
 // il dispositivo si sta scaldando piu' del normale, es. per il sole diretto
 // su una custodia chiusa in campo.
-function renderChipTemp(celsius, maxCelsius) {
+// "3 h 12 min", "45 min", "20 s"
+function fmtDuration(sec) {
+  sec = Math.max(0, Math.round(sec || 0));
+  const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+  if (d) return d + ' g ' + hh + ' h';
+  if (hh) return hh + ' h ' + m + ' min';
+  if (m) return m + ' min';
+  return sec + ' s';
+}
+
+function renderChipTemp(celsius, maxCelsius, maxAt, maxAgoS) {
   const el = document.getElementById('st-temp');
   if (celsius === null || celsius === undefined) {
     el.textContent = 'non disponibile';
@@ -1649,7 +1722,8 @@ function renderChipTemp(celsius, maxCelsius) {
     return;
   }
   el.textContent = celsius.toFixed(1) + ' °C' +
-    (maxCelsius !== null && maxCelsius !== undefined ? ' (max ' + maxCelsius.toFixed(1) + ' °C)' : '');
+    (maxCelsius !== null && maxCelsius !== undefined ? ' (max ' + maxCelsius.toFixed(1) + ' °C' +
+      (maxAt ? ', il ' + maxAt.slice(8, 10) + '/' + maxAt.slice(5, 7) + ' alle ' + maxAt.slice(11, 16) : (maxAgoS !== undefined ? ', ' + fmtDuration(maxAgoS) + ' fa' : '')) + ')' : '');
   el.style.fontWeight = '600';
   if (celsius < 50) {
     el.style.color = '#16a34a';
@@ -2503,6 +2577,74 @@ let activeDeviceMode = null;
 // barra in alto e linguette (blu base, verde rover), titolo della scheda del
 // browser. "active" e' la modalita' con cui il dispositivo sta girando,
 // "saved" quella salvata: se diverse, la nuova vale solo dopo il riavvio.
+const FIX_NAMES = { 0: 'nessun fix', 1: 'GPS', 2: 'DGPS', 4: 'RTK fisso', 5: 'RTK float', 6: 'stimato' };
+function fmtMinSec(sec) { sec = Math.max(0, Math.round(sec || 0)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }
+
+// Misura della posizione base (base_measure.c): avanzamento nello Stato,
+// pulsante ed esito dell'ultima misura nel riquadro Posizione base.
+function updateMeasureUi(s) {
+  const box = document.getElementById('measure-banner');
+  box.style.display = s.base_measure_active ? '' : 'none';
+  document.getElementById('measure-mp').textContent = s.rover_mountpoint ? '/' + s.rover_mountpoint : 'non impostato: scheda GNSS & NTRIP';
+  document.getElementById('measure-last').textContent = (!s.base_measure_active && s.base_measure_msg) ? 'Ultima misura: ' + s.base_measure_msg : '';
+  if (!s.base_measure_active) return;
+  const q = s.base_measure_quality;
+  const pct = Math.min(100, 100 * (s.base_measure_fixed_n || 0) / (s.base_measure_target_n || 180));
+  document.getElementById('measure-bar').style.width = pct + '%';
+  document.getElementById('measure-progress').textContent =
+    'Correzioni da /' + s.rover_mountpoint + ' · fix attuale: ' + (q === undefined || q < 0 ? 'in attesa' : (FIX_NAMES[q] || q)) +
+    ' · campioni RTK fisso ' + (s.base_measure_fixed_n || 0) + '/' + (s.base_measure_target_n || 180) +
+    ' (float ' + (s.base_measure_float_n || 0) + ') · tempo ' + fmtMinSec(s.base_measure_elapsed_s) + ' di ' + fmtMinSec(s.base_measure_timeout_s);
+}
+
+async function postMeasure(action) {
+  try {
+    const r = await fetch('/api/base/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+    const j = await r.json().catch(() => ({}));
+    if (j.ok === false) { alert(j.error || 'Operazione non riuscita'); return; }
+    alert(action === 'start'
+      ? 'La base si riavvia come rover per la misura. Riapri il pannello tra circa un minuto: lo stato è in cima alla scheda Stato.'
+      : 'Misura annullata: la base si riavvia come base.');
+  } catch (e) {
+    alert('Errore di comunicazione con la base');
+  }
+}
+
+document.getElementById('measure-start-btn').addEventListener('click', () => {
+  if (confirm('Avviare la misura della posizione? La base si riavvia come rover e per qualche minuto non invia correzioni.')) postMeasure('start');
+});
+document.getElementById('measure-cancel-btn').addEventListener('click', () => {
+  if (confirm('Annullare la misura e tornare base senza cambiare le coordinate?')) postMeasure('cancel');
+});
+
+// Riquadro rosso in cima allo Stato: base senza 1005 da piu' di 30 s (o mai
+// dall'avvio). Il motivo piu' probabile e' scritto sotto, in parole semplici.
+function update1005Banner(s) {
+  const box = document.getElementById('no-1005-banner');
+  const age = s.base_position_age_s;
+  const show = activeDeviceMode === 'base' && s.now_us > 60e6 && (age === undefined || age < 0 || age > 30);
+  box.style.display = show ? '' : 'none';
+  if (!show) return;
+  let why;
+  if (!s.rtcm_1005_enable) {
+    why = 'Il messaggio 1005 è disattivato: GNSS &amp; NTRIP → Messaggi RTCM.';
+  } else if (!s.last_rtcm_us || (s.now_us - s.last_rtcm_us) > 10e6) {
+    why = 'Dal ricevitore non arrivano dati RTCM: controlla il collegamento (scheda Hardware) e il log.';
+  } else if (s.base_position_mode === 'manual') {
+    why = 'Posizione fissa impostata ma il ricevitore non manda il 1005: controlla il log di avvio (configurazione TMODE).';
+  } else if (s.svin_active) {
+    why = 'Survey-in in corso da ' + Math.round(s.svin_duration_s / 60) + ' min: precisione attuale ' +
+      s.svin_mean_acc_m.toFixed(1) + ' m, richiesta ' + (s.base_svin_acc_m || 0.25) + ' m. ' +
+      'Con cielo coperto può non completarsi mai: sposta l’antenna, alza la soglia o inserisci le coordinate ' +
+      '(GNSS &amp; NTRIP → Posizione base).';
+  } else if (age > 30) {
+    why = 'Il ricevitore ha smesso di mandarlo da ' + Math.round(age) + ' s.';
+  } else {
+    why = 'Il survey-in non è ancora partito o non è completato.';
+  }
+  document.getElementById('no-1005-reason').innerHTML = why;
+}
+
 function updateModeBadge(active, saved, name) {
   const badge = document.getElementById('mode-badge');
   const label = active === 'rover' ? '🚜 ROVER' : '🏠 BASE';
