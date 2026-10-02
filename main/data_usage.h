@@ -14,11 +14,12 @@
 void data_usage_add(uint32_t bytes, bool sent);
 
 typedef struct {
-    char month[16];         // "2026-10", vuoto se l'ora non e' ancora nota
+    char month[16];         // inizio del periodo "2026-10-15", vuoto se non ancora noto
     uint64_t cell_month;
     uint64_t cell_day;
     uint64_t wifi_month;
     uint64_t wifi_day;
+    uint32_t period_days;   // durata del periodo (da rinnovo a rinnovo)
     uint32_t counted_s;     // secondi contati in questo mese (0 = sconosciuto)
 } data_usage_t;
 

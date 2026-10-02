@@ -7,6 +7,7 @@
 #include "time_sync.h"
 #include "diag_log.h"
 #include "data_usage.h"
+#include "sim_plan.h"
 #include "online_update.h"
 #include "status.h"
 #include "log_buffer.h"
@@ -478,6 +479,25 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddNumberToObject(root, "data_wifi_day_bytes", (double) du.wifi_day);
         cJSON_AddNumberToObject(root, "data_plan_mb", s.data_plan_mb);
         cJSON_AddNumberToObject(root, "data_counted_s", du.counted_s);
+        cJSON_AddNumberToObject(root, "data_period_days", du.period_days);
+    }
+    {
+        // Rinnovo del piano della SIM (sim_plan.c).
+        char d[16] = "";
+        if (s.sim_renew_date) {
+            snprintf(d, sizeof(d), "%04u-%02u-%02u", (unsigned) (s.sim_renew_date / 10000),
+                     (unsigned) (s.sim_renew_date / 100 % 100), (unsigned) (s.sim_renew_date % 100));
+        }
+        cJSON_AddStringToObject(root, "sim_renew_date", d);
+        cJSON_AddStringToObject(root, "sim_renew_mode", s.sim_renew_mode == SIM_RENEW_MONTHLY ? "monthly"
+                                : (s.sim_renew_mode == SIM_RENEW_DAYS ? "days" : "single"));
+        cJSON_AddNumberToObject(root, "sim_renew_every_days", s.sim_renew_every_days);
+        cJSON_AddNumberToObject(root, "sim_notice1_days", s.sim_notice1_days);
+        cJSON_AddNumberToObject(root, "sim_notice2_days", s.sim_notice2_days);
+        int left;
+        if (sim_plan_days_left(&left)) {
+            cJSON_AddNumberToObject(root, "sim_renew_days_left", left);
+        }
         data_usage_day_t hist[DATA_USAGE_HISTORY_DAYS];
         int hn = data_usage_get_history(hist, DATA_USAGE_HISTORY_DAYS);
         cJSON *harr = cJSON_AddArrayToObject(root, "data_history");
@@ -893,6 +913,35 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         data_plan_item->valuedouble <= 1000000) {
         s.data_plan_mb = (uint32_t) data_plan_item->valuedouble;
     }
+    // Rinnovo del piano della SIM: data "aaaa-mm-gg" (vuota = nessuna).
+    cJSON *renew_date_item = cJSON_GetObjectItemCaseSensitive(root, "sim_renew_date");
+    if (renew_date_item && cJSON_IsString(renew_date_item)) {
+        unsigned y = 0, m = 0, d = 0;
+        if (renew_date_item->valuestring[0] == 0) {
+            s.sim_renew_date = 0;
+        } else if (sscanf(renew_date_item->valuestring, "%u-%u-%u", &y, &m, &d) == 3 &&
+                   y >= 2020 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+            s.sim_renew_date = y * 10000 + m * 100 + d;
+        }
+    }
+    cJSON *renew_mode_item = cJSON_GetObjectItemCaseSensitive(root, "sim_renew_mode");
+    if (renew_mode_item && cJSON_IsString(renew_mode_item)) {
+        const char *m = renew_mode_item->valuestring;
+        s.sim_renew_mode = strcmp(m, "monthly") == 0 ? SIM_RENEW_MONTHLY
+                         : (strcmp(m, "days") == 0 ? SIM_RENEW_DAYS : SIM_RENEW_SINGLE);
+    }
+    struct { const char *name; uint16_t *field; int min, max; } renew_nums[] = {
+        { "sim_renew_every_days", &s.sim_renew_every_days, 1, 366 },
+        { "sim_notice1_days", &s.sim_notice1_days, 0, 60 },
+        { "sim_notice2_days", &s.sim_notice2_days, 0, 60 },
+    };
+    for (size_t i = 0; i < sizeof(renew_nums) / sizeof(renew_nums[0]); i++) {
+        cJSON *it = cJSON_GetObjectItemCaseSensitive(root, renew_nums[i].name);
+        if (it && cJSON_IsNumber(it) && it->valueint >= renew_nums[i].min && it->valueint <= renew_nums[i].max) {
+            *renew_nums[i].field = (uint16_t) it->valueint;
+        }
+    }
+
     // Il pannello lo chiede in GB (con decimali): salvato in MB come prima.
     cJSON *data_plan_gb_item = cJSON_GetObjectItemCaseSensitive(root, "data_plan_gb");
     if (data_plan_gb_item && cJSON_IsNumber(data_plan_gb_item) && data_plan_gb_item->valuedouble >= 0 &&

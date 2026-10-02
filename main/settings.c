@@ -151,6 +151,9 @@ static void apply_defaults(void)
     // impostazione esistesse (MSM7 su tutte le costellazioni + 1005 + 1230,
     // gli extra 1007/1008/1019/1020 spenti perche' non mai stati inviati
     // prima d'ora).
+    s_settings.sim_notice1_days = 7;
+    s_settings.sim_notice2_days = 1;
+    s_settings.sim_renew_every_days = 30;
     s_settings.rtcm_1005_enable = true;
     s_settings.rtcm_1230_enable = true;
     s_settings.rtcm_1007_enable = false;
@@ -351,6 +354,12 @@ void settings_init(void)
             memcpy(s_settings.rover_password, s_settings.ntrip_password, sizeof(s_settings.rover_password));
             ESP_LOGI(TAG, "Credenziali rover separate da quelle della base (copiate dai campi condivisi)");
         }
+        // Blob precedente alla 1.19.82: promemoria del rinnovo SIM a zero.
+        if (s_settings.sim_renew_date == 0 && s_settings.sim_notice1_days == 0 && s_settings.sim_notice2_days == 0) {
+            s_settings.sim_notice1_days = 7;
+            s_settings.sim_notice2_days = 1;
+            s_settings.sim_renew_every_days = 30;
+        }
         ESP_LOGI(TAG, "Configurazione caricata da NVS (AP=%s)", s_settings.ap_ssid);
     } else {
         ESP_LOGW(TAG, "Configurazione NVS non valida, uso i default di Kconfig");
@@ -366,8 +375,20 @@ app_settings_t settings_get(void)
     return copy;
 }
 
+// Buffer di scrittura e di verifica statici, protetti da s_save_mutex:
+// prima erano sullo stack del chiamante (~4 KB in tutto). Il 02/10/2026 un
+// task con stack piccolo e' andato in crash DURANTE la scrittura e la
+// configurazione e' andata persa del tutto (base ripartita con i default).
+static stored_cfg_t s_save_buf;
+static stored_cfg_t s_verify_buf;
+static SemaphoreHandle_t s_save_mutex;
+
 esp_err_t settings_save(const app_settings_t *s)
 {
+    if (!s_save_mutex) {
+        s_save_mutex = xSemaphoreCreateMutex();
+    }
+    xSemaphoreTake(s_save_mutex, portMAX_DELAY);
     // Diagnostica per capire se un valore gia' scorretto arriva fin qui
     // (bug a monte, nella UI/nel parsing del form) o se si corrompe dopo
     // (bug nel giro di scrittura/lettura NVS) - lasciato attivo in modo
@@ -384,20 +405,22 @@ esp_err_t settings_save(const app_settings_t *s)
     // Costruito da *s (parametro del chiamante, non condiviso/soggetto a
     // scritture concorrenti) e non da s_settings: evita qualunque finestra
     // di rischio tra il rilascio del mutex sopra e questa riga.
-    stored_cfg_t stored = { .magic = CFG_MAGIC, .s = *s };
+    s_save_buf.magic = CFG_MAGIC;
+    s_save_buf.s = *s;
 
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
     if (err != ESP_OK) {
+        xSemaphoreGive(s_save_mutex);
         return err;
     }
 
-    err = nvs_set_blob(h, NVS_KEY_CFG, &stored, sizeof(stored));
+    err = nvs_set_blob(h, NVS_KEY_CFG, &s_save_buf, sizeof(s_save_buf));
     if (err == ESP_OK) {
         err = nvs_commit(h);
     }
     nvs_close(h);
-    ESP_LOGI(TAG, "Scrittura NVS completata: %s (%u byte scritti)", esp_err_to_name(err), (unsigned) sizeof(stored));
+    ESP_LOGI(TAG, "Scrittura NVS completata: %s (%u byte scritti)", esp_err_to_name(err), (unsigned) sizeof(s_save_buf));
 
     // Rilettura immediata di verifica (stessa diagnostica di sopra) -
     // conferma se quanto e' stato appena scritto combacia con quanto si
@@ -405,17 +428,18 @@ esp_err_t settings_save(const app_settings_t *s)
     // scrittura/lettura NVS invece che nei dati arrivati a questa funzione.
     nvs_handle_t hv;
     if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &hv) == ESP_OK) {
-        stored_cfg_t verify;
-        size_t len = sizeof(verify);
-        if (nvs_get_blob(hv, NVS_KEY_CFG, &verify, &len) == ESP_OK) {
+        stored_cfg_t *verify = &s_verify_buf;
+        size_t len = sizeof(*verify);
+        if (nvs_get_blob(hv, NVS_KEY_CFG, verify, &len) == ESP_OK) {
             ESP_LOGI(TAG, "Verifica rilettura: %u byte, wifi_ssid='%s' ap_ssid='%s' gnss_uart_num=%d gnss_uart_baud=%d",
-                     (unsigned) len, verify.s.wifi_ssid, verify.s.ap_ssid, verify.s.gnss_uart_num, verify.s.gnss_uart_baud);
+                     (unsigned) len, verify->s.wifi_ssid, verify->s.ap_ssid, verify->s.gnss_uart_num, verify->s.gnss_uart_baud);
         } else {
             ESP_LOGW(TAG, "Verifica rilettura fallita");
         }
         nvs_close(hv);
     }
 
+    xSemaphoreGive(s_save_mutex);
     return err;
 }
 

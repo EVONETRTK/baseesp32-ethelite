@@ -362,6 +362,17 @@ typedef struct {
     // pannello mostra il consumo stimato rispetto a questo valore e, con gli
     // avvisi attivi, arriva un avviso al raggiungimento dell'80%.
     uint32_t data_plan_mb;
+
+    // Rinnovo del piano della SIM (sim_plan.c): data del prossimo rinnovo
+    // (aaaammgg, 0 = non impostata), tipo (0 = scadenza unica, 1 = ogni mese
+    // nello stesso giorno, 2 = ogni sim_renew_every_days giorni) e due
+    // promemoria, N giorni prima ciascuno. Il contatore del traffico conta
+    // da un rinnovo all'altro, come l'operatore.
+    uint32_t sim_renew_date;
+    uint8_t sim_renew_mode;
+    uint16_t sim_renew_every_days;
+    uint16_t sim_notice1_days;
+    uint16_t sim_notice2_days;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

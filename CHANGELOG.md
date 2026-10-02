@@ -2,6 +2,17 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.82
+
+- **Rinnovo del piano della SIM** (richiesta dell'utente, nuovo `sim_plan.c`): nel riquadro della rete cellulare tipo di rinnovo (ogni mese nello stesso giorno, ogni N giorni, scadenza unica), data del prossimo rinnovo e **due promemoria** con i giorni di anticipo scelti dall'utente (predefiniti 7 e 1). I promemoria partono via email/WhatsApp dalle 9:00 e restano segnati in NVS per non ripetersi dopo un riavvio. Nei rinnovi periodici la data passa da sola al ciclo successivo; con la scadenza unica, una volta scaduta, arriva un promemoria al giorno. Riquadro giallo o rosso in cima alla scheda Stato.
+- **Il traffico si conta da un rinnovo all'altro**, come fa l'operatore, invece che dal 1 del mese; la previsione della barra e' "al prossimo rinnovo".
+- **Corretto un errore che ha fatto perdere la configurazione della base di prova**. Durante le prove di questa versione:
+  - le nuove funzioni copiavano tutte le impostazioni (~2 KB) sullo stack di task piccoli: la memoria si corrompeva e la base andava in crash. Ora il modulo tiene una copia dei soli campi del rinnovo;
+  - `mktime()` era chiamata dentro una sezione critica del contatore del traffico (prima solo al cambio di mese, quindi mai visto): crash al primo cambio di periodo. Spostata fuori;
+  - **`settings_save()` teneva sullo stack del chiamante due copie della configurazione (~4 KB)**. Un crash durante la scrittura ha lasciato la NVS senza configurazione e la base e' ripartita con i valori di fabbrica (caster, WiFi e credenziali persi). Ora usa buffer statici protetti da un mutex: nessun chiamante puo' piu' traboccare salvando le impostazioni.
+  
+  La base e' stata riaggiornata via USB. La nuova riga "Ultimo riavvio" (1.19.80) ha registrato subito il crash ("errore del firmware").
+
 ## 1.19.81
 
 - **Grafico del traffico dati** (richiesta dell'utente):

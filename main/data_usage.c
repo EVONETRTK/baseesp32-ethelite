@@ -1,5 +1,6 @@
 #include "data_usage.h"
 #include "status.h"
+#include "sim_plan.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -36,16 +37,29 @@ static void roll_period(void)
     }
     struct tm tm;
     localtime_r(&now, &tm);
-    uint32_t month = (uint32_t) (tm.tm_year + 1900) * 100 + (uint32_t) (tm.tm_mon + 1);
-    uint32_t day = month * 100 + (uint32_t) tm.tm_mday;
+    uint32_t day = (uint32_t) (tm.tm_year + 1900) * 10000 + (uint32_t) (tm.tm_mon + 1) * 100 + (uint32_t) tm.tm_mday;
+    // Periodo di conteggio = da un rinnovo della SIM all'altro (sim_plan.c),
+    // o il mese di calendario se il rinnovo non e' impostato. s_month ne
+    // contiene l'inizio (aaaammgg); un valore a 6 cifre (aaaamm) viene dalla
+    // 1.19.80-81: si tengono i conteggi e si passa al nuovo formato.
+    uint32_t month = sim_plan_period_start(day);
+    // Inizio del periodo come epoch, calcolato FUORI dalla sezione critica:
+    // mktime() prende dei lock e dentro portENTER_CRITICAL manda il firmware
+    // in crash (visto sul dispositivo al primo cambio di periodo).
+    struct tm first = tm;
+    first.tm_year = (int) (month / 10000) - 1900;
+    first.tm_mon = (int) (month / 100 % 100) - 1;
+    first.tm_mday = (int) (month % 100);
+    first.tm_hour = 0; first.tm_min = 0; first.tm_sec = 0; first.tm_isdst = -1;
+    time_t period_epoch = mktime(&first);
+    if (period_epoch > now) {
+        period_epoch = now;
+    }
     portENTER_CRITICAL(&s_lock);
-    if (s_month != 0 && month != s_month) {
+    if (s_month >= 10000000 && month != s_month) {
         s_cell_month = 0;
         s_wifi_month = 0;
-        // Dall'inizio del nuovo mese (00:00 del giorno 1).
-        struct tm first = tm;
-        first.tm_mday = 1; first.tm_hour = 0; first.tm_min = 0; first.tm_sec = 0;
-        s_since = (uint32_t) mktime(&first);
+        s_since = (uint32_t) period_epoch; // dall'inizio del nuovo periodo
         s_dirty = true;
     }
     if (s_since == 0) {
@@ -107,8 +121,10 @@ data_usage_t data_usage_get(void)
     if (since && now > (time_t) since) {
         u.counted_s = (uint32_t) (now - since);
     }
-    if (month) {
-        snprintf(u.month, sizeof(u.month), "%04u-%02u", (unsigned) (month / 100), (unsigned) (month % 100));
+    if (month >= 10000000) {
+        snprintf(u.month, sizeof(u.month), "%04u-%02u-%02u", (unsigned) (month / 10000),
+                 (unsigned) (month / 100 % 100), (unsigned) (month % 100));
+        u.period_days = sim_plan_period_days(month);
     }
     return u;
 }

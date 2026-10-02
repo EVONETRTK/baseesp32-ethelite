@@ -120,6 +120,7 @@
     <div style="background:#bfdbfe; border-radius:4px; height:10px; margin:.5rem 0"><div id="measure-bar" style="background:#2563eb; height:10px; border-radius:4px; width:0"></div></div>
     <button type="button" class="action secondary" id="measure-cancel-btn">Annulla misura (torna base senza cambiare le coordinate)</button>
   </div>
+  <div id="sim-renew-banner" style="display:none; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem"></div>
   <div id="no-1005-banner" style="display:none; background:#fee2e2; color:#7f1d1d; border:2px solid #f87171; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
     <b>⚠️ La base NON sta inviando la sua posizione (RTCM 1005): i rover non possono fare RTK.</b>
     <div id="no-1005-reason" style="margin-top:.3rem; font-size:.9rem"></div>
@@ -306,6 +307,31 @@
     <label>APN operatore SIM<input name="cellular_apn"></label>
     <label>Piano dati della SIM (GB al mese)<input name="data_plan_gb" type="number" min="0" step="0.1" placeholder="0 = nessun limite"></label>
     <div class="hint" id="data-usage-box" style="margin:.2rem 0 .6rem"></div>
+    <div style="border:1px solid #d0d3d8; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .6rem">
+      <b>📅 Rinnovo del piano della SIM</b>
+      <label>Tipo di rinnovo
+        <select name="sim_renew_mode">
+          <option value="monthly">Ogni mese nello stesso giorno</option>
+          <option value="days">Ogni N giorni</option>
+          <option value="single">Scadenza unica (piano annuale, ricarica a mano)</option>
+        </select>
+      </label>
+      <label>Data del prossimo rinnovo<input name="sim_renew_date" type="date"></label>
+      <label id="sim-every-wrap">Ogni quanti giorni<input name="sim_renew_every_days" type="number" min="1" max="366" step="1"></label>
+      <label>Primo promemoria: giorni prima<input name="sim_notice1_days" type="number" min="0" max="60" step="1"></label>
+      <label>Secondo promemoria: giorni prima<input name="sim_notice2_days" type="number" min="0" max="60" step="1"></label>
+      <small class="hint">
+        I promemoria arrivano via email/WhatsApp (configurali nella scheda GNSS &amp; NTRIP, riquadro avvisi)
+        dalle 9:00 del giorno scelto; 0 = il giorno stesso del rinnovo. Nei rinnovi periodici la data passa
+        da sola al ciclo successivo; con la scadenza unica, una volta scaduta, arriva un promemoria al giorno
+        finche' non inserisci la nuova data. Il traffico si conta da un rinnovo all'altro, come l'operatore.
+        Lascia la data vuota per non usare i promemoria.
+      </small>
+      <div class="fieldset-save-row">
+        <button type="button" class="action fieldset-save-btn" data-fields="sim_renew_mode,sim_renew_date,sim_renew_every_days,sim_notice1_days,sim_notice2_days">💾 Salva</button>
+        <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+      </div>
+    </div>
     <small class="hint">
       Il traffico e' una stima (dati inviati al caster piu' le intestazioni di rete), utile per non
       restare senza dati. Con gli avvisi attivi arriva un avviso all'80% del piano. La base torna da
@@ -1443,6 +1469,7 @@ async function loadStatus() {
     updateModeVisibility();
     update1005Banner(s);
     updateReliabilityUi(s);
+    updateSimRenewBanner(s);
     updateMeasureUi(s);
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
@@ -1495,6 +1522,12 @@ async function loadStatus() {
       f.wifi_ssid.value = s.wifi_ssid || '';
       f.cellular_apn.value = s.cellular_apn || '';
       f.data_plan_gb.value = (s.data_plan_mb || 0) / 1000;
+      f.sim_renew_mode.value = s.sim_renew_mode || 'monthly';
+      f.sim_renew_date.value = s.sim_renew_date || '';
+      f.sim_renew_every_days.value = s.sim_renew_every_days || 30;
+      f.sim_notice1_days.value = s.sim_notice1_days ?? 7;
+      f.sim_notice2_days.value = s.sim_notice2_days ?? 1;
+      updateSimEvery();
       f.cellular_module.value = s.cellular_module || (s.cellular_is_sim868 ? 'sim868' : 'sim7600_lilygo');
       updateSimcomWarn();
       f.ntrip_host.value = s.ntrip_host || '';
@@ -2123,7 +2156,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 // parametro) e il fallback "salva tutto" qui sotto, per non doverlo
 // mantenere in due posti.
 const NUMBER_FIELDS = new Set([
-  'data_plan_gb',
+  'data_plan_gb', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
   'ntrip_port', 'nmea_udp_port', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
   'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
@@ -2682,8 +2715,10 @@ function renderDataBar(el, s) {
   // Media sul tempo davvero contato (il contatore puo' essere partito a meta' mese),
   // proiettata sul mese intero; servono almeno 6 ore per una stima sensata.
   const counted = s.data_counted_s || 0;
-  const scale = mp && counted >= 6 * 3600 ? mp.days * 86400 / counted : null;
+  const periodDays = s.data_period_days || (mp ? mp.days : 0);
+  const scale = periodDays && counted >= 6 * 3600 ? periodDays * 86400 / counted : null;
   const forecast = scale !== null ? used * scale : null;
+  const since = s.data_month ? ' dal ' + s.data_month.slice(8, 10) + '/' + s.data_month.slice(5, 7) : '';
   const totalMonth = used + (s.data_wifi_month_bytes || 0);
   const typical = scale !== null ? totalMonth * scale : null;
 
@@ -2696,11 +2731,11 @@ function renderDataBar(el, s) {
       '<div style="background:' + color + '; height:100%; width:' + Math.min(100, pct) + '%"></div>' +
       (fPct !== null ? '<div title="previsione a fine mese" style="position:absolute; top:0; bottom:0; left:calc(' + fPct + '% - 2px); width:3px; background:#374151"></div>' : '') +
       '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:.85rem; color:#111827">' +
-      fmtGB(used) + ' di ' + fmtGB(planB) + ' · ' + Math.round(pct) + '%</div></div>';
+      fmtGB(used) + ' di ' + fmtGB(planB) + since + ' · ' + Math.round(pct) + '%</div></div>';
     if (forecast !== null) {
       const over = forecast > planB;
       html += '<div style="font-size:.85rem; margin-top:.25rem; color:' + (over ? '#dc2626' : '') + '">' +
-        'Previsione a fine mese: <b>' + fmtGB(forecast) + '</b>' + (over ? ' — <b>sforerai il piano</b>' : '') +
+        'Previsione al prossimo rinnovo: <b>' + fmtGB(forecast) + '</b>' + (over ? ' — <b>sforerai il piano</b>' : '') +
         ' (tacca scura sulla barra)</div>';
     }
   } else {
@@ -2724,7 +2759,8 @@ function drawDataChart(canvas, s) {
   const today = s.local_time ? s.local_time.slice(0, 10) : 'oggi';
   days.push({ d: today, c: s.data_cell_day_bytes || 0, w: s.data_wifi_day_bytes || 0, today: true });
   const mp = monthProgress(s.local_time);
-  const quota = s.data_plan_mb && mp ? s.data_plan_mb * 1e6 / mp.days : 0;
+  const periodDays = s.data_period_days || (mp ? mp.days : 0);
+  const quota = s.data_plan_mb && periodDays ? s.data_plan_mb * 1e6 / periodDays : 0;
   const max = Math.max(quota * 1.15, ...days.map(x => x.c + x.w), 1e6);
   const left = 44, bottom = h - 16, top = 6, slots = 30;
   const slotW = (w - left - 4) / slots, barW = Math.max(3, slotW - 3);
@@ -2764,6 +2800,31 @@ function drawDataChart(canvas, s) {
 }
 
 // Ultimo riavvio, traffico dati e cadute del caster (scheda Stato e Rete).
+// Promemoria del rinnovo della SIM in cima allo Stato: giallo nei giorni
+// del primo promemoria, rosso se scaduto.
+function updateSimRenewBanner(s) {
+  const box = document.getElementById('sim-renew-banner');
+  const left = s.sim_renew_days_left;
+  const n1 = Math.max(s.sim_notice1_days || 0, s.sim_notice2_days || 0);
+  if (left === undefined || left > n1) { box.style.display = 'none'; return; }
+  const d = s.sim_renew_date;
+  const date = d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
+  const expired = left < 0;
+  box.style.display = '';
+  box.style.background = expired ? '#fee2e2' : '#fef3c7';
+  box.style.border = '2px solid ' + (expired ? '#f87171' : '#fcd34d');
+  box.style.color = expired ? '#7f1d1d' : '#78350f';
+  const when = expired ? 'è scaduto il ' + date : (left === 0 ? 'si rinnova oggi' : left === 1 ? 'si rinnova domani' : 'si rinnova tra ' + left + ' giorni') + ' (' + date + ')';
+  box.innerHTML = '<b>📅 Il piano della SIM ' + when + '.</b> ' +
+    (expired ? 'Rinnovalo e aggiorna la data nella scheda Rete.' : 'Controlla il credito o rinnova il piano.');
+}
+
+function updateSimEvery() {
+  const f = document.getElementById('cfg-form');
+  document.getElementById('sim-every-wrap').style.display = f.sim_renew_mode.value === 'days' ? '' : 'none';
+}
+document.getElementById('cfg-form').elements['sim_renew_mode'].addEventListener('change', updateSimEvery);
+
 function updateReliabilityUi(s) {
   const reset = document.getElementById('st-reset');
   reset.textContent = s.last_reset || '-';
