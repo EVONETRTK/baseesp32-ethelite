@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Linea dei 35 dB nel grafico satelliti; temperatura massima e avviso oltre 70 C; sorveglianza CPU e memoria nel log; microSD senza errori di memoria."
+#define FIRMWARE_RELEASE_NOTES "Coordinate fisse u-blox e misura della posizione base con RTK; avviso base senza posizione; ora NTP; log SD scaricabili; modulo SIM7600 SIMCom; meno traffico dati e contatore; riavvio di sicurezza."
