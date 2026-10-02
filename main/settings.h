@@ -423,6 +423,12 @@ void settings_device_serial_from_mac(char *out, size_t out_size);
 // false se all'avvio non c'era una configurazione valida in NVS (default).
 bool settings_loaded_from_nvs(void);
 
+// Lettura e modifica senza copiare app_settings_t (~2,1 KB): fn riceve la
+// configurazione in memoria sotto mutex. Brevi, niente altre settings_*.
+// settings_update() salva anche in NVS.
+void settings_peek(void (*fn)(const app_settings_t *s, void *ctx), void *ctx);
+esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx);
+
 // Configurazione come blob NVS (magic + app_settings_t): esportazione,
 // copia sulla microSD e importazione. Dopo l'importazione serve un riavvio
 // (o settings_init()) per caricarla. keep_identity: tiene matricola e rete

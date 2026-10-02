@@ -293,9 +293,8 @@ static void alerts_task(void *arg)
         // (alerts_wake(), sim_tools.c).
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
 
-        sim_plan_tick(); // rinnovo della SIM: promemoria anche con gli altri avvisi spenti
-
         app_settings_t s = settings_get();
+        sim_plan_tick(&s);  // rinnovo della SIM: promemoria anche con gli altri avvisi spenti
         sim_tools_tick(&s); // credito, SMS (anche con gli altri avvisi spenti)
         if (!s.alert_enable) {
             already_alerted = false;

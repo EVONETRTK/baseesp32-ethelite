@@ -32,8 +32,8 @@ typedef struct {
 
 static acc_t s_fixed, s_float;
 static base_measure_progress_t s_prog = { .quality = -1 };
-// Statica: app_settings_t e' ~2 KB, troppi per gli stack dei chiamanti.
-static app_settings_t s_cfg;
+// Nessuna copia di app_settings_t (~2,1 KB): letture e modifiche sul posto
+// con settings_peek()/settings_update().
 
 static void acc_add(acc_t *a, const double v[3])
 {
@@ -60,20 +60,31 @@ static void acc_spread_m(const acc_t *a, double *horiz_m, double *vert_m)
 
 // Torna base (riavviando). Con ok = true salva anche le coordinate come
 // posizione fissa.
+typedef struct {
+    bool ok;
+    const acc_t *a;
+    const char *msg;
+} finish_ctx_t;
+
+static void apply_finish(app_settings_t *s, void *ctx)
+{
+    finish_ctx_t *c = ctx;
+    if (c->ok) {
+        s->base_position_mode = BASE_POSITION_MANUAL;
+        s->base_fixed_lat_deg = c->a->mean[0];
+        s->base_fixed_lon_deg = c->a->mean[1];
+        s->base_fixed_height_m = c->a->mean[2];
+    }
+    s->device_mode = DEVICE_MODE_BASE;
+    s->base_measure_active = false;
+    strncpy(s->base_measure_msg, c->msg, sizeof(s->base_measure_msg) - 1);
+    s->base_measure_msg[sizeof(s->base_measure_msg) - 1] = '\0';
+}
+
 static void finish(bool ok, const acc_t *a, const char *msg)
 {
-    s_cfg = settings_get();
-    if (ok) {
-        s_cfg.base_position_mode = BASE_POSITION_MANUAL;
-        s_cfg.base_fixed_lat_deg = a->mean[0];
-        s_cfg.base_fixed_lon_deg = a->mean[1];
-        s_cfg.base_fixed_height_m = a->mean[2];
-    }
-    s_cfg.device_mode = DEVICE_MODE_BASE;
-    s_cfg.base_measure_active = false;
-    strncpy(s_cfg.base_measure_msg, msg, sizeof(s_cfg.base_measure_msg) - 1);
-    s_cfg.base_measure_msg[sizeof(s_cfg.base_measure_msg) - 1] = '\0';
-    settings_save(&s_cfg);
+    finish_ctx_t c = { .ok = ok, .a = a, .msg = msg };
+    settings_update(apply_finish, &c);
     if (ok) {
         ESP_LOGI(TAG, "Posizione base salvata: lat %.9f lon %.9f quota ellissoidica %.4f m", a->mean[0], a->mean[1], a->mean[2]);
     }
@@ -155,45 +166,71 @@ static void measure_task(void *arg)
     }
 }
 
+typedef struct {
+    gnss_chip_t chip;
+    bool active;
+    char mountpoint[33];
+} measure_view_t;
+
+static void peek_view(const app_settings_t *s, void *ctx)
+{
+    measure_view_t *v = ctx;
+    v->chip = s->gnss_chip;
+    v->active = s->base_measure_active;
+    memcpy(v->mountpoint, s->rover_mountpoint, sizeof(v->mountpoint));
+    v->mountpoint[sizeof(v->mountpoint) - 1] = '\0';
+}
+
+static void apply_start(app_settings_t *s, void *ctx)
+{
+    s->base_measure_active = true;
+    s->device_mode = DEVICE_MODE_ROVER;
+    snprintf(s->base_measure_msg, sizeof(s->base_measure_msg), "Misura in corso (correzioni da /%s)", s->rover_mountpoint);
+}
+
+static void apply_cancel(app_settings_t *s, void *ctx)
+{
+    s->base_measure_active = false;
+    s->device_mode = DEVICE_MODE_BASE;
+    snprintf(s->base_measure_msg, sizeof(s->base_measure_msg), "Misura annullata, coordinate non modificate");
+}
+
 bool base_measure_request_start(char *err, size_t err_size)
 {
-    s_cfg = settings_get();
-    if (s_cfg.gnss_chip != GNSS_CHIP_UBLOX && s_cfg.gnss_chip != GNSS_CHIP_LC29H) {
+    measure_view_t v;
+    settings_peek(peek_view, &v);
+    if (v.chip != GNSS_CHIP_UBLOX && v.chip != GNSS_CHIP_LC29H) {
         snprintf(err, err_size, "La posizione fissa e' supportata solo con ricevitori u-blox e Quectel LC29H");
         return false;
     }
-    if (!s_cfg.rover_mountpoint[0]) {
+    if (!v.mountpoint[0]) {
         snprintf(err, err_size, "Manca il mountpoint del rover (GNSS & NTRIP): serve una stazione da cui ricevere le correzioni");
         return false;
     }
-    s_cfg.base_measure_active = true;
-    s_cfg.device_mode = DEVICE_MODE_ROVER;
-    snprintf(s_cfg.base_measure_msg, sizeof(s_cfg.base_measure_msg), "Misura in corso (correzioni da /%s)", s_cfg.rover_mountpoint);
-    if (settings_save(&s_cfg) != ESP_OK) {
+    if (settings_update(apply_start, NULL) != ESP_OK) {
         snprintf(err, err_size, "Salvataggio impostazioni fallito");
         return false;
     }
-    ESP_LOGI(TAG, "Misura della posizione base richiesta: riavvio come rover su /%s", s_cfg.rover_mountpoint);
+    ESP_LOGI(TAG, "Misura della posizione base richiesta: riavvio come rover su /%s", v.mountpoint);
     return true;
 }
 
 void base_measure_request_cancel(void)
 {
-    s_cfg = settings_get();
-    if (!s_cfg.base_measure_active) {
+    measure_view_t v;
+    settings_peek(peek_view, &v);
+    if (!v.active) {
         return;
     }
-    s_cfg.base_measure_active = false;
-    s_cfg.device_mode = DEVICE_MODE_BASE;
-    snprintf(s_cfg.base_measure_msg, sizeof(s_cfg.base_measure_msg), "Misura annullata, coordinate non modificate");
-    settings_save(&s_cfg);
+    settings_update(apply_cancel, NULL);
     ESP_LOGI(TAG, "Misura della posizione base annullata");
 }
 
 void base_measure_start_if_active(void)
 {
-    s_cfg = settings_get();
-    if (!s_cfg.base_measure_active) {
+    measure_view_t v;
+    settings_peek(peek_view, &v);
+    if (!v.active) {
         return;
     }
     s_prog.active = true;

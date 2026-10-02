@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.86
+
+- **Recuperati circa 28 KB di RAM** (richiesta dell'utente), senza togliere funzioni. Misurato: memoria libera da 37 a 61-66 KB, minima dall'avvio da 18,5 a 34 KB.
+  - pagina Log (8 KB), elenco dei mountpoint del rover (4 KB) e scaricamento della registrazione PPP (2 KB): buffer allocati solo durante la richiesta invece che fissi in RAM;
+  - quattro copie fisse delle impostazioni (~2,1 KB l'una) eliminate: nuove `settings_peek()` e `settings_update()` leggono e modificano la configurazione sul posto, sotto mutex. Usate da ricevitore u-blox, misura della posizione e rinnovo SIM (che ora usa le impostazioni del task degli avvisi); il caster locale riusa una sola copia invece di due;
+  - buffer fissi di ricezione WiFi da 10 a 6 (`CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM`): 6,4 KB. Verificato: aggiornamento via WiFi in 13 s, pannello e caster regolari.
+
 ## 1.19.85
 
 - **Nuova scheda "📱 SIM"** nel pannello (richiesta dell'utente), con tutta la gestione della SIM:

@@ -167,11 +167,11 @@ static void listen_task(void *arg)
         struct timeval rcv_tv = { .tv_sec = CLIENT_HANDSHAKE_TIMEOUT_S, .tv_usec = 0 };
         setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, &rcv_tv, sizeof(rcv_tv));
 
-        // Rilegge: la configurazione puo' essere cambiata dall'avvio. Statica,
-        // vedi sopra.
-        static app_settings_t cur;
-        cur = settings_get();
-        if (!handle_handshake(client_sock, &cur)) {
+        // Rilegge: la configurazione puo' essere cambiata dall'avvio. Riusa
+        // la copia statica di sopra (porta e mountpoint servono solo
+        // all'apertura del socket): una copia in meno, 2,1 KB di RAM.
+        s = settings_get();
+        if (!handle_handshake(client_sock, &s)) {
             close(client_sock);
             continue;
         }

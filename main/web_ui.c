@@ -2055,12 +2055,18 @@ static esp_err_t log_get_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    static char buf[8192]; // static: troppo grande per lo stack del task httpd
-    size_t n = log_buffer_read(buf, sizeof(buf) - 1);
+    // Allocato solo per la durata della richiesta: come buffer statico teneva
+    // occupati 8 KB di RAM per sempre, per una pagina aperta di rado.
+    char *buf = malloc(8192);
+    if (!buf) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente, riprova");
+    }
+    size_t n = log_buffer_read(buf, 8192 - 1);
     buf[n] = '\0';
 
     httpd_resp_set_type(req, "text/plain; charset=utf-8");
     httpd_resp_sendstr(req, buf);
+    free(buf);
     return ESP_OK;
 }
 
@@ -2173,15 +2179,17 @@ static esp_err_t ppp_log_download_get_handler(httpd_req_t *req)
     httpd_resp_set_type(req, "application/octet-stream");
     httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"ppp_log.rtcm3\"");
 
-    static char chunk[2048]; // static: troppo grande per lo stack del task httpd
+    // Allocato solo durante lo scaricamento (prima 2 KB fissi).
+    char *chunk = malloc(2048);
     size_t n;
-    esp_err_t err = ESP_OK;
-    while ((n = fread(chunk, 1, sizeof(chunk), f)) > 0) {
+    esp_err_t err = chunk ? ESP_OK : ESP_FAIL;
+    while (chunk && (n = fread(chunk, 1, 2048, f)) > 0) {
         if (httpd_resp_send_chunk(req, chunk, n) != ESP_OK) {
             err = ESP_FAIL;
             break;
         }
     }
+    free(chunk);
     httpd_resp_send_chunk(req, NULL, 0); // chiude la risposta chunked
     ppp_log_close_for_read(f);
     return err;

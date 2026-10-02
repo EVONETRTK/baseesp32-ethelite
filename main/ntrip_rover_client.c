@@ -309,10 +309,16 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     // riempie il buffer, non ci si ferma al primo recv() come nel resto di
     // questo file (li' basta l'intestazione di risposta, qui serve il
     // corpo intero).
-    static char buf[4096];
+    // Allocato solo per questa lettura (prima 4 KB fissi in RAM).
+    const size_t buf_size = 4096;
+    char *buf = malloc(buf_size);
+    if (!buf) {
+        net_close_now(sock);
+        return 0;
+    }
     size_t total = 0;
-    while (total < sizeof(buf) - 1) {
-        int r = recv(sock, buf + total, sizeof(buf) - 1 - total, 0);
+    while (total < buf_size - 1) {
+        int r = recv(sock, buf + total, buf_size - 1 - total, 0);
         if (r <= 0) {
             break;
         }
@@ -355,6 +361,7 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
         }
         line = next_line;
     }
+    free(buf);
     return count;
 }
 

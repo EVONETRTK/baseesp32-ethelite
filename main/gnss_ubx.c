@@ -352,6 +352,11 @@ esp_err_t gnss_ubx_poll_version(uart_port_t uart_num)
     return ESP_OK;
 }
 
+static void peek_measure_active(const app_settings_t *s, void *ctx)
+{
+    *(bool *) ctx = s->base_measure_active;
+}
+
 esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
 {
     bool i2c = gnss_io_is_i2c();
@@ -370,13 +375,13 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
     // risoluzione). Solo in quel caso, per non cambiare il formato che
     // vedono le app dei rover normali. Statica: lo stack del chiamante
     // (task main) ha gia' avuto overflow con copie di app_settings_t.
-    static app_settings_t st;
-    st = settings_get();
+    bool measuring = false;
+    settings_peek(peek_measure_active, &measuring);
     // Mandata sempre, anche a 0: la configurazione va nella RAM del
     // ricevitore, che resta acceso quando l'ESP32 si riavvia, quindi
     // dopo una misura resterebbe attiva.
     const ubx_cfg_kv32_t kvs_hp[] = {
-        { 0x10930006, st.base_measure_active ? 1u : 0u },    // CFG-NMEA-HIGHPREC
+        { 0x10930006, measuring ? 1u : 0u },    // CFG-NMEA-HIGHPREC
     };
     ubx_valset_group(uart_num, "NMEA alta precisione", kvs_hp, 1);
 

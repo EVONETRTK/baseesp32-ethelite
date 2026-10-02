@@ -113,3 +113,8 @@ CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM=y
 # ESP_ERR_NO_MEM). Nessun FAT su flash interna in questo firmware.
 CONFIG_WL_SECTOR_SIZE_512=y
 # CONFIG_WL_SECTOR_SIZE_4096 is not set
+
+# Buffer fissi di ricezione WiFi da 10 a 6 (1,6 KB ciascuno, 6,4 KB di RAM
+# in piu'). Il traffico della base e' poco (RTCM ~0,5 KB/s, pannello): i
+# buffer dinamici (32) coprono i picchi. La finestra di ricezione resta 6.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6

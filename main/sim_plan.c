@@ -187,16 +187,18 @@ static void send_notice(const app_settings_t *s, int days_left)
 // Chiamata ogni minuto dal task degli avvisi (alerts.c): ha lo stack grande
 // che serve all'invio email/WhatsApp (TLS) e nessun task in piu' consuma
 // memoria (la memoria libera e' poca).
-static app_settings_t s_tick_cfg; // unica copia statica (memoria libera scarsa)
-
-void sim_plan_tick(void)
+// Impostazioni del task degli avvisi (nessuna copia propria: ~2,1 KB).
+static void apply_next_date(app_settings_t *st, void *ctx)
 {
-    app_settings_t *const sp = &s_tick_cfg;
-#define s (*sp)
+    st->sim_renew_date = *(const uint32_t *) ctx;
+}
+
+void sim_plan_tick(const app_settings_t *cfg)
+{
+#define s (*cfg)
     do {
         uint32_t today = today_ymd();
-        s = settings_get();
-        rc_set(&s);
+        rc_set(cfg);
         if (!today || !s.sim_renew_date) {
             continue;
         }
@@ -215,9 +217,10 @@ void sim_plan_tick(void)
             }
             ESP_LOGI(TAG, "Rinnovo della SIM passato: prossimo il %02u/%02u/%04u",
                      (unsigned) (next % 100), (unsigned) (next / 100 % 100), (unsigned) (next / 10000));
-            s.sim_renew_date = next;
-            settings_save(&s);
-            rc_set(&s);
+            settings_update(apply_next_date, &next);
+            portENTER_CRITICAL(&s_rc_lock);
+            s_rc.date = next;
+            portEXIT_CRITICAL(&s_rc_lock);
             continue;
         }
 
@@ -265,8 +268,12 @@ void sim_plan_tick(void)
 #undef s
 }
 
+static void peek_rc(const app_settings_t *s, void *ctx)
+{
+    rc_set(s);
+}
+
 void sim_plan_start(void)
 {
-    s_tick_cfg = settings_get();
-    rc_set(&s_tick_cfg);
+    settings_peek(peek_rc, NULL);
 }

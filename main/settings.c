@@ -568,3 +568,44 @@ esp_err_t settings_import_blob(const void *blob, size_t len, bool keep_identity)
     ESP_LOGW(TAG, "Configurazione importata (%u byte): %s", (unsigned) len, esp_err_to_name(err));
     return err;
 }
+
+// --- accesso senza copie -----------------------------------------------------
+// Ogni copia di app_settings_t costa ~2,1 KB (sullo stack o statica). Queste
+// due funzioni lavorano direttamente sulla configurazione in memoria, sotto
+// il suo mutex: fn deve essere breve e non chiamare altre funzioni settings_*.
+
+void settings_peek(void (*fn)(const app_settings_t *s, void *ctx), void *ctx)
+{
+    xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
+    fn(&s_settings, ctx);
+    xSemaphoreGive(s_settings_mutex);
+}
+
+esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx)
+{
+    if (!s_save_mutex) {
+        s_save_mutex = xSemaphoreCreateMutex();
+    }
+    xSemaphoreTake(s_save_mutex, portMAX_DELAY);
+    xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
+    fn(&s_settings, ctx);
+    s_save_buf.magic = CFG_MAGIC;
+    s_save_buf.s = s_settings;
+    xSemaphoreGive(s_settings_mutex);
+
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_blob(h, NVS_KEY_CFG, &s_save_buf, sizeof(s_save_buf));
+        if (err == ESP_OK) {
+            err = nvs_commit(h);
+        }
+        nvs_close(h);
+    }
+    xSemaphoreGive(s_save_mutex);
+    ESP_LOGI(TAG, "Impostazioni aggiornate sul posto: %s", esp_err_to_name(err));
+    if (err == ESP_OK) {
+        config_backup_request();
+    }
+    return err;
+}
