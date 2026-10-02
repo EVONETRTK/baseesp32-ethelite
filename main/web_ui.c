@@ -477,6 +477,20 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddNumberToObject(root, "data_wifi_month_bytes", (double) du.wifi_month);
         cJSON_AddNumberToObject(root, "data_wifi_day_bytes", (double) du.wifi_day);
         cJSON_AddNumberToObject(root, "data_plan_mb", s.data_plan_mb);
+        cJSON_AddNumberToObject(root, "data_counted_s", du.counted_s);
+        data_usage_day_t hist[DATA_USAGE_HISTORY_DAYS];
+        int hn = data_usage_get_history(hist, DATA_USAGE_HISTORY_DAYS);
+        cJSON *harr = cJSON_AddArrayToObject(root, "data_history");
+        for (int i = 0; i < hn; i++) {
+            cJSON *o = cJSON_CreateObject();
+            char d[16];
+            snprintf(d, sizeof(d), "%04u-%02u-%02u", (unsigned) (hist[i].day / 10000),
+                     (unsigned) (hist[i].day / 100 % 100), (unsigned) (hist[i].day % 100));
+            cJSON_AddStringToObject(o, "d", d);
+            cJSON_AddNumberToObject(o, "c", (double) hist[i].cell_kb * 1000);
+            cJSON_AddNumberToObject(o, "w", (double) hist[i].wifi_kb * 1000);
+            cJSON_AddItemToArray(harr, o);
+        }
     }
     {
         // Ultime cadute della connessione al caster, dalla piu' recente.
@@ -878,6 +892,12 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     if (data_plan_item && cJSON_IsNumber(data_plan_item) && data_plan_item->valuedouble >= 0 &&
         data_plan_item->valuedouble <= 1000000) {
         s.data_plan_mb = (uint32_t) data_plan_item->valuedouble;
+    }
+    // Il pannello lo chiede in GB (con decimali): salvato in MB come prima.
+    cJSON *data_plan_gb_item = cJSON_GetObjectItemCaseSensitive(root, "data_plan_gb");
+    if (data_plan_gb_item && cJSON_IsNumber(data_plan_gb_item) && data_plan_gb_item->valuedouble >= 0 &&
+        data_plan_gb_item->valuedouble <= 1000) {
+        s.data_plan_mb = (uint32_t) (data_plan_gb_item->valuedouble * 1000 + 0.5);
     }
     cJSON *alert_threshold_item = cJSON_GetObjectItemCaseSensitive(root, "alert_threshold_min");
     if (alert_threshold_item && cJSON_IsNumber(alert_threshold_item) && alert_threshold_item->valueint > 0) {

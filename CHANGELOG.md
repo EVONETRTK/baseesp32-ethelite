@@ -2,6 +2,14 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.81
+
+- **Grafico del traffico dati** (richiesta dell'utente):
+  - piano della SIM in **GB** nella scheda Rete (con decimali; la base lo salva in MB come prima, nuovo campo `data_plan_gb` accettato da /api/settings);
+  - **barra colorata** con "usati di piano · percentuale": verde sotto il 70%, arancione fino al 90%, rosso oltre. Tacca scura con la **previsione di fine mese**, in rosso con "sforerai il piano" se lo supera. Nella scheda Stato e nel riquadro della rete cellulare;
+  - **grafico degli ultimi 30 giorni** nella scheda Stato, cellulare e WiFi impilati, con la linea della quota giornaliera del piano. Storico salvato in NVS (`data_usage.c`, `data_history` in /api/status, in KB per giorno);
+  - la previsione usa il tempo effettivamente contato nel mese (`data_counted_s`): alla prima prova trattava il contatore come partito il 1° del mese e stimava 7,5 MB al mese invece di circa 1,2 GB. Serve almeno 6 ore di conteggio. Verificato con dati simulati: 40 MB al giorno danno 1,24 GB al mese, coerente con la misura della 1.19.80.
+
 ## 1.19.80
 
 Miglioramenti richiesti dall'utente per l'uso con la SIM e in campo.

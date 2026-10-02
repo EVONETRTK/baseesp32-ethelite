@@ -19,8 +19,20 @@ typedef struct {
     uint64_t cell_day;
     uint64_t wifi_month;
     uint64_t wifi_day;
+    uint32_t counted_s;     // secondi contati in questo mese (0 = sconosciuto)
 } data_usage_t;
 
 data_usage_t data_usage_get(void);
 
 void data_usage_start(void);
+
+// Storico dei giorni passati (oggi escluso), per il grafico degli ultimi 30.
+#define DATA_USAGE_HISTORY_DAYS 30
+typedef struct {
+    uint32_t day;      // aaaammgg
+    uint32_t cell_kb;
+    uint32_t wifi_kb;
+} data_usage_day_t;
+
+// Copia in out gli ultimi giorni, dal piu' vecchio; restituisce quanti.
+int data_usage_get_history(data_usage_day_t *out, int max);

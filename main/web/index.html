@@ -213,7 +213,9 @@
     <dl class="kv" style="margin-top:.6rem">
       <dt>Ora della base</dt><dd id="st-time">-</dd>
       <dt>Ultimo riavvio</dt><dd id="st-reset">-</dd>
-      <dt>Traffico dati (stima)</dt><dd id="st-data">-</dd>
+      <dt>Traffico dati (stima)</dt><dd><div id="st-data">-</div>
+        <canvas id="st-data-chart" width="620" height="140" style="width:100%; height:auto; margin-top:.5rem"></canvas>
+        <div style="font-size:.8rem; color:#6b7280">Ultimi 30 giorni: <span style="color:#f59e0b">■</span> cellulare <span style="color:#3b82f6">■</span> WiFi</div></dd>
       <dt>Cadute del caster</dt><dd id="st-outages">-</dd>
       <dt>Temperatura chip</dt><dd id="st-temp">-</dd>
       <dt>Memoria libera</dt><dd id="st-heap-free">-</dd>
@@ -302,7 +304,7 @@
       </ul>
     </div>
     <label>APN operatore SIM<input name="cellular_apn"></label>
-    <label>Piano dati della SIM (MB al mese)<input name="data_plan_mb" type="number" min="0" step="1" placeholder="0 = nessun limite"></label>
+    <label>Piano dati della SIM (GB al mese)<input name="data_plan_gb" type="number" min="0" step="0.1" placeholder="0 = nessun limite"></label>
     <div class="hint" id="data-usage-box" style="margin:.2rem 0 .6rem"></div>
     <small class="hint">
       Il traffico e' una stima (dati inviati al caster piu' le intestazioni di rete), utile per non
@@ -311,7 +313,7 @@
     </small>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="cellular_module,cellular_apn,data_plan_mb" data-reboot="1">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="cellular_module,cellular_apn,data_plan_gb" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -1492,7 +1494,7 @@ async function loadStatus() {
     if (!f.dataset.touched) {
       f.wifi_ssid.value = s.wifi_ssid || '';
       f.cellular_apn.value = s.cellular_apn || '';
-      f.data_plan_mb.value = s.data_plan_mb || 0;
+      f.data_plan_gb.value = (s.data_plan_mb || 0) / 1000;
       f.cellular_module.value = s.cellular_module || (s.cellular_is_sim868 ? 'sim868' : 'sim7600_lilygo');
       updateSimcomWarn();
       f.ntrip_host.value = s.ntrip_host || '';
@@ -2121,7 +2123,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 // parametro) e il fallback "salva tutto" qui sotto, per non doverlo
 // mantenere in due posti.
 const NUMBER_FIELDS = new Set([
-  'data_plan_mb',
+  'data_plan_gb',
   'ntrip_port', 'nmea_udp_port', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
   'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
@@ -2655,24 +2657,121 @@ document.getElementById('measure-cancel-btn').addEventListener('click', () => {
 
 // Riquadro rosso in cima allo Stato: base senza 1005 da piu' di 30 s (o mai
 // dall'avvio). Il motivo piu' probabile e' scritto sotto, in parole semplici.
+// Traffico dati: barra del piano (verde/arancione/rosso) con previsione di
+// fine mese, e grafico degli ultimi 30 giorni (cellulare + WiFi).
+function fmtGB(b) {
+  if (b < 1e9) return (b / 1e6).toFixed(b < 1e7 ? 1 : 0) + ' MB';
+  return (b / 1e9).toFixed(2).replace('.', ',') + ' GB';
+}
+
+// Frazione di mese trascorsa e giorni del mese, dall'ora della base.
+function monthProgress(localTime) {
+  if (!localTime) return null;
+  const y = +localTime.slice(0, 4), m = +localTime.slice(5, 7), d = +localTime.slice(8, 10);
+  const hh = +localTime.slice(11, 13), mm = +localTime.slice(14, 16);
+  const days = new Date(y, m, 0).getDate();
+  const elapsed = d - 1 + (hh + mm / 60) / 24;
+  return { days, elapsed };
+}
+
+function renderDataBar(el, s) {
+  if (!el) return;
+  const planB = (s.data_plan_mb || 0) * 1e6;
+  const used = s.data_cell_month_bytes || 0;
+  const mp = monthProgress(s.local_time);
+  // Media sul tempo davvero contato (il contatore puo' essere partito a meta' mese),
+  // proiettata sul mese intero; servono almeno 6 ore per una stima sensata.
+  const counted = s.data_counted_s || 0;
+  const scale = mp && counted >= 6 * 3600 ? mp.days * 86400 / counted : null;
+  const forecast = scale !== null ? used * scale : null;
+  const totalMonth = used + (s.data_wifi_month_bytes || 0);
+  const typical = scale !== null ? totalMonth * scale : null;
+
+  let html;
+  if (planB > 0) {
+    const pct = 100 * used / planB;
+    const color = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
+    const fPct = forecast !== null ? Math.min(100, 100 * forecast / planB) : null;
+    html = '<div style="position:relative; background:#e5e7eb; border-radius:6px; height:26px; overflow:hidden">' +
+      '<div style="background:' + color + '; height:100%; width:' + Math.min(100, pct) + '%"></div>' +
+      (fPct !== null ? '<div title="previsione a fine mese" style="position:absolute; top:0; bottom:0; left:calc(' + fPct + '% - 2px); width:3px; background:#374151"></div>' : '') +
+      '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:.85rem; color:#111827">' +
+      fmtGB(used) + ' di ' + fmtGB(planB) + ' · ' + Math.round(pct) + '%</div></div>';
+    if (forecast !== null) {
+      const over = forecast > planB;
+      html += '<div style="font-size:.85rem; margin-top:.25rem; color:' + (over ? '#dc2626' : '') + '">' +
+        'Previsione a fine mese: <b>' + fmtGB(forecast) + '</b>' + (over ? ' — <b>sforerai il piano</b>' : '') +
+        ' (tacca scura sulla barra)</div>';
+    }
+  } else {
+    html = '<div style="background:#e5e7eb; border-radius:6px; padding:.3rem .6rem; font-size:.85rem">' +
+      'Cellulare questo mese: <b>' + fmtGB(used) + '</b> — imposta il piano dati nella scheda Rete per vedere la percentuale</div>';
+  }
+  html += '<div style="font-size:.82rem; color:#6b7280; margin-top:.25rem">Oggi: cellulare ' + fmtGB(s.data_cell_day_bytes || 0) +
+    ', WiFi ' + fmtGB(s.data_wifi_day_bytes || 0) +
+    (typical !== null ? ' · al ritmo attuale la base usa circa <b>' + fmtGB(typical) + '</b> al mese su qualunque rete'
+      : ' · previsione mensile disponibile dopo 6 ore di conteggio') +
+    '</div>';
+  el.innerHTML = html;
+}
+
+function drawDataChart(canvas, s) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const days = (s.data_history || []).map(x => ({ d: x.d, c: x.c, w: x.w }));
+  const today = s.local_time ? s.local_time.slice(0, 10) : 'oggi';
+  days.push({ d: today, c: s.data_cell_day_bytes || 0, w: s.data_wifi_day_bytes || 0, today: true });
+  const mp = monthProgress(s.local_time);
+  const quota = s.data_plan_mb && mp ? s.data_plan_mb * 1e6 / mp.days : 0;
+  const max = Math.max(quota * 1.15, ...days.map(x => x.c + x.w), 1e6);
+  const left = 44, bottom = h - 16, top = 6, slots = 30;
+  const slotW = (w - left - 4) / slots, barW = Math.max(3, slotW - 3);
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#6b7280';
+  ctx.textAlign = 'right';
+  [0, 0.5, 1].forEach(f => {
+    const y = bottom - f * (bottom - top);
+    ctx.fillText(fmtGB(max * f), left - 4, y + 3);
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.beginPath(); ctx.moveTo(left, y + 0.5); ctx.lineTo(w, y + 0.5); ctx.stroke();
+  });
+  const start = slots - days.length;
+  days.forEach((x, i) => {
+    const xPos = left + (start + i) * slotW + 1;
+    const hw = (x.w / max) * (bottom - top), hc = (x.c / max) * (bottom - top);
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillRect(xPos, bottom - hw, barW, hw);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(xPos, bottom - hw - hc, barW, hc);
+    if (x.today || ((i === 0 || (start + i) % 7 === 0) && i < days.length - 3)) {
+      ctx.fillStyle = '#374151';
+      ctx.textAlign = 'center';
+      ctx.fillText(x.today ? 'oggi' : x.d.slice(8, 10) + '/' + x.d.slice(5, 7), xPos + barW / 2, h - 3);
+    }
+  });
+  if (quota > 0) {
+    const y = Math.round(bottom - (quota / max) * (bottom - top)) + 0.5;
+    ctx.strokeStyle = '#111827';
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(w, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('quota giornaliera del piano', left + 4, y - 3);
+  }
+}
+
 // Ultimo riavvio, traffico dati e cadute del caster (scheda Stato e Rete).
-function fmtMB(b) { return (b / 1e6).toFixed(b < 1e7 ? 2 : 1) + ' MB'; }
 function updateReliabilityUi(s) {
   const reset = document.getElementById('st-reset');
   reset.textContent = s.last_reset || '-';
   reset.style.color = /calo di tensione|crash|watchdog/.test(s.last_reset || '') ? '#dc2626' : '';
 
-  const plan = s.data_plan_mb || 0;
-  const cm = s.data_cell_month_bytes || 0;
-  const month = s.data_month ? ' (' + s.data_month + ')' : '';
-  let cell = 'cellulare: oggi ' + fmtMB(s.data_cell_day_bytes || 0) + ', mese ' + fmtMB(cm) + month;
-  if (plan > 0) cell += ' su ' + plan + ' MB (' + Math.round(100 * cm / (plan * 1e6)) + '%)';
-  const wifi = 'WiFi: oggi ' + fmtMB(s.data_wifi_day_bytes || 0) + ', mese ' + fmtMB(s.data_wifi_month_bytes || 0);
-  document.getElementById('st-data').textContent = cell + ' · ' + wifi;
-  const box = document.getElementById('data-usage-box');
-  if (box) {
-    box.textContent = 'Consumo stimato sul ' + cell + '.';
-  }
+  renderDataBar(document.getElementById('st-data'), s);
+  drawDataChart(document.getElementById('st-data-chart'), s);
+  renderDataBar(document.getElementById('data-usage-box'), s);
 
   const list = s.ntrip_outages || [];
   const el = document.getElementById('st-outages');
