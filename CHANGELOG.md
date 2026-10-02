@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.83
+
+- **Il piano in GB non veniva salvato dal pannello** (segnalato dall'utente): subito sotto il campo c'era il riquadro del rinnovo con un suo pulsante 💾 Salva, che salvava solo le date; il pulsante che includeva i GB era piu' in basso. Ora il campo e' dentro il riquadro "📶 Piano dati della SIM", con un solo pulsante per GB e rinnovo (senza riavvio). Inoltre un valore che il browser non riconosce (es. con la virgola) non viene piu' inviato come 0, cancellando il piano.
+
 ## 1.19.82
 
 - **Rinnovo del piano della SIM** (richiesta dell'utente, nuovo `sim_plan.c`): nel riquadro della rete cellulare tipo di rinnovo (ogni mese nello stesso giorno, ogni N giorni, scadenza unica), data del prossimo rinnovo e **due promemoria** con i giorni di anticipo scelti dall'utente (predefiniti 7 e 1). I promemoria partono via email/WhatsApp dalle 9:00 e restano segnati in NVS per non ripetersi dopo un riavvio. Nei rinnovi periodici la data passa da sola al ciclo successivo; con la scadenza unica, una volta scaduta, arriva un promemoria al giorno. Riquadro giallo o rosso in cima alla scheda Stato.
