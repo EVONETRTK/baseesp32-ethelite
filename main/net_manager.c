@@ -81,9 +81,9 @@ static void net_manager_task(void *arg)
             }
 
             if (settings.network_mode != NETWORK_MODE_WIFI_ONLY) {
-                ESP_LOGW(TAG, "Tentativo GPRS (SIM868)...");
+                ESP_LOGW(TAG, "Tentativo rete cellulare...");
                 if (cellular_link_connect()) {
-                    ESP_LOGI(TAG, "Rete attiva: cellulare (GPRS)");
+                    ESP_LOGI(TAG, "Rete attiva: cellulare");
                     status_set_net(NET_STATUS_CELLULAR);
                     active = LINK_CELLULAR;
                     break;
@@ -121,6 +121,12 @@ static void net_manager_task(void *arg)
     }
 }
 
+static void cellular_init_task(void *arg)
+{
+    cellular_link_init();
+    vTaskDelete(NULL);
+}
+
 void net_manager_start(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -155,7 +161,12 @@ void net_manager_start(void)
     } else {
         ESP_LOGW(TAG, "NETWORK_MODE_ETHERNET_ONLY: radio WiFi non avviata, solo Ethernet");
     }
-    cellular_link_init();
+    // Avvio del modem in un task a parte: con un SIM7600 aspetta fino a 15 s
+    // che il modulo si accenda, e chiamato qui bloccava tutto l'avvio (WiFi,
+    // pannello, configurazione del ricevitore) per quel tempo. Il ciclo
+    // sotto prova comunque prima il WiFi; cellular_link_connect() torna
+    // false finche' il modem non e' pronto e si ritenta al giro dopo.
+    xTaskCreate(cellular_init_task, "cell_init", 6144, NULL, 4, NULL);
 
     // Ethernet e' indipendente dalla selezione WiFi/cellulare qui sopra:
     // se abilitata resta sempre attiva, usata soprattutto per raggiungere

@@ -28,7 +28,7 @@ static EventGroupHandle_t s_events;
 static esp_modem_dce_t *s_dce = NULL;
 static esp_netif_t *s_ppp_netif = NULL;
 static volatile bool s_connected = false;
-static bool s_inited = false;
+static volatile bool s_inited = false; // impostato dal task di avvio del modem (net_manager.c)
 
 static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -68,7 +68,7 @@ static void on_ppp_event(void *arg, esp_event_base_t event_base, int32_t event_i
 // fretta. Lo slot LTE della T-ETH-Elite espone comunque lo stesso pin
 // fisico per PWRKEY qualunque sia lo shield innestato, cambia solo la
 // sequenza da mandarci.
-static void modem_power_on(bool is_sim868)
+static void modem_power_on(bool is_sim868, bool simcom_std)
 {
 #if CONFIG_BASEESP32_CELLULAR_DTR_PIN >= 0
     gpio_config_t dtr_conf = {
@@ -80,6 +80,18 @@ static void modem_power_on(bool is_sim868)
 #endif
 
 #if CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN >= 0
+    if (!is_sim868 && simcom_std) {
+        // Modulo SIMCom originale: accensione automatica. Il pin resta in
+        // alta impedenza, cosi' anche con i DIP POWERKEY/RESET dello shield
+        // accesi non tiene il modem in reset (PERST# ha il suo pull-up).
+        gpio_reset_pin(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN);
+        gpio_set_direction(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, GPIO_MODE_INPUT);
+        gpio_set_pull_mode(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, GPIO_FLOATING);
+        ESP_LOGI(TAG, "Modulo SIM7600 SIMCom originale: si accende da solo, pin PWRKEY non usato. "
+                      "Attesa avvio (fino a 15s)...");
+        vTaskDelay(pdMS_TO_TICKS(15000));
+        return;
+    }
     gpio_config_t io_conf = {
         .pin_bit_mask = 1ULL << CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN,
         .mode = GPIO_MODE_OUTPUT,
@@ -115,7 +127,7 @@ bool cellular_link_init(void)
     s_events = xEventGroupCreate();
 
     app_settings_t settings = settings_get();
-    modem_power_on(settings.cellular_is_sim868);
+    modem_power_on(settings.cellular_is_sim868, settings.cellular_simcom_std);
 
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
     dte_config.uart_config.port_num = CONFIG_BASEESP32_CELLULAR_UART_NUM;
@@ -151,6 +163,10 @@ bool cellular_link_init(void)
     s_dce = esp_modem_new_dev(dce_device, &dte_config, &dce_config, s_ppp_netif);
     if (!s_dce) {
         ESP_LOGE(TAG, "Inizializzazione modem %s fallita", settings.cellular_is_sim868 ? "SIM868" : "SIM7600");
+        if (!settings.cellular_is_sim868 && settings.cellular_simcom_std) {
+            ESP_LOGW(TAG, "Modulo SIMCom originale: controlla che i DIP POWERKEY (SW2-5) e RESET (SW3) dello shield "
+                          "siano spenti e che il modulo sia ben inserito");
+        }
         return false;
     }
 

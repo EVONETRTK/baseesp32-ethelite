@@ -27,11 +27,16 @@ static void on_sync(struct timeval *tv)
     }
 }
 
-void time_sync_start(void)
+void time_sync_set_timezone(void)
 {
     // Ora legale italiana (ultima domenica di marzo / di ottobre).
     setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
     tzset();
+}
+
+void time_sync_start(void)
+{
+    time_sync_set_timezone();
     esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, "pool.ntp.org");
     esp_sntp_setservername(1, "time.google.com");

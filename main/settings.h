@@ -349,6 +349,14 @@ typedef struct {
     // mostrato nel pannello. Zero dai blob precedenti = nessuna misura.
     bool base_measure_active;
     char base_measure_msg[128];
+
+    // Modulo SIM7600 Mini PCIe originale SIMCom (non LilyGO): si accende da
+    // solo appena arrivano i 3,3 V e non va comandato col pin PWRKEY dello
+    // shield (quel collegamento serve solo ai moduli LilyGO; con i DIP
+    // POWERKEY/RESET accesi l'impulso del firmware lascerebbe il modem in
+    // reset). Vale solo con cellular_is_sim868 = false. Zero dai blob
+    // precedenti = modulo LilyGO, come prima.
+    bool cellular_simcom_std;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

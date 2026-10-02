@@ -9,6 +9,10 @@
 // fosse successo qualcosa (es. la temperatura massima del pomeriggio).
 void time_sync_start(void);
 
+// Solo il fuso orario: da chiamare all'inizio dell'avvio, cosi' anche le
+// prime righe del log usano l'ora locale (prima erano 2 ore indietro).
+void time_sync_set_timezone(void);
+
 // true dopo la prima sincronizzazione riuscita.
 bool time_sync_is_valid(void);
 

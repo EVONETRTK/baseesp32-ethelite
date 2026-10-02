@@ -2,6 +2,17 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.79
+
+- **Modulo SIM7600 Mini PCIe originale SIMCom** (richiesta dell'utente: i moduli LilyGO non sono disponibili). Nella scheda Rete il menu "Modulo modem montato" ha ora tre voci: SIM7600 LilyGO, SIM7600 originale SIMCom (G-H, E-H...), SIM868 (nuovo campo `cellular_module` in /api/settings e /api/status, nuova impostazione `cellular_simcom_std` in coda ad `app_settings_t`).
+  - Verificato sul documento ufficiale "SIM7600 Series PCIE Hardware Design V1.03": seriale sui pin 17 (RXD) e 19 (TXD) del connettore Mini PCIe, gli stessi dello shield LilyGO; seriale a 1,8 V, gia' convertita dallo shield (U1, RS0108); accensione automatica con i 3,3 V.
+  - Con il modulo SIMCom il firmware non usa il pin PWRKEY: lo lascia in alta impedenza. Lo shield lo collega al POWERKEY o al RESET del modem secondo i DIP, e l'impulso pensato per i moduli LilyGO terminava a livello basso: con il DIP RESET acceso avrebbe tenuto il modem in reset.
+  - Riquadro di avvertenze nel pannello quando si sceglie il modulo SIMCom: DIP POWERKEY (SW2-5) e RESET (SW3) spenti, varianti adatte all'Italia (G-H con B28, oppure E-H; non A-H/NA-H/SA-H/JC-H), formato Mini PCIe, antenna collegata prima di accendere, alimentatore 5 V 3 A. Se l'avvio del modem fallisce, il log ricorda i DIP.
+  - Pulsante "Salva e riavvia" anche nel riquadro del modem.
+- **Il modem non blocca piu' l'avvio**: `cellular_link_init()` era chiamata direttamente all'avvio e con un SIM7600 aspettava 15 s che il modulo si accendesse. Per tutto quel tempo erano fermi WiFi, pannello e configurazione del ricevitore. Ora parte in un task a parte (`cell_init`) e il WiFi viene provato subito. Verificato con il modulo SIMCom selezionato: base collegata al caster 6 s dopo l'avvio (prima 10 s con il SIM868, oltre 20 con un SIM7600).
+- Le prime righe del log all'avvio erano 2 ore indietro: il fuso orario ora viene impostato all'inizio dell'avvio.
+- Log del cellulare: "Tentativo rete cellulare" invece di "Tentativo GPRS (SIM868)", che era sbagliato con un SIM7600.
+
 ## 1.19.78
 
 Miglioramenti richiesti dall'utente (punti 1-6 dell'elenco proposto il 01/10).

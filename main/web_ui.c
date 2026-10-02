@@ -436,6 +436,9 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     }
     cJSON_AddStringToObject(root, "cellular_apn", s.cellular_apn);
     cJSON_AddBoolToObject(root, "cellular_is_sim868", s.cellular_is_sim868);
+    // Scelta unica per il pannello: modulo LilyGO, SIMCom originale o SIM868.
+    cJSON_AddStringToObject(root, "cellular_module", s.cellular_is_sim868 ? "sim868"
+                            : (s.cellular_simcom_std ? "sim7600_simcom" : "sim7600_lilygo"));
     cJSON_AddStringToObject(root, "ntrip_host", s.ntrip_host);
     cJSON_AddNumberToObject(root, "ntrip_port", s.ntrip_port);
     cJSON_AddStringToObject(root, "ntrip_mountpoint", s.ntrip_mountpoint);
@@ -995,6 +998,20 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     cJSON *cellular_modem_item = cJSON_GetObjectItemCaseSensitive(root, "cellular_is_sim868");
     if (cellular_modem_item && cJSON_IsBool(cellular_modem_item)) {
         s.cellular_is_sim868 = cJSON_IsTrue(cellular_modem_item);
+    }
+
+    cJSON *module_item = cJSON_GetObjectItemCaseSensitive(root, "cellular_module");
+    if (module_item && cJSON_IsString(module_item)) {
+        const char *m = module_item->valuestring;
+        if (strcmp(m, "sim868") == 0) {
+            s.cellular_is_sim868 = true;
+        } else if (strcmp(m, "sim7600_simcom") == 0) {
+            s.cellular_is_sim868 = false;
+            s.cellular_simcom_std = true;
+        } else if (strcmp(m, "sim7600_lilygo") == 0) {
+            s.cellular_is_sim868 = false;
+            s.cellular_simcom_std = false;
+        }
     }
 
     cJSON *net_mode_item = cJSON_GetObjectItemCaseSensitive(root, "network_mode");

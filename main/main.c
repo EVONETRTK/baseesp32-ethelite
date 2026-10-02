@@ -111,6 +111,7 @@ static void fw_archive_save_current_task(void *arg)
 void app_main(void)
 {
     log_buffer_init(); // il prima possibile, per non perdere i log di avvio
+    time_sync_set_timezone(); // ora locale gia' dalle prime righe del log
     sd_mutex_init(); // prima che qualunque cosa possa toccare la SD (vedi sd_mutex.h)
     // Ogni montaggio della SD (ogni 30 s, log diagnostico) stampava 8 righe
     // informative di questi due moduli: riempivano il log in memoria (8 KB)

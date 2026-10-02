@@ -277,16 +277,31 @@
   <fieldset>
     <legend>📱 Rete cellulare (slot LTE)</legend>
     <label>Modulo modem montato
-      <select name="cellular_is_sim868">
-        <option value="false">SIM7600</option>
-        <option value="true">SIM868</option>
+      <select name="cellular_module">
+        <option value="sim7600_lilygo">SIM7600 - modulo LilyGO</option>
+        <option value="sim7600_simcom">SIM7600 - modulo Mini PCIe originale SIMCom (G-H, E-H...)</option>
+        <option value="sim868">SIM868</option>
       </select>
       <small class="hint">Stesso slot/pin fisici, ma sequenza di accensione e comandi AT diversi secondo il modulo.</small>
     </label>
+    <div id="simcom-warn" style="display:none; background:#fef3c7; color:#78350f; border:1px solid #fcd34d; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .6rem; font-size:.88rem">
+      <b>⚠️ Modulo SIMCom originale: prima di montarlo</b>
+      <ul style="margin:.4rem 0 0; padding-left:1.2rem">
+        <li><b>Spegni i DIP POWERKEY (SW2, posizione 5) e RESET (SW3) dello shield.</b> Servono solo ai moduli LilyGO:
+          questo modulo si accende da solo appena riceve i 3,3 V e la base non usa quel pin (lo lascia libero).</li>
+        <li><b>Variante per l'Italia: SIM7600G-H</b> (tutte le bande, anche B28 a 700 MHz) oppure <b>SIM7600E-H</b>
+          (B1/B3/B7/B8/B20, senza B28). Non vanno bene A-H, NA-H (America), SA-H (Sud America/Australia), JC-H (Giappone).</li>
+        <li>Formato <b>Mini PCIe</b> (schedina con contatti dorati su un lato), non M.2 ne' modulo da saldare.</li>
+        <li>La seriale del modulo e' a 1,8 V: lo shield ha gia' il convertitore di livello (U1), non serve altro.</li>
+        <li>Collega l'antenna LTE <b>prima</b> di accendere: senza antenna il modulo puo' scaldarsi e non registrarsi.</li>
+        <li>Alimentatore da almeno 5 V 3 A: il modem LTE assorbe picchi di circa 2 A durante la trasmissione.</li>
+        <li>Dopo il salvataggio serve un riavvio; nel log deve comparire "Modulo SIM7600 SIMCom originale".</li>
+      </ul>
+    </div>
     <label>APN operatore SIM<input name="cellular_apn"></label>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="cellular_is_sim868,cellular_apn">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="cellular_module,cellular_apn" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -1466,7 +1481,8 @@ async function loadStatus() {
     if (!f.dataset.touched) {
       f.wifi_ssid.value = s.wifi_ssid || '';
       f.cellular_apn.value = s.cellular_apn || '';
-      f.cellular_is_sim868.value = s.cellular_is_sim868 ? 'true' : 'false';
+      f.cellular_module.value = s.cellular_module || (s.cellular_is_sim868 ? 'sim868' : 'sim7600_lilygo');
+      updateSimcomWarn();
       f.ntrip_host.value = s.ntrip_host || '';
       f.ntrip_port.value = s.ntrip_port || '';
       f.ntrip_mountpoint.value = s.ntrip_mountpoint || '';
@@ -2114,6 +2130,13 @@ const BOOL_CHECKBOX_FIELDS = new Set([
 // Legge dal form il valore gia' tipizzato correttamente per il JSON che si
 // aspetta il backend (numero/booleano/stringa) - usata sia dal salvataggio
 // per-campo sia dal fallback "salva tutto".
+// Avvertenze del modulo SIMCom originale, visibili solo se scelto.
+function updateSimcomWarn() {
+  const sel = document.getElementById('cfg-form').elements['cellular_module'];
+  document.getElementById('simcom-warn').style.display = sel && sel.value === 'sim7600_simcom' ? '' : 'none';
+}
+document.getElementById('cfg-form').elements['cellular_module'].addEventListener('change', updateSimcomWarn);
+
 function typedFieldValue(f, name) {
   const el = f.elements[name];
   if (!el) return undefined;
