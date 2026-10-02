@@ -469,6 +469,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "alert_enable", s.alert_enable);
     cJSON_AddNumberToObject(root, "alert_threshold_min", s.alert_threshold_min);
     cJSON_AddStringToObject(root, "last_reset", sys_stats_last_reset());
+    cJSON_AddStringToObject(root, "fw_rollback_note", ota_update_rollback_note());
+    cJSON_AddBoolToObject(root, "fw_pending", ota_update_is_pending());
     {
         // Traffico stimato (data_usage.c) e piano dati della SIM.
         data_usage_t du = data_usage_get();
@@ -2199,6 +2201,66 @@ static esp_err_t base_measure_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Esportazione/importazione della configurazione (blob NVS, vedi
+// settings_export_blob()). Contiene anche le password: resta un file
+// dell'utente, come la copia sulla microSD.
+static esp_err_t config_export_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    uint8_t *buf = malloc(4096);
+    if (!buf) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    size_t len = settings_export_blob(buf, 4096);
+    if (len == 0) {
+        free(buf);
+        return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "nessuna configurazione salvata");
+    }
+    char disp[80];
+    snprintf(disp, sizeof(disp), "attachment; filename=\"evonetrtk_config_%s.bin\"", settings_get().device_serial);
+    httpd_resp_set_type(req, "application/octet-stream");
+    httpd_resp_set_hdr(req, "Content-Disposition", disp);
+    esp_err_t err = httpd_resp_send(req, (const char *) buf, len);
+    free(buf);
+    return err;
+}
+
+static esp_err_t config_import_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    if (req->content_len <= 0 || req->content_len > 4096) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "file di configurazione non valido");
+    }
+    uint8_t *buf = malloc(req->content_len);
+    if (!buf) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    int got = 0;
+    while (got < req->content_len) {
+        int r = httpd_req_recv(req, (char *) buf + got, req->content_len - got);
+        if (r <= 0) {
+            free(buf);
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura file fallita");
+        }
+        got += r;
+    }
+    esp_err_t err = settings_import_blob(buf, (size_t) got, true);
+    free(buf);
+    if (err != ESP_OK) {
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"Il file non e' una configurazione EVONETRTK valida\"}");
+    }
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    sys_stats_note_restart_reason("configurazione importata dal pannello");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    esp_restart();
+    return ESP_OK;
+}
+
 // Log salvati sulla microSD: elenco e scaricamento (diag_log.c).
 static esp_err_t diag_list_get_handler(httpd_req_t *req)
 {
@@ -2295,6 +2357,8 @@ void web_ui_start(void)
     httpd_uri_t signals_uri    = { .uri = "/api/signals",    .method = HTTP_GET,  .handler = signals_get_handler };
     httpd_uri_t settings_uri   = { .uri = "/api/settings",   .method = HTTP_POST, .handler = settings_post_handler };
     httpd_uri_t reboot_uri     = { .uri = "/api/reboot",     .method = HTTP_POST, .handler = reboot_post_handler };
+    httpd_uri_t cfg_export_uri = { .uri = "/api/config/export", .method = HTTP_GET, .handler = config_export_get_handler };
+    httpd_uri_t cfg_import_uri = { .uri = "/api/config/import", .method = HTTP_POST, .handler = config_import_post_handler };
     httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
     httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
     httpd_uri_t base_measure_uri = { .uri = "/api/base/measure", .method = HTTP_POST, .handler = base_measure_post_handler };
@@ -2331,6 +2395,8 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &reboot_uri);
     httpd_register_uri_handler(server, &base_measure_uri);
     httpd_register_uri_handler(server, &diag_list_uri);
+    httpd_register_uri_handler(server, &cfg_export_uri);
+    httpd_register_uri_handler(server, &cfg_import_uri);
     httpd_register_uri_handler(server, &diag_dl_uri);
     httpd_register_uri_handler(server, &ota_upload_uri);
     httpd_register_uri_handler(server, &ota_sd_uri);

@@ -22,3 +22,4 @@ uint32_t sim_plan_period_days(uint32_t period_start);
 bool sim_plan_days_left(int *days_left);
 
 void sim_plan_start(void);
+void sim_plan_tick(void); // dal task degli avvisi, ogni minuto

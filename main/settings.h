@@ -406,3 +406,13 @@ esp_err_t settings_save(const app_settings_t *s);
 // web per segnalare quando settings.device_serial e' stato cambiato a mano
 // e non corrisponde piu' al chip fisico su cui gira il firmware.
 void settings_device_serial_from_mac(char *out, size_t out_size);
+
+// false se all'avvio non c'era una configurazione valida in NVS (default).
+bool settings_loaded_from_nvs(void);
+
+// Configurazione come blob NVS (magic + app_settings_t): esportazione,
+// copia sulla microSD e importazione. Dopo l'importazione serve un riavvio
+// (o settings_init()) per caricarla. keep_identity: tiene matricola e rete
+// di setup di questo dispositivo (configurazione presa da un'altra base).
+size_t settings_export_blob(void *out, size_t out_size);
+esp_err_t settings_import_blob(const void *blob, size_t len, bool keep_identity);

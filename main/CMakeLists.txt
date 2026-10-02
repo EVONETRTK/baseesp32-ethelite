@@ -14,6 +14,7 @@ idf_component_register(
         "time_sync.c"
         "data_usage.c"
         "sim_plan.c"
+        "config_backup.c"
         "gnss_driver.c"
         "gnss_ubx.c"
         "gnss_ubx_ack.c"

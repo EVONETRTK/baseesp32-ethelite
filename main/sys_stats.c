@@ -1,4 +1,6 @@
 #include "sys_stats.h"
+#include "ota_update.h"
+#include "data_usage.h"
 
 #include "esp_heap_caps.h"
 #include "esp_system.h"
@@ -225,6 +227,16 @@ static void sys_monitor_task(void *arg)
         int64_t wall = now - prev_wall;
         prev_wall = now;
         safety_restart_check(now);
+        {
+            static int64_t last_heap_log;
+            if (now - last_heap_log >= 30LL * 1000000) {
+                last_heap_log = now;
+                ESP_LOGI(MON_TAG, "Memoria libera %u (minima %u, blocco piu' grande %u)", (unsigned) esp_get_free_heap_size(),
+                         (unsigned) esp_get_minimum_free_heap_size(), (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+            }
+        }
+        ota_update_confirm_tick();
+        data_usage_tick();
         if (n == 0 || wall <= 0) {
             continue; // array troppo piccolo: non dovrebbe succedere
         }
@@ -312,6 +324,9 @@ void sys_stats_restart_with_reason(const char *reason)
 
 void sys_stats_note_restart_reason(const char *reason)
 {
+    // Riavvio voluto (pannello, aggiornamento, misura...): se il firmware e'
+    // ancora in prova va confermato, altrimenti il bootloader lo annullerebbe.
+    ota_update_mark_valid();
     s_restart_note.magic = RESTART_MAGIC;
     strncpy(s_restart_note.reason, reason, sizeof(s_restart_note.reason) - 1);
     s_restart_note.reason[sizeof(s_restart_note.reason) - 1] = 0;

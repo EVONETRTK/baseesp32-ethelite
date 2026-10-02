@@ -105,3 +105,11 @@ CONFIG_FATFS_SECTOR_512=y
 # Prima della sincronizzazione parte da 00:00:00 all'accensione.
 CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM=y
 # CONFIG_LOG_TIMESTAMP_SOURCE_RTOS is not set
+
+# Anche il settore del wear levelling a 512 byte: FatFs dimensiona i buffer
+# su MAX(settore SD, settore WL), quindi con il WL a 4096 il settore SD da
+# 512 della 1.19.74 non riduceva nulla (4 KB per ogni file aperto: il log
+# diagnostico, 4 file, chiedeva 16 KB contigui e spesso falliva con
+# ESP_ERR_NO_MEM). Nessun FAT su flash interna in questo firmware.
+CONFIG_WL_SECTOR_SIZE_512=y
+# CONFIG_WL_SECTOR_SIZE_4096 is not set

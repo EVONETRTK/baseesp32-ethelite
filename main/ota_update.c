@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "esp_log.h"
 #include "esp_ota_ops.h"
@@ -100,12 +101,106 @@ int ota_update_semver_compare(const char *a, const char *b)
     return a_pat - b_pat;
 }
 
+static volatile bool s_pending; // firmware nuovo in prova (vedi ota_update_start_confirm)
+
 void ota_update_mark_valid(void)
 {
+    s_pending = false;
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t state;
     if (esp_ota_get_state_partition(running, &state) == ESP_OK && state == ESP_OTA_IMG_PENDING_VERIFY) {
         esp_ota_mark_app_valid_cancel_rollback();
         ESP_LOGI(TAG, "Immagine corrente confermata valida (rollback automatico disattivato per questo avvio)");
     }
+}
+
+// ---------------------------------------------------------------------------
+// Conferma ritardata del firmware nuovo. Prima veniva confermato appena
+// partito il pannello: un firmware che andava in crash dopo (come la
+// 1.19.82 di prova il 02/10/2026) restava installato in un ciclo di crash e
+// e' servito il cavo USB. Ora resta "in prova": se si riavvia prima della
+// conferma per un crash o un blocco, il bootloader torna da solo alla
+// versione precedente.
+// ---------------------------------------------------------------------------
+
+#include "status.h"
+#include "esp_timer.h"
+#include "nvs.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#define CONFIRM_STABLE_US   (5LL * 60 * 1000000)   // 5 minuti senza crash e caster collegato...
+#define CONFIRM_ANYWAY_US   (15LL * 60 * 1000000)  // ...o 15 minuti senza crash in ogni caso
+
+bool ota_update_is_pending(void)
+{
+    return s_pending;
+}
+
+// Chiamata ogni 5 s dal task di sorveglianza (sys_stats.c): nessun task
+// proprio, la memoria libera e' poca.
+void ota_update_confirm_tick(void)
+{
+    if (s_pending) {
+        int64_t up = esp_timer_get_time();
+        ntrip_conn_status_t nt = status_ntrip_get();
+        if ((up >= CONFIRM_STABLE_US && nt.connected) || up >= CONFIRM_ANYWAY_US) {
+            ESP_LOGI(TAG, "Firmware nuovo stabile da %lld min%s: confermato",
+                     (long long) (up / 60000000), nt.connected ? " con il caster collegato" : "");
+            ota_update_mark_valid();
+        }
+    }
+}
+
+void ota_update_start_confirm(void)
+{
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    esp_ota_img_states_t state;
+    if (esp_ota_get_state_partition(running, &state) != ESP_OK || state != ESP_OTA_IMG_PENDING_VERIFY) {
+        return; // gia' confermato (avvio normale)
+    }
+    s_pending = true;
+    ESP_LOGW(TAG, "Firmware nuovo in prova: viene confermato dopo 5 minuti senza problemi. "
+                  "Se si riavvia prima per un errore, torna da solo alla versione precedente");
+}
+
+// Al primo avvio dopo un ritorno automatico alla versione precedente, lo
+// scrive nel log e lo tiene per il pannello. La partizione annullata resta
+// segnata come tale fino al prossimo aggiornamento: si confronta con quanto
+// gia' segnalato (in NVS) per non ripeterlo a ogni avvio.
+static char s_rollback_note[160];
+
+const char *ota_update_rollback_note(void)
+{
+    return s_rollback_note;
+}
+
+void ota_update_check_rollback(void)
+{
+    const esp_partition_t *bad = esp_ota_get_last_invalid_partition();
+    if (!bad) {
+        return;
+    }
+    esp_app_desc_t desc;
+    if (esp_ota_get_partition_description(bad, &desc) != ESP_OK) {
+        return;
+    }
+    char key[64];
+    snprintf(key, sizeof(key), "%s %s", bad->label, desc.version);
+    nvs_handle_t h;
+    if (nvs_open("otaroll", NVS_READWRITE, &h) != ESP_OK) {
+        return;
+    }
+    char seen[64] = "";
+    size_t len = sizeof(seen);
+    nvs_get_str(h, "seen", seen, &len);
+    if (strcmp(seen, key) != 0) {
+        snprintf(s_rollback_note, sizeof(s_rollback_note),
+                 "il firmware nuovo (%s) si e' riavviato prima della conferma: tornato alla versione precedente",
+                 desc.version);
+        ESP_LOGE(TAG, "Aggiornamento annullato: %s", s_rollback_note);
+        nvs_set_str(h, "seen", key);
+        nvs_commit(h);
+    }
+    nvs_close(h);
 }

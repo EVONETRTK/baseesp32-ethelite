@@ -177,16 +177,20 @@ static void load(void)
     nvs_close(h);
 }
 
-static void data_usage_task(void *arg)
+// Chiamata ogni 5 s dal task di sorveglianza (sys_stats.c): nessun task
+// proprio, la memoria libera e' poca.
+void data_usage_tick(void)
 {
-    TickType_t last_save = xTaskGetTickCount();
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(30000));
-        roll_period();
-        if (s_dirty && xTaskGetTickCount() - last_save >= pdMS_TO_TICKS(SAVE_PERIOD_MS)) {
-            save();
-            last_save = xTaskGetTickCount();
-        }
+    static TickType_t last_roll, last_save;
+    TickType_t now = xTaskGetTickCount();
+    if (now - last_roll < pdMS_TO_TICKS(30000)) {
+        return;
+    }
+    last_roll = now;
+    roll_period();
+    if (s_dirty && now - last_save >= pdMS_TO_TICKS(SAVE_PERIOD_MS)) {
+        save();
+        last_save = now;
     }
 }
 
@@ -195,7 +199,6 @@ void data_usage_start(void)
     load();
     ESP_LOGI(TAG, "Traffico del mese (stima): cellulare %.1f MB, WiFi %.1f MB",
              s_cell_month / 1e6, s_wifi_month / 1e6);
-    xTaskCreate(data_usage_task, "data_usage", 3072, NULL, 1, NULL);
 }
 
 int data_usage_get_history(data_usage_day_t *out, int max)

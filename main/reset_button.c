@@ -5,6 +5,7 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "nvs.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -19,6 +20,16 @@ static void erase_settings_and_reboot(void)
 {
     ESP_LOGW(TAG, "Reset configurazione richiesto dal pulsante: cancello NVS e riavvio");
     nvs_flash_erase();
+    // Segno per config_backup.c: e' un reset voluto, la copia della
+    // configurazione sulla microSD non va ripristinata.
+    if (nvs_flash_init() == ESP_OK) {
+        nvs_handle_t h;
+        if (nvs_open("cfgbk", NVS_READWRITE, &h) == ESP_OK) {
+            nvs_set_u8(h, "skip", 1);
+            nvs_commit(h);
+            nvs_close(h);
+        }
+    }
     esp_restart();
 }
 

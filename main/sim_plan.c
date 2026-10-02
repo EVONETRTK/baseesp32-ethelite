@@ -184,11 +184,16 @@ static void send_notice(const app_settings_t *s, int days_left)
              ok ? "inviato" : "NON inviato (email/WhatsApp non configurati o in errore)", body);
 }
 
-static void sim_plan_task(void *arg)
+// Chiamata ogni minuto dal task degli avvisi (alerts.c): ha lo stack grande
+// che serve all'invio email/WhatsApp (TLS) e nessun task in piu' consuma
+// memoria (la memoria libera e' poca).
+static app_settings_t s_tick_cfg; // unica copia statica (memoria libera scarsa)
+
+void sim_plan_tick(void)
 {
-    static app_settings_t s;
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(10000));
+    app_settings_t *const sp = &s_tick_cfg;
+#define s (*sp)
+    do {
         uint32_t today = today_ymd();
         s = settings_get();
         rc_set(&s);
@@ -256,13 +261,12 @@ static void sim_plan_task(void *arg)
             nvs_commit(h);
         }
         nvs_close(h);
-    }
+    } while (0);
+#undef s
 }
 
 void sim_plan_start(void)
 {
-    static app_settings_t s0;
-    s0 = settings_get();
-    rc_set(&s0);
-    xTaskCreate(sim_plan_task, "sim_plan", 6144, NULL, 2, NULL);
+    s_tick_cfg = settings_get();
+    rc_set(&s_tick_cfg);
 }

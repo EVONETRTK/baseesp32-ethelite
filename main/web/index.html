@@ -1026,6 +1026,24 @@
   </fieldset>
 
   <fieldset>
+    <legend>💾 Configurazione: copia di sicurezza</legend>
+    <small class="hint">
+      La base tiene da sola una copia della configurazione sulla microSD, aggiornata a ogni salvataggio:
+      se la configurazione in memoria si perde, all'avvio viene ripristinata automaticamente (non dopo un
+      reset di fabbrica fatto con il pulsante). Qui puoi anche scaricarla sul computer, o caricarla per
+      ripristinare questa base o preparare una seconda base uguale (matricola e rete di setup restano
+      quelle della base su cui la carichi). <strong>Il file contiene anche le password</strong>: conservalo
+      con cura.
+    </small>
+    <div style="margin-top:.6rem; display:flex; gap:.5rem; flex-wrap:wrap">
+      <a class="action secondary" href="/api/config/export" id="cfg-export-btn" style="text-decoration:none">⬇️ Scarica configurazione</a>
+      <button type="button" class="action secondary" id="cfg-import-btn">⬆️ Carica configurazione</button>
+      <input type="file" id="cfg-import-file" accept=".bin" style="display:none">
+    </div>
+    <div id="cfg-import-msg" class="hint" style="margin-top:.4rem"></div>
+  </fieldset>
+
+  <fieldset>
     <legend>🗄️ Archivio firmware (ripristino manuale)</legend>
     <small class="hint">
       Ad ogni aggiornamento applicato, il dispositivo salva da solo su SD una copia della versione
@@ -1287,6 +1305,25 @@ Object.entries(QUICK_STATUS_TARGET).forEach(([chipId, pageId]) => {
 // firmware (nessuna escape/quoting da gestire) sia qui, dove basta uno
 // strip dei codici colore ANSI (pensati per un terminale seriale, non per
 // una pagina web) prima di mostrarli in un <pre>.
+document.getElementById('cfg-import-btn').addEventListener('click', () => document.getElementById('cfg-import-file').click());
+document.getElementById('cfg-import-file').addEventListener('change', async (ev) => {
+  const file = ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  const msg = document.getElementById('cfg-import-msg');
+  if (!confirm('Caricare la configurazione da "' + file.name + '"? Sostituisce tutte le impostazioni attuali e la base si riavvia.')) return;
+  msg.textContent = 'Caricamento...';
+  try {
+    const r = await fetch('/api/config/import', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: await file.arrayBuffer() });
+    const j = await r.json().catch(() => ({ ok: r.ok }));
+    if (!j.ok) { msg.textContent = 'Errore: ' + (j.error || 'caricamento non riuscito'); return; }
+    msg.textContent = 'Configurazione caricata: la base si riavvia, la pagina si ricarica tra circa 30 secondi.';
+    setTimeout(() => location.reload(), 30000);
+  } catch (e) {
+    msg.textContent = 'Errore di comunicazione con la base';
+  }
+});
+
 async function loadDiagList() {
   const ul = document.getElementById('diag-list');
   ul.innerHTML = '<li>Lettura della microSD...</li>';
@@ -2833,8 +2870,9 @@ document.getElementById('cfg-form').elements['sim_renew_mode'].addEventListener(
 
 function updateReliabilityUi(s) {
   const reset = document.getElementById('st-reset');
-  reset.textContent = s.last_reset || '-';
-  reset.style.color = /calo di tensione|crash|watchdog/.test(s.last_reset || '') ? '#dc2626' : '';
+  reset.textContent = (s.last_reset || '-') + (s.fw_rollback_note ? ' — ' + s.fw_rollback_note : '') +
+    (s.fw_pending ? ' · firmware nuovo in prova: confermato dopo 5 minuti senza problemi' : '');
+  reset.style.color = (/calo di tensione|crash|watchdog/.test(s.last_reset || '') || s.fw_rollback_note) ? '#dc2626' : '';
 
   renderDataBar(document.getElementById('st-data'), s);
   drawDataChart(document.getElementById('st-data-chart'), s);

@@ -4,6 +4,7 @@
 #include "base_monitor.h"
 #include "sys_stats.h"
 #include "data_usage.h"
+#include "sim_plan.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -279,6 +280,8 @@ static void alerts_task(void *arg)
     static char alerted_data_month[16]; // mese gia' avvisato per il piano dati
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
+
+        sim_plan_tick(); // rinnovo della SIM: promemoria anche con gli altri avvisi spenti
 
         app_settings_t s = settings_get();
         if (!s.alert_enable) {

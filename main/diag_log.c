@@ -2,6 +2,7 @@
 #include "settings.h"
 #include "log_buffer.h"
 #include "sd_mutex.h"
+#include "config_backup.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -147,6 +148,7 @@ static void diag_log_task(void *arg)
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(FLUSH_INTERVAL_MS));
+        config_backup_service(); // copia della configurazione, se richiesta
 
         if (session_path[0] == '\0' || session_bytes >= MAX_FILE_BYTES || xStreamBufferIsEmpty(s_stream)) {
             continue;

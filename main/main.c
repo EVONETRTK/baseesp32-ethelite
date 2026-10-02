@@ -47,6 +47,7 @@
 #include "time_sync.h"
 #include "data_usage.h"
 #include "sim_plan.h"
+#include "config_backup.h"
 
 static const char *TAG = "main";
 
@@ -132,6 +133,9 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_err);
 
     settings_init();
+    ESP_LOGI(TAG, "Memoria libera dopo impostazioni: %u", (unsigned) esp_get_free_heap_size());
+    config_backup_restore_if_missing(); // configurazione persa: ripristino dalla microSD
+    ota_update_check_rollback();
     gnss_signal_init();
     gnss_ubx_ack_init();
     gnss_fix_init();
@@ -161,16 +165,18 @@ void app_main(void)
     // (non blocca): la UI web deve restare raggiungibile anche senza rete
     // configurata.
     net_manager_start();
+    ESP_LOGI(TAG, "Memoria libera dopo rete: %u", (unsigned) esp_get_free_heap_size());
     time_sync_start(); // ora vera via NTP (log, temperatura massima)
     nmea_udp_broadcast_init();
     web_ui_start();
+    ESP_LOGI(TAG, "Memoria libera dopo pannello: %u", (unsigned) esp_get_free_heap_size());
 
     // A questo punto AP di setup e server web sono su: il firmware si e'
     // dimostrato funzionante quanto basta per essere raggiungibile e
     // riconfigurabile. Confermalo al bootloader cosi' un aggiornamento
     // riuscito non torni indietro da solo al riavvio successivo (il
     // rollback automatico scatta solo per immagini mai confermate).
-    ota_update_mark_valid();
+    ota_update_start_confirm();
 
     // Controllo automatico della scheda microSD ad ogni avvio: usa la
     // stessa funzione gia' usata dal pulsante manuale nella UI web (stesso
@@ -209,8 +215,10 @@ void app_main(void)
     sys_stats_monitor_start();
     data_usage_start();
     sim_plan_start();
+    config_backup_start();
 
     app_settings_t settings = settings_get();
+    ESP_LOGI(TAG, "Memoria libera prima del ricevitore: %u", (unsigned) esp_get_free_heap_size());
     gnss_uart_init(&settings);
 
     // Il task che legge la UART va avviato PRIMA di gnss_driver_configure():
@@ -258,6 +266,7 @@ void app_main(void)
         ntrip_caster_server_start(); // non fa nulla se disattivato in settings
     }
 
+    ESP_LOGI(TAG, "Memoria libera prima degli avvisi: %u", (unsigned) esp_get_free_heap_size());
     alerts_start();
     auto_update_start(); // non fa nulla finche' non attivato dalla UI web (settings.auto_update_check_enable)
 }

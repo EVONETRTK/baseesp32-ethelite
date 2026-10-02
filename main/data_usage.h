@@ -26,6 +26,7 @@ typedef struct {
 data_usage_t data_usage_get(void);
 
 void data_usage_start(void);
+void data_usage_tick(void); // dal task di sorveglianza, ogni 5 s
 
 // Storico dei giorni passati (oggi escluso), per il grafico degli ultimi 30.
 #define DATA_USAGE_HISTORY_DAYS 30

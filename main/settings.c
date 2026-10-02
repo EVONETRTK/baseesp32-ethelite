@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "config_backup.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -37,6 +38,7 @@ typedef struct {
 } stored_cfg_t;
 
 static app_settings_t s_settings;
+static bool s_loaded_from_nvs; // false = default di fabbrica (nessuna configurazione valida in NVS)
 // Praticamente ogni modulo di questo firmware chiama settings_get() (con
 // che frequenza varia da task a task, alcuni periodicamente) mentre
 // settings_get()/settings_save() copiano l'intera struct (>1.7KB, ~450
@@ -177,10 +179,13 @@ void settings_init(void)
     // settings_get()/settings_save(): evita la finestra in cui due task
     // potrebbero vedere entrambi il mutex non ancora creato e crearne due
     // copie diverse.
-    s_settings_mutex = xSemaphoreCreateMutex();
+    if (!s_settings_mutex) {
+        s_settings_mutex = xSemaphoreCreateMutex();
+    }
 
     ESP_LOGI(TAG, "sizeof(app_settings_t) di questo firmware = %u byte", (unsigned) sizeof(app_settings_t));
 
+    s_loaded_from_nvs = false;
     apply_defaults();
 
     nvs_handle_t h;
@@ -361,6 +366,7 @@ void settings_init(void)
             s_settings.sim_renew_every_days = 30;
         }
         ESP_LOGI(TAG, "Configurazione caricata da NVS (AP=%s)", s_settings.ap_ssid);
+        s_loaded_from_nvs = true;
     } else {
         ESP_LOGW(TAG, "Configurazione NVS non valida, uso i default di Kconfig");
     }
@@ -380,7 +386,6 @@ app_settings_t settings_get(void)
 // task con stack piccolo e' andato in crash DURANTE la scrittura e la
 // configurazione e' andata persa del tutto (base ripartita con i default).
 static stored_cfg_t s_save_buf;
-static stored_cfg_t s_verify_buf;
 static SemaphoreHandle_t s_save_mutex;
 
 esp_err_t settings_save(const app_settings_t *s)
@@ -428,11 +433,11 @@ esp_err_t settings_save(const app_settings_t *s)
     // scrittura/lettura NVS invece che nei dati arrivati a questa funzione.
     nvs_handle_t hv;
     if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &hv) == ESP_OK) {
-        stored_cfg_t *verify = &s_verify_buf;
-        size_t len = sizeof(*verify);
-        if (nvs_get_blob(hv, NVS_KEY_CFG, verify, &len) == ESP_OK) {
-            ESP_LOGI(TAG, "Verifica rilettura: %u byte, wifi_ssid='%s' ap_ssid='%s' gnss_uart_num=%d gnss_uart_baud=%d",
-                     (unsigned) len, verify->s.wifi_ssid, verify->s.ap_ssid, verify->s.gnss_uart_num, verify->s.gnss_uart_baud);
+        // Solo la lunghezza: un buffer di verifica completo costava 2 KB di
+        // memoria fissa, che sulla base mancano.
+        size_t len = 0;
+        if (nvs_get_blob(hv, NVS_KEY_CFG, NULL, &len) == ESP_OK) {
+            ESP_LOGI(TAG, "Verifica rilettura: %u byte salvati", (unsigned) len);
         } else {
             ESP_LOGW(TAG, "Verifica rilettura fallita");
         }
@@ -440,6 +445,9 @@ esp_err_t settings_save(const app_settings_t *s)
     }
 
     xSemaphoreGive(s_save_mutex);
+    if (err == ESP_OK) {
+        config_backup_request(); // copia sulla microSD, fatta dal suo task
+    }
     return err;
 }
 
@@ -483,4 +491,80 @@ void app_settings_remember_wifi(app_settings_t *s, const char *ssid, const char 
     s->wifi_ssid[sizeof(s->wifi_ssid) - 1] = '\0';
     strncpy(s->wifi_password, password, sizeof(s->wifi_password) - 1);
     s->wifi_password[sizeof(s->wifi_password) - 1] = '\0';
+}
+
+bool settings_loaded_from_nvs(void)
+{
+    return s_loaded_from_nvs;
+}
+
+// --- copia di sicurezza / esportazione (config_backup.c, pannello) ---------
+// Il formato e' il blob NVS cosi' com'e' (magic + app_settings_t), quindi
+// una copia di una versione precedente si carica con la stessa logica di
+// sempre (campi nuovi ai default, migrazioni in settings_init()).
+
+size_t settings_export_blob(void *out, size_t out_size)
+{
+    if (out_size < sizeof(stored_cfg_t)) {
+        return 0;
+    }
+    if (!s_save_mutex) {
+        s_save_mutex = xSemaphoreCreateMutex();
+    }
+    xSemaphoreTake(s_save_mutex, portMAX_DELAY);
+    nvs_handle_t h;
+    size_t len = out_size;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
+        len = 0;
+    } else {
+        if (nvs_get_blob(h, NVS_KEY_CFG, out, &len) != ESP_OK) {
+            len = 0;
+        }
+        nvs_close(h);
+    }
+    xSemaphoreGive(s_save_mutex);
+    return len;
+}
+
+esp_err_t settings_import_blob(const void *blob, size_t len, bool keep_identity)
+{
+    uint32_t magic;
+    size_t header = offsetof(stored_cfg_t, s);
+    if (len < header + 64 || len > sizeof(stored_cfg_t)) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    memcpy(&magic, blob, sizeof(magic));
+    if (magic != CFG_MAGIC) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_save_mutex) {
+        s_save_mutex = xSemaphoreCreateMutex();
+    }
+    xSemaphoreTake(s_save_mutex, portMAX_DELAY);
+    memset(&s_save_buf, 0, sizeof(s_save_buf));
+    memcpy(&s_save_buf, blob, len);
+    if (keep_identity) {
+        // Configurazione presa da un'altra base: matricola e rete di setup
+        // restano quelle di questo dispositivo.
+        xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
+        if (len - header >= offsetof(app_settings_t, device_serial) + sizeof(s_settings.device_serial)) {
+            memcpy(s_save_buf.s.device_serial, s_settings.device_serial, sizeof(s_settings.device_serial));
+        }
+        if (len - header >= offsetof(app_settings_t, ap_ssid) + sizeof(s_settings.ap_ssid)) {
+            memcpy(s_save_buf.s.ap_ssid, s_settings.ap_ssid, sizeof(s_settings.ap_ssid));
+        }
+        xSemaphoreGive(s_settings_mutex);
+    }
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_blob(h, NVS_KEY_CFG, &s_save_buf, len);
+        if (err == ESP_OK) {
+            err = nvs_commit(h);
+        }
+        nvs_close(h);
+    }
+    xSemaphoreGive(s_save_mutex);
+    ESP_LOGW(TAG, "Configurazione importata (%u byte): %s", (unsigned) len, esp_err_to_name(err));
+    return err;
 }
