@@ -3,6 +3,7 @@
 #include "settings.h"
 #include "status.h"
 #include "net_util.h"
+#include "data_usage.h"
 #include "ntrip_reply.h"
 
 #include <string.h>
@@ -388,6 +389,7 @@ void ntrip_rover_client_task(void *arg)
             int n = recv(sock, net_buf, sizeof(net_buf), 0);
             if (n > 0) {
                 gnss_io_write((const char *) net_buf, n);
+                data_usage_add((uint32_t) n, false);
                 status_note_rtcm_bytes((uint32_t) n);
             } else if (n == 0) {
                 ESP_LOGW(TAG, "Caster ha chiuso la connessione");
@@ -431,6 +433,7 @@ void ntrip_rover_client_forward_gga(const char *line, size_t len)
     char buf[128];
     int n = snprintf(buf, sizeof(buf), "%.*s\r\n", (int) len, line);
     if (send(sock, buf, n, 0) == n) {
+        data_usage_add((uint32_t) n, true);
         status_note_gga_sent();
     }
 }

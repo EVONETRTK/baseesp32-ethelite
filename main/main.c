@@ -45,6 +45,7 @@
 #include "sd_mutex.h"
 #include "base_measure.h"
 #include "time_sync.h"
+#include "data_usage.h"
 
 static const char *TAG = "main";
 
@@ -120,6 +121,7 @@ void app_main(void)
     esp_log_level_set("sdspi_transaction", ESP_LOG_WARN);
 
     ESP_LOGI(TAG, "EVONETRTK firmware v%s", FIRMWARE_VERSION);
+    sys_stats_boot_report();
 
     esp_err_t nvs_err = nvs_flash_init();
     if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -204,6 +206,7 @@ void app_main(void)
     xTaskCreate(fw_archive_save_current_task, "fw_archive_boot", 8192, NULL, 2, NULL);
     diag_log_start();
     sys_stats_monitor_start();
+    data_usage_start();
 
     app_settings_t settings = settings_get();
     gnss_uart_init(&settings);

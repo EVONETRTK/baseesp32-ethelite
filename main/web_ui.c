@@ -6,6 +6,7 @@
 #include "base_measure.h"
 #include "time_sync.h"
 #include "diag_log.h"
+#include "data_usage.h"
 #include "online_update.h"
 #include "status.h"
 #include "log_buffer.h"
@@ -466,6 +467,35 @@ static esp_err_t status_get_handler(httpd_req_t *req)
 
     cJSON_AddBoolToObject(root, "alert_enable", s.alert_enable);
     cJSON_AddNumberToObject(root, "alert_threshold_min", s.alert_threshold_min);
+    cJSON_AddStringToObject(root, "last_reset", sys_stats_last_reset());
+    {
+        // Traffico stimato (data_usage.c) e piano dati della SIM.
+        data_usage_t du = data_usage_get();
+        cJSON_AddStringToObject(root, "data_month", du.month);
+        cJSON_AddNumberToObject(root, "data_cell_month_bytes", (double) du.cell_month);
+        cJSON_AddNumberToObject(root, "data_cell_day_bytes", (double) du.cell_day);
+        cJSON_AddNumberToObject(root, "data_wifi_month_bytes", (double) du.wifi_month);
+        cJSON_AddNumberToObject(root, "data_wifi_day_bytes", (double) du.wifi_day);
+        cJSON_AddNumberToObject(root, "data_plan_mb", s.data_plan_mb);
+    }
+    {
+        // Ultime cadute della connessione al caster, dalla piu' recente.
+        ntrip_outage_t out[NTRIP_OUTAGE_LOG_LEN];
+        int n = status_ntrip_get_outages(out, NTRIP_OUTAGE_LOG_LEN);
+        cJSON *arr = cJSON_AddArrayToObject(root, "ntrip_outages");
+        int64_t now = esp_timer_get_time();
+        for (int i = 0; i < n; i++) {
+            cJSON *o = cJSON_CreateObject();
+            char when[24];
+            time_sync_format_uptime(out[i].start_us, when, sizeof(when));
+            cJSON_AddStringToObject(o, "at", when);
+            cJSON_AddNumberToObject(o, "ago_s", (double) ((now - out[i].start_us) / 1000000));
+            cJSON_AddNumberToObject(o, "duration_s", (double) (((out[i].end_us ? out[i].end_us : now) - out[i].start_us) / 1000000));
+            cJSON_AddBoolToObject(o, "ongoing", out[i].end_us == 0);
+            cJSON_AddStringToObject(o, "reason", out[i].reason);
+            cJSON_AddItemToArray(arr, o);
+        }
+    }
     cJSON_AddStringToObject(root, "alert_smtp_host", s.alert_smtp_host);
     cJSON_AddNumberToObject(root, "alert_smtp_port", s.alert_smtp_port);
     cJSON_AddStringToObject(root, "alert_smtp_user", s.alert_smtp_user);
@@ -844,6 +874,11 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     if (alert_enable_item && cJSON_IsBool(alert_enable_item)) {
         s.alert_enable = cJSON_IsTrue(alert_enable_item);
     }
+    cJSON *data_plan_item = cJSON_GetObjectItemCaseSensitive(root, "data_plan_mb");
+    if (data_plan_item && cJSON_IsNumber(data_plan_item) && data_plan_item->valuedouble >= 0 &&
+        data_plan_item->valuedouble <= 1000000) {
+        s.data_plan_mb = (uint32_t) data_plan_item->valuedouble;
+    }
     cJSON *alert_threshold_item = cJSON_GetObjectItemCaseSensitive(root, "alert_threshold_min");
     if (alert_threshold_item && cJSON_IsNumber(alert_threshold_item) && alert_threshold_item->valueint > 0) {
         s.alert_threshold_min = (uint16_t) alert_threshold_item->valueint;
@@ -1142,6 +1177,7 @@ static esp_err_t ota_upload_post_handler(httpd_req_t *req)
 
     httpd_resp_sendstr(req, "{\"ok\":true}");
     ESP_LOGI(TAG, "Firmware aggiornato, riavvio in corso");
+    sys_stats_note_restart_reason("aggiornamento firmware dal pannello");
     vTaskDelay(pdMS_TO_TICKS(300));
     esp_restart();
     return ESP_OK;
@@ -1173,6 +1209,7 @@ static esp_err_t ota_sd_post_handler(httpd_req_t *req)
 
     if (applied) {
         ESP_LOGI(TAG, "Firmware aggiornato da microSD, riavvio in corso");
+        sys_stats_note_restart_reason("aggiornamento firmware da microSD");
         vTaskDelay(pdMS_TO_TICKS(300));
         esp_restart();
     }
@@ -1256,6 +1293,7 @@ static esp_err_t fw_archive_apply_post_handler(httpd_req_t *req)
 
     if (applied) {
         ESP_LOGW(TAG, "Firmware ripristinato manualmente da archivio SD, riavvio in corso");
+        sys_stats_note_restart_reason("ripristino firmware dall'archivio SD");
         vTaskDelay(pdMS_TO_TICKS(300));
         esp_restart();
     }
@@ -2085,6 +2123,7 @@ static esp_err_t base_measure_post_handler(httpd_req_t *req)
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "action deve essere start o cancel");
         return ESP_FAIL;
     }
+    sys_stats_note_restart_reason("misura della posizione base (avvio o annullamento)");
     httpd_resp_sendstr(req, "{\"ok\":true}");
     vTaskDelay(pdMS_TO_TICKS(300));
     esp_restart();
@@ -2140,6 +2179,7 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
     }
     httpd_resp_sendstr(req, "{\"ok\":true}");
     ESP_LOGI(TAG, "Riavvio richiesto dalla UI web");
+    sys_stats_note_restart_reason("richiesto dal pannello");
     vTaskDelay(pdMS_TO_TICKS(300));
     esp_restart();
     return ESP_OK;

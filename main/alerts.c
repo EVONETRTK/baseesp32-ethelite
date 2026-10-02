@@ -3,6 +3,7 @@
 #include "status.h"
 #include "base_monitor.h"
 #include "sys_stats.h"
+#include "data_usage.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -275,6 +276,7 @@ static void alerts_task(void *arg)
     bool already_alerted_drift = false;
     bool already_alerted_temp = false;
     bool already_alerted_1005 = false;
+    static char alerted_data_month[16]; // mese gia' avvisato per il piano dati
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
 
@@ -355,6 +357,21 @@ static void alerts_task(void *arg)
                 snprintf(body, sizeof(body), "EVONETRTK %s: la base invia di nuovo la sua posizione (1005).", s.device_serial);
                 send_on_configured_channels(&s, "EVONETRTK - posizione base ripristinata", body, NULL, 0);
                 already_alerted_1005 = false;
+            }
+        }
+
+        // Piano dati della SIM: un avviso al mese quando il traffico stimato
+        // sul cellulare supera l'80% del piano impostato nel pannello.
+        if (s.data_plan_mb > 0) {
+            data_usage_t du = data_usage_get();
+            if (du.month[0] && strcmp(du.month, alerted_data_month) != 0 &&
+                du.cell_month >= (uint64_t) s.data_plan_mb * 1000000ULL * 8 / 10) {
+                char body[200];
+                snprintf(body, sizeof(body),
+                         "EVONETRTK %s: traffico dati sulla SIM a %.0f MB su %u MB del piano (stima, mese %s).",
+                         s.device_serial, du.cell_month / 1e6, (unsigned) s.data_plan_mb, du.month);
+                send_on_configured_channels(&s, "EVONETRTK - piano dati quasi esaurito", body, NULL, 0);
+                strncpy(alerted_data_month, du.month, sizeof(alerted_data_month) - 1);
             }
         }
 

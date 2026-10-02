@@ -33,6 +33,19 @@ void status_ntrip_note_disconnected(const char *reason);
 
 ntrip_conn_status_t status_ntrip_get(void);
 
+// Registro delle ultime cadute della connessione al caster (solo dopo una
+// connessione riuscita: i tentativi falliti all'avvio non contano). Per il
+// pannello: quando, quanto e' durata, perche'.
+#define NTRIP_OUTAGE_LOG_LEN 10
+typedef struct {
+    int64_t start_us;   // esp_timer alla caduta
+    int64_t end_us;     // alla ripresa, 0 = ancora in corso
+    char reason[64];
+} ntrip_outage_t;
+
+// Copia le cadute in out, dalla piu' recente; restituisce quante.
+int status_ntrip_get_outages(ntrip_outage_t *out, int max);
+
 // Stato condiviso, letto dalla UI web e aggiornato dagli altri task.
 // Non e' protetto da lock: le singole letture/scritture sono variabili
 // scalari, sufficiente per un pannello di stato non critico.

@@ -212,6 +212,9 @@
     <small class="hint" id="cpu1-text">-</small>
     <dl class="kv" style="margin-top:.6rem">
       <dt>Ora della base</dt><dd id="st-time">-</dd>
+      <dt>Ultimo riavvio</dt><dd id="st-reset">-</dd>
+      <dt>Traffico dati (stima)</dt><dd id="st-data">-</dd>
+      <dt>Cadute del caster</dt><dd id="st-outages">-</dd>
       <dt>Temperatura chip</dt><dd id="st-temp">-</dd>
       <dt>Memoria libera</dt><dd id="st-heap-free">-</dd>
       <dt>Memoria minima mai raggiunta</dt><dd id="st-heap-min">-</dd>
@@ -299,9 +302,16 @@
       </ul>
     </div>
     <label>APN operatore SIM<input name="cellular_apn"></label>
+    <label>Piano dati della SIM (MB al mese)<input name="data_plan_mb" type="number" min="0" step="1" placeholder="0 = nessun limite"></label>
+    <div class="hint" id="data-usage-box" style="margin:.2rem 0 .6rem"></div>
+    <small class="hint">
+      Il traffico e' una stima (dati inviati al caster piu' le intestazioni di rete), utile per non
+      restare senza dati. Con gli avvisi attivi arriva un avviso all'80% del piano. La base torna da
+      sola al WiFi appena e' di nuovo disponibile (controllo ogni 5 minuti).
+    </small>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="cellular_module,cellular_apn" data-reboot="1">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="cellular_module,cellular_apn,data_plan_mb" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -1430,6 +1440,7 @@ async function loadStatus() {
     updateModeBadge(activeDeviceMode, s.device_mode === 'rover' ? 'rover' : 'base', s.ap_ssid);
     updateModeVisibility();
     update1005Banner(s);
+    updateReliabilityUi(s);
     updateMeasureUi(s);
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
@@ -1481,6 +1492,7 @@ async function loadStatus() {
     if (!f.dataset.touched) {
       f.wifi_ssid.value = s.wifi_ssid || '';
       f.cellular_apn.value = s.cellular_apn || '';
+      f.data_plan_mb.value = s.data_plan_mb || 0;
       f.cellular_module.value = s.cellular_module || (s.cellular_is_sim868 ? 'sim868' : 'sim7600_lilygo');
       updateSimcomWarn();
       f.ntrip_host.value = s.ntrip_host || '';
@@ -2109,6 +2121,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 // parametro) e il fallback "salva tutto" qui sotto, per non doverlo
 // mantenere in due posti.
 const NUMBER_FIELDS = new Set([
+  'data_plan_mb',
   'ntrip_port', 'nmea_udp_port', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
   'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
@@ -2642,6 +2655,39 @@ document.getElementById('measure-cancel-btn').addEventListener('click', () => {
 
 // Riquadro rosso in cima allo Stato: base senza 1005 da piu' di 30 s (o mai
 // dall'avvio). Il motivo piu' probabile e' scritto sotto, in parole semplici.
+// Ultimo riavvio, traffico dati e cadute del caster (scheda Stato e Rete).
+function fmtMB(b) { return (b / 1e6).toFixed(b < 1e7 ? 2 : 1) + ' MB'; }
+function updateReliabilityUi(s) {
+  const reset = document.getElementById('st-reset');
+  reset.textContent = s.last_reset || '-';
+  reset.style.color = /calo di tensione|crash|watchdog/.test(s.last_reset || '') ? '#dc2626' : '';
+
+  const plan = s.data_plan_mb || 0;
+  const cm = s.data_cell_month_bytes || 0;
+  const month = s.data_month ? ' (' + s.data_month + ')' : '';
+  let cell = 'cellulare: oggi ' + fmtMB(s.data_cell_day_bytes || 0) + ', mese ' + fmtMB(cm) + month;
+  if (plan > 0) cell += ' su ' + plan + ' MB (' + Math.round(100 * cm / (plan * 1e6)) + '%)';
+  const wifi = 'WiFi: oggi ' + fmtMB(s.data_wifi_day_bytes || 0) + ', mese ' + fmtMB(s.data_wifi_month_bytes || 0);
+  document.getElementById('st-data').textContent = cell + ' · ' + wifi;
+  const box = document.getElementById('data-usage-box');
+  if (box) {
+    box.textContent = 'Consumo stimato sul ' + cell + '.';
+  }
+
+  const list = s.ntrip_outages || [];
+  const el = document.getElementById('st-outages');
+  if (!list.length) {
+    el.textContent = 'nessuna dall’accensione';
+    return;
+  }
+  el.innerHTML = list.map(o => {
+    const when = o.at ? o.at.slice(8, 10) + '/' + o.at.slice(5, 7) + ' ' + o.at.slice(11, 16) : fmtDuration(o.ago_s) + ' fa';
+    const dur = o.ongoing ? '<b>in corso</b> da ' + fmtDuration(o.duration_s) : 'durata ' + fmtDuration(o.duration_s);
+    const reason = String(o.reason || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    return when + ' · ' + dur + (reason ? ' · ' + reason : '');
+  }).join('<br>');
+}
+
 function update1005Banner(s) {
   const box = document.getElementById('no-1005-banner');
   const age = s.base_position_age_s;

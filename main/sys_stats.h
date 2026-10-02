@@ -30,3 +30,14 @@ void sys_stats_monitor_start(void);
 // Soglia oltre la quale la temperatura del chip e' considerata alta (log e avvisi).
 #define SYS_TEMP_ALERT_C 70.0f
 #define SYS_TEMP_REARM_C (SYS_TEMP_ALERT_C - 5.0f) // isteresi: nuovo avviso solo dopo essere sceso sotto
+
+// Motivo dell'ultimo riavvio, in parole semplici (es. "calo di tensione
+// dell'alimentazione", "riavvio software: richiesto dal pannello").
+// sys_stats_boot_report() va chiamata una volta all'avvio.
+void sys_stats_boot_report(void);
+const char *sys_stats_last_reset(void);
+
+// Riavvia annotando il motivo, che al prossimo avvio compare nel log e nel
+// pannello. La seconda variante annota soltanto (riavvio fatto dal chiamante).
+void sys_stats_restart_with_reason(const char *reason);
+void sys_stats_note_restart_reason(const char *reason);

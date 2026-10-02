@@ -11,6 +11,7 @@
 #include "settings.h"
 #include "status.h"
 #include "net_util.h"
+#include "data_usage.h"
 #include "ntrip_reply.h"
 
 static const char *TAG = "ntrip_client";
@@ -190,6 +191,9 @@ void ntrip_client_task(void *arg)
                 continue;
             }
             int sent = send(sock, buf, len, 0);
+            if (sent > 0) {
+                data_usage_add((uint32_t) sent, true);
+            }
             if (sent < 0) {
                 ESP_LOGW(TAG, "Invio fallito, riconnessione: errno %d", errno);
                 char msg[128];

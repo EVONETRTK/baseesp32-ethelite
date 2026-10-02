@@ -42,6 +42,7 @@ typedef enum {
 static void net_manager_task(void *arg)
 {
     active_link_t active = LINK_NONE;
+    TickType_t cell_since = 0; // ultimo passaggio al cellulare o tentativo di tornare al WiFi
 
     while (1) {
         app_settings_t settings = settings_get();
@@ -86,6 +87,7 @@ static void net_manager_task(void *arg)
                     ESP_LOGI(TAG, "Rete attiva: cellulare");
                     status_set_net(NET_STATUS_CELLULAR);
                     active = LINK_CELLULAR;
+                    cell_since = xTaskGetTickCount();
                     break;
                 }
             }
@@ -115,6 +117,24 @@ static void net_manager_task(void *arg)
                 active = LINK_NONE;
             } else {
                 vTaskDelay(pdMS_TO_TICKS(3000));
+                // Ogni 5 minuti si riprova il WiFi: prima, una volta passata al
+                // cellulare (WiFi caduto), la base ci restava per sempre anche
+                // con il WiFi tornato, consumando i dati della SIM. Il WiFi si
+                // collega mentre il cellulare e' ancora attivo; solo se riesce
+                // si chiude il cellulare (le connessioni al caster ripartono).
+                if (settings.network_mode != NETWORK_MODE_CELLULAR_ONLY &&
+                    xTaskGetTickCount() - cell_since >= pdMS_TO_TICKS(5 * 60 * 1000) &&
+                    !web_ui_wifi_test_in_progress()) {
+                    cell_since = xTaskGetTickCount();
+                    if (wifi_link_connect_known(CONFIG_BASEESP32_WIFI_CONNECT_TIMEOUT_MS)) {
+                        ESP_LOGI(TAG, "WiFi di nuovo disponibile: lascio il cellulare");
+                        cellular_link_disconnect();
+                        status_set_net(NET_STATUS_WIFI);
+                        active = LINK_WIFI;
+                    } else {
+                        wifi_link_disconnect();
+                    }
+                }
             }
             break;
         }

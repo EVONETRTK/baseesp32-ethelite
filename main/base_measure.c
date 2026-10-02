@@ -1,5 +1,6 @@
 #include "base_measure.h"
 #include "settings.h"
+#include "sys_stats.h"
 #include "gnss_fix.h"
 #include "status.h"
 
@@ -77,6 +78,7 @@ static void finish(bool ok, const acc_t *a, const char *msg)
         ESP_LOGI(TAG, "Posizione base salvata: lat %.9f lon %.9f quota ellissoidica %.4f m", a->mean[0], a->mean[1], a->mean[2]);
     }
     ESP_LOGW(TAG, "%s - riavvio come base", msg);
+    sys_stats_note_restart_reason(ok ? "misura della posizione base completata" : "misura della posizione base terminata senza esito");
     vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
 }

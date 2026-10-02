@@ -210,7 +210,7 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
 
     ubx_cfg_kv32_t kvs[16];
     size_t n = 0;
-    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102be - port_off, s.rtcm_1005_enable ? 1u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1005 (posizione base)
+    kvs[n++] = (ubx_cfg_kv32_t) { 0x209102be - port_off, s.rtcm_1005_enable ? 10u : 0u }; // CFG-MSGOUT-RTCM_3X_TYPE1005 (posizione base), ogni 10 epoche: non cambia, ogni secondo era traffico sprecato
     kvs[n++] = (ubx_cfg_kv32_t) { 0x20910304 - port_off, s.rtcm_1230_enable ? 1u : 0u }; // TYPE1230 (bias GLONASS)
     kvs[n++] = (ubx_cfg_kv32_t) { 0x2091035f - port_off, s.rtcm_1074_enable ? 1u : 0u }; // TYPE1074 (GPS MSM4)
     kvs[n++] = (ubx_cfg_kv32_t) { 0x209102cd - port_off, s.rtcm_1077_enable ? 1u : 0u }; // TYPE1077 (GPS MSM7)

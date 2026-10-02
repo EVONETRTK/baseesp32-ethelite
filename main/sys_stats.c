@@ -190,6 +190,8 @@ static void top_tasks(const uint32_t *delta, UBaseType_t n, int64_t wall_us,
     }
 }
 
+static void safety_restart_check(int64_t now);
+
 static void sys_monitor_task(void *arg)
 {
     int64_t prev_wall = esp_timer_get_time();
@@ -222,6 +224,7 @@ static void sys_monitor_task(void *arg)
         int64_t now = esp_timer_get_time();
         int64_t wall = now - prev_wall;
         prev_wall = now;
+        safety_restart_check(now);
         if (n == 0 || wall <= 0) {
             continue; // array troppo piccolo: non dovrebbe succedere
         }
@@ -274,4 +277,103 @@ static void sys_monitor_task(void *arg)
 void sys_stats_monitor_start(void)
 {
     xTaskCreate(sys_monitor_task, "sys_mon", 3584, NULL, 1, NULL);
+}
+
+// ---------------------------------------------------------------------------
+// Motivo dell'ultimo riavvio e riavvio di sicurezza.
+// Il motivo scelto dal firmware sopravvive al riavvio in memoria RTC (non
+// azzerata da un riavvio software, persa solo togliendo corrente); quello
+// hardware lo da' il chip (accensione, calo di tensione, crash, watchdog).
+// ---------------------------------------------------------------------------
+
+#include "esp_attr.h"
+#include "status.h"
+#include "gnss_fix.h"
+
+#define RESTART_MAGIC 0x52535452u
+
+typedef struct {
+    uint32_t magic;
+    char reason[96];
+} restart_note_t;
+
+static RTC_NOINIT_ATTR restart_note_t s_restart_note;
+static char s_last_reset[160];
+
+void sys_stats_restart_with_reason(const char *reason)
+{
+    s_restart_note.magic = RESTART_MAGIC;
+    strncpy(s_restart_note.reason, reason, sizeof(s_restart_note.reason) - 1);
+    s_restart_note.reason[sizeof(s_restart_note.reason) - 1] = 0;
+    ESP_LOGW(MON_TAG, "Riavvio: %s", reason);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    esp_restart();
+}
+
+void sys_stats_note_restart_reason(const char *reason)
+{
+    s_restart_note.magic = RESTART_MAGIC;
+    strncpy(s_restart_note.reason, reason, sizeof(s_restart_note.reason) - 1);
+    s_restart_note.reason[sizeof(s_restart_note.reason) - 1] = 0;
+}
+
+void sys_stats_boot_report(void)
+{
+    const char *hw;
+    switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:  hw = "accensione (alimentazione collegata)"; break;
+    case ESP_RST_SW:       hw = "riavvio software"; break;
+    case ESP_RST_PANIC:    hw = "errore del firmware (crash)"; break;
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:      hw = "blocco del firmware (watchdog)"; break;
+    case ESP_RST_BROWNOUT: hw = "calo di tensione dell'alimentazione (alimentatore debole?)"; break;
+    case ESP_RST_EXT:      hw = "pulsante di reset"; break;
+    default:               hw = "motivo sconosciuto"; break;
+    }
+    bool have_note = (esp_reset_reason() == ESP_RST_SW && s_restart_note.magic == RESTART_MAGIC);
+    s_restart_note.reason[sizeof(s_restart_note.reason) - 1] = 0;
+    snprintf(s_last_reset, sizeof(s_last_reset), "%s%s%s", hw,
+             have_note ? ": " : "", have_note ? s_restart_note.reason : "");
+    s_restart_note.magic = 0;
+    if (esp_reset_reason() == ESP_RST_PANIC || esp_reset_reason() == ESP_RST_BROWNOUT ||
+        esp_reset_reason() == ESP_RST_INT_WDT || esp_reset_reason() == ESP_RST_TASK_WDT ||
+        esp_reset_reason() == ESP_RST_WDT) {
+        ESP_LOGW(MON_TAG, "Motivo dell'ultimo riavvio: %s", s_last_reset);
+    } else {
+        ESP_LOGI(MON_TAG, "Motivo dell'ultimo riavvio: %s", s_last_reset);
+    }
+}
+
+const char *sys_stats_last_reset(void)
+{
+    return s_last_reset;
+}
+
+// Riavvio di sicurezza, chiamato ogni 5 s dal task di sorveglianza. Solo per
+// blocchi dopo che le cose hanno funzionato almeno una volta dall'avvio:
+// una base senza ricevitore collegato (prove) non si riavvia di continuo.
+#define GUARD_GNSS_SILENT_US   (10LL * 60 * 1000000)
+#define GUARD_CASTER_DOWN_US   (30LL * 60 * 1000000)
+
+static void safety_restart_check(int64_t now)
+{
+    char why[96];
+    if (!status_get_active_rover()) {
+        int64_t last = status_get_last_rtcm_time_us();
+        if (last > 0 && now - last > GUARD_GNSS_SILENT_US) {
+            sys_stats_restart_with_reason("nessun dato RTCM dal ricevitore da 10 minuti");
+        }
+    } else {
+        gnss_fix_status_t fx = gnss_fix_get_status();
+        if (fx.valid && now - fx.last_update_us > GUARD_GNSS_SILENT_US) {
+            sys_stats_restart_with_reason("nessun dato NMEA dal ricevitore da 10 minuti");
+        }
+    }
+    ntrip_conn_status_t nt = status_ntrip_get();
+    if (nt.connect_count > 0 && !nt.connected && nt.last_disconnect_us > 0 &&
+        now - nt.last_disconnect_us > GUARD_CASTER_DOWN_US) {
+        snprintf(why, sizeof(why), "caster scollegato da 30 minuti (%.50s)", nt.last_error);
+        sys_stats_restart_with_reason(why);
+    }
 }

@@ -2,6 +2,21 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.80
+
+Miglioramenti richiesti dall'utente per l'uso con la SIM e in campo.
+
+- **Meno traffico dati**:
+  - sulla base di prova erano attivi sia MSM4 sia MSM7: le stesse osservazioni inviate due volte. MSM4 disattivato dalle impostazioni; i valori predefiniti del firmware avevano gia' solo MSM7;
+  - il 1005 (posizione della base, che non cambia) ora esce ogni 10 s invece che ogni secondo (u-blox).
+  
+  Misurato: da circa 77 MB al giorno a circa 40 MB (circa 1,2 GB al mese).
+- **Contatore del traffico** (nuovo `data_usage.c`): stima dei dati verso il caster, separata per cellulare e WiFi, di oggi e del mese, salvata in NVS ogni 10 minuti. Nella scheda Stato la riga "Traffico dati (stima)"; nel riquadro della rete cellulare il campo "Piano dati della SIM (MB al mese)" (nuova impostazione `data_plan_mb` in coda ad `app_settings_t`) e il consumo rispetto al piano. Con gli avvisi attivi arriva un avviso al mese all'80% del piano.
+- **Ritorno automatico al WiFi**: una volta passata al cellulare (WiFi caduto) la base ci restava per sempre, anche con il WiFi tornato. Ora ogni 5 minuti riprova il WiFi mentre il cellulare resta attivo, e solo se si collega chiude il cellulare. Non ancora provato con un modem montato.
+- **Riavvio di sicurezza** (nel task `sys_mon`): la base si riavvia da sola se dal ricevitore non arrivano dati da 10 minuti (dopo che erano arrivati almeno una volta: senza ricevitore collegato non si riavvia di continuo) o se il caster e' scollegato da 30 minuti dopo una connessione riuscita. Logica controllata ma non provata dal vivo (servirebbe un blocco vero).
+- **Motivo dell'ultimo riavvio** nella scheda Stato e nel log: accensione, calo di tensione dell'alimentazione, crash, watchdog, oppure il motivo annotato dal firmware (pannello, aggiornamento, misura della posizione, riavvio di sicurezza). Il motivo sopravvive al riavvio in memoria RTC. In rosso i casi da indagare (calo di tensione, crash, watchdog): con il modem LTE un alimentatore debole si vedra' qui. Verificato: "riavvio software: richiesto dal pannello".
+- **Registro delle cadute del caster** nella scheda Stato: le ultime 10, con ora, durata (o "in corso") e motivo. Contano solo le cadute dopo una connessione riuscita, non i tentativi all'avvio.
+
 ## 1.19.79
 
 - **Modulo SIM7600 Mini PCIe originale SIMCom** (richiesta dell'utente: i moduli LilyGO non sono disponibili). Nella scheda Rete il menu "Modulo modem montato" ha ora tre voci: SIM7600 LilyGO, SIM7600 originale SIMCom (G-H, E-H...), SIM868 (nuovo campo `cellular_module` in /api/settings e /api/status, nuova impostazione `cellular_simcom_std` in coda ad `app_settings_t`).

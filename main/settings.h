@@ -357,6 +357,11 @@ typedef struct {
     // reset). Vale solo con cellular_is_sim868 = false. Zero dai blob
     // precedenti = modulo LilyGO, come prima.
     bool cellular_simcom_std;
+
+    // Piano dati della SIM in MB al mese (0 = nessun limite impostato): il
+    // pannello mostra il consumo stimato rispetto a questo valore e, con gli
+    // avvisi attivi, arriva un avviso al raggiungimento dell'80%.
+    uint32_t data_plan_mb;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

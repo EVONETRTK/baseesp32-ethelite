@@ -2,6 +2,7 @@
 #include "version.h"
 #include "ota_update.h"
 #include "settings.h"
+#include "sys_stats.h"
 #include "fw_archive.h"
 #include "status.h"
 
@@ -417,6 +418,7 @@ static void online_update_apply_task(void *arg)
     free(url);
     if (ok) {
         ESP_LOGI(TAG, "Firmware aggiornato online, riavvio in corso");
+        sys_stats_note_restart_reason("aggiornamento firmware online");
         vTaskDelay(pdMS_TO_TICKS(500));
         esp_restart();
     }

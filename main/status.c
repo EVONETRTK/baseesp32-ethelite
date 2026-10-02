@@ -9,6 +9,8 @@ static volatile uint32_t s_rtcm_bytes = 0;
 static volatile int64_t s_last_rtcm_us = 0;
 
 static ntrip_conn_status_t s_ntrip;
+static ntrip_outage_t s_outages[NTRIP_OUTAGE_LOG_LEN]; // anello, s_outage_n totali registrate
+static uint32_t s_outage_n;
 static SemaphoreHandle_t s_ntrip_mutex;
 
 static void ntrip_mutex_init(void)
@@ -72,6 +74,12 @@ void status_ntrip_note_connected(void)
 {
     ntrip_mutex_init();
     xSemaphoreTake(s_ntrip_mutex, portMAX_DELAY);
+    if (s_outage_n > 0) {
+        ntrip_outage_t *o = &s_outages[(s_outage_n - 1) % NTRIP_OUTAGE_LOG_LEN];
+        if (o->end_us == 0) {
+            o->end_us = esp_timer_get_time();
+        }
+    }
     s_ntrip.connected = true;
     s_ntrip.connected_since_us = esp_timer_get_time();
     s_ntrip.connect_count++;
@@ -83,6 +91,15 @@ void status_ntrip_note_disconnected(const char *reason)
 {
     ntrip_mutex_init();
     xSemaphoreTake(s_ntrip_mutex, portMAX_DELAY);
+    if (s_ntrip.connected) {
+        // Inizio di una caduta (i tentativi falliti successivi la allungano).
+        ntrip_outage_t *o = &s_outages[s_outage_n % NTRIP_OUTAGE_LOG_LEN];
+        o->start_us = esp_timer_get_time();
+        o->end_us = 0;
+        strncpy(o->reason, reason ? reason : "", sizeof(o->reason) - 1);
+        o->reason[sizeof(o->reason) - 1] = '\0';
+        s_outage_n++;
+    }
     s_ntrip.connected = false;
     s_ntrip.connected_since_us = 0;
     s_ntrip.last_disconnect_us = esp_timer_get_time();
@@ -91,6 +108,20 @@ void status_ntrip_note_disconnected(const char *reason)
         s_ntrip.last_error[sizeof(s_ntrip.last_error) - 1] = '\0';
     }
     xSemaphoreGive(s_ntrip_mutex);
+}
+
+int status_ntrip_get_outages(ntrip_outage_t *out, int max)
+{
+    if (!s_ntrip_mutex) {
+        return 0;
+    }
+    xSemaphoreTake(s_ntrip_mutex, portMAX_DELAY);
+    int n = 0;
+    for (uint32_t i = s_outage_n; i > 0 && n < max && s_outage_n - i < NTRIP_OUTAGE_LOG_LEN; i--) {
+        out[n++] = s_outages[(i - 1) % NTRIP_OUTAGE_LOG_LEN];
+    }
+    xSemaphoreGive(s_ntrip_mutex);
+    return n;
 }
 
 ntrip_conn_status_t status_ntrip_get(void)
