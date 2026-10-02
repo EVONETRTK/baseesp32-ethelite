@@ -5,6 +5,7 @@
 #include "sys_stats.h"
 #include "data_usage.h"
 #include "sim_plan.h"
+#include "sim_tools.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -271,6 +272,15 @@ bool alerts_send_test(const app_settings_t *s, char *out_msg, size_t out_msg_siz
     return send_on_configured_channels(s, "EVONETRTK - avviso di prova", body, out_msg, out_msg_size);
 }
 
+static TaskHandle_t s_alerts_task;
+
+void alerts_wake(void)
+{
+    if (s_alerts_task) {
+        xTaskNotifyGive(s_alerts_task);
+    }
+}
+
 static void alerts_task(void *arg)
 {
     bool already_alerted = false;
@@ -279,11 +289,14 @@ static void alerts_task(void *arg)
     bool already_alerted_1005 = false;
     static char alerted_data_month[16]; // mese gia' avvisato per il piano dati
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
+        // Ogni minuto, o subito se il pannello chiede un'operazione sulla SIM
+        // (alerts_wake(), sim_tools.c).
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
 
         sim_plan_tick(); // rinnovo della SIM: promemoria anche con gli altri avvisi spenti
 
         app_settings_t s = settings_get();
+        sim_tools_tick(&s); // credito, SMS (anche con gli altri avvisi spenti)
         if (!s.alert_enable) {
             already_alerted = false;
             already_alerted_drift = false;
@@ -403,5 +416,5 @@ static void alerts_task(void *arg)
 
 void alerts_start(void)
 {
-    xTaskCreate(alerts_task, "alerts", 10240, NULL, 3, NULL);
+    xTaskCreate(alerts_task, "alerts", 10240, NULL, 3, &s_alerts_task);
 }

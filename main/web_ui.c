@@ -8,6 +8,7 @@
 #include "diag_log.h"
 #include "data_usage.h"
 #include "sim_plan.h"
+#include "sim_tools.h"
 #include "online_update.h"
 #include "status.h"
 #include "log_buffer.h"
@@ -469,6 +470,33 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "alert_enable", s.alert_enable);
     cJSON_AddNumberToObject(root, "alert_threshold_min", s.alert_threshold_min);
     cJSON_AddStringToObject(root, "last_reset", sys_stats_last_reset());
+    {
+        // Gestione della SIM: impostazioni del credito e ultimo esito.
+        cJSON_AddStringToObject(root, "sim_operator", s.sim_operator);
+        cJSON_AddStringToObject(root, "sim_credit_mode", s.sim_credit_mode == 1 ? "sms" : "ussd");
+        cJSON_AddStringToObject(root, "sim_credit_code", s.sim_credit_code);
+        cJSON_AddStringToObject(root, "sim_credit_sms_number", s.sim_credit_sms_number);
+        cJSON_AddStringToObject(root, "sim_credit_sms_text", s.sim_credit_sms_text);
+        cJSON_AddNumberToObject(root, "sim_credit_every_days", s.sim_credit_every_days);
+        cJSON_AddNumberToObject(root, "sim_credit_hour", s.sim_credit_hour);
+        cJSON_AddNumberToObject(root, "sim_credit_min_eur", s.sim_credit_min_eur);
+        static sim_tools_status_t st; // statico: ~400 byte, fuori dallo stack del server
+        sim_tools_get_status(&st);
+        cJSON_AddBoolToObject(root, "sim_busy", st.busy);
+        cJSON_AddStringToObject(root, "sim_last_msg", st.last_msg);
+        cJSON_AddStringToObject(root, "sim_iccid", st.iccid);
+        if (st.credit_at > 0) {
+            char when[24];
+            struct tm tm;
+            localtime_r(&st.credit_at, &tm);
+            strftime(when, sizeof(when), "%Y-%m-%d %H:%M", &tm);
+            cJSON_AddStringToObject(root, "sim_credit_at", when);
+            cJSON_AddStringToObject(root, "sim_credit_text", st.credit_text);
+            if (st.credit_eur_valid) {
+                cJSON_AddNumberToObject(root, "sim_credit_eur", st.credit_eur);
+            }
+        }
+    }
     cJSON_AddStringToObject(root, "fw_rollback_note", ota_update_rollback_note());
     cJSON_AddBoolToObject(root, "fw_pending", ota_update_is_pending());
     {
@@ -875,6 +903,29 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     }
     copy_field(root, "wifi_password", s.wifi_password, sizeof(s.wifi_password));
     copy_field(root, "cellular_apn", s.cellular_apn, sizeof(s.cellular_apn));
+    // Credito della SIM (sim_tools.c): campi che si possono anche svuotare.
+    copy_field_allow_empty(root, "sim_operator", s.sim_operator, sizeof(s.sim_operator));
+    copy_field_allow_empty(root, "sim_credit_code", s.sim_credit_code, sizeof(s.sim_credit_code));
+    copy_field_allow_empty(root, "sim_credit_sms_number", s.sim_credit_sms_number, sizeof(s.sim_credit_sms_number));
+    copy_field_allow_empty(root, "sim_credit_sms_text", s.sim_credit_sms_text, sizeof(s.sim_credit_sms_text));
+    {
+        cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "sim_credit_mode");
+        if (it && cJSON_IsString(it)) {
+            s.sim_credit_mode = strcmp(it->valuestring, "sms") == 0 ? 1 : 0;
+        }
+        it = cJSON_GetObjectItemCaseSensitive(root, "sim_credit_every_days");
+        if (it && cJSON_IsNumber(it) && it->valueint >= 0 && it->valueint <= 365) {
+            s.sim_credit_every_days = (uint16_t) it->valueint;
+        }
+        it = cJSON_GetObjectItemCaseSensitive(root, "sim_credit_hour");
+        if (it && cJSON_IsNumber(it) && it->valueint >= 0 && it->valueint <= 23) {
+            s.sim_credit_hour = (uint8_t) it->valueint;
+        }
+        it = cJSON_GetObjectItemCaseSensitive(root, "sim_credit_min_eur");
+        if (it && cJSON_IsNumber(it) && it->valuedouble >= 0 && it->valuedouble <= 1000) {
+            s.sim_credit_min_eur = (float) it->valuedouble;
+        }
+    }
     copy_field(root, "ntrip_host", s.ntrip_host, sizeof(s.ntrip_host));
     copy_field(root, "ntrip_mountpoint", s.ntrip_mountpoint, sizeof(s.ntrip_mountpoint));
     copy_field(root, "rover_mountpoint", s.rover_mountpoint, sizeof(s.rover_mountpoint));
@@ -2261,6 +2312,87 @@ static esp_err_t config_import_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Gestione della SIM (sim_tools.c). {"action": "credit" | "ussd" (code) |
+// "sms" (number, text) | "read_sms" | "delete_sms" | "parse" (text)}.
+// Le operazioni sul modem le esegue il task degli avvisi: la risposta arriva
+// subito, l'esito poi in /api/status (sim_last_msg, sim_credit_*).
+// "parse" prova soltanto la lettura dell'importo su un testo, senza modem.
+static esp_err_t sim_action_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char buf[256] = {0};
+    int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
+    int got = 0;
+    while (got < len) {
+        int r = httpd_req_recv(req, buf + got, len - got);
+        if (r <= 0) {
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+        }
+        got += r;
+    }
+    cJSON *root = cJSON_Parse(buf);
+    const cJSON *act = root ? cJSON_GetObjectItemCaseSensitive(root, "action") : NULL;
+    const char *a = act && cJSON_IsString(act) ? act->valuestring : "";
+    const cJSON *jc = root ? cJSON_GetObjectItemCaseSensitive(root, "code") : NULL;
+    const cJSON *jn = root ? cJSON_GetObjectItemCaseSensitive(root, "number") : NULL;
+    const cJSON *jt = root ? cJSON_GetObjectItemCaseSensitive(root, "text") : NULL;
+    const char *code = jc && cJSON_IsString(jc) ? jc->valuestring : "";
+    const char *num = jn && cJSON_IsString(jn) ? jn->valuestring : "";
+    const char *txt = jt && cJSON_IsString(jt) ? jt->valuestring : "";
+
+    cJSON *resp = cJSON_CreateObject();
+    char err[96] = "";
+    bool ok = false;
+    if (strcmp(a, "parse") == 0) {
+        float eur;
+        ok = sim_tools_parse_euro(txt, &eur);
+        if (ok) {
+            cJSON_AddNumberToObject(resp, "eur", eur);
+        }
+    } else if (strcmp(a, "credit") == 0) {
+        ok = sim_tools_request(SIM_ACT_CREDIT, NULL, NULL, err, sizeof(err));
+    } else if (strcmp(a, "ussd") == 0 && code[0]) {
+        ok = sim_tools_request(SIM_ACT_USSD, code, NULL, err, sizeof(err));
+    } else if (strcmp(a, "sms") == 0 && num[0] && txt[0]) {
+        ok = sim_tools_request(SIM_ACT_SMS, num, txt, err, sizeof(err));
+    } else if (strcmp(a, "read_sms") == 0) {
+        ok = sim_tools_request(SIM_ACT_READ_SMS, NULL, NULL, err, sizeof(err));
+    } else if (strcmp(a, "delete_sms") == 0) {
+        ok = sim_tools_request(SIM_ACT_DELETE_SMS, NULL, NULL, err, sizeof(err));
+    } else {
+        snprintf(err, sizeof(err), "Richiesta non valida o campi mancanti");
+    }
+    cJSON_Delete(root);
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    if (err[0]) {
+        cJSON_AddStringToObject(resp, "error", err);
+    }
+    char *json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    httpd_resp_set_type(req, "application/json");
+    esp_err_t e = httpd_resp_sendstr(req, json ? json : "{\"ok\":false}");
+    free(json);
+    return e;
+}
+
+static esp_err_t sim_sms_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char *buf = malloc(2048);
+    if (!buf) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    sim_tools_get_sms(buf, 2048);
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    esp_err_t e = httpd_resp_sendstr(req, buf);
+    free(buf);
+    return e;
+}
+
 // Log salvati sulla microSD: elenco e scaricamento (diag_log.c).
 static esp_err_t diag_list_get_handler(httpd_req_t *req)
 {
@@ -2329,7 +2461,7 @@ void web_ui_start(void)
     // silenzio (nessun log, nessun crash, solo un 404 inspiegabile su
     // quell'endpoint) - trovato rivedendo il codice, non ancora capitato
     // in pratica.
-    config.max_uri_handlers = 32;
+    config.max_uri_handlers = 40; // 31 in uso con la gestione SIM (1.19.85)
     // Con il default (7 socket, nessuna chiusura automatica) bastavano un
     // paio di browser/schede aperte, che tengono le connessioni in
     // keep-alive e interrogano /api/status e /api/signals ogni pochi
@@ -2359,6 +2491,8 @@ void web_ui_start(void)
     httpd_uri_t reboot_uri     = { .uri = "/api/reboot",     .method = HTTP_POST, .handler = reboot_post_handler };
     httpd_uri_t cfg_export_uri = { .uri = "/api/config/export", .method = HTTP_GET, .handler = config_export_get_handler };
     httpd_uri_t cfg_import_uri = { .uri = "/api/config/import", .method = HTTP_POST, .handler = config_import_post_handler };
+    httpd_uri_t sim_action_uri = { .uri = "/api/sim/action", .method = HTTP_POST, .handler = sim_action_post_handler };
+    httpd_uri_t sim_sms_uri    = { .uri = "/api/sim/sms",    .method = HTTP_GET,  .handler = sim_sms_get_handler };
     httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
     httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
     httpd_uri_t base_measure_uri = { .uri = "/api/base/measure", .method = HTTP_POST, .handler = base_measure_post_handler };
@@ -2395,6 +2529,8 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &reboot_uri);
     httpd_register_uri_handler(server, &base_measure_uri);
     httpd_register_uri_handler(server, &diag_list_uri);
+    httpd_register_uri_handler(server, &sim_action_uri);
+    httpd_register_uri_handler(server, &sim_sms_uri);
     httpd_register_uri_handler(server, &cfg_export_uri);
     httpd_register_uri_handler(server, &cfg_import_uri);
     httpd_register_uri_handler(server, &diag_dl_uri);

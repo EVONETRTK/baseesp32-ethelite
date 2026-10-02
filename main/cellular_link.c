@@ -29,6 +29,7 @@ static esp_modem_dce_t *s_dce = NULL;
 static esp_netif_t *s_ppp_netif = NULL;
 static volatile bool s_connected = false;
 static volatile bool s_inited = false; // impostato dal task di avvio del modem (net_manager.c)
+static bool s_is_sim868; // dal momento dell'avvio del modem (niente copie delle impostazioni sullo stack)
 
 static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -127,6 +128,7 @@ bool cellular_link_init(void)
     s_events = xEventGroupCreate();
 
     app_settings_t settings = settings_get();
+    s_is_sim868 = settings.cellular_is_sim868;
     modem_power_on(settings.cellular_is_sim868, settings.cellular_simcom_std);
 
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -214,7 +216,14 @@ bool cellular_link_connect(void)
         ESP_LOGW(TAG, "Lettura AT+CGATT? fallita");
     }
 
-    if (esp_modem_set_mode(s_dce, ESP_MODEM_MODE_DATA) != ESP_OK) {
+    // SIM7600: CMUX (dati e comandi su canali separati), cosi' credito e
+    // SMS si possono chiedere anche con la connessione attiva. Se il modem
+    // non lo accetta, o con il SIM868, modalita' dati semplice come prima.
+    bool cmux = !s_is_sim868 && esp_modem_set_mode(s_dce, ESP_MODEM_MODE_CMUX) == ESP_OK;
+    if (cmux) {
+        ESP_LOGI(TAG, "Modem in CMUX: dati e comandi insieme");
+    }
+    if (!cmux && esp_modem_set_mode(s_dce, ESP_MODEM_MODE_DATA) != ESP_OK) {
         ESP_LOGE(TAG, "Impossibile entrare in modalita' dati (PPP) - verificare SIM/APN/segnale");
         return false;
     }
@@ -312,6 +321,120 @@ bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_siz
     return true;
 }
 
+
+// ---------------------------------------------------------------------------
+// Comandi per la gestione della SIM (sim_tools.c): USSD, SMS, ICCID.
+// Chiamati SOLO dal task degli avvisi (uno alla volta). Con la connessione
+// cellulare attiva il SIM7600 lavora in CMUX (canali separati per dati e
+// comandi), quindi questi comandi non interrompono l'invio al caster.
+// ---------------------------------------------------------------------------
+
+// esp_modem_command() passa al callback tutto quanto ricevuto finora:
+// buffer e risultato statici (un solo comando alla volta).
+static char *s_cmd_out;
+static size_t s_cmd_out_size;
+static const char *s_cmd_until;   // testo che chiude la risposta
+static bool s_cmd_found;
+
+static esp_err_t cmd_collect_cb(uint8_t *data, size_t len)
+{
+    size_t n = len < s_cmd_out_size - 1 ? len : s_cmd_out_size - 1;
+    memcpy(s_cmd_out, data, n);
+    s_cmd_out[n] = '\0';
+    if (strstr(s_cmd_out, "ERROR")) {
+        return ESP_FAIL;
+    }
+    const char *u = strstr(s_cmd_out, s_cmd_until);
+    if (u) {
+        // USSD: "+CUSD: 0,"testo",15" - aspetta la virgoletta di chiusura
+        // seguita dalla fine riga, non solo l'inizio della risposta.
+        if (strcmp(s_cmd_until, "+CUSD:") == 0) {
+            const char *q1 = strchr(u, '"');
+            const char *q2 = q1 ? strrchr(u, '"') : NULL;
+            if (!q1 || q2 == q1 || !strchr(q2, '\n')) {
+                return ESP_ERR_TIMEOUT; // risposta non ancora completa
+            }
+        }
+        s_cmd_found = true;
+        return ESP_OK;
+    }
+    return ESP_ERR_TIMEOUT; // continua ad aspettare
+}
+
+static bool modem_cmd(const char *cmd, const char *until, char *out, size_t out_size, uint32_t timeout_ms)
+{
+    if (!s_inited || !s_dce || out_size < 2) {
+        return false;
+    }
+    s_cmd_out = out;
+    s_cmd_out_size = out_size;
+    s_cmd_until = until;
+    s_cmd_found = false;
+    out[0] = '\0';
+    esp_err_t err = esp_modem_command(s_dce, cmd, cmd_collect_cb, timeout_ms);
+    return err == ESP_OK && s_cmd_found;
+}
+
+bool cellular_link_modem_present(void)
+{
+    char resp[32];
+    return s_inited && s_dce && esp_modem_at(s_dce, "AT", resp, 1000) == ESP_OK;
+}
+
+bool cellular_link_get_iccid(char *out, size_t out_size)
+{
+    char buf[96];
+    if (!modem_cmd("AT+CICCID\r", "OK", buf, sizeof(buf), 3000)) {
+        return false;
+    }
+    const char *p = strstr(buf, "ICCID:");
+    p = p ? p + 6 : buf;
+    while (*p == ' ' || *p == '\r' || *p == '\n') p++;
+    size_t n = 0;
+    while (p[n] && p[n] != '\r' && p[n] != '\n' && n < out_size - 1) n++;
+    memcpy(out, p, n);
+    out[n] = '\0';
+    return n > 0;
+}
+
+bool cellular_link_ussd(const char *code, char *out, size_t out_size)
+{
+    char cmd[64];
+    // Testo in "GSM" (leggibile); alcuni operatori rispondono comunque in
+    // UCS2 esadecimale: lo decodifica sim_tools.c.
+    char tmp[32];
+    modem_cmd("AT+CSCS=\"GSM\"\r", "OK", tmp, sizeof(tmp), 2000);
+    snprintf(cmd, sizeof(cmd), "AT+CUSD=1,\"%s\",15\r", code);
+    return modem_cmd(cmd, "+CUSD:", out, out_size, 30000);
+}
+
+bool cellular_link_send_sms(const char *number, const char *text)
+{
+    if (!s_inited || !s_dce) {
+        return false;
+    }
+    esp_modem_sms_txt_mode(s_dce, true);
+    esp_modem_sms_character_set(s_dce);
+    return esp_modem_send_sms(s_dce, number, text) == ESP_OK;
+}
+
+bool cellular_link_read_sms(char *out, size_t out_size)
+{
+    char tmp[32];
+    if (!s_inited || !s_dce) {
+        return false;
+    }
+    esp_modem_sms_txt_mode(s_dce, true);
+    modem_cmd("AT+CSCS=\"GSM\"\r", "OK", tmp, sizeof(tmp), 2000);
+    return modem_cmd("AT+CMGL=\"ALL\"\r", "\r\nOK", out, out_size, 15000);
+}
+
+bool cellular_link_delete_sms(void)
+{
+    char tmp[32];
+    return modem_cmd("AT+CMGD=1,4\r", "OK", tmp, sizeof(tmp), 10000);
+}
+
 #else // !CONFIG_BASEESP32_CELLULAR_ENABLE
 
 bool cellular_link_init(void) { return false; }
@@ -321,5 +444,11 @@ bool cellular_link_is_connected(void) { return false; }
 bool cellular_link_get_signal(int *rssi_dbm) { return false; }
 bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_size,
                                       char *tech_out, size_t tech_out_size) { return false; }
+bool cellular_link_modem_present(void) { return false; }
+bool cellular_link_get_iccid(char *out, size_t out_size) { return false; }
+bool cellular_link_ussd(const char *code, char *out, size_t out_size) { return false; }
+bool cellular_link_send_sms(const char *number, const char *text) { return false; }
+bool cellular_link_read_sms(char *out, size_t out_size) { return false; }
+bool cellular_link_delete_sms(void) { return false; }
 
 #endif

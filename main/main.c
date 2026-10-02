@@ -47,6 +47,7 @@
 #include "time_sync.h"
 #include "data_usage.h"
 #include "sim_plan.h"
+#include "sim_tools.h"
 #include "config_backup.h"
 
 static const char *TAG = "main";
@@ -212,6 +213,7 @@ void app_main(void)
     sys_stats_monitor_start();
     data_usage_start();
     sim_plan_start();
+    sim_tools_start();
     config_backup_start();
 
     app_settings_t settings = settings_get();

@@ -373,6 +373,19 @@ typedef struct {
     uint16_t sim_renew_every_days;
     uint16_t sim_notice1_days;
     uint16_t sim_notice2_days;
+
+    // Controllo del credito della SIM (sim_tools.c): operatore (per i codici
+    // predefiniti nel pannello), modo (0 = USSD, 1 = SMS), codice USSD o
+    // numero e testo dell'SMS, controllo automatico ogni N giorni (0 = mai)
+    // all'ora scelta, con avviso sotto la soglia in euro (0 = nessuna).
+    char sim_operator[12];
+    uint8_t sim_credit_mode;
+    char sim_credit_code[24];
+    char sim_credit_sms_number[16];
+    char sim_credit_sms_text[24];
+    uint16_t sim_credit_every_days;
+    uint8_t sim_credit_hour;
+    float sim_credit_min_eur;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

@@ -2,6 +2,20 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.85
+
+- **Nuova scheda "📱 SIM"** nel pannello (richiesta dell'utente), con tutta la gestione della SIM:
+  - **stato**: modulo, operatore di rete, segnale, numero della SIM (ICCID), rete usata dalla base;
+  - **modem e piano dati**: il riquadro del cellulare spostato qui dalla scheda Rete (modulo, APN, avvertenze SIMCom, barra dei GB, rinnovo e promemoria);
+  - **credito**: scelta dell'operatore con il codice gia' pronto (TIM `*123#`, Vodafone `*404#`, ho. `*122#`, WindTre `*133#`, PosteMobile `*123#`; per Iliad, Kena, Very e Fastweb il credito si da' solo con una chiamata o con l'app, e la scheda lo dice), modo USSD o SMS a un numero di servizio, pulsante "Controlla credito ora", importo, data e testo della risposta (conservati anche dopo un riavvio);
+  - **controllo automatico** ogni N giorni dall'ora scelta, con **avviso sotto una soglia in euro** via email/WhatsApp; se l'importo non viene riconosciuto arriva il testo della risposta;
+  - **codice USSD o SMS scritto al momento**, e "Prova lettura" per verificare la lettura dell'importo su un testo;
+  - **SMS ricevuti**: lettura e cancellazione.
+- **Lettura dell'importo** (`sim_tools_parse_euro()`): sceglie il numero vicino a "euro"/"€"/"EUR" e a "credito"/"saldo"/"residuo", e scarta date, ore, codici e quantita' (GB, minuti, SMS, giorni). Provata sul dispositivo con 12 testi nello stile delle risposte reali: tutti corretti. Le risposte in UCS2 esadecimale vengono convertite in testo.
+- **Modem**: con il SIM7600 la connessione cellulare usa il **CMUX** (canali separati per dati e comandi), cosi' credito e SMS non interrompono l'invio al caster; se il modem non lo accetta, modalita' dati come prima. Nuove funzioni in `cellular_link.c` per USSD, SMS e ICCID.
+- Nessun task nuovo: le operazioni sul modem le esegue il task degli avvisi, svegliato subito dalle richieste del pannello (`alerts_wake()`); un'operazione alla volta.
+- **Da provare quando arriva il SIM7600**: USSD, SMS, CMUX e ICCID. Senza modem la scheda risponde "Modem non presente" (verificato), senza bloccare nulla.
+
 ## 1.19.84
 
 Richiesta dell'utente dopo la perdita della configurazione del 02/10 (punti 1 e 2).

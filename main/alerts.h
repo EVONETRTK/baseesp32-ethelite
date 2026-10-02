@@ -11,6 +11,9 @@
 // funzionare. Va chiamata una volta all'avvio.
 void alerts_start(void);
 
+// Sveglia subito il task degli avvisi (operazioni sulla SIM dal pannello).
+void alerts_wake(void);
+
 // Invia subito un avviso di prova sui canali configurati in s (usato dal
 // pulsante "Invia avviso di prova" della UI web, con i valori correnti del
 // form - non serve averli gia' salvati) - bloccante, puo' richiedere

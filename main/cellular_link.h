@@ -32,3 +32,12 @@ bool cellular_link_get_signal(int *rssi_dbm);
 // (es. non ancora registrato in rete).
 bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_size,
                                       char *tech_out, size_t tech_out_size);
+
+// Gestione SIM (sim_tools.c), solo dal task degli avvisi. out contiene la
+// risposta grezza del modem.
+bool cellular_link_modem_present(void);
+bool cellular_link_get_iccid(char *out, size_t out_size);
+bool cellular_link_ussd(const char *code, char *out, size_t out_size);
+bool cellular_link_send_sms(const char *number, const char *text);
+bool cellular_link_read_sms(char *out, size_t out_size);
+bool cellular_link_delete_sms(void);

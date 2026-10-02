@@ -104,6 +104,7 @@
   <button type="button" data-page="page-status" class="active">📊 Stato</button>
   <button type="button" data-page="page-network">🌐 Rete</button>
   <button type="button" data-page="page-gnss">🛰️ GNSS &amp; NTRIP</button>
+  <button type="button" data-page="page-sim">📱 SIM</button>
   <button type="button" data-page="page-security">🔒 Sicurezza</button>
   <button type="button" data-page="page-signals">📶 Segnali</button>
   <button type="button" data-page="page-hardware">🎛️ Hardware</button>
@@ -280,69 +281,6 @@
     </small>
   </fieldset>
 
-  <fieldset>
-    <legend>📱 Rete cellulare (slot LTE)</legend>
-    <label>Modulo modem montato
-      <select name="cellular_module">
-        <option value="sim7600_lilygo">SIM7600 - modulo LilyGO</option>
-        <option value="sim7600_simcom">SIM7600 - modulo Mini PCIe originale SIMCom (G-H, E-H...)</option>
-        <option value="sim868">SIM868</option>
-      </select>
-      <small class="hint">Stesso slot/pin fisici, ma sequenza di accensione e comandi AT diversi secondo il modulo.</small>
-    </label>
-    <div id="simcom-warn" style="display:none; background:#fef3c7; color:#78350f; border:1px solid #fcd34d; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .6rem; font-size:.88rem">
-      <b>⚠️ Modulo SIMCom originale: prima di montarlo</b>
-      <ul style="margin:.4rem 0 0; padding-left:1.2rem">
-        <li><b>Spegni i DIP POWERKEY (SW2, posizione 5) e RESET (SW3) dello shield.</b> Servono solo ai moduli LilyGO:
-          questo modulo si accende da solo appena riceve i 3,3 V e la base non usa quel pin (lo lascia libero).</li>
-        <li><b>Variante per l'Italia: SIM7600G-H</b> (tutte le bande, anche B28 a 700 MHz) oppure <b>SIM7600E-H</b>
-          (B1/B3/B7/B8/B20, senza B28). Non vanno bene A-H, NA-H (America), SA-H (Sud America/Australia), JC-H (Giappone).</li>
-        <li>Formato <b>Mini PCIe</b> (schedina con contatti dorati su un lato), non M.2 ne' modulo da saldare.</li>
-        <li>La seriale del modulo e' a 1,8 V: lo shield ha gia' il convertitore di livello (U1), non serve altro.</li>
-        <li>Collega l'antenna LTE <b>prima</b> di accendere: senza antenna il modulo puo' scaldarsi e non registrarsi.</li>
-        <li>Alimentatore da almeno 5 V 3 A: il modem LTE assorbe picchi di circa 2 A durante la trasmissione.</li>
-        <li>Dopo il salvataggio serve un riavvio; nel log deve comparire "Modulo SIM7600 SIMCom originale".</li>
-      </ul>
-    </div>
-    <label>APN operatore SIM<input name="cellular_apn"></label>
-    <div class="hint" id="data-usage-box" style="margin:.2rem 0 .6rem"></div>
-    <div style="border:1px solid #d0d3d8; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .6rem">
-      <b>📶 Piano dati della SIM</b>
-      <label>GB al mese<input name="data_plan_gb" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0 = nessun limite"></label>
-      <label>Tipo di rinnovo
-        <select name="sim_renew_mode">
-          <option value="monthly">Ogni mese nello stesso giorno</option>
-          <option value="days">Ogni N giorni</option>
-          <option value="single">Scadenza unica (piano annuale, ricarica a mano)</option>
-        </select>
-      </label>
-      <label>Data del prossimo rinnovo<input name="sim_renew_date" type="date"></label>
-      <label id="sim-every-wrap">Ogni quanti giorni<input name="sim_renew_every_days" type="number" min="1" max="366" step="1"></label>
-      <label>Primo promemoria: giorni prima<input name="sim_notice1_days" type="number" min="0" max="60" step="1"></label>
-      <label>Secondo promemoria: giorni prima<input name="sim_notice2_days" type="number" min="0" max="60" step="1"></label>
-      <small class="hint">
-        I promemoria arrivano via email/WhatsApp (configurali nella scheda GNSS &amp; NTRIP, riquadro avvisi)
-        dalle 9:00 del giorno scelto; 0 = il giorno stesso del rinnovo. Nei rinnovi periodici la data passa
-        da sola al ciclo successivo; con la scadenza unica, una volta scaduta, arriva un promemoria al giorno
-        finche' non inserisci la nuova data. Il traffico si conta da un rinnovo all'altro, come l'operatore.
-        Lascia la data vuota per non usare i promemoria.
-      </small>
-      <div class="fieldset-save-row">
-        <button type="button" class="action fieldset-save-btn" data-fields="data_plan_gb,sim_renew_mode,sim_renew_date,sim_renew_every_days,sim_notice1_days,sim_notice2_days">💾 Salva</button>
-        <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-      </div>
-    </div>
-    <small class="hint">
-      Il traffico e' una stima (dati inviati al caster piu' le intestazioni di rete), utile per non
-      restare senza dati. Con gli avvisi attivi arriva un avviso all'80% del piano. La base torna da
-      sola al WiFi appena e' di nuovo disponibile (controllo ogni 5 minuti).
-    </small>
-  
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="cellular_module,cellular_apn" data-reboot="1">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>
 
   <fieldset>
     <legend>🔌 Rete di setup (AP di questo dispositivo)</legend>
@@ -683,6 +621,157 @@
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset></div>
+
+<div id="page-sim" class="page">
+  <fieldset>
+    <legend>📱 Stato della SIM</legend>
+    <dl class="kv">
+      <dt>Modulo</dt><dd id="sim-module">-</dd>
+      <dt>Operatore di rete</dt><dd id="sim-op">-</dd>
+      <dt>Segnale</dt><dd id="sim-rssi">-</dd>
+      <dt>Numero della SIM (ICCID)</dt><dd id="sim-iccid">-</dd>
+      <dt>Rete usata dalla base</dt><dd id="sim-net">-</dd>
+    </dl>
+  </fieldset>
+
+  <fieldset>
+    <legend>📶 Modem e piano dati</legend>
+    <label>Modulo modem montato
+      <select name="cellular_module">
+        <option value="sim7600_lilygo">SIM7600 - modulo LilyGO</option>
+        <option value="sim7600_simcom">SIM7600 - modulo Mini PCIe originale SIMCom (G-H, E-H...)</option>
+        <option value="sim868">SIM868</option>
+      </select>
+      <small class="hint">Stesso slot/pin fisici, ma sequenza di accensione e comandi AT diversi secondo il modulo.</small>
+    </label>
+    <div id="simcom-warn" style="display:none; background:#fef3c7; color:#78350f; border:1px solid #fcd34d; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .6rem; font-size:.88rem">
+      <b>⚠️ Modulo SIMCom originale: prima di montarlo</b>
+      <ul style="margin:.4rem 0 0; padding-left:1.2rem">
+        <li><b>Spegni i DIP POWERKEY (SW2, posizione 5) e RESET (SW3) dello shield.</b> Servono solo ai moduli LilyGO:
+          questo modulo si accende da solo appena riceve i 3,3 V e la base non usa quel pin (lo lascia libero).</li>
+        <li><b>Variante per l'Italia: SIM7600G-H</b> (tutte le bande, anche B28 a 700 MHz) oppure <b>SIM7600E-H</b>
+          (B1/B3/B7/B8/B20, senza B28). Non vanno bene A-H, NA-H (America), SA-H (Sud America/Australia), JC-H (Giappone).</li>
+        <li>Formato <b>Mini PCIe</b> (schedina con contatti dorati su un lato), non M.2 ne' modulo da saldare.</li>
+        <li>La seriale del modulo e' a 1,8 V: lo shield ha gia' il convertitore di livello (U1), non serve altro.</li>
+        <li>Collega l'antenna LTE <b>prima</b> di accendere: senza antenna il modulo puo' scaldarsi e non registrarsi.</li>
+        <li>Alimentatore da almeno 5 V 3 A: il modem LTE assorbe picchi di circa 2 A durante la trasmissione.</li>
+        <li>Dopo il salvataggio serve un riavvio; nel log deve comparire "Modulo SIM7600 SIMCom originale".</li>
+      </ul>
+    </div>
+    <label>APN operatore SIM<input name="cellular_apn"></label>
+    <div class="hint" id="data-usage-box" style="margin:.2rem 0 .6rem"></div>
+    <div style="border:1px solid #d0d3d8; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .6rem">
+      <b>📶 Piano dati della SIM</b>
+      <label>GB al mese<input name="data_plan_gb" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0 = nessun limite"></label>
+      <label>Tipo di rinnovo
+        <select name="sim_renew_mode">
+          <option value="monthly">Ogni mese nello stesso giorno</option>
+          <option value="days">Ogni N giorni</option>
+          <option value="single">Scadenza unica (piano annuale, ricarica a mano)</option>
+        </select>
+      </label>
+      <label>Data del prossimo rinnovo<input name="sim_renew_date" type="date"></label>
+      <label id="sim-every-wrap">Ogni quanti giorni<input name="sim_renew_every_days" type="number" min="1" max="366" step="1"></label>
+      <label>Primo promemoria: giorni prima<input name="sim_notice1_days" type="number" min="0" max="60" step="1"></label>
+      <label>Secondo promemoria: giorni prima<input name="sim_notice2_days" type="number" min="0" max="60" step="1"></label>
+      <small class="hint">
+        I promemoria arrivano via email/WhatsApp (configurali nella scheda GNSS &amp; NTRIP, riquadro avvisi)
+        dalle 9:00 del giorno scelto; 0 = il giorno stesso del rinnovo. Nei rinnovi periodici la data passa
+        da sola al ciclo successivo; con la scadenza unica, una volta scaduta, arriva un promemoria al giorno
+        finche' non inserisci la nuova data. Il traffico si conta da un rinnovo all'altro, come l'operatore.
+        Lascia la data vuota per non usare i promemoria.
+      </small>
+      <div class="fieldset-save-row">
+        <button type="button" class="action fieldset-save-btn" data-fields="data_plan_gb,sim_renew_mode,sim_renew_date,sim_renew_every_days,sim_notice1_days,sim_notice2_days">💾 Salva</button>
+        <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+      </div>
+    </div>
+    <small class="hint">
+      Il traffico e' una stima (dati inviati al caster piu' le intestazioni di rete), utile per non
+      restare senza dati. Con gli avvisi attivi arriva un avviso all'80% del piano. La base torna da
+      sola al WiFi appena e' di nuovo disponibile (controllo ogni 5 minuti).
+    </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="cellular_module,cellular_apn" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>💶 Credito</legend>
+    <div id="sim-credit-box" style="background:#f3f4f6; border-radius:8px; padding:.6rem .8rem; margin-bottom:.6rem">
+      <div style="font-size:1.4rem; font-weight:700" id="sim-credit-eur">-</div>
+      <div class="hint" id="sim-credit-when"></div>
+      <div style="font-size:.85rem; margin-top:.3rem; white-space:pre-wrap" id="sim-credit-text"></div>
+    </div>
+    <button type="button" class="action" id="sim-credit-btn">🔄 Controlla credito ora</button>
+    <div class="hint" id="sim-last-msg" style="margin-top:.4rem"></div>
+
+    <label style="margin-top:.8rem">Operatore della SIM
+      <select name="sim_operator">
+        <option value="">— scegli —</option>
+        <option value="tim">TIM</option>
+        <option value="vodafone">Vodafone</option>
+        <option value="ho">ho. Mobile</option>
+        <option value="windtre">WindTre</option>
+        <option value="postemobile">PosteMobile</option>
+        <option value="iliad">Iliad</option>
+        <option value="kena">Kena Mobile</option>
+        <option value="very">Very Mobile</option>
+        <option value="fastweb">Fastweb</option>
+        <option value="coopvoce">CoopVoce</option>
+        <option value="altro">Altro / IoT</option>
+      </select>
+    </label>
+    <div class="hint" id="sim-op-note" style="margin:.2rem 0 .4rem"></div>
+    <label>Come chiedere il credito
+      <select name="sim_credit_mode">
+        <option value="ussd">Codice USSD (es. *123#)</option>
+        <option value="sms">SMS a un numero di servizio</option>
+      </select>
+    </label>
+    <label id="sim-code-wrap">Codice USSD<input name="sim_credit_code" placeholder="*123#"></label>
+    <div id="sim-sms-wrap" style="display:none">
+      <label>Numero a cui mandare l'SMS<input name="sim_credit_sms_number" placeholder="es. 40916"></label>
+      <label>Testo dell'SMS<input name="sim_credit_sms_text" placeholder="es. CREDITO"></label>
+    </div>
+    <div style="border:1px solid #d0d3d8; border-radius:8px; padding:.6rem .8rem; margin:.6rem 0">
+      <b>⏰ Controllo automatico</b>
+      <label>Ogni quanti giorni (0 = mai)<input name="sim_credit_every_days" type="number" min="0" max="365" step="1"></label>
+      <label>Dalle ore<input name="sim_credit_hour" type="number" min="0" max="23" step="1"></label>
+      <label>Avvisami se il credito scende sotto (euro, 0 = mai)<input name="sim_credit_min_eur" type="number" min="0" max="1000" step="0.5"></label>
+      <small class="hint">
+        L'avviso arriva via email/WhatsApp (riquadro avvisi nella scheda GNSS &amp; NTRIP). Se nel controllo
+        automatico la base non riesce a leggere l'importo, ti manda il testo della risposta.
+      </small>
+    </div>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="sim_operator,sim_credit_mode,sim_credit_code,sim_credit_sms_number,sim_credit_sms_text,sim_credit_every_days,sim_credit_hour,sim_credit_min_eur">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+
+    <details style="margin-top:.8rem">
+      <summary>Codice o SMS scritto al momento</summary>
+      <label>Codice USSD<input id="sim-free-code" placeholder="*123#"></label>
+      <button type="button" class="action secondary" id="sim-free-code-btn">Invia codice</button>
+      <label style="margin-top:.6rem">Numero<input id="sim-free-number"></label>
+      <label>Testo<input id="sim-free-text" maxlength="90"></label>
+      <button type="button" class="action secondary" id="sim-free-sms-btn">Invia SMS</button>
+      <label style="margin-top:.6rem">Prova la lettura dell'importo su un testo
+        <input id="sim-parse-text" placeholder="es. Credito residuo 7,50 euro"></label>
+      <button type="button" class="action secondary" id="sim-parse-btn">Prova lettura</button>
+      <div class="hint" id="sim-parse-msg"></div>
+    </details>
+  </fieldset>
+
+  <fieldset>
+    <legend>✉️ SMS ricevuti</legend>
+    <button type="button" class="action secondary" id="sim-sms-read-btn">Leggi SMS</button>
+    <button type="button" class="action secondary" id="sim-sms-del-btn">Cancella tutti</button>
+    <div id="sim-sms-list" style="margin-top:.6rem"></div>
+  </fieldset>
+</div>
 
 <div id="page-security" class="page">
   <fieldset>
@@ -1507,6 +1596,7 @@ async function loadStatus() {
     update1005Banner(s);
     updateReliabilityUi(s);
     updateSimRenewBanner(s);
+    updateSimUi(s);
     updateMeasureUi(s);
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
@@ -1559,6 +1649,15 @@ async function loadStatus() {
       f.wifi_ssid.value = s.wifi_ssid || '';
       f.cellular_apn.value = s.cellular_apn || '';
       f.data_plan_gb.value = (s.data_plan_mb || 0) / 1000;
+      f.sim_operator.value = s.sim_operator || '';
+      f.sim_credit_mode.value = s.sim_credit_mode || 'ussd';
+      f.sim_credit_code.value = s.sim_credit_code || '';
+      f.sim_credit_sms_number.value = s.sim_credit_sms_number || '';
+      f.sim_credit_sms_text.value = s.sim_credit_sms_text || '';
+      f.sim_credit_every_days.value = s.sim_credit_every_days || 0;
+      f.sim_credit_hour.value = s.sim_credit_hour || 0;
+      f.sim_credit_min_eur.value = s.sim_credit_min_eur || 0;
+      updateSimCreditForm(false);
       f.sim_renew_mode.value = s.sim_renew_mode || 'monthly';
       f.sim_renew_date.value = s.sim_renew_date || '';
       f.sim_renew_every_days.value = s.sim_renew_every_days || 30;
@@ -2129,6 +2228,8 @@ async function loadSignals() {
     setSignalBar('st-wifi-sig-bar', 'st-wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
     setSignalBar('st-cell-sig-bar', 'st-cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
     document.getElementById('cell-operator').textContent = s.cellular_operator || 'non registrato';
+    document.getElementById('sim-op').textContent = s.cellular_operator ? s.cellular_operator + (s.cellular_tech ? ' (' + s.cellular_tech + ')' : '') : 'non registrato';
+    document.getElementById('sim-rssi').textContent = s.cellular_rssi_dbm !== null && s.cellular_rssi_dbm !== undefined ? s.cellular_rssi_dbm + ' dBm' : 'non disponibile';
     document.getElementById('cell-tech').textContent = s.cellular_tech || '-';
     const stCellOperatorEl = document.getElementById('st-cell-operator');
     if (stCellOperatorEl) {
@@ -2193,7 +2294,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 // parametro) e il fallback "salva tutto" qui sotto, per non doverlo
 // mantenere in due posti.
 const NUMBER_FIELDS = new Set([
-  'data_plan_gb', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
+  'data_plan_gb', 'sim_credit_every_days', 'sim_credit_hour', 'sim_credit_min_eur', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
   'ntrip_port', 'nmea_udp_port', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
   'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
@@ -2891,6 +2992,114 @@ function updateReliabilityUi(s) {
     return when + ' · ' + dur + (reason ? ' · ' + reason : '');
   }).join('<br>');
 }
+
+// --- Scheda SIM: codici del credito per operatore (verificati a ottobre 2026,
+// modificabili). null = l'operatore da' il credito solo con una chiamata o
+// con l'app: la base non puo' leggerlo.
+const SIM_OPERATORS = {
+  tim: { code: '*123#' },
+  vodafone: { code: '*404#' },
+  ho: { code: '*122#' },
+  windtre: { code: '*133#', note: 'WindTre: *133# solo saldo, *123# panoramica completa.' },
+  postemobile: { code: '*123#' },
+  iliad: { code: null, note: 'Iliad da\u2019 il credito solo con chiamata al 400, area personale o app: la base non puo\u2019 leggerlo.' },
+  kena: { code: null, note: 'Kena da\u2019 il credito solo con chiamata al 40181: la base non puo\u2019 leggerlo.' },
+  very: { code: null, note: 'Very da\u2019 il credito solo con chiamata al 1929: la base non puo\u2019 leggerlo.' },
+  fastweb: { code: null, note: 'Fastweb da\u2019 il credito solo con chiamata al 4046: la base non puo\u2019 leggerlo.' },
+  coopvoce: { code: null, note: 'CoopVoce: codice non verificato. Se ne conosci uno, scrivilo nel campo del codice.' },
+  altro: { code: null, note: 'Scrivi il codice USSD o il numero e testo dell\u2019SMS del tuo operatore.' },
+};
+
+function updateSimCreditForm(fromUser) {
+  const f = document.getElementById('cfg-form');
+  const op = SIM_OPERATORS[f.sim_operator.value];
+  document.getElementById('sim-op-note').textContent = op && op.note ? op.note : '';
+  if (fromUser && op && op.code) {
+    f.sim_credit_mode.value = 'ussd';
+    f.sim_credit_code.value = op.code;
+    f.sim_credit_code.classList.add('field-dirty');
+  }
+  const sms = f.sim_credit_mode.value === 'sms';
+  document.getElementById('sim-code-wrap').style.display = sms ? 'none' : '';
+  document.getElementById('sim-sms-wrap').style.display = sms ? '' : 'none';
+}
+document.getElementById('cfg-form').elements['sim_operator'].addEventListener('change', () => updateSimCreditForm(true));
+document.getElementById('cfg-form').elements['sim_credit_mode'].addEventListener('change', () => updateSimCreditForm(false));
+
+function updateSimUi(s) {
+  const mod = { sim7600_lilygo: 'SIM7600 (LilyGO)', sim7600_simcom: 'SIM7600 (SIMCom originale)', sim868: 'SIM868' };
+  document.getElementById('sim-module').textContent = mod[s.cellular_module] || '-';
+  document.getElementById('sim-iccid').textContent = s.sim_iccid || 'non letto (modem assente o SIM non inserita)';
+  document.getElementById('sim-net').textContent = s.net === 'cellular' ? 'cellulare (questa SIM)' : (s.net === 'wifi' ? 'WiFi (SIM non usata ora)' : (s.net || '-'));
+  const eur = document.getElementById('sim-credit-eur');
+  if (s.sim_credit_at) {
+    eur.textContent = s.sim_credit_eur !== undefined ? s.sim_credit_eur.toFixed(2).replace('.', ',') + ' €' : 'importo non riconosciuto';
+    const low = s.sim_credit_eur !== undefined && s.sim_credit_min_eur > 0 && s.sim_credit_eur < s.sim_credit_min_eur;
+    eur.style.color = low ? '#dc2626' : '';
+    document.getElementById('sim-credit-when').textContent = 'Letto il ' + s.sim_credit_at.slice(8, 10) + '/' + s.sim_credit_at.slice(5, 7) + ' alle ' + s.sim_credit_at.slice(11, 16) + (low ? ' — sotto la soglia' : '');
+    document.getElementById('sim-credit-text').textContent = s.sim_credit_text || '';
+  } else {
+    eur.textContent = 'Credito mai letto';
+    document.getElementById('sim-credit-when').textContent = '';
+    document.getElementById('sim-credit-text').textContent = '';
+  }
+  document.getElementById('sim-last-msg').textContent = s.sim_busy ? 'Operazione in corso...' : (s.sim_last_msg || '');
+  ['sim-credit-btn', 'sim-free-code-btn', 'sim-free-sms-btn', 'sim-sms-read-btn', 'sim-sms-del-btn'].forEach(id => { document.getElementById(id).disabled = !!s.sim_busy; });
+}
+
+async function simAction(body, after) {
+  const msg = document.getElementById('sim-last-msg');
+  try {
+    const r = await fetch('/api/sim/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!j.ok && body.action !== 'parse') { msg.textContent = 'Errore: ' + (j.error || 'operazione non accettata'); return j; }
+    if (body.action !== 'parse') msg.textContent = 'Richiesta inviata, attendi...';
+    if (after) setTimeout(after, 8000);
+    setTimeout(loadStatus, 3000);
+    return j;
+  } catch (e) {
+    msg.textContent = 'Errore di comunicazione con la base';
+    return null;
+  }
+}
+
+document.getElementById('sim-credit-btn').addEventListener('click', () => simAction({ action: 'credit' }));
+document.getElementById('sim-free-code-btn').addEventListener('click', () => {
+  const code = document.getElementById('sim-free-code').value.trim();
+  if (code) simAction({ action: 'ussd', code });
+});
+document.getElementById('sim-free-sms-btn').addEventListener('click', () => {
+  const number = document.getElementById('sim-free-number').value.trim();
+  const text = document.getElementById('sim-free-text').value.trim();
+  if (number && text && confirm('Inviare l\u2019SMS a ' + number + '? Puo\u2019 avere un costo.')) simAction({ action: 'sms', number, text });
+});
+document.getElementById('sim-parse-btn').addEventListener('click', async () => {
+  const text = document.getElementById('sim-parse-text').value;
+  const j = await simAction({ action: 'parse', text });
+  document.getElementById('sim-parse-msg').textContent = j && j.ok ? 'Importo letto: ' + j.eur.toFixed(2).replace('.', ',') + ' €' : 'Nessun importo riconosciuto in questo testo';
+});
+
+// SMS: risposta grezza di AT+CMGL, una riga di intestazione e una di testo.
+function renderSms(raw) {
+  const el = document.getElementById('sim-sms-list');
+  const esc = t => String(t).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  const lines = String(raw || '').split(/\r?\n/);
+  const items = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\+CMGL:\s*\d+,"[^"]*","([^"]*)",[^,]*,"([^"]*)"/);
+    if (m) items.push({ from: m[1], at: m[2], text: lines[i + 1] || '' });
+  }
+  el.innerHTML = items.length
+    ? items.reverse().map(x => '<div style="border-bottom:1px solid #e5e7eb; padding:.4rem 0"><b>' + esc(x.from) + '</b> <span class="hint">' + esc(x.at) + '</span><div>' + esc(x.text) + '</div></div>').join('')
+    : '<span class="hint">Nessun SMS (o non ancora letti)</span>';
+}
+async function loadSms() {
+  try { renderSms(await (await fetch('/api/sim/sms')).text()); } catch (e) {}
+}
+document.getElementById('sim-sms-read-btn').addEventListener('click', () => simAction({ action: 'read_sms' }, loadSms));
+document.getElementById('sim-sms-del-btn').addEventListener('click', () => {
+  if (confirm('Cancellare tutti gli SMS dalla SIM?')) simAction({ action: 'delete_sms' }, loadSms);
+});
 
 function update1005Banner(s) {
   const box = document.getElementById('no-1005-banner');
