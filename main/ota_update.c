@@ -196,8 +196,8 @@ void ota_update_check_rollback(void)
     nvs_get_str(h, "seen", seen, &len);
     if (strcmp(seen, key) != 0) {
         snprintf(s_rollback_note, sizeof(s_rollback_note),
-                 "il firmware nuovo (%s) si e' riavviato prima della conferma: tornato alla versione precedente",
-                 desc.version);
+                 "l'ultimo aggiornamento (compilato il %s) si e' riavviato prima della conferma: tornato a questa versione",
+                 desc.date);
         ESP_LOGE(TAG, "Aggiornamento annullato: %s", s_rollback_note);
         nvs_set_str(h, "seen", key);
         nvs_commit(h);

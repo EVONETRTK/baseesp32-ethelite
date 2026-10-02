@@ -229,7 +229,7 @@ static void sys_monitor_task(void *arg)
         safety_restart_check(now);
         {
             static int64_t last_heap_log;
-            if (now - last_heap_log >= 30LL * 1000000) {
+            if (now - last_heap_log >= 600LL * 1000000) { // ogni 10 minuti, per seguire la memoria nel tempo
                 last_heap_log = now;
                 ESP_LOGI(MON_TAG, "Memoria libera %u (minima %u, blocco piu' grande %u)", (unsigned) esp_get_free_heap_size(),
                          (unsigned) esp_get_minimum_free_heap_size(), (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));

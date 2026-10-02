@@ -2,6 +2,21 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.84
+
+Richiesta dell'utente dopo la perdita della configurazione del 02/10 (punti 1 e 2).
+
+- **Ritorno automatico alla versione precedente**: il firmware nuovo non viene piu' confermato appena acceso, ma dopo 5 minuti senza crash con il caster collegato (o 15 minuti in ogni caso). Se si riavvia prima, il bootloader torna da solo alla versione precedente. Nel pannello: "firmware nuovo in prova" e, dopo un ritorno, una nota in rosso sulla riga "Ultimo riavvio". I riavvii voluti (pannello, aggiornamento, misura) confermano prima il firmware.
+  - Verificato con un firmware di prova che andava in crash apposta dopo 60 s: alle 23:19:14 il crash, alle 23:19:21 la base era di nuovo sulla 1.19.84, collegata al caster, senza intervento.
+- **Copia di sicurezza della configurazione** sulla microSD (`/sdcard/config/settings.bin`, nuovo `config_backup.c`), aggiornata dopo ogni salvataggio e all'avvio. Se all'avvio manca la configurazione, viene ripristinata da li'; non dopo un reset di fabbrica fatto con il pulsante (segno in NVS). Scrittura su file temporaneo e poi rinomina.
+- **Scarica / Carica configurazione** nella scheda Firmware (`/api/config/export`, `/api/config/import`). Caricando la configurazione di un'altra base restano matricola e rete di setup di questa. Verificato: configurazione scaricata (2072 byte) e ricaricata, nessuna impostazione cambiata.
+- **Memoria**, problemi trovati durante le prove:
+  - due task in piu' (copia e conferma) lasciavano cosi' poca memoria che la microSD non si montava e il pannello rispondeva dopo decine di secondi. Ora copia, conferma del firmware, contatore del traffico e rinnovo della SIM girano dentro task gia' esistenti (log diagnostico, sorveglianza, avvisi): tre task in meno;
+  - memoria fissa ridotta di circa 6 KB (una sola copia statica delle impostazioni nel rinnovo SIM, niente buffer di verifica da 2 KB nel salvataggio, buffer della copia di 2,3 KB);
+  - **corretto l'errore della 1.19.74**: FatFs dimensiona i buffer su MAX(settore SD, settore del wear levelling), e il wear levelling era rimasto a 4096 byte. Ogni file aperto chiedeva 4 KB e il log diagnostico (4 file) 16 KB contigui: spesso falliva con ESP_ERR_NO_MEM. Ora `CONFIG_WL_SECTOR_SIZE_512`. Memoria minima dopo l'avvio da 16 a 27 KB, nessun errore di montaggio.
+- Nel log, ogni 10 minuti, la memoria libera, la minima e il blocco piu' grande.
+- Non ancora provato dal vivo: il ripristino automatico all'avvio da configurazione mancante (servirebbe cancellare la NVS via USB).
+
 ## 1.19.83
 
 - **Il piano in GB non veniva salvato dal pannello** (segnalato dall'utente): subito sotto il campo c'era il riquadro del rinnovo con un suo pulsante 💾 Salva, che salvava solo le date; il pulsante che includeva i GB era piu' in basso. Ora il campo e' dentro il riquadro "📶 Piano dati della SIM", con un solo pulsante per GB e rinnovo (senza riavvio). Inoltre un valore che il browser non riconosce (es. con la virgola) non viene piu' inviato come 0, cancellando il piano.
