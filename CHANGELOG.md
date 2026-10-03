@@ -2,6 +2,15 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.99 - 1.19.102
+
+- **Grafico dei satelliti** (segnalato dall'utente: "largo, si sovrappone"): il riquadro si allargava per contenere il grafico (i `fieldset` di default non scendono sotto la larghezza del contenuto) e finiva sopra la colonna vicina; disegnato con la scheda nascosta usava 620 px fissi. Ora `fieldset { min-width:0 }`, il grafico scorre dentro il riquadro, viene ridisegnato all'apertura della scheda Segnali e al cambio di dimensione; la scritta "35 dB" e' a sinistra, visibile anche su telefono. Provato con screenshot da telefono e computer.
+- **Stack**: con l'elenco degli stack di `sys_mon` sono emersi `sys_evt` (task degli eventi di sistema, 268 byte liberi: ora 4 KB con `CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE`), `gnss_uart` (ora 5 KB) e `sys_mon` stesso (4,5 KB). Ora tutti i task del firmware hanno almeno 1,3 KB liberi.
+- **Risposta di stato a pezzi**: `/api/status` (166 campi) veniva costruita tutta in memoria, circa 20 KB a richiesta; con il pannello aperto la memoria libera minima e' scesa a 2,8 KB. Ora viene inviata a sezioni (`status_flush()`), con gli stessi campi (verificato). Prova di carico con 6 client: memoria minima invariata.
+- **Pagina dei segnali da 3,5 s a 0,03 s**: a ogni richiesta (ogni 3 s dal pannello) interrogava il modem; con il modem assente aspettava i timeout e il server web restava occupato quasi di continuo. Segnale e operatore ora sono letti al massimo ogni 30 s (60 s se il modem non risponde).
+- **Rinnovo SIM provato**: calcolo delle date verificato sul PC su 17 casi (fine mese, bisestile, cambio d'anno e d'ora legale), poi sulla base una prova alla volta: rinnovo mensile passato spostato al mese dopo, rinnovo ogni 28 giorni, scadenza unica con promemoria giornaliero, primo promemoria a 7 giorni. Nessun crash. Il promemoria ora rimanda alla scheda SIM (prima diceva "scheda Rete").
+- **Monitoraggio remoto provato**: POST ricevuto da un server di prova sul PC, con tutti i dati; poi rispento.
+
 ## 1.19.92 - 1.19.98
 
 - **Pannello**:

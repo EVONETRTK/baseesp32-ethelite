@@ -246,7 +246,7 @@ void app_main(void)
     } else {
         rtcm3_1005_init();
         rtcm_stream = xStreamBufferCreate(4096, 1);
-        xTaskCreate(gnss_uart_task, "gnss_uart", 4096, NULL, 10, NULL);
+        xTaskCreate(gnss_uart_task, "gnss_uart", 5120, NULL, 10, NULL); // 5 KB: con 4 ne restavano ~600 (misurato)
     }
 
     gnss_driver_configure(s_gnss_uart_num, settings.gnss_chip, settings.device_mode);

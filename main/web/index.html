@@ -155,8 +155,11 @@
   .sum-card.bad { border-left-color:#dc2626; } .sum-card.bad .sc-value { color:#b91c1c; }
 
   /* Grafico dei satelliti: scorre in orizzontale quando i satelliti sono tanti */
-  .sat-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .sat-scroll canvas#sat-chart { width:auto; }
+  /* I fieldset di default non si stringono sotto la larghezza del contenuto:
+     il grafico largo allargava il riquadro e finiva sopra la colonna vicina. */
+  fieldset { min-width:0; }
+  .sat-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; }
+  .sat-scroll canvas#sat-chart { display:block; max-width:none; }
 
   /* --- Computer con schermo largo: riquadri su due colonne ------------------ */
   @media (min-width: 1100px) {
@@ -1364,6 +1367,9 @@ function goToPage(pageId) {
   if (navBtn) navBtn.classList.add('active');
   document.getElementById(pageId).classList.add('active');
   if (typeof markMoreTab === 'function') markMoreTab(pageId);
+  if (pageId === 'page-signals' && typeof lastSignals !== 'undefined' && lastSignals) {
+    drawSatChart(lastSignals.satellites || []);
+  }
   window.scrollTo(0, 0);
   if (pageId === 'page-log') {
     loadLog();
@@ -2012,13 +2018,18 @@ function drawSatChart(sats) {
   // Disegnato alla larghezza reale (prima 620 px rimpiccioliti: su telefono
   // barre e numeri minuscoli); con molti satelliti almeno 16 px ciascuno e
   // il grafico scorre in orizzontale.
-  const wrapW = canvas.parentNode.clientWidth || 620;
-  const needW = sats.length * 16 + 8;
-  const cw = Math.max(wrapW, needW);
-  if (canvas.width !== cw) canvas.width = cw;
-  canvas.style.width = cw + 'px';
-  const hint = document.getElementById('sat-scroll-hint');
-  if (hint) hint.style.display = needW > wrapW ? '' : 'none';
+  const wrapW = canvas.parentNode.clientWidth;
+  if (wrapW > 0) {
+    // Scheda visibile: larghezza vera del riquadro, almeno 16 px per satellite.
+    // Con la scheda nascosta (larghezza 0) si lascia com'e': il grafico viene
+    // ridisegnato quando si apre la scheda Segnali (vedi goToPage).
+    const needW = sats.length * 16 + 8;
+    const cw = Math.max(wrapW, needW);
+    if (canvas.width !== cw) canvas.width = cw;
+    canvas.style.width = cw + 'px';
+    const hint = document.getElementById('sat-scroll-hint');
+    if (hint) hint.style.display = needW > wrapW ? '' : 'none';
+  }
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
@@ -2062,13 +2073,13 @@ function drawSatChart(sats) {
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'left';
   const label = '35 dB (segnale buono)';
   const lw = ctx.measureText(label).width;
   ctx.fillStyle = 'rgba(255,255,255,.85)';
-  ctx.fillRect(w - lw - 8, goodY - 15, lw + 6, 13);
+  ctx.fillRect(2, goodY - 15, lw + 6, 13); // a sinistra: su telefono la parte destra del grafico e' fuori vista
   ctx.fillStyle = '#111827';
-  ctx.fillText(label, w - 4, goodY - 4);
+  ctx.fillText(label, 5, goodY - 4);
   ctx.restore();
 }
 
@@ -3181,7 +3192,7 @@ function updateSimRenewBanner(s) {
   box.style.color = expired ? '#7f1d1d' : '#78350f';
   const when = expired ? 'è scaduto il ' + date : (left === 0 ? 'si rinnova oggi' : left === 1 ? 'si rinnova domani' : 'si rinnova tra ' + left + ' giorni') + ' (' + date + ')';
   box.innerHTML = '<b>📅 Il piano della SIM ' + when + '.</b> ' +
-    (expired ? 'Rinnovalo e aggiorna la data nella scheda Rete.' : 'Controlla il credito o rinnova il piano.');
+    (expired ? 'Rinnovalo e aggiorna la data nella scheda SIM.' : 'Controlla il credito o rinnova il piano.');
 }
 
 function updateSimEvery() {
@@ -3326,6 +3337,11 @@ document.getElementById('sim-sms-del-btn').addEventListener('click', () => {
 // --- Riquadri riassuntivi della scheda Stato ------------------------------------
 // Verde/giallo/rosso a colpo d'occhio; toccandone uno si va ai dettagli.
 let lastSignals = null;
+window.addEventListener('resize', () => {
+  if (lastSignals && document.getElementById('page-signals').classList.contains('active')) {
+    drawSatChart(lastSignals.satellites || []);
+  }
+});
 function sumCard(id, title, cls, value, sub, target) {
   return '<div class="sum-card ' + cls + '" data-target="' + target + '"><div class="sc-title">' + title +
     '</div><div class="sc-value">' + value + '</div><div class="sc-sub">' + (sub || '') + '</div></div>';

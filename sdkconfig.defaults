@@ -125,3 +125,8 @@ CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
 # invece di corrompere la memoria vicina e far cadere piu' tardi un altro
 # modulo (crash rari nel driver WiFi e in pthread, ottobre 2026).
 CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK=y
+
+# Task degli eventi di sistema (WiFi, IP, PPP): 4 KB invece di 2,3. Con i
+# gestori degli eventi WiFi gli restavano 268 byte liberi (misurato il
+# 03/10/2026 con l'elenco degli stack di sys_mon).
+CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096

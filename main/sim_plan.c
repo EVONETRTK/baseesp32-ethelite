@@ -176,7 +176,7 @@ static void send_notice(const app_settings_t *s, int days_left)
              days_left < 0 ? "piano della SIM scaduto" : "rinnovo del piano della SIM",
              when, (unsigned) (s->sim_renew_date % 100), (unsigned) (s->sim_renew_date / 100 % 100),
              (unsigned) (s->sim_renew_date / 10000),
-             days_left < 0 ? "Rinnova il piano e aggiorna la data nel pannello (scheda Rete)."
+             days_left < 0 ? "Rinnova il piano e aggiorna la data nel pannello (scheda SIM)."
                            : "Controlla il credito o rinnova il piano.",
              used);
     bool ok = alerts_send_now(s, days_left < 0 ? "EVONETRTK - piano SIM scaduto" : "EVONETRTK - rinnovo piano SIM", body);

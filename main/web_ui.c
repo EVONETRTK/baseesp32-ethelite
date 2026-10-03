@@ -321,6 +321,27 @@ static void safe_utf8_to_raw_ssid_bytes(const char *in, char *out, size_t out_si
     out[o] = '\0';
 }
 
+// Invia la parte gia' costruita della risposta JSON (senza le graffe esterne,
+// con la virgola di separazione) e ricomincia con un oggetto vuoto: cosi' in
+// memoria c'e' sempre solo un pezzo della risposta di stato.
+static void status_flush(httpd_req_t *req, cJSON **root, bool *first)
+{
+    char *part = *root ? cJSON_PrintUnformatted(*root) : NULL;
+    cJSON_Delete(*root);
+    *root = cJSON_CreateObject();
+    if (!part) {
+        return;
+    }
+    size_t len = strlen(part);
+    if (len > 2) {
+        part[len - 1] = '\0';            // toglie la graffa finale
+        part[0] = *first ? '{' : ',';    // la prima parte apre l'oggetto
+        httpd_resp_sendstr_chunk(req, part);
+        *first = false;
+    }
+    free(part);
+}
+
 static esp_err_t status_get_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -329,6 +350,12 @@ static esp_err_t status_get_handler(httpd_req_t *req)
 
     app_settings_t s = settings_get();
 
+    // Risposta inviata a pezzi (status_flush): costruita tutta in memoria
+    // occupava ~20 KB a richiesta, e con il pannello aperto la memoria
+    // libera minima e' scesa a 2,8 KB (03/10/2026).
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
+    bool first = true;
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "net", net_status_str(status_get_net()));
     {
@@ -386,6 +413,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "ntrip_last_disconnect_us", (double) ntrip.last_disconnect_us);
     cJSON_AddNumberToObject(root, "ntrip_connect_count", ntrip.connect_count);
     cJSON_AddStringToObject(root, "ntrip_last_error", ntrip.last_error);
+    status_flush(req, &root, &first); // invia questa parte e libera la memoria
+
     // Tempo del dispositivo (dal boot, stessa base di ntrip_connected_since_us
     // e last_disconnect_us) al momento di generare questa risposta - permette
     // al browser di calcolare "da quanto" senza affidarsi al proprio
@@ -458,6 +487,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     }
     cJSON_AddStringToObject(root, "cellular_apn", s.cellular_apn);
     cJSON_AddBoolToObject(root, "cellular_is_sim868", s.cellular_is_sim868);
+    status_flush(req, &root, &first); // invia questa parte e libera la memoria
+
     // Scelta unica per il pannello: modulo LilyGO, SIMCom originale o SIM868.
     cJSON_AddStringToObject(root, "cellular_module", s.cellular_is_sim868 ? "sim868"
                             : (s.cellular_simcom_std ? "sim7600_simcom" : "sim7600_lilygo"));
@@ -601,6 +632,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "alert_smtp_user", s.alert_smtp_user);
     cJSON_AddStringToObject(root, "alert_email_to", s.alert_email_to);
     cJSON_AddStringToObject(root, "alert_whatsapp_phone", s.alert_whatsapp_phone);
+    status_flush(req, &root, &first); // invia questa parte e libera la memoria
+
     // alert_smtp_password e alert_whatsapp_apikey non vengono mai
     // restituiti (come ntrip_password sopra) - solo scrivibili dalla UI,
     // mai riletti.
@@ -630,6 +663,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
             cJSON_AddNumberToObject(root, "svin_mean_acc_m", sv.mean_acc_m);
         }
     }
+    status_flush(req, &root, &first); // invia questa parte e libera la memoria
+
     // Ultima posizione rilevata dal ricevitore (ECEF, dallo stesso stream
     // RTCM 1005/1006 usato sopra per il rilevamento spostamenti) convertita
     // in lat/lon/quota - proposta dalla UI come default quando si passa a
@@ -674,6 +709,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "ntrip_caster_server_mountpoint", s.ntrip_caster_server_mountpoint);
     cJSON_AddStringToObject(root, "ntrip_caster_server_username", s.ntrip_caster_server_username);
     cJSON_AddNumberToObject(root, "ntrip_caster_server_clients", (double) ntrip_caster_server_get_client_count());
+    status_flush(req, &root, &first); // invia questa parte e libera la memoria
+
     // ntrip_caster_server_password non viene mai restituita (come le altre
     // password sopra) - solo scrivibile dalla UI, mai riletta.
 
@@ -687,6 +724,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
             cJSON_AddNumberToObject(root, "sd_used_bytes", (double) sd_status.used_bytes);
         }
     }
+
+    status_flush(req, &root, &first); // invia questa parte e libera la memoria
 
     // Bluetooth Classic (SPP) non disponibile su ESP32-S3 (solo BLE, non
     // implementata su questa scheda) - i campi bt_* non vengono inviati.
@@ -740,18 +779,10 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddNumberToObject(root, "chip_temp_max_ago_s", (double) ((esp_timer_get_time() - stats.chip_temp_max_us) / 1000000));
     }
 
-    // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
-    // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
-    char *json = cJSON_PrintUnformatted(root);
+    status_flush(req, &root, &first);
     cJSON_Delete(root);
-    if (!json) {
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
-    }
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
-    httpd_resp_sendstr(req, json);
-    free(json);
-    return ESP_OK;
+    httpd_resp_sendstr_chunk(req, first ? "{}" : "}");
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 static esp_err_t signals_get_handler(httpd_req_t *req)
@@ -811,18 +842,34 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
         cJSON_AddNullToObject(root, "wifi_rssi_dbm");
     }
 
-    int cell_rssi;
-    if (cellular_link_get_signal(&cell_rssi)) {
-        cJSON_AddNumberToObject(root, "cellular_rssi_dbm", cell_rssi);
+    // Segnale e operatore del modem, letti al massimo ogni 30 s (ogni 60 s se
+    // il modem non risponde). Prima ogni richiesta di questa pagina (ogni 3 s
+    // dal pannello) interrogava il modem: con il modem assente aspettava i
+    // timeout e la risposta richiedeva 3,5 s, tenendo occupato il server web
+    // quasi di continuo (misurato il 03/10/2026).
+    static struct {
+        int64_t at_us;
+        bool sig_ok, op_ok;
+        int rssi;
+        char op[32];
+        char tech[16];
+    } cell;
+    int64_t now_us = esp_timer_get_time();
+    int64_t max_age = (cell.sig_ok || cell.op_ok) ? 30LL * 1000000 : 60LL * 1000000;
+    if (cell.at_us == 0 || now_us - cell.at_us > max_age) {
+        cell.at_us = now_us;
+        cell.sig_ok = cellular_link_get_signal(&cell.rssi);
+        cell.op_ok = cell.sig_ok &&
+                     cellular_link_get_operator_info(cell.op, sizeof(cell.op), cell.tech, sizeof(cell.tech));
+    }
+    if (cell.sig_ok) {
+        cJSON_AddNumberToObject(root, "cellular_rssi_dbm", cell.rssi);
     } else {
         cJSON_AddNullToObject(root, "cellular_rssi_dbm");
     }
-
-    char cell_operator[32] = {0};
-    char cell_tech[16] = {0};
-    if (cellular_link_get_operator_info(cell_operator, sizeof(cell_operator), cell_tech, sizeof(cell_tech))) {
-        cJSON_AddStringToObject(root, "cellular_operator", cell_operator);
-        cJSON_AddStringToObject(root, "cellular_tech", cell_tech);
+    if (cell.op_ok) {
+        cJSON_AddStringToObject(root, "cellular_operator", cell.op);
+        cJSON_AddStringToObject(root, "cellular_tech", cell.tech);
     } else {
         cJSON_AddNullToObject(root, "cellular_operator");
         cJSON_AddNullToObject(root, "cellular_tech");
