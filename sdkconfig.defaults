@@ -130,3 +130,8 @@ CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK=y
 # gestori degli eventi WiFi gli restavano 268 byte liberi (misurato il
 # 03/10/2026 con l'elenco degli stack di sys_mon).
 CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096
+
+# Intestazioni delle richieste HTTP: con 512 (predefinito) Chrome superava il
+# limite dopo il cambio della password del pannello (Authorization e cookie
+# piu' lunghi): "Header fields are too long" e pannello inaccessibile (03/10/2026).
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1536

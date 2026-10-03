@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.112
+
+- **Pannello inaccessibile dopo il cambio di password** ("Header fields are too long", HTTP 431). Il server web leggeva al massimo 512 byte di intestazioni (valore predefinito di ESP-IDF) e Chrome ci stava appena. Con una password piu' lunga, l'intestazione di autenticazione e il cookie superavano il limite, e la richiesta veniva scartata prima del controllo della password (quindi senza traccia nel log). Ora il limite e' `CONFIG_HTTPD_MAX_REQ_HDR_LEN=1536`. Riprodotto con le intestazioni di Chrome: 431 con la 1.19.111, 200 con la 1.19.112.
+
 ## 1.19.111
 
 - **Accesso negato spiegato**: con le credenziali sbagliate la base rispondeva con una pagina vuota. Ora spiega: utente sempre "admin", dove si cambia la password, cosa fare se il browser non la richiede piu' (incognito o cancellare i dati del sito), reset di fabbrica.
