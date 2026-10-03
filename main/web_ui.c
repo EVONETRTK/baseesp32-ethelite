@@ -168,7 +168,28 @@ static esp_err_t require_auth(httpd_req_t *req)
     ESP_LOGW(TAG, "Autenticazione fallita per %s", req->uri);
     httpd_resp_set_status(req, "401 Unauthorized");
     httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"EVONETRTK\"");
-    httpd_resp_send(req, NULL, 0);
+    // Cookie con una password vecchia (cambiata dal pannello): lo si
+    // cancella, altrimenti il browser continua a mandarlo (03/10/2026: dopo
+    // il cambio di password il pannello non si apriva piu').
+    char ck[8];
+    if (httpd_req_get_hdr_value_str(req, "Cookie", ck, sizeof(ck)) != ESP_ERR_NOT_FOUND) {
+        httpd_resp_set_hdr(req, "Set-Cookie", AUTH_COOKIE_NAME "=; Max-Age=0; Path=/");
+    }
+    // Il browser mostra questa pagina se si annulla la richiesta di
+    // credenziali (prima era vuota, senza spiegazioni).
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_sendstr(req,
+        "<!doctype html><html lang=\"it\"><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Accesso negato</title></head>"
+        "<body style=\"font-family:system-ui,Arial,sans-serif;max-width:520px;margin:40px auto;padding:0 16px;line-height:1.5\">"
+        "<h2>Accesso negato</h2>"
+        "<p>Per entrare nel pannello servono:</p>"
+        "<ul><li>nome utente: <b>admin</b> (sempre questo)</li>"
+        "<li>password: quella impostata nella scheda Sicurezza (&quot;Codice di accesso&quot;)</li></ul>"
+        "<p>Se la password e' stata cambiata da poco e il browser non la chiede piu': chiudere tutte le schede del pannello "
+        "e aprirlo in una finestra in incognito, oppure cancellare i dati di questo sito nel browser.</p>"
+        "<p>Password dimenticata: pulsante BOOT premuto 5 secondi (reset di fabbrica, password 1234; si perde la configurazione).</p>"
+        "<p><a href=\"/\">Riprova</a></p></body></html>");
     return ESP_FAIL;
 }
 

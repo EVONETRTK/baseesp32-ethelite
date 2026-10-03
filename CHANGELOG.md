@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.111
+
+- **Accesso negato spiegato**: con le credenziali sbagliate la base rispondeva con una pagina vuota. Ora spiega: utente sempre "admin", dove si cambia la password, cosa fare se il browser non la richiede piu' (incognito o cancellare i dati del sito), reset di fabbrica.
+- **Cookie con la password vecchia cancellato** (`Set-Cookie ... Max-Age=0`): dopo il cambio di password dal pannello, il browser continuava a mandare il cookie con la password vecchia e il pannello non si apriva (03/10/2026).
+
 ## 1.19.107 - 1.19.110
 
 - **Scheda di accesso stampabile** (`/access`, pulsante "Apri la scheda di accesso" nella scheda Sicurezza), generata dal dispositivo con i dati del momento e pronta per la stampa A4 o il PDF, in 2 pagine:
