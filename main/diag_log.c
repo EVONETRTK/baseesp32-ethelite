@@ -149,6 +149,14 @@ static void diag_log_task(void *arg)
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(FLUSH_INTERVAL_MS));
         config_backup_service(); // copia della configurazione, se richiesta
+        {
+            static UBaseType_t logged_min = 0xFFFF;
+            UBaseType_t free_words = uxTaskGetStackHighWaterMark(NULL);
+            if (free_words < logged_min) {
+                logged_min = free_words;
+                ESP_LOGI(TAG, "Stack libero minimo del task: %u byte", (unsigned) free_words);
+            }
+        }
 
         if (session_path[0] == '\0' || session_bytes >= MAX_FILE_BYTES || xStreamBufferIsEmpty(s_stream)) {
             continue;
@@ -178,7 +186,11 @@ void diag_log_start(void)
 {
     s_stream = xStreamBufferCreate(4096, 1);
     log_buffer_set_sink(s_stream);
-    xTaskCreate(diag_log_task, "diag_log", 4096, NULL, 2, NULL);
+    // 6144 (era 4096): dalla 1.19.84 questo task scrive anche la copia della
+    // configurazione sulla SD (config_backup.c). Con 4096 lo stack era al
+    // limite: i crash rari dopo gli aggiornamenti (driver WiFi, pthread)
+    // comparivano subito dopo la copia. Lo stack libero e' nel log.
+    xTaskCreate(diag_log_task, "diag_log", 6144, NULL, 2, NULL);
 }
 
 int diag_log_list(diag_log_file_t *out, int max)

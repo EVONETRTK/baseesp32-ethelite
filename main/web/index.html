@@ -2,7 +2,14 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/icon192.png">
+<link rel="apple-touch-icon" href="/icon192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="EVONETRTK">
+<meta name="theme-color" content="#2563eb">
 <title>EVONETRTK</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 680px; margin: 1.5rem auto; padding: 0 1rem; background:var(--page-bg); color:#1a1a1a; transition: background .3s; }
@@ -136,6 +143,47 @@
     dl.kv dt { font-size:.78rem; margin-top:.55rem; }
     dl.kv dd { margin:0; font-weight:500; overflow-wrap:anywhere; }
   }
+
+  /* --- Riquadri riassuntivi in cima alla scheda Stato --------------------- */
+  .summary-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:.5rem; margin-bottom:1rem; }
+  .sum-card { background:#fff; border:1px solid #d0d3d8; border-left:5px solid #9ca3af; border-radius:10px; padding:.55rem .7rem; cursor:pointer; min-width:0; }
+  .sum-card .sc-title { font-size:.78rem; color:#6b7280; font-weight:600; }
+  .sum-card .sc-value { font-size:1rem; font-weight:700; margin-top:.15rem; overflow-wrap:anywhere; }
+  .sum-card .sc-sub { font-size:.75rem; color:#6b7280; margin-top:.1rem; overflow-wrap:anywhere; }
+  .sum-card.ok { border-left-color:#16a34a; } .sum-card.ok .sc-value { color:#15803d; }
+  .sum-card.warn { border-left-color:#f59e0b; } .sum-card.warn .sc-value { color:#b45309; }
+  .sum-card.bad { border-left-color:#dc2626; } .sum-card.bad .sc-value { color:#b91c1c; }
+
+  /* Grafico dei satelliti: scorre in orizzontale quando i satelliti sono tanti */
+  .sat-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .sat-scroll canvas#sat-chart { width:auto; }
+
+  /* --- Computer con schermo largo: riquadri su due colonne ------------------ */
+  @media (min-width: 1100px) {
+    body { max-width:1160px; }
+    .page.active { column-count:2; column-gap:1.2rem; }
+    .page.active > fieldset, .page.active > details { break-inside:avoid; display:block; }
+    .page.active > div, .page.active > .summary-cards { column-span:all; }
+  }
+
+  /* --- Tema scuro automatico (telefono o computer in modalita' scura) ----- */
+  @media (prefers-color-scheme: dark) {
+    :root { --page-bg:#111827; }
+    body[data-active-mode="base"] { --page-bg:#0f1b33; }
+    body[data-active-mode="rover"] { --page-bg:#0d2418; }
+    body { color:#e5e7eb; }
+    fieldset, .sum-card { background:#1f2937; border-color:#374151; }
+    legend, label { color:#e5e7eb; }
+    dl.kv dt, small.hint, .hint, .sum-card .sc-title, .sum-card .sc-sub { color:#9ca3af; }
+    input, select, textarea { background:#111827; color:#e5e7eb; border-color:#4b5563; }
+    nav.tabs button { background:#1f2937; color:#e5e7eb; border-color:#4b5563; }
+    nav.tabs button.active { background:var(--mode-accent); color:#fff; }
+    .qs-chip { background:#374151; color:#d1d5db; }
+    .top-bar { box-shadow:none; }
+    pre, code { color:#e5e7eb; }
+    .search-result-item { background:#1f2937; color:#e5e7eb; }
+    .sum-card.ok .sc-value { color:#4ade80; } .sum-card.warn .sc-value { color:#fbbf24; } .sum-card.bad .sc-value { color:#f87171; }
+  }
 </style>
 </head>
 <body>
@@ -171,6 +219,7 @@
 <form id="cfg-form">
 
 <div id="page-status" class="page active">
+  <div id="summary-cards" class="summary-cards"></div>
   <div id="measure-banner" style="display:none; background:#dbeafe; color:#1e3a8a; border:2px solid #60a5fa; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
     <b>📡 Misura della posizione base in corso</b> (la base lavora come rover, poi torna base da sola)
     <div id="measure-progress" style="margin-top:.3rem; font-size:.9rem"></div>
@@ -276,6 +325,7 @@
         <div style="font-size:.8rem; color:#6b7280">Ultimi 30 giorni: <span style="color:#f59e0b">■</span> cellulare <span style="color:#3b82f6">■</span> WiFi</div></dd>
       <dt>Cadute del caster</dt><dd id="st-outages">-</dd>
       <dt>Temperatura chip</dt><dd id="st-temp">-</dd>
+      <dt>Ricevitore GNSS</dt><dd id="st-gnss-sys">-</dd>
       <dt>Memoria libera</dt><dd id="st-heap-free">-</dd>
       <dt>Memoria minima mai raggiunta</dt><dd id="st-heap-min">-</dd>
       <dt>Memoria totale</dt><dd id="st-heap-total">-</dd>
@@ -827,6 +877,22 @@
     <button type="button" class="action secondary" id="sim-sms-del-btn">Cancella tutti</button>
     <div id="sim-sms-list" style="margin-top:.6rem"></div>
   </fieldset>
+  <fieldset>
+    <legend>🌍 Monitoraggio remoto</legend>
+    <small class="hint">
+      Quando la base e' collegata solo via SIM, da fuori il pannello non si raggiunge. Con questa opzione
+      la base manda ogni tot minuti un riassunto del suo stato (caster, posizione, memoria, temperatura,
+      ultimo riavvio, traffico, credito) a un indirizzo web tuo, con un POST JSON: per esempio una pagina
+      sul tuo server. Non contiene impostazioni ne' password.
+    </small>
+    <label>Indirizzo (http:// o https://)<input name="remote_url" placeholder="https://rtk.evo-net.it/api/basi/stato"></label>
+    <label>Ogni quanti minuti (0 = spento)<input name="remote_interval_min" type="number" min="0" max="1440" step="1"></label>
+    <div class="hint" id="remote-last" style="margin-top:.4rem"></div>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="remote_url,remote_interval_min">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
 </div>
 
 <div id="page-security" class="page">
@@ -990,7 +1056,8 @@
 
   <fieldset>
     <legend>🛰️ Satelliti GNSS (C/N0 per satellite)</legend>
-    <canvas id="sat-chart" width="620" height="180"></canvas>
+    <div class="sat-scroll"><canvas id="sat-chart" width="620" height="180"></canvas></div>
+    <div class="hint" id="sat-scroll-hint" style="display:none">⇆ Scorri il grafico per vedere tutti i satelliti</div>
     <div class="legend-row">
       <span class="legend-dot" style="background:#2563eb"></span>GPS
       <span class="legend-dot" style="background:#dc2626; margin-left:.8rem"></span>GLONASS
@@ -1719,9 +1786,25 @@ async function loadStatus() {
     updateModeBadge(activeDeviceMode, s.device_mode === 'rover' ? 'rover' : 'base', s.ap_ssid);
     updateModeVisibility();
     update1005Banner(s);
+    updateSummaryCards(s);
+    {
+      // Ricevitore (UBX-MON-SYS): temperatura, carico, memoria, avvisi.
+      const el = document.getElementById('st-gnss-sys');
+      if (s.gnss_temp_c === undefined) {
+        el.textContent = 'non disponibile (solo ricevitori u-blox in base)';
+        el.style.color = '';
+      } else {
+        const hrs = Math.floor((s.gnss_run_time_s || 0) / 3600), mins = Math.floor((s.gnss_run_time_s || 0) % 3600 / 60);
+        el.textContent = s.gnss_temp_c + ' °C (max ' + s.gnss_temp_max_c + ' °C) · CPU ' + s.gnss_cpu_load + '% · memoria ' + s.gnss_mem_usage +
+          '% · acceso da ' + (hrs ? hrs + ' h ' : '') + mins + ' min' + (s.gnss_errors ? ' · ' + s.gnss_errors + ' errori' : '');
+        el.style.color = s.gnss_temp_c >= 75 || s.gnss_errors ? '#dc2626' : (s.gnss_temp_c >= 65 ? '#b45309' : '');
+      }
+    }
     updateReliabilityUi(s);
     updateSimRenewBanner(s);
     updateSimUi(s);
+    document.getElementById('remote-last').textContent = s.remote_interval_min > 0
+      ? 'Ultimo invio: ' + (s.remote_last || 'non ancora fatto') : 'Spento';
     updateMeasureUi(s);
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
@@ -1775,6 +1858,8 @@ async function loadStatus() {
       f.cellular_apn.value = s.cellular_apn || '';
       f.data_plan_gb.value = (s.data_plan_mb || 0) / 1000;
       f.sim_operator.value = s.sim_operator || '';
+      f.remote_url.value = s.remote_url || '';
+      f.remote_interval_min.value = s.remote_interval_min || 0;
       f.sim_credit_mode.value = s.sim_credit_mode || 'ussd';
       f.sim_credit_code.value = s.sim_credit_code || '';
       f.sim_credit_sms_number.value = s.sim_credit_sms_number || '';
@@ -1924,6 +2009,16 @@ function updateSatCount(sats) {
 
 function drawSatChart(sats) {
   const canvas = document.getElementById('sat-chart');
+  // Disegnato alla larghezza reale (prima 620 px rimpiccioliti: su telefono
+  // barre e numeri minuscoli); con molti satelliti almeno 16 px ciascuno e
+  // il grafico scorre in orizzontale.
+  const wrapW = canvas.parentNode.clientWidth || 620;
+  const needW = sats.length * 16 + 8;
+  const cw = Math.max(wrapW, needW);
+  if (canvas.width !== cw) canvas.width = cw;
+  canvas.style.width = cw + 'px';
+  const hint = document.getElementById('sat-scroll-hint');
+  if (hint) hint.style.display = needW > wrapW ? '' : 'none';
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
@@ -2346,6 +2441,7 @@ async function loadSignals() {
     const r = await fetch('/api/signals');
     const s = await r.json();
     updateNtripFlow(s);
+    lastSignals = s;
     drawSatChart(s.satellites || []);
     updateSatCount(s.satellites || []);
     setSignalBar('wifi-sig-bar', 'wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
@@ -2419,7 +2515,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 // parametro) e il fallback "salva tutto" qui sotto, per non doverlo
 // mantenere in due posti.
 const NUMBER_FIELDS = new Set([
-  'data_plan_gb', 'sim_credit_every_days', 'sim_credit_hour', 'sim_credit_min_eur', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
+  'remote_interval_min', 'data_plan_gb', 'sim_credit_every_days', 'sim_credit_hour', 'sim_credit_min_eur', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
   'ntrip_port', 'nmea_udp_port', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
   'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
@@ -3156,7 +3252,7 @@ function updateSimUi(s) {
   const mod = { sim7600_lilygo: 'SIM7600 (LilyGO)', sim7600_simcom: 'SIM7600 (SIMCom originale)', sim868: 'SIM868' };
   document.getElementById('sim-module').textContent = mod[s.cellular_module] || '-';
   document.getElementById('sim-iccid').textContent = s.sim_iccid || 'non letto (modem assente o SIM non inserita)';
-  document.getElementById('sim-net').textContent = s.net === 'cellular' ? 'cellulare (questa SIM)' : (s.net === 'wifi' ? 'WiFi (SIM non usata ora)' : (s.net || '-'));
+  document.getElementById('sim-net').textContent = s.net === 'cellulare' ? 'cellulare (questa SIM)' : (s.net === 'wifi' ? 'WiFi (SIM non usata ora)' : (s.net || '-'));
   const eur = document.getElementById('sim-credit-eur');
   if (s.sim_credit_at) {
     eur.textContent = s.sim_credit_eur !== undefined ? s.sim_credit_eur.toFixed(2).replace('.', ',') + ' €' : 'importo non riconosciuto';
@@ -3226,6 +3322,75 @@ document.getElementById('sim-sms-read-btn').addEventListener('click', () => simA
 document.getElementById('sim-sms-del-btn').addEventListener('click', () => {
   if (confirm('Cancellare tutti gli SMS dalla SIM?')) simAction({ action: 'delete_sms' }, loadSms);
 });
+
+// --- Riquadri riassuntivi della scheda Stato ------------------------------------
+// Verde/giallo/rosso a colpo d'occhio; toccandone uno si va ai dettagli.
+let lastSignals = null;
+function sumCard(id, title, cls, value, sub, target) {
+  return '<div class="sum-card ' + cls + '" data-target="' + target + '"><div class="sc-title">' + title +
+    '</div><div class="sc-value">' + value + '</div><div class="sc-sub">' + (sub || '') + '</div></div>';
+}
+function updateSummaryCards(s) {
+  const box = document.getElementById('summary-cards');
+  if (!box) return;
+  const cards = [];
+  // Caster
+  if (s.ntrip_connected) {
+    cards.push(sumCard('c', '📡 Caster', 'ok', 'Collegato', s.ntrip_mountpoint ? '/' + (activeDeviceMode === 'rover' ? s.rover_mountpoint : s.ntrip_mountpoint) : '', 'page-status'));
+  } else {
+    cards.push(sumCard('c', '📡 Caster', 'bad', 'Scollegato', String(s.ntrip_last_error || '').slice(0, 60), 'page-gnss'));
+  }
+  // Posizione (base) o fix (rover)
+  if (activeDeviceMode === 'base') {
+    const age = s.base_position_age_s;
+    if (age !== undefined && age >= 0 && age <= 30) {
+      cards.push(sumCard('p', '📍 Posizione base', 'ok', 'Inviata', s.base_position_mode === 'manual' ? 'coordinate fisse' : 'da survey-in', 'page-gnss'));
+    } else if (s.svin_active) {
+      cards.push(sumCard('p', '📍 Posizione base', 'warn', 'Survey-in', (s.svin_mean_acc_m || 0).toFixed(1) + ' m su ' + (s.base_svin_acc_m || 0.25) + ' m richiesti', 'page-gnss'));
+    } else {
+      cards.push(sumCard('p', '📍 Posizione base', 'bad', 'Non inviata', 'i rover non possono fare RTK', 'page-gnss'));
+    }
+  } else if (lastSignals) {
+    const q = lastSignals.gnss_fix_quality;
+    const cls = q === 4 ? 'ok' : (q === 5 || q === 2 ? 'warn' : 'bad');
+    cards.push(sumCard('p', '🎯 Fix', cls, lastSignals.gnss_fix_valid ? (lastSignals.gnss_fix_quality_str || '-') : 'Nessun dato', '', 'page-signals'));
+  }
+  // Satelliti
+  if (lastSignals) {
+    const sats = lastSignals.satellites || [];
+    const good = sats.filter((x) => x.snr >= 35).length;
+    const cls = good >= 8 ? 'ok' : (good >= 4 ? 'warn' : 'bad');
+    cards.push(sumCard('s', '🛰️ Satelliti', cls, good + ' buoni', 'su ' + sats.length + ' in vista', 'page-signals'));
+  }
+  // Sistema
+  const freeKb = Math.round((s.free_heap_bytes || 0) / 1024);
+  const temp = s.chip_temp_c;
+  const sysCls = (freeKb < 16 || (temp && temp >= 70)) ? 'bad' : ((freeKb < 30 || (temp && temp >= 60)) ? 'warn' : 'ok');
+  cards.push(sumCard('y', '⚙️ Sistema', sysCls, freeKb + ' KB liberi', (temp ? 'ESP ' + temp.toFixed(0) + ' °C · ' : '') + (s.gnss_temp_c !== undefined ? 'GNSS ' + s.gnss_temp_c + ' °C · ' : '') + 'CPU ' + Math.round(Math.max(s.cpu0_percent || 0, s.cpu1_percent || 0)) + '%', 'page-status'));
+  // SIM
+  if (s.cellular_module) {
+    let cls = 'ok', val = 'Pronta', sub = '';
+    if (s.sim_credit_eur !== undefined) {
+      val = s.sim_credit_eur.toFixed(2).replace('.', ',') + ' €';
+      if (s.sim_credit_min_eur > 0 && s.sim_credit_eur < s.sim_credit_min_eur) cls = 'bad';
+    } else {
+      val = s.net === 'cellulare' ? 'In uso' : 'Non in uso';
+      cls = s.net === 'cellulare' ? 'ok' : 'warn';
+    }
+    if (s.data_plan_mb > 0) {
+      const pct = Math.round(100 * (s.data_cell_month_bytes || 0) / (s.data_plan_mb * 1e6));
+      sub = 'piano dati ' + pct + '%';
+      if (pct >= 90) cls = 'bad'; else if (pct >= 70 && cls === 'ok') cls = 'warn';
+    }
+    if (s.sim_renew_days_left !== undefined && s.sim_renew_days_left <= (s.sim_notice1_days || 7)) {
+      sub += (sub ? ' · ' : '') + (s.sim_renew_days_left < 0 ? 'rinnovo scaduto' : 'rinnovo tra ' + s.sim_renew_days_left + ' g');
+      if (s.sim_renew_days_left < 0) cls = 'bad'; else if (cls === 'ok') cls = 'warn';
+    }
+    cards.push(sumCard('m', '📱 SIM', cls, val, sub, 'page-sim'));
+  }
+  box.innerHTML = cards.join('');
+  box.querySelectorAll('.sum-card').forEach((c) => c.addEventListener('click', () => goToPage(c.dataset.target)));
+}
 
 function update1005Banner(s) {
   const box = document.getElementById('no-1005-banner');

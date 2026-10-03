@@ -185,10 +185,14 @@ void fw_archive_save_current(void)
     // Copia l'intera dimensione della partizione (non solo l'immagine
     // effettiva, che richiederebbe analizzare l'header per la dimensione
     // esatta): piu' semplice e sicuro, lo spazio su SD e' abbondante.
-    uint8_t buf[4096];
-    bool ok = true;
-    for (size_t off = 0; off < running->size; off += sizeof(buf)) {
-        size_t chunk = running->size - off < sizeof(buf) ? running->size - off : sizeof(buf);
+    // Allocato (prima 4 KB sullo stack): questa funzione gira anche dentro il
+    // task del server web, prima di un aggiornamento, e lo stack non bastava
+    // (crash rari durante gli aggiornamenti, ottobre 2026).
+    const size_t buf_size = 4096;
+    uint8_t *buf = malloc(buf_size);
+    bool ok = buf != NULL;
+    for (size_t off = 0; ok && off < running->size; off += buf_size) {
+        size_t chunk = running->size - off < buf_size ? running->size - off : buf_size;
         if (esp_partition_read(running, off, buf, chunk) != ESP_OK) {
             ok = false;
             break;
@@ -199,6 +203,7 @@ void fw_archive_save_current(void)
         }
     }
     fclose(f);
+    free(buf);
 
     if (!ok) {
         ESP_LOGW(TAG, "Copia della partizione fallita, rimuovo il file incompleto");

@@ -109,6 +109,7 @@ static void fw_archive_save_current_task(void *arg)
     // all'avvio (visto sul dispositivo, 1.19.68).
     vTaskDelay(pdMS_TO_TICKS(30000));
     fw_archive_save_current();
+    ESP_LOGI(TAG, "Archivio firmware: stack libero minimo %u byte", (unsigned) uxTaskGetStackHighWaterMark(NULL));
     vTaskDelete(NULL);
 }
 

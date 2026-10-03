@@ -2,6 +2,25 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.92 - 1.19.98
+
+- **Pannello**:
+  - **riquadri riassuntivi** in cima alla scheda Stato (Caster, Posizione base o Fix, Satelliti, Sistema, SIM), verdi/gialli/rossi; toccandoli si va ai dettagli;
+  - **grafico dei satelliti** disegnato alla larghezza vera dello schermo (prima 620 px rimpiccioliti: illeggibile su telefono), almeno 16 px per satellite, con scorrimento orizzontale quando sono tanti;
+  - **icona per la schermata Home** del telefono (`/manifest.json`, `/icon192.png`, meta per iPhone): il pannello si apre a schermo intero come un'app;
+  - **tema scuro automatico** se il dispositivo e' in modalita' scura;
+  - **due colonne** di riquadri sugli schermi da computer larghi (oltre 1100 px);
+  - corretto: nella scheda SIM la rete cellulare non veniva riconosciuta ("cellular" invece di "cellulare").
+- **WiFi senza risparmio energetico** (`esp_wifi_set_ps(WIFI_PS_NONE)`): la base e' sempre alimentata; con il risparmio il pannello a tratti rispondeva in secondi.
+- **Monitoraggio remoto** (nuovo `remote_status.c`, riquadro nella scheda Rete): ogni N minuti un POST JSON con lo stato della base (caster, posizione, memoria, temperature, ultimo riavvio e crash, traffico, credito) a un indirizzo scelto. Spento per impostazione predefinita. Serve una pagina che lo riceva sul server.
+- **Temperatura e stato del ricevitore u-blox** (UBX-MON-SYS, interrogato ogni minuto in base): lo ZED-F9P HPG 1.51 risponde anche se il messaggio non e' nelle note ufficiali. Temperatura (con massima), carico CPU, memoria, da quanto e' acceso, avvisi ed errori: nella scheda Stato e nel riquadro Sistema. Verificato: 43-46 °C.
+- **Crash rari dopo gli aggiornamenti: causa trovata e corretta.** Erano traboccamenti di stack che corrompevano la memoria vicina, con crash in moduli sempre diversi (driver WiFi, pthread, lucchetti di FreeRTOS):
+  - strumenti aggiunti per trovarli: watchpoint hardware a fine stack (`CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK`), nome del task e i 3 stack piu' bassi nel registratore dei crash, elenco dei task con meno stack nel log (a 20 e 50 s dall'avvio, poi ogni 10 minuti);
+  - **`net_manager`** aveva 416 byte liberi su 8 KB: due copie della configurazione sullo stack piu' la scansione WiFi, e la configurazione era cresciuta nella 1.19.92. Ora legge solo la modalita' di rete e ha 10 KB;
+  - **server web**: l'archiviazione del firmware prima di un aggiornamento gira nel suo task, con un buffer da 4 KB sullo stack. Buffer ora allocato, stack del server da 10 a 12 KB;
+  - stack alzati anche per log diagnostico (6 KB, che dalla 1.19.84 scrive anche la copia della configurazione), `auto_update` (5 KB) e `sys_mon` (4,5 KB);
+  - verificato: 1.19.92, 1.19.93, 1.19.94 e 1.19.97 erano tutte andate in crash dopo l'aggiornamento (sempre recuperate dal ritorno automatico); la 1.19.98 ha superato due aggiornamenti di seguito senza crash.
+
 ## 1.19.91
 
 - **Schede su piu' righe su telefono** (richiesta dell'utente: sempre tutte a vista): griglia da 3 colonne nell'intestazione fissa, 9 schede su 3 righe, invece della riga scorrevole. Su telefono "GNSS & NTRIP" diventa "GNSS" per stare anche su schermi da 360 px. Sul computer nulla cambia.

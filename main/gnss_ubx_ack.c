@@ -2,6 +2,7 @@
 #include "status.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -180,6 +181,9 @@ bool gnss_ubx_ack_feed_byte(uint8_t c)
                 memcpy(ext, s_payload + off, 30);
                 ESP_LOGI(TAG, "UBX-MON-VER extension: \"%s\"", ext);
             }
+        } else if (checksum_ok && s_class == 0x0A && s_id == 0x39) {
+            // UBX-MON-SYS: temperatura e stato interno del ricevitore.
+            status_gnss_sys_note(s_payload, s_len);
         } else if (!checksum_ok) {
             ESP_LOGD(TAG, "Frame UBX con checksum non valido scartato (classe 0x%02X id 0x%02X)", s_class, s_id);
         }

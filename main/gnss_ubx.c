@@ -296,6 +296,7 @@ static void svin_poll_task(void *arg)
     uart_port_t uart_num = (uart_port_t) (intptr_t) arg;
     bool logged_valid = false;
     int64_t last_log_us = 0;
+    int loop_count = 0;
     while (1) {
         if (ubx_send(uart_num, 0x01, 0x3B, NULL, 0) == ESP_OK) {
             // Nessun ACK per un poll: l'attesa serve solo a tenere aperta la
@@ -303,6 +304,11 @@ static void svin_poll_task(void *arg)
             // risposta. I messaggi NAV polled partono alla soluzione di
             // navigazione successiva, fino a 1 s dopo (con 300 ms, come per
             // MON-VER, la risposta non arrivava mai in tempo).
+            gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
+        }
+        // Ogni minuto anche UBX-MON-SYS: temperatura e stato del ricevitore
+        // (lo ZED-F9P HPG 1.51 risponde, verificato il 03/10/2026).
+        if (loop_count++ % 6 == 0 && ubx_send(uart_num, 0x0A, 0x39, NULL, 0) == ESP_OK) {
             gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
         }
         svin_status_t sv = status_svin_get();

@@ -9,6 +9,7 @@
 #include "data_usage.h"
 #include "sim_plan.h"
 #include "sim_tools.h"
+#include "remote_status.h"
 #include "online_update.h"
 #include "status.h"
 #include "log_buffer.h"
@@ -60,6 +61,8 @@ static const char *TAG = "web_ui";
 static SemaphoreHandle_t s_settings_edit_mutex;
 
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
+extern const uint8_t icon192_png_start[] asm("_binary_icon192_png_start");
+extern const uint8_t icon192_png_end[]   asm("_binary_icon192_png_end");
 extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
 
 // HTTP Basic Auth, utente fisso "admin" + codice impostabile dalla UI
@@ -180,6 +183,22 @@ static esp_err_t index_get_handler(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     size_t len = index_html_end - index_html_start;
     return httpd_resp_send(req, (const char *) index_html_start, len);
+}
+
+// Icona e "manifesto" per aggiungere il pannello alla schermata Home del
+// telefono (si apre a schermo intero, come un'app). Senza autenticazione:
+// non contengono nulla di riservato e il browser li chiede senza credenziali.
+static esp_err_t icon_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "image/png");
+    httpd_resp_set_hdr(req, "Cache-Control", "max-age=86400");
+    return httpd_resp_send(req, (const char *) icon192_png_start, icon192_png_end - icon192_png_start);
+}
+
+static esp_err_t manifest_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/manifest+json");
+    return httpd_resp_sendstr(req, "{\"name\":\"EVONETRTK\",\"short_name\":\"EVONETRTK\",\"start_url\":\"/\",\"display\":\"standalone\",\"background_color\":\"#e8f0fe\",\"theme_color\":\"#2563eb\",\"icons\":[{\"src\":\"/icon192.png\",\"sizes\":\"192x192\",\"type\":\"image/png\",\"purpose\":\"any maskable\"}]}");
 }
 
 static const char *net_status_str(net_status_t s)
@@ -471,8 +490,24 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "alert_threshold_min", s.alert_threshold_min);
     cJSON_AddStringToObject(root, "last_reset", sys_stats_last_reset());
     {
+        // Ricevitore GNSS (UBX-MON-SYS): temperatura e stato interno.
+        gnss_sys_status_t gs = status_gnss_sys_get();
+        if (gs.have) {
+            cJSON_AddNumberToObject(root, "gnss_temp_c", gs.temp_c);
+            cJSON_AddNumberToObject(root, "gnss_temp_max_c", gs.temp_max_c);
+            cJSON_AddNumberToObject(root, "gnss_cpu_load", gs.cpu_load);
+            cJSON_AddNumberToObject(root, "gnss_mem_usage", gs.mem_usage);
+            cJSON_AddNumberToObject(root, "gnss_run_time_s", gs.run_time_s);
+            cJSON_AddNumberToObject(root, "gnss_warnings", gs.warnings);
+            cJSON_AddNumberToObject(root, "gnss_errors", gs.errors);
+        }
+    }
+    {
         // Gestione della SIM: impostazioni del credito e ultimo esito.
         cJSON_AddStringToObject(root, "sim_operator", s.sim_operator);
+        cJSON_AddStringToObject(root, "remote_url", s.remote_url);
+        cJSON_AddNumberToObject(root, "remote_interval_min", s.remote_interval_min);
+        cJSON_AddStringToObject(root, "remote_last", remote_status_last_result());
         cJSON_AddStringToObject(root, "sim_credit_mode", s.sim_credit_mode == 1 ? "sms" : "ussd");
         cJSON_AddStringToObject(root, "sim_credit_code", s.sim_credit_code);
         cJSON_AddStringToObject(root, "sim_credit_sms_number", s.sim_credit_sms_number);
@@ -906,6 +941,13 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_field(root, "cellular_apn", s.cellular_apn, sizeof(s.cellular_apn));
     // Credito della SIM (sim_tools.c): campi che si possono anche svuotare.
     copy_field_allow_empty(root, "sim_operator", s.sim_operator, sizeof(s.sim_operator));
+    copy_field_allow_empty(root, "remote_url", s.remote_url, sizeof(s.remote_url));
+    {
+        cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "remote_interval_min");
+        if (it && cJSON_IsNumber(it) && it->valueint >= 0 && it->valueint <= 1440) {
+            s.remote_interval_min = (uint16_t) it->valueint;
+        }
+    }
     copy_field_allow_empty(root, "sim_credit_code", s.sim_credit_code, sizeof(s.sim_credit_code));
     copy_field_allow_empty(root, "sim_credit_sms_number", s.sim_credit_sms_number, sizeof(s.sim_credit_sms_number));
     copy_field_allow_empty(root, "sim_credit_sms_text", s.sim_credit_sms_text, sizeof(s.sim_credit_sms_text));
@@ -2485,7 +2527,7 @@ void web_ui_start(void)
     // serva per gestire richieste normali - confermato da un crash reale
     // su hardware (stessa causa, in un task diverso, del fix allo stack
     // del task "main" durante l'init WiFi fatto in precedenza).
-    config.stack_size = 10240;
+    config.stack_size = 12288; // 12 KB (era 10): margine per gestore aggiornamenti e risposta di stato
 
     httpd_handle_t server = NULL;
     if (httpd_start(&server, &config) != ESP_OK) {
@@ -2494,6 +2536,8 @@ void web_ui_start(void)
     }
 
     httpd_uri_t index_uri      = { .uri = "/",              .method = HTTP_GET,  .handler = index_get_handler };
+    httpd_uri_t icon_uri       = { .uri = "/icon192.png",   .method = HTTP_GET,  .handler = icon_get_handler };
+    httpd_uri_t manifest_uri   = { .uri = "/manifest.json", .method = HTTP_GET,  .handler = manifest_get_handler };
     httpd_uri_t status_uri     = { .uri = "/api/status",     .method = HTTP_GET,  .handler = status_get_handler };
     httpd_uri_t signals_uri    = { .uri = "/api/signals",    .method = HTTP_GET,  .handler = signals_get_handler };
     httpd_uri_t settings_uri   = { .uri = "/api/settings",   .method = HTTP_POST, .handler = settings_post_handler };
@@ -2526,6 +2570,8 @@ void web_ui_start(void)
     httpd_uri_t fw_archive_apply_uri = { .uri = "/api/firmware-archive/apply", .method = HTTP_POST, .handler = fw_archive_apply_post_handler };
 
     httpd_register_uri_handler(server, &index_uri);
+    httpd_register_uri_handler(server, &icon_uri);
+    httpd_register_uri_handler(server, &manifest_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
     httpd_register_uri_handler(server, &ntrip_mountpoints_uri);
     httpd_register_uri_handler(server, &ntrip_test_uri);

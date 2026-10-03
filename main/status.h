@@ -132,3 +132,20 @@ typedef struct {
 
 void status_svin_note(bool active, bool valid, uint32_t duration_s, float mean_acc_m, uint32_t observations);
 svin_status_t status_svin_get(void);
+
+// Stato interno del ricevitore u-blox (UBX-MON-SYS, letto ogni minuto in
+// base): temperatura, carico, memoria, da quanto e' acceso, contatori di
+// avvisi ed errori. Verificato sullo ZED-F9P HPG 1.51 (03/10/2026).
+typedef struct {
+    bool have;
+    int8_t temp_c;
+    int8_t temp_max_c;
+    uint8_t cpu_load, cpu_load_max;
+    uint8_t mem_usage, mem_usage_max;
+    uint32_t run_time_s;
+    uint16_t notices, warnings, errors;
+    int64_t last_update_us;
+} gnss_sys_status_t;
+
+void status_gnss_sys_note(const uint8_t *payload, uint16_t len);
+gnss_sys_status_t status_gnss_sys_get(void);

@@ -386,6 +386,13 @@ typedef struct {
     uint16_t sim_credit_every_days;
     uint8_t sim_credit_hour;
     float sim_credit_min_eur;
+
+    // Monitoraggio remoto (remote_status.c): ogni remote_interval_min minuti
+    // (0 = spento) la base manda un riassunto del suo stato in JSON, con un
+    // POST HTTP/HTTPS, a remote_url. Utile quando e' raggiungibile solo via
+    // LTE (il pannello non e' raggiungibile da fuori).
+    char remote_url[96];
+    uint16_t remote_interval_min;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

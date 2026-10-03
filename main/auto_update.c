@@ -54,5 +54,5 @@ static void auto_update_task(void *arg)
 
 void auto_update_start(void)
 {
-    xTaskCreate(auto_update_task, "auto_update", 4096, NULL, 3, NULL);
+    xTaskCreate(auto_update_task, "auto_update", 5120, NULL, 3, NULL); // 5 KB: copia della configurazione sullo stack, con 4 KB restavano ~800 byte
 }

@@ -6,6 +6,7 @@
 #include "data_usage.h"
 #include "sim_plan.h"
 #include "sim_tools.h"
+#include "remote_status.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -296,6 +297,7 @@ static void alerts_task(void *arg)
         app_settings_t s = settings_get();
         sim_plan_tick(&s);  // rinnovo della SIM: promemoria anche con gli altri avvisi spenti
         sim_tools_tick(&s); // credito, SMS (anche con gli altri avvisi spenti)
+        remote_status_tick(&s); // monitoraggio remoto, se impostato
         if (!s.alert_enable) {
             already_alerted = false;
             already_alerted_drift = false;

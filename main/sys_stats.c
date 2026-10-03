@@ -1,4 +1,5 @@
 #include "sys_stats.h"
+#include "esp_attr.h"
 #include "ota_update.h"
 #include "data_usage.h"
 
@@ -149,6 +150,10 @@ static TaskStatus_t s_mon_tasks[MON_MAX_TASKS];
 static mon_prev_t s_mon_prev[MON_MAX_TASKS];
 static UBaseType_t s_mon_prev_n;
 
+// Ultima misura (ogni 5 s) dei 3 task con meno stack libero, conservata
+// anche dopo un crash: dice chi era al limite.
+static RTC_NOINIT_ATTR char s_low_stacks_rtc[64];
+
 static uint32_t prev_runtime(TaskHandle_t h, bool *found)
 {
     for (UBaseType_t i = 0; i < s_mon_prev_n; i++) {
@@ -241,6 +246,62 @@ static void sys_monitor_task(void *arg)
             continue; // array troppo piccolo: non dovrebbe succedere
         }
 
+        // Task con meno stack libero (a 20 s e 50 s dall'avvio, poi ogni 10
+        // minuti): per trovare chi trabocca (crash rari dopo gli
+        // aggiornamenti, ottobre 2026). Usa l'elenco appena letto sopra.
+        {
+            static int stack_reports;
+            static int64_t last_stack_report;
+            bool due = (stack_reports == 0 && now > 20LL * 1000000) || (stack_reports == 1 && now > 50LL * 1000000) ||
+                       (stack_reports >= 2 && now - last_stack_report >= 600LL * 1000000);
+            if (due) {
+                stack_reports++;
+                last_stack_report = now;
+                char line[200];
+                size_t pos = 0;
+                bool used[MON_MAX_TASKS] = {0};
+                for (int k = 0; k < 6; k++) {
+                    int best = -1;
+                    for (UBaseType_t i = 0; i < n; i++) {
+                        if (!used[i] && (best < 0 || s_mon_tasks[i].usStackHighWaterMark < s_mon_tasks[best].usStackHighWaterMark)) {
+                            best = (int) i;
+                        }
+                    }
+                    if (best < 0) {
+                        break;
+                    }
+                    used[best] = true;
+                    int w = snprintf(line + pos, sizeof(line) - pos, "%s%s %u", pos ? ", " : "",
+                                     s_mon_tasks[best].pcTaskName, (unsigned) s_mon_tasks[best].usStackHighWaterMark);
+                    if (w < 0 || (size_t) w >= sizeof(line) - pos) {
+                        break;
+                    }
+                    pos += (size_t) w;
+                }
+                ESP_LOGI(MON_TAG, "Stack libero minimo (byte): %s", line);
+            }
+        }
+        {
+            // I 3 task con meno stack libero adesso, in memoria RTC (vedi sopra).
+            char tmp[64];
+            size_t pos = 0;
+            bool used3[MON_MAX_TASKS] = {0};
+            for (int k = 0; k < 3; k++) {
+                int best = -1;
+                for (UBaseType_t i = 0; i < n; i++) {
+                    if (!used3[i] && (best < 0 || s_mon_tasks[i].usStackHighWaterMark < s_mon_tasks[best].usStackHighWaterMark)) {
+                        best = (int) i;
+                    }
+                }
+                if (best < 0) break;
+                used3[best] = true;
+                int w = snprintf(tmp + pos, sizeof(tmp) - pos, "%s%.10s %u", pos ? "," : "",
+                                 s_mon_tasks[best].pcTaskName, (unsigned) s_mon_tasks[best].usStackHighWaterMark);
+                if (w < 0 || (size_t) w >= sizeof(tmp) - pos) break;
+                pos += (size_t) w;
+            }
+            memcpy(s_low_stacks_rtc, tmp, sizeof(tmp));
+        }
         bool have_prev = s_mon_prev_n > 0;
         for (UBaseType_t i = 0; i < n; i++) {
             bool found;
@@ -288,7 +349,7 @@ static void sys_monitor_task(void *arg)
 
 void sys_stats_monitor_start(void)
 {
-    xTaskCreate(sys_monitor_task, "sys_mon", 3584, NULL, 1, NULL);
+    xTaskCreate(sys_monitor_task, "sys_mon", 4608, NULL, 1, NULL); // 4,5 KB: con elenco dei task e misure dello stack ne restavano meno di 1
 }
 
 // ---------------------------------------------------------------------------
@@ -415,10 +476,12 @@ typedef struct {
     int core;
     char reason[48];
     char details[64];   // per abort(): "abort() was called at PC ..."
+    char descr[32];     // task in esecuzione al momento del crash
 } crash_note_t;
 
 static RTC_NOINIT_ATTR crash_note_t s_crash_note;
-static char s_crash_text[200];
+static char s_low_stacks_prev[64];
+static char s_crash_text[260];
 
 extern char *g_panic_abort_details;
 extern void __real_esp_panic_handler(panic_info_t *info);
@@ -443,6 +506,10 @@ IRAM_ATTR void __wrap_esp_panic_handler(panic_info_t *info)
     s_crash_note.core = info->core;
     copy_str(s_crash_note.reason, sizeof(s_crash_note.reason), info->reason);
     copy_str(s_crash_note.details, sizeof(s_crash_note.details), g_panic_abort_details);
+    // Nome del task in esecuzione (per un watchpoint di fine stack e' il task
+    // che e' traboccato), come fa il gestore di ESP-IDF.
+    TaskHandle_t cur = xTaskGetCurrentTaskHandleForCore(info->core);
+    copy_str(s_crash_note.descr, sizeof(s_crash_note.descr), cur ? pcTaskGetName(cur) : "?");
     __real_esp_panic_handler(info);
 }
 
@@ -451,12 +518,20 @@ void sys_stats_crash_report(void)
     if (s_crash_note.magic == CRASH_MAGIC && esp_reset_reason() == ESP_RST_PANIC) {
         s_crash_note.reason[sizeof(s_crash_note.reason) - 1] = 0;
         s_crash_note.details[sizeof(s_crash_note.details) - 1] = 0;
+        s_crash_note.descr[sizeof(s_crash_note.descr) - 1] = 0;
+        s_low_stacks_rtc[sizeof(s_low_stacks_rtc) - 1] = 0;
+        memcpy(s_low_stacks_prev, s_low_stacks_rtc, sizeof(s_low_stacks_prev));
         // Il chiamante e' salvato senza i 2 bit alti dell'indirizzo (convenzione
         // xtensa): si rimettono a 0x40 per poterlo cercare nel file .elf.
         uint32_t caller = s_crash_note.caller ? ((s_crash_note.caller & 0x3FFFFFFF) | 0x40000000) : 0;
-        snprintf(s_crash_text, sizeof(s_crash_text), "%s, core %d, PC 0x%08lx, chiamato da 0x%08lx%s%s",
-                 s_crash_note.reason, s_crash_note.core, (unsigned long) s_crash_note.pc, (unsigned long) caller,
+        snprintf(s_crash_text, sizeof(s_crash_text), "%s%s%s, core %d, PC 0x%08lx, chiamato da 0x%08lx%s%s",
+                 s_crash_note.reason, s_crash_note.descr[0] ? ", task " : "", s_crash_note.descr,
+                 s_crash_note.core, (unsigned long) s_crash_note.pc, (unsigned long) caller,
                  s_crash_note.details[0] ? " - " : "", s_crash_note.details);
+        if (s_low_stacks_prev[0]) {
+            size_t l = strlen(s_crash_text);
+            snprintf(s_crash_text + l, sizeof(s_crash_text) - l, " | stack piu' bassi: %s", s_low_stacks_prev);
+        }
         ESP_LOGE(MON_TAG, "Ultimo crash: %s", s_crash_text);
     }
     s_crash_note.magic = 0;

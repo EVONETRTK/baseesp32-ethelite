@@ -39,13 +39,24 @@ typedef enum {
     LINK_CELLULAR,
 } active_link_t;
 
+static void peek_network_mode(const app_settings_t *s, void *ctx)
+{
+    *(network_mode_t *) ctx = s->network_mode;
+}
+
 static void net_manager_task(void *arg)
 {
     active_link_t active = LINK_NONE;
     TickType_t cell_since = 0; // ultimo passaggio al cellulare o tentativo di tornare al WiFi
 
     while (1) {
-        app_settings_t settings = settings_get();
+        // Solo la modalita' di rete, senza copiare tutta la configurazione
+        // (~2,2 KB): con la copia, piu' quella dentro wifi_link_connect_known()
+        // e l'elenco della scansione WiFi, restavano 416 byte di stack liberi
+        // e la crescita della configurazione nella 1.19.92 lo faceva traboccare
+        // (crash rari dopo gli aggiornamenti, ottobre 2026).
+        struct { network_mode_t network_mode; } settings;
+        settings_peek(peek_network_mode, &settings.network_mode);
 
         switch (active) {
         case LINK_NONE:
@@ -201,5 +212,5 @@ void net_manager_start(void)
     // l'uno) - confermato su hardware reale (stack overflow nel task
     // "net_manager" appena introdotta questa funzione). Stessa causa/fix
     // gia' vista piu' volte in questo progetto per lo stesso motivo.
-    xTaskCreate(net_manager_task, "net_manager", 8192, NULL, 6, NULL);
+    xTaskCreate(net_manager_task, "net_manager", 10240, NULL, 6, NULL); // 10 KB: margine per la scansione WiFi
 }

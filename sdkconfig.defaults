@@ -119,3 +119,9 @@ CONFIG_WL_SECTOR_SIZE_512=y
 # comparsi crash rari nel driver WiFi (ppTask, salto a un puntatore corrotto,
 # PC 0x3fcb1414) subito dopo gli aggiornamenti: riportati a 10.
 CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
+
+# Watchpoint hardware alla fine di ogni stack: se un task trabocca, crash
+# immediato con il nome del task ("Stack canary watchpoint triggered"),
+# invece di corrompere la memoria vicina e far cadere piu' tardi un altro
+# modulo (crash rari nel driver WiFi e in pthread, ottobre 2026).
+CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK=y

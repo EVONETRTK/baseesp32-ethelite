@@ -93,6 +93,11 @@ void wifi_link_init(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
     ESP_ERROR_CHECK(esp_wifi_start());
+    // Niente risparmio energetico: la base e' sempre alimentata. In modalita'
+    // risparmio il WiFi "dormiva" tra un pacchetto e l'altro e il pannello a
+    // tratti rispondeva in secondi (ping fino a 130 ms invece di ~15, visto il
+    // 03/10/2026). Consumo un po' piu' alto, collegamento piu' reattivo.
+    esp_wifi_set_ps(WIFI_PS_NONE);
 
     ESP_LOGI(TAG, "AP di setup attivo: SSID=%s IP=192.168.4.1", settings.ap_ssid);
 }

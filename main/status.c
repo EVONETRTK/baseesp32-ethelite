@@ -222,3 +222,41 @@ svin_status_t status_svin_get(void)
     portEXIT_CRITICAL(&s_svin_lock);
     return copy;
 }
+
+static gnss_sys_status_t s_gnss_sys;
+static portMUX_TYPE s_gnss_sys_lock = portMUX_INITIALIZER_UNLOCKED;
+
+// Formato UBX-MON-SYS (msgVer 1, 24 byte): msgVer, bootType, cpuLoad,
+// cpuLoadMax, memUsage, memUsageMax, ioUsage, ioUsageMax, runTime (U4),
+// noticeCount, warnCount, errorCount (U2), tempValue (I1, gradi C).
+void status_gnss_sys_note(const uint8_t *p, uint16_t len)
+{
+    if (len < 19) {
+        return;
+    }
+    int8_t temp = (int8_t) p[18];
+    portENTER_CRITICAL(&s_gnss_sys_lock);
+    s_gnss_sys.cpu_load = p[2];
+    s_gnss_sys.cpu_load_max = p[3];
+    s_gnss_sys.mem_usage = p[4];
+    s_gnss_sys.mem_usage_max = p[5];
+    s_gnss_sys.run_time_s = (uint32_t) p[8] | ((uint32_t) p[9] << 8) | ((uint32_t) p[10] << 16) | ((uint32_t) p[11] << 24);
+    s_gnss_sys.notices = (uint16_t) (p[12] | (p[13] << 8));
+    s_gnss_sys.warnings = (uint16_t) (p[14] | (p[15] << 8));
+    s_gnss_sys.errors = (uint16_t) (p[16] | (p[17] << 8));
+    s_gnss_sys.temp_c = temp;
+    if (!s_gnss_sys.have || temp > s_gnss_sys.temp_max_c) {
+        s_gnss_sys.temp_max_c = temp;
+    }
+    s_gnss_sys.have = true;
+    s_gnss_sys.last_update_us = esp_timer_get_time();
+    portEXIT_CRITICAL(&s_gnss_sys_lock);
+}
+
+gnss_sys_status_t status_gnss_sys_get(void)
+{
+    portENTER_CRITICAL(&s_gnss_sys_lock);
+    gnss_sys_status_t c = s_gnss_sys;
+    portEXIT_CRITICAL(&s_gnss_sys_lock);
+    return c;
+}
