@@ -329,8 +329,8 @@
       <dt>Cadute del caster</dt><dd id="st-outages">-</dd>
       <dt>Temperatura chip</dt><dd id="st-temp">-</dd>
       <dt>Ricevitore GNSS</dt><dd id="st-gnss-sys">-</dd>
-      <dt>Memoria libera</dt><dd id="st-heap-free">-</dd>
-      <dt>Memoria minima mai raggiunta</dt><dd id="st-heap-min">-</dd>
+      <dt>RAM interna libera</dt><dd id="st-heap-free">-</dd>
+      <dt>RAM interna minima raggiunta</dt><dd id="st-heap-min">-</dd>
       <dt>Memoria totale</dt><dd id="st-heap-total">-</dd>
       <dt>PSRAM</dt><dd id="st-psram">-</dd>
     </dl>
@@ -1341,20 +1341,20 @@
 
   <fieldset>
     <legend>💾 Backup configurazione</legend>
-    <button type="button" class="action secondary" id="cfg-export-btn">Scarica configurazione (JSON)</button>
+    <button type="button" class="action secondary" id="cfgjson-export-btn">Scarica configurazione (JSON)</button>
     <small class="hint">
       Utile prima di sperimentare. Le password non sono incluse (il dispositivo non le restituisce
       mai in lettura, solo in scrittura): vanno reinserite a mano dopo un'importazione.
     </small>
-    <button type="button" class="action secondary" id="cfg-export-clone-btn" style="margin-top:.6rem">Scarica per clonare su un nuovo dispositivo</button>
+    <button type="button" class="action secondary" id="cfgjson-export-clone-btn" style="margin-top:.6rem">Scarica per clonare su un nuovo dispositivo</button>
     <small class="hint">
       Come sopra, ma senza matricola e SSID dell'AP di setup - campi che devono restare unici per
       ogni base fisica: importarli per sbaglio su un secondo dispositivo gli farebbe assumere
       l'identita' del primo.
     </small>
-    <label style="margin-top:.8rem">File configurazione (.json)<input type="file" id="cfg-import-file" accept=".json"></label>
-    <button type="button" class="action" id="cfg-import-btn" style="margin-top:.6rem">Importa e applica</button>
-    <div id="cfg-import-msg" class="hint" style="margin-top:.6rem"></div>
+    <label style="margin-top:.8rem">File configurazione (.json)<input type="file" id="cfgjson-import-file" accept=".json"></label>
+    <button type="button" class="action" id="cfgjson-import-btn" style="margin-top:.6rem">Importa e applica</button>
+    <div id="cfgjson-import-msg" class="hint" style="margin-top:.6rem"></div>
   </fieldset>
 </div>
 <small class="hint">
@@ -3752,12 +3752,12 @@ async function downloadConfig(stripIdentity) {
   }
 }
 
-document.getElementById('cfg-export-btn').addEventListener('click', () => downloadConfig(false));
-document.getElementById('cfg-export-clone-btn').addEventListener('click', () => downloadConfig(true));
+document.getElementById('cfgjson-export-btn').addEventListener('click', () => downloadConfig(false));
+document.getElementById('cfgjson-export-clone-btn').addEventListener('click', () => downloadConfig(true));
 
-document.getElementById('cfg-import-btn').addEventListener('click', async () => {
-  const msg = document.getElementById('cfg-import-msg');
-  const fileInput = document.getElementById('cfg-import-file');
+document.getElementById('cfgjson-import-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('cfgjson-import-msg');
+  const fileInput = document.getElementById('cfgjson-import-file');
   const file = fileInput.files[0];
   if (!file) {
     msg.textContent = 'Seleziona prima un file .json';

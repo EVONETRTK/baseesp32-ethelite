@@ -13,6 +13,7 @@
 
 #include "sdkconfig.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "esp_system.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
@@ -146,7 +147,7 @@ static int compare_entries_newest_first(const void *a, const void *b)
 
 void fw_archive_save_current(void)
 {
-    size_t heap_before = esp_get_free_heap_size();
+    size_t heap_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     if (!mount_sd()) {
         ESP_LOGW(TAG, "SD non disponibile, archiviazione saltata");
         return; // best-effort, non blocca l'aggiornamento in corso
@@ -212,7 +213,7 @@ void fw_archive_save_current(void)
         return;
     }
     ESP_LOGI(TAG, "Firmware attuale (v%s) archiviato su SD: %s (memoria libera: %u prima, %u minima dall'avvio)",
-             FIRMWARE_VERSION, path, (unsigned) heap_before, (unsigned) esp_get_minimum_free_heap_size());
+             FIRMWARE_VERSION, path, (unsigned) heap_before, (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
 
     // Potatura: tieni solo le KEEP_VERSIONS piu' recenti.
     fw_archive_entry_t entries[16];

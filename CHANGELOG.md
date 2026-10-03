@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.116
+
+- **"Scarica configurazione (JSON)" non scaricava nulla** (segnalato dall'utente). Nella scheda Firmware i due riquadri della configurazione (copia completa .bin della 1.19.84 e JSON leggibile, piu' vecchio) usavano gli stessi identificativi (`cfg-export-btn`, `cfg-import-btn`...). I pulsanti del JSON non facevano niente, quelli del .bin ricevevano anche le azioni del JSON. Ora il riquadro JSON usa `cfgjson-*` e nella pagina non ci sono piu' identificativi doppi (verificato).
+- **Memoria nel pannello**: "RAM interna libera" e "minima raggiunta" (stato, log, avvisi, monitoraggio remoto) contano solo la RAM interna, quella che serve a WiFi, rete e stack. Con la PSRAM attiva il valore comprendeva anche gli 8 MB esterni. La PSRAM resta nella riga a parte. Misurato: interna 49 KB liberi (minima 26 KB), PSRAM 8,4 MB.
+
 ## 1.19.115
 
 - **PSRAM attivata**: la T-ETH-Elite monta l'ESP32-S3R8, con 8 MB di PSRAM octal, che il firmware non usava. Le allocazioni fino a 4 KB restano nella RAM interna; le grandi (buffer TLS e altri) vanno nella PSRAM, con 32 KB interni sempre riservati. Se la PSRAM non viene trovata il firmware parte comunque. Anche mbedTLS alloca nella PSRAM. Nessun conflitto di pin (la PSRAM usa i GPIO 33-37, liberi).

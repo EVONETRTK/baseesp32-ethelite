@@ -101,8 +101,11 @@ sys_stats_t sys_stats_get(void)
 {
     sys_stats_t s = {0};
 
-    s.free_heap_bytes = esp_get_free_heap_size();
-    s.min_free_heap_bytes = esp_get_minimum_free_heap_size();
+    // Solo RAM interna: con la PSRAM attiva (1.19.115) heap_caps_get_free_size(MALLOC_CAP_INTERNAL)
+    // conta anche gli 8 MB esterni e non mostrerebbe piu' la memoria che serve
+    // davvero a WiFi, rete e stack. La PSRAM e' in free_psram_bytes.
+    s.free_heap_bytes = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    s.min_free_heap_bytes = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
     s.total_heap_bytes = heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
 
     size_t psram_total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
@@ -270,8 +273,8 @@ static void sys_monitor_task(void *arg)
             static int64_t last_heap_log;
             if (now - last_heap_log >= 600LL * 1000000) { // ogni 10 minuti, per seguire la memoria nel tempo
                 last_heap_log = now;
-                ESP_LOGI(MON_TAG, "Memoria libera %u (minima %u, blocco piu' grande %u)", (unsigned) esp_get_free_heap_size(),
-                         (unsigned) esp_get_minimum_free_heap_size(), (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+                ESP_LOGI(MON_TAG, "Memoria libera %u (minima %u, blocco piu' grande %u)", (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                         (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL), (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
             }
         }
         ota_update_confirm_tick();
@@ -370,13 +373,13 @@ static void sys_monitor_task(void *arg)
                      wall / 1000000, (double) busy[0], (double) busy[1], top);
         }
 
-        uint32_t min_heap = esp_get_minimum_free_heap_size();
+        uint32_t min_heap = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
         if (min_heap < MON_HEAP_ALERT && min_heap < logged_min_heap) {
             logged_min_heap = min_heap;
             top_tasks(delta, n, wall, idle0, idle1, top, sizeof(top));
             ESP_LOGW(MON_TAG, "Memoria libera minima scesa a %u byte negli ultimi %lld s (ora libera %u, blocco piu' grande %u). Task piu' attivi: %s",
-                     (unsigned) min_heap, wall / 1000000, (unsigned) esp_get_free_heap_size(),
-                     (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), top);
+                     (unsigned) min_heap, wall / 1000000, (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                     (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), top);
         }
     }
 }
