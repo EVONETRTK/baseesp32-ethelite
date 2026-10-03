@@ -2,6 +2,13 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.115
+
+- **PSRAM attivata**: la T-ETH-Elite monta l'ESP32-S3R8, con 8 MB di PSRAM octal, che il firmware non usava. Le allocazioni fino a 4 KB restano nella RAM interna; le grandi (buffer TLS e altri) vanno nella PSRAM, con 32 KB interni sempre riservati. Se la PSRAM non viene trovata il firmware parte comunque. Anche mbedTLS alloca nella PSRAM. Nessun conflitto di pin (la PSRAM usa i GPIO 33-37, liberi).
+  - Causa: con la VPN attiva la memoria libera minima era scesa a 1 KB, e il controllo degli aggiornamenti online falliva ("impossibile raggiungere l'indirizzo"; `mbedtls_ssl_setup` -0x7F00, allocazione fallita).
+  - Verificato: memoria libera da circa 40 KB a 8,4 MB; controllo online riuscito (3 reindirizzamenti di GitHub, version.json letto); microSD, archivio firmware, caster e VPN regolari.
+- microSD senza aggiornamenti: nella scheda Stato compare "nessun aggiornamento da installare" invece di "Nessun firmware.json trovato sulla scheda SD".
+
 ## 1.19.113 - 1.19.114
 
 - **Accesso remoto con VPN WireGuard** (nuovo `vpn_link.c`, componente `trombik/esp_wireguard` 0.9.0, compila con ESP-IDF 5.3, +29 KB):
