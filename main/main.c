@@ -5,6 +5,8 @@
 #include "freertos/stream_buffer.h"
 
 #include "esp_log.h"
+#include "esp_heap_caps.h"
+#include "cJSON.h"
 #include "sys_stats.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
@@ -119,8 +121,22 @@ static void fw_archive_save_current_task(void *arg)
 // riempiva: crash della 1.19.113 al primo avvio, annullato dal bootloader).
 static app_settings_t s_boot_cfg;
 
+// cJSON alloca moltissimi pezzi piccoli (ogni campo dello stato, delle
+// impostazioni...): con la soglia della PSRAM a 4 KB finivano tutti nella
+// RAM interna, che con 8 browser aperti scendeva a 15 KB (collaudo del
+// 03/10/2026). Ora vanno nella PSRAM, se c'e'.
+static void *cjson_malloc_psram(size_t size)
+{
+    void *p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    return p ? p : malloc(size);
+}
+
 void app_main(void)
 {
+    {
+        cJSON_Hooks hooks = { .malloc_fn = cjson_malloc_psram, .free_fn = free };
+        cJSON_InitHooks(&hooks);
+    }
     log_buffer_init(); // il prima possibile, per non perdere i log di avvio
     time_sync_set_timezone(); // ora locale gia' dalle prime righe del log
     sd_mutex_init(); // prima che qualunque cosa possa toccare la SD (vedi sd_mutex.h)

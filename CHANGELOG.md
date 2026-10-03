@@ -2,6 +2,39 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.117 - 1.19.120
+
+Collaudo completo del 03/10/2026 (richiesto dall'utente) e revisione del codice.
+
+**Caster NTRIP interno** (porta 2101):
+- **tabella delle sorgenti**: a `GET /` risponde con la riga STR del mountpoint (v1 "SOURCETABLE 200 OK", v2 HTTP con `gnss/sourcetable`). Prima chiudeva senza risposta e le app dei rover non trovavano il mountpoint;
+- **401 Unauthorized** con `WWW-Authenticate` se le credenziali mancano o sono errate (prima chiudeva in silenzio); 404 per un mountpoint inesistente in v2, tabella in v1;
+- **NTRIP 2.0 vero**: ai client v2 risponde "HTTP/1.1 200 OK" e invia i dati in chunked transfer encoding;
+- **credenziali confrontate in modo esatto**: la prima versione della correzione usava un confronto che ignorava maiuscole e minuscole anche sul base64. Verificato: password diversa solo per le maiuscole, base64 alterato o con caratteri in coda vengono rifiutati.
+
+**Memoria**:
+- cJSON alloca nella PSRAM; anche i buffer di WiFi e lwIP possono usare la PSRAM (`CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP`). Con 8 client in parallelo la RAM interna minima passa da 15 a 48,7 KB.
+
+**VPN WireGuard**:
+- la libreria (ora in `components/esp_wireguard`, copia modificata di trombik/esp_wireguard 0.9.0) chiamava funzioni di lwIP (`netif_add`, `udp_new`, `sys_timeout`) dal task della rete, senza core locking: una corsa con lwIP all'apertura e alla chiusura del tunnel. Ora creazione, collegamento, chiusura e stato girano nel thread tcpip (`esp_netif_tcpip_exec`); la risoluzione DNS del server avviene prima, fuori da quel thread. Verificato: tunnel, ping, pannello via VPN e ricollegamento dopo il riavvio.
+
+**Log sulla microSD**:
+- gli ultimi secondi prima di un riavvio voluto (pannello, aggiornamenti, riavvii di sicurezza) andavano persi, perché il log viene scritto ogni 30 s. Ora prima del riavvio il log, e la copia della configurazione, vengono scritti subito (`diag_log_flush_now`). Verificato con il riavvio dal pannello e con un riavvio di sicurezza.
+
+**Pannello**:
+- **riempimento automatico del browser disattivato** nei campi delle credenziali: 8 campi password senza `autocomplete`. Il browser poteva inserirci da solo utente e password del pannello e, al salvataggio del riquadro, sovrascrivere le credenziali vere (caster, rover, AP, email...);
+- **conferma** prima di togliere l'utente del caster interno (lo apre a chiunque e ne cancella la password). Il 03/10 utente e password del caster interno sono risultati cancellati senza un salvataggio registrato nel log: proprio nei secondi persi prima del riavvio;
+- numeri fuori dai limiti del campo: errore prima dell'invio, e verifica dopo il salvataggio ("Non accettato dalla base") invece di "Salvato";
+- monitoraggio remoto attivo senza indirizzo: "Manca l'indirizzo: nessun invio";
+- modello e firmware del ricevitore nella riga "Ricevitore GNSS".
+
+**Altro**:
+- operatore SIM: accettati solo i valori del menu;
+- `ntrip_caster_server_start()` non copia piu' la configurazione sullo stack del task main;
+- scheda di accesso: per l'invio della base solo la password (NTRIP 1 "SOURCE" non ha utente).
+
+**Collaudo**: 25 prove funzionali, analisi statica del pannello (id, campi, JavaScript), richieste malformate, file spazzatura, carico con 8 client (1 richiesta su 355 in attesa oltre 15 s, perche' il server web tiene al massimo 7 connessioni; nell'uso normale non capita), riavvio, task bloccato, caster con credenziali, VPN, pannello in Chrome senza errori in console.
+
 ## 1.19.116
 
 - **"Scarica configurazione (JSON)" non scaricava nulla** (segnalato dall'utente). Nella scheda Firmware i due riquadri della configurazione (copia completa .bin della 1.19.84 e JSON leggibile, piu' vecchio) usavano gli stessi identificativi (`cfg-export-btn`, `cfg-import-btn`...). I pulsanti del JSON non facevano niente, quelli del .bin ricevevano anche le azioni del JSON. Ora il riquadro JSON usa `cfgjson-*` e nella pagina non ci sono piu' identificativi doppi (verificato).

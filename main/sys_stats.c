@@ -4,6 +4,7 @@
 #include "settings.h"
 #include "gnss_ubx.h"
 #include "ota_update.h"
+#include "diag_log.h"
 #include "data_usage.h"
 
 #include "esp_heap_caps.h"
@@ -442,6 +443,7 @@ void sys_stats_restart_with_reason(const char *reason)
     s_restart_note.reason[sizeof(s_restart_note.reason) - 1] = 0;
     s_fault_restart = FAULT_MAGIC;
     ESP_LOGW(MON_TAG, "Riavvio: %s", reason);
+    diag_log_flush_now(2000); // il log fino a qui sulla microSD
     vTaskDelay(pdMS_TO_TICKS(500));
     esp_restart();
 }
@@ -452,6 +454,8 @@ void sys_stats_note_restart_reason(const char *reason)
     // ancora in prova va confermato, altrimenti il bootloader lo annullerebbe.
     ota_update_mark_valid();
     s_fault_restart = 0;
+    ESP_LOGW(MON_TAG, "Riavvio: %s", reason);
+    diag_log_flush_now(2000); // il log fino a qui sulla microSD (il chiamante poi riavvia)
     s_restart_note.magic = RESTART_MAGIC;
     strncpy(s_restart_note.reason, reason, sizeof(s_restart_note.reason) - 1);
     s_restart_note.reason[sizeof(s_restart_note.reason) - 1] = 0;

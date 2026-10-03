@@ -18,6 +18,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "freertos/stream_buffer.h"
 
 static const char *TAG = "diag_log";
@@ -117,6 +118,35 @@ static void write_next_index(int idx)
     fclose(f);
 }
 
+static TaskHandle_t s_task;
+static SemaphoreHandle_t s_flushed; // dato dal task dopo una scrittura richiesta
+
+// Copia sulla microSD quello che il log ha in memoria (file di questo avvio).
+static void diag_flush(const char *session_path, size_t *session_bytes, uint8_t *buf, size_t buf_size)
+{
+    if (session_path[0] == '\0' || *session_bytes >= MAX_FILE_BYTES || xStreamBufferIsEmpty(s_stream)) {
+        return;
+    }
+    if (!mount_sd()) {
+        return; // SD occupata da un'altra funzione in questo momento, si ritenta al giro dopo
+    }
+    FILE *f = fopen(session_path, "a");
+    if (f) {
+        size_t n;
+        while (*session_bytes < MAX_FILE_BYTES &&
+               (n = xStreamBufferReceive(s_stream, buf, buf_size, 0)) > 0) {
+            size_t to_write = n;
+            if (*session_bytes + to_write > MAX_FILE_BYTES) {
+                to_write = MAX_FILE_BYTES - *session_bytes;
+            }
+            fwrite(buf, 1, to_write, f);
+            *session_bytes += to_write;
+        }
+        fclose(f);
+    }
+    unmount_sd();
+}
+
 static void diag_log_task(void *arg)
 {
     // Determina il file di questa sessione una sola volta, con un breve
@@ -147,8 +177,14 @@ static void diag_log_task(void *arg)
     size_t session_bytes = 0;
 
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(FLUSH_INTERVAL_MS));
-        config_backup_service(); // copia della configurazione, se richiesta
+        // Ogni 30 s, oppure subito se richiesto (diag_log_flush_now).
+        bool forced = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(FLUSH_INTERVAL_MS)) > 0;
+        diag_flush(session_path, &session_bytes, buf, sizeof(buf));
+        config_backup_service(); // copia della configurazione, se richiesta (anche prima di un riavvio)
+        if (forced) {
+            xSemaphoreGive(s_flushed);
+            continue;
+        }
         {
             static UBaseType_t logged_min = 0xFFFF;
             UBaseType_t free_words = uxTaskGetStackHighWaterMark(NULL);
@@ -158,39 +194,29 @@ static void diag_log_task(void *arg)
             }
         }
 
-        if (session_path[0] == '\0' || session_bytes >= MAX_FILE_BYTES || xStreamBufferIsEmpty(s_stream)) {
-            continue;
-        }
-        if (!mount_sd()) {
-            continue; // SD occupata da un'altra funzione in questo momento, si ritenta al giro dopo
-        }
-        FILE *f = fopen(session_path, "a");
-        if (f) {
-            size_t n;
-            while (session_bytes < MAX_FILE_BYTES &&
-                   (n = xStreamBufferReceive(s_stream, buf, sizeof(buf), 0)) > 0) {
-                size_t to_write = n;
-                if (session_bytes + to_write > MAX_FILE_BYTES) {
-                    to_write = MAX_FILE_BYTES - session_bytes;
-                }
-                fwrite(buf, 1, to_write, f);
-                session_bytes += to_write;
-            }
-            fclose(f);
-        }
-        unmount_sd();
     }
+}
+
+void diag_log_flush_now(uint32_t timeout_ms)
+{
+    if (!s_task || !s_flushed || xTaskGetCurrentTaskHandle() == s_task) {
+        return;
+    }
+    xSemaphoreTake(s_flushed, 0); // scarta un segnale vecchio
+    xTaskNotifyGive(s_task);
+    xSemaphoreTake(s_flushed, pdMS_TO_TICKS(timeout_ms));
 }
 
 void diag_log_start(void)
 {
+    s_flushed = xSemaphoreCreateBinary();
     s_stream = xStreamBufferCreate(4096, 1);
     log_buffer_set_sink(s_stream);
     // 6144 (era 4096): dalla 1.19.84 questo task scrive anche la copia della
     // configurazione sulla SD (config_backup.c). Con 4096 lo stack era al
     // limite: i crash rari dopo gli aggiornamenti (driver WiFi, pthread)
     // comparivano subito dopo la copia. Lo stack libero e' nel log.
-    xTaskCreate(diag_log_task, "diag_log", 6144, NULL, 2, NULL);
+    xTaskCreate(diag_log_task, "diag_log", 6144, NULL, 2, &s_task);
 }
 
 int diag_log_list(diag_log_file_t *out, int max)

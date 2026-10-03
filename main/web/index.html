@@ -394,7 +394,7 @@
   <fieldset>
     <legend>🔌 Rete di setup (AP di questo dispositivo)</legend>
     <label>SSID AP<input name="ap_ssid"></label>
-    <label>Password AP<input name="ap_password" type="password" placeholder="lascia vuoto per non modificare">
+    <label>Password AP<input autocomplete="new-password" name="ap_password" type="password" placeholder="lascia vuoto per non modificare">
       <small class="hint">Minimo 8 caratteri. Se l'AP non ha mai avuto una password impostata, resta aperto.</small>
     </label>
   
@@ -640,17 +640,17 @@
 
   <fieldset>
     <legend><span data-mode="base">📡 Server NTRIP (invio correzioni al caster EVONETRTK)</span><span data-mode="rover">📡 Client NTRIP (correzioni dal caster EVONETRTK)</span></legend>
-    <label>Host del caster<input name="ntrip_host" data-validate="host" placeholder="es. rtk.evo-net.it"></label>
+    <label>Host del caster<input autocomplete="off" name="ntrip_host" data-validate="host" placeholder="es. rtk.evo-net.it"></label>
     <label>Porta<input name="ntrip_port" type="number" min="1" max="65535"></label>
     <!-- Credenziali separate per base e rover (1.19.66): passando da una
          modalita' all'altra ognuna tiene le sue. -->
-    <label data-mode="base">Mountpoint su cui inviare<input name="ntrip_mountpoint"></label>
-    <label data-mode="base">Password sorgente della mountpoint<input name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
-    <label data-mode="rover">Mountpoint da cui ricevere<input name="rover_mountpoint"></label>
+    <label data-mode="base">Mountpoint su cui inviare<input autocomplete="off" name="ntrip_mountpoint"></label>
+    <label data-mode="base">Password sorgente della mountpoint<input autocomplete="new-password" name="ntrip_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label data-mode="rover">Mountpoint da cui ricevere<input autocomplete="off" name="rover_mountpoint"></label>
     <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem" data-mode="rover">Cerca mountpoint disponibili</button>
     <div id="ntrip-mp-results" style="margin-top:.4rem" data-mode="rover"></div>
-    <label data-mode="rover">Utente<input name="rover_username"></label>
-    <label data-mode="rover">Password<input name="rover_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label data-mode="rover">Utente<input autocomplete="off" name="rover_username"></label>
+    <label data-mode="rover">Password<input autocomplete="new-password" name="rover_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <button type="button" class="action secondary" id="ntrip-test-btn" style="margin-top:.6rem">Prova connessione al caster</button>
     <div id="ntrip-test-msg" class="hint" style="margin-top:.4rem"></div>
     <small class="hint">
@@ -683,9 +683,9 @@
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
 
-    <label style="margin-top:.8rem">Mountpoint<input name="ntrip_caster_server_mountpoint" placeholder="es. BASE01"></label>
-    <label>Username <small class="hint">(vuoto = nessuna autenticazione)</small><input name="ntrip_caster_server_username"></label>
-    <label>Password<input name="ntrip_caster_server_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label style="margin-top:.8rem">Mountpoint<input autocomplete="off" name="ntrip_caster_server_mountpoint" placeholder="es. BASE01"></label>
+    <label>Username <small class="hint">(vuoto = nessuna autenticazione)</small><input autocomplete="off" name="ntrip_caster_server_username"></label>
+    <label>Password<input autocomplete="new-password" name="ntrip_caster_server_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <small class="hint">
       Questi tre campi invece si applicano <strong>subito</strong>, dal prossimo rover che si
       collega — nessun riavvio necessario, puoi cambiarli quando vuoi.
@@ -932,7 +932,7 @@
   </fieldset>
   <fieldset>
     <legend>🔒 Sicurezza</legend>
-    <label>Codice di accesso a questa pagina<input name="admin_code" type="password" placeholder="lascia vuoto per non modificare">
+    <label>Codice di accesso a questa pagina<input autocomplete="new-password" name="admin_code" type="password" placeholder="lascia vuoto per non modificare">
       <small class="hint">Utente "admin", protegge tutta questa interfaccia. Default di fabbrica: 1234 - cambialo alla prima configurazione.</small>
     </label>
   
@@ -1012,8 +1012,8 @@
     <legend>✉️ Canale email (SMTP)</legend>
     <label>Server SMTP<input name="alert_smtp_host" placeholder="es. smtp.gmail.com"></label>
     <label>Porta SMTP<input name="alert_smtp_port" type="number" min="1" max="65535" placeholder="465"></label>
-    <label>Utente/mittente<input name="alert_smtp_user" placeholder="es. tuonome@gmail.com"></label>
-    <label>Password (password per le app, non quella dell'account)<input name="alert_smtp_password" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label>Utente/mittente<input autocomplete="off" name="alert_smtp_user" placeholder="es. tuonome@gmail.com"></label>
+    <label>Password (password per le app, non quella dell'account)<input autocomplete="new-password" name="alert_smtp_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <label>Destinatario avviso<input name="alert_email_to" placeholder="es. tuonome@gmail.com"></label>
     <small class="hint">
       Con Gmail serve una "password per le app" (myaccount.google.com/apppasswords), non la password
@@ -1029,7 +1029,7 @@
   <fieldset>
     <legend>💬 Canale WhatsApp</legend>
     <label>Numero WhatsApp (con prefisso internazionale)<input name="alert_whatsapp_phone" placeholder="es. 391234567890"></label>
-    <label>API key CallMeBot<input name="alert_whatsapp_apikey" type="password" placeholder="lascia vuoto per non modificare"></label>
+    <label>API key CallMeBot<input autocomplete="new-password" name="alert_whatsapp_apikey" type="password" placeholder="lascia vuoto per non modificare"></label>
     <small class="hint">
       Via <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener">CallMeBot</a>,
       un servizio gratuito di terze parti (non ufficiale WhatsApp) - il numero va registrato una
@@ -1827,12 +1827,13 @@ async function loadStatus() {
     {
       // Ricevitore (UBX-MON-SYS): temperatura, carico, memoria, avvisi.
       const el = document.getElementById('st-gnss-sys');
+      const model = s.gnss_model ? 'u-blox ' + s.gnss_model + (s.gnss_fw ? ' (' + s.gnss_fw + ')' : '') + ' · ' : '';
       if (s.gnss_temp_c === undefined) {
-        el.textContent = 'non disponibile (solo ricevitori u-blox in base)';
+        el.textContent = model + 'stato non disponibile (solo ricevitori u-blox in base)';
         el.style.color = '';
       } else {
         const hrs = Math.floor((s.gnss_run_time_s || 0) / 3600), mins = Math.floor((s.gnss_run_time_s || 0) % 3600 / 60);
-        el.textContent = s.gnss_temp_c + ' °C (max ' + s.gnss_temp_max_c + ' °C) · CPU ' + s.gnss_cpu_load + '% · memoria ' + s.gnss_mem_usage +
+        el.textContent = model + s.gnss_temp_c + ' °C (max ' + s.gnss_temp_max_c + ' °C) · CPU ' + s.gnss_cpu_load + '% · memoria ' + s.gnss_mem_usage +
           '% · acceso da ' + (hrs ? hrs + ' h ' : '') + mins + ' min' + (s.gnss_errors ? ' · ' + s.gnss_errors + ' errori' : '');
         el.style.color = s.gnss_temp_c >= 75 || s.gnss_errors ? '#dc2626' : (s.gnss_temp_c >= 65 ? '#b45309' : '');
       }
@@ -1849,8 +1850,8 @@ async function loadStatus() {
       const pk = document.getElementById('vpn-pubkey');
       if (document.activeElement !== pk) pk.value = s.vpn_public_key || '';
     }
-    document.getElementById('remote-last').textContent = s.remote_interval_min > 0
-      ? 'Ultimo invio: ' + (s.remote_last || 'non ancora fatto') : 'Spento';
+    document.getElementById('remote-last').textContent = !(s.remote_interval_min > 0) ? 'Spento'
+      : (!s.remote_url ? '⚠️ Manca l\'indirizzo: nessun invio' : 'Ultimo invio: ' + (s.remote_last || 'non ancora fatto'));
     updateMeasureUi(s);
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
@@ -1998,6 +1999,7 @@ async function loadStatus() {
       f.ntrip_caster_server_port.value = s.ntrip_caster_server_port || 2101;
       f.ntrip_caster_server_mountpoint.value = s.ntrip_caster_server_mountpoint || '';
       f.ntrip_caster_server_username.value = s.ntrip_caster_server_username || '';
+      f.ntrip_caster_server_username.dataset.saved = s.ntrip_caster_server_username || '';
       f.base_position_mode.value = s.base_position_mode || 'auto';
       f.base_fixed_lat_deg.value = s.base_fixed_lat_deg || 0;
       f.base_fixed_lon_deg.value = s.base_fixed_lon_deg || 0;
@@ -2689,6 +2691,30 @@ async function saveFieldset(names, btn, msgEl) {
     }
   }
 
+  // Togliere l'utente del caster interno lo apre a chiunque sulla rete (e
+  // cancella anche la password): solo con conferma esplicita.
+  if (names.includes('ntrip_caster_server_username')) {
+    const u = f.elements['ntrip_caster_server_username'];
+    if (u && u.value === '' && u.dataset.saved && !confirm('Utente vuoto: il caster interno diventa aperto a chiunque sulla rete e la sua password viene cancellata. Continuare?')) {
+      return;
+    }
+  }
+
+  // Numeri fuori dai limiti del campo (min/max): la base li ignorerebbe
+  // rispondendo comunque "salvato" (collaudo del 03/10/2026).
+  for (const name of names) {
+    const el = f.elements[name];
+    if (!el || el.type !== 'number' || el.value === '') continue;
+    const v = Number(el.value);
+    const lo = el.min !== '' ? Number(el.min) : -Infinity, hi = el.max !== '' ? Number(el.max) : Infinity;
+    if (!Number.isFinite(v) || v < lo || v > hi) {
+      msgEl.textContent = 'Errore: valore non valido per "' + (el.closest('label')?.firstChild?.textContent?.trim() || name) +
+        '"' + (el.min !== '' || el.max !== '' ? ' (ammesso da ' + (el.min || '…') + ' a ' + (el.max || '…') + ')' : '');
+      msgEl.style.color = '#dc2626';
+      return;
+    }
+  }
+
   const data = {};
   for (const name of names) {
     const el = f.elements[name];
@@ -2708,6 +2734,18 @@ async function saveFieldset(names, btn, msgEl) {
     if (!r.ok) throw new Error('errore server');
     btn.classList.add('ok');
     msgEl.textContent = btn.dataset.reboot ? 'Salvato — vale dopo il riavvio (🔄 Salva e riavvia)' : 'Salvato';
+    msgEl.style.color = '';
+    // Verifica: i numeri salvati devono risultare nello stato della base.
+    try {
+      const st = await (await fetch('/api/status', { cache: 'no-store' })).json();
+      const rejected = Object.keys(data).filter(k => typeof data[k] === 'number' && k in st && typeof st[k] === 'number' &&
+        Math.abs(st[k] - data[k]) > 1e-6 * Math.max(1, Math.abs(data[k])));
+      if (rejected.length) {
+        btn.classList.remove('ok'); btn.classList.add('err');
+        msgEl.textContent = 'Non accettato dalla base: ' + rejected.map(k => k + ' (resta ' + st[k] + ')').join(', ');
+        msgEl.style.color = '#dc2626';
+      }
+    } catch (e) {}
     for (const name of names) {
       f.elements[name]?.classList.remove('field-dirty');
     }

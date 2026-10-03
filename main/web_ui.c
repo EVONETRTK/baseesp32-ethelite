@@ -1125,7 +1125,21 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_field(root, "wifi_password", s.wifi_password, sizeof(s.wifi_password));
     copy_field(root, "cellular_apn", s.cellular_apn, sizeof(s.cellular_apn));
     // Credito della SIM (sim_tools.c): campi che si possono anche svuotare.
-    copy_field_allow_empty(root, "sim_operator", s.sim_operator, sizeof(s.sim_operator));
+    {
+        // Solo gli operatori del menu del pannello (prima qualunque testo,
+        // troncato a 11 caratteri: collaudo del 03/10/2026).
+        static const char *const ops[] = { "", "tim", "vodafone", "ho", "windtre", "postemobile", "iliad",
+                                           "kena", "very", "fastweb", "coopvoce", "altro" };
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "sim_operator");
+        if (it && cJSON_IsString(it)) {
+            for (size_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+                if (strcmp(it->valuestring, ops[i]) == 0) {
+                    strlcpy(s.sim_operator, ops[i], sizeof(s.sim_operator));
+                    break;
+                }
+            }
+        }
+    }
     copy_field_allow_empty(root, "remote_url", s.remote_url, sizeof(s.remote_url));
     {
         cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "vpn_enable");

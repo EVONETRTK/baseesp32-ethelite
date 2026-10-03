@@ -227,7 +227,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (rover) {
       cred.push(['Correzioni dal caster (rover)', roverCred]);
     } else {
-      cred.push(['Caster: invio della base', ['caster ' + v(caster), 'mountpoint ' + v(s.ntrip_mountpoint || '-'), 'utente ' + user(sec && sec.ntrip_username), 'password ' + pw(sec && sec.ntrip_password)].join('<br>')]);
+      cred.push(['Caster: invio della base', ['caster ' + v(caster), 'mountpoint ' + v(s.ntrip_mountpoint || '-'), 'password ' + pw(sec && sec.ntrip_password) + ' <small>(NTRIP 1 "SOURCE": solo password, nessun utente)</small>'].join('<br>')]);
       if (s.rover_mountpoint || (sec && sec.rover_username)) {
         cred.push(['Correzioni per misurare la posizione della base (RTK)', roverCred]);
       }
