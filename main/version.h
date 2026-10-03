@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Si rimette in piedi da sola (watchdog, configurazione buona, reset di ZED e modem); VPN WireGuard per l'accesso remoto; scheda di accesso stampabile; scheda SIM e traffico; pannello per telefono; crash di stack risolti."
+#define FIRMWARE_RELEASE_NOTES "PSRAM da 8 MB attivata: memoria libera da 40 KB a 8 MB, aggiornamento online di nuovo funzionante con la VPN attiva. Messaggio della microSD piu' chiaro."
