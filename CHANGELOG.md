@@ -2,6 +2,16 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.89
+
+- **Pannello adatto al telefono** (richiesta dell'utente), senza cambiare l'aspetto sul computer:
+  - su schermi fino a 700 px le schede diventano una **barra fissa in basso**, come nelle app: Stato, Rete, GNSS & NTRIP, SIM, Segnali e **"☰ Altro"**, che apre un menu con Sicurezza, Hardware, Firmware e Log;
+  - **intestazione fissa in alto** con modalita' e indicatori (rete, NTRIP, fix, SD), visibile in ogni scheda; su telefono gli indicatori stanno su una riga scorrevole;
+  - campi e pulsanti da almeno 44 px e testo dei campi a 16 px: niente zoom automatico su iPhone;
+  - righe "etichetta: valore" impilate su schermi stretti; titoli dei riquadri dentro il riquadro (quelli lunghi andavano su due righe sopra il bordo);
+  - **riquadri richiudibili** su tutti gli schermi: toccando il titolo (▾/▸) il riquadro si chiude o si apre, e lo stato resta memorizzato nel browser. La ricerca delle impostazioni riapre il riquadro trovato.
+- Provato sul PC con la pagina e i dati veri della base, simulando un telefono largo 390 px e un computer; installato e confermato sulla base.
+
 ## 1.19.88
 
 - **Buffer fissi di ricezione WiFi di nuovo a 10** (erano stati ridotti a 6 nella 1.19.86). Con la 1.19.86 e la 1.19.87 la base e' andata in crash due volte su quattro aggiornamenti, pochi minuti dopo il riavvio, sempre nel driver WiFi: la registrazione dei crash (1.19.87) ha mostrato "InstructionFetchError, PC 0x3fcb1414, chiamato da 0x4038bc88", cioe' `ppTask` (driver WiFi, codice chiuso) che salta a un puntatore corrotto all'inizio della memoria dinamica. Era l'unica modifica che toccava il WiFi. Il ritorno automatico alla versione precedente ha recuperato la base da solo entrambe le volte.

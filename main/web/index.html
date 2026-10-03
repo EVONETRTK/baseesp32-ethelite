@@ -83,9 +83,66 @@
   .fieldset-last-saved { font-size:.78rem; color:#999; margin-left:.4rem; }
   .rtcm-unsupported { opacity:.45; }
   .qs-chip { cursor:pointer; }
+
+  /* --- Intestazione fissa: modalita' e indicatori sempre visibili --------- */
+  .top-bar { position:sticky; top:0; z-index:15; background:var(--page-bg); padding-top:.3rem; transition: background .3s; }
+  .top-bar h1 { position:static; margin-bottom:.4rem; padding:.2rem 0; }
+  .top-bar .quick-status { margin-bottom:.6rem; }
+
+  /* --- Riquadri richiudibili (titolo cliccabile, stato ricordato) --------- */
+  fieldset > legend { cursor:pointer; user-select:none; }
+  fieldset > legend::after { content:' ▾'; color:#9ca3af; font-size:.8em; }
+  fieldset.collapsed > legend::after { content:' ▸'; }
+  fieldset.collapsed { padding-bottom:.2rem; }
+  fieldset.collapsed > *:not(legend) { display:none !important; }
+
+  /* Menu "Altro" della barra in basso (solo telefono) */
+  #more-menu { display:none; }
+
+  /* --- Telefono ------------------------------------------------------------ */
+  @media (max-width: 700px) {
+    body { margin:.5rem auto; padding:0 .6rem 5.5rem; }
+    .top-bar h1 { font-size:1.15rem; }
+    /* Indicatori su una riga sola, scorrevole */
+    .quick-status { flex-wrap:nowrap; overflow-x:auto; gap:.35rem; scrollbar-width:none; }
+    .quick-status::-webkit-scrollbar { display:none; }
+    .qs-chip { flex:0 0 auto; padding:.35rem .6rem; font-size:.78rem; }
+
+    /* Schede: barra fissa in basso, come nelle app */
+    nav.tabs { position:fixed; left:0; right:0; bottom:0; z-index:20; margin:0; gap:0; flex-wrap:nowrap;
+               background:#fff; border-top:1px solid #d0d3d8; box-shadow:0 -2px 8px rgba(0,0,0,.06);
+               padding:.25rem .2rem calc(.25rem + env(safe-area-inset-bottom)); }
+    nav.tabs button { flex:1 1 0; min-width:0; border:none; border-radius:10px; padding:.3rem .1rem; background:transparent;
+                      display:flex; flex-direction:column; align-items:center; gap:.1rem; font-size:.66rem; line-height:1.1; }
+    nav.tabs button .tab-icon { font-size:1.25rem; }
+    nav.tabs button .tab-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+    nav.tabs button.tab-secondary { display:none; }
+    #more-menu { position:fixed; left:.5rem; right:.5rem; bottom:4.6rem; z-index:21; background:#fff; border:1px solid #d0d3d8;
+                 border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.15); padding:.4rem; }
+    #more-menu.open { display:grid; grid-template-columns:1fr 1fr; gap:.4rem; }
+    #more-menu button { padding:.8rem .5rem; border:1px solid #e5e7eb; border-radius:10px; background:#f9fafb; font-size:.95rem; text-align:left; }
+    #more-menu button.active { background:var(--mode-accent); color:#fff; border-color:var(--mode-accent); }
+
+    /* Comandi comodi per il dito, niente zoom automatico su iPhone (16 px) */
+    input, select, textarea { font-size:16px; min-height:44px; }
+    input[type=checkbox], input[type=radio] { min-height:0; width:1.3rem !important; height:1.3rem; }
+    button.action { min-height:44px; padding:.6rem 1rem; }
+    button.secondary { margin-left:0; margin-right:.4rem; }
+    fieldset { padding:.8rem; margin-bottom:.9rem; }
+    /* Titolo dentro il riquadro: quelli lunghi andavano su due righe sopra il bordo */
+    fieldset > legend { float:left; width:100%; padding:0 0 .3rem; font-size:.98rem; }
+    fieldset > legend + * { clear:both; }
+    fieldset.collapsed > legend { padding-bottom:0; }
+
+    /* Righe "etichetta: valore": impilate invece che affiancate */
+    dl.kv { grid-template-columns:1fr; gap:0; }
+    dl.kv dt { font-size:.78rem; margin-top:.55rem; }
+    dl.kv dd { margin:0; font-weight:500; overflow-wrap:anywhere; }
+  }
 </style>
 </head>
 <body>
+<div class="top-bar">
 <h1>🛰️ EVONETRTK <span id="mode-badge" class="mode-badge" hidden></span></h1>
 
 <div id="quick-status" class="quick-status">
@@ -93,6 +150,7 @@
   <div class="qs-chip" id="qs-ntrip"><span class="qs-icon">📡</span><span class="qs-label">NTRIP</span></div>
   <div class="qs-chip" id="qs-fix"><span class="qs-icon">🎯</span><span class="qs-label">Fix</span></div>
   <div class="qs-chip" id="qs-sd"><span class="qs-icon">💾</span><span class="qs-label">SD</span></div>
+</div>
 </div>
 
 <div class="search-box">
@@ -111,6 +169,7 @@
   <button type="button" data-page="page-firmware">⬆️ Firmware</button>
   <button type="button" data-page="page-log">📜 Log</button>
 </nav>
+<div id="more-menu"></div>
 
 <form id="cfg-form">
 
@@ -1240,14 +1299,84 @@ function goToPage(pageId) {
   const navBtn = document.querySelector('nav.tabs button[data-page="' + pageId + '"]');
   if (navBtn) navBtn.classList.add('active');
   document.getElementById(pageId).classList.add('active');
+  if (typeof markMoreTab === 'function') markMoreTab(pageId);
+  window.scrollTo(0, 0);
   if (pageId === 'page-log') {
     loadLog();
   }
 }
 
-document.querySelectorAll('nav.tabs button').forEach((btn) => {
+document.querySelectorAll('nav.tabs button[data-page]').forEach((btn) => {
   btn.addEventListener('click', () => goToPage(btn.dataset.page));
 });
+
+// --- Telefono: barra delle schede in basso con "Altro" ------------------------
+// Le 5 schede piu' usate restano nella barra; le altre in un menu. Su schermi
+// larghi la barra resta quella di sempre (le classi agiscono solo in @media).
+const PRIMARY_TABS = ['page-status', 'page-signals', 'page-sim', 'page-gnss', 'page-network'];
+(function setupTabs() {
+  const nav = document.querySelector('nav.tabs');
+  const menu = document.getElementById('more-menu');
+  nav.querySelectorAll('button[data-page]').forEach((b) => {
+    const txt = b.textContent.trim();
+    const sp = txt.indexOf(' ');
+    b.innerHTML = '<span class="tab-icon">' + txt.slice(0, sp) + '</span><span class="tab-label">' + txt.slice(sp + 1) + '</span>';
+    if (!PRIMARY_TABS.includes(b.dataset.page)) {
+      b.classList.add('tab-secondary');
+      const m = document.createElement('button');
+      m.type = 'button';
+      m.dataset.menuPage = b.dataset.page;
+      m.textContent = txt;
+      m.addEventListener('click', () => { goToPage(b.dataset.page); menu.classList.remove('open'); });
+      menu.appendChild(m);
+    }
+  });
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.id = 'tab-more';
+  more.innerHTML = '<span class="tab-icon">☰</span><span class="tab-label">Altro</span>';
+  more.style.display = 'none';
+  more.addEventListener('click', (ev) => { ev.stopPropagation(); menu.classList.toggle('open'); });
+  nav.appendChild(more);
+  document.addEventListener('click', (ev) => { if (!menu.contains(ev.target)) menu.classList.remove('open'); });
+  const mq = window.matchMedia('(max-width: 700px)');
+  const apply = () => { more.style.display = mq.matches ? '' : 'none'; if (!mq.matches) menu.classList.remove('open'); };
+  mq.addEventListener ? mq.addEventListener('change', apply) : mq.addListener(apply);
+  apply();
+})();
+
+// Evidenzia "Altro" quando la scheda aperta e' una di quelle nel menu.
+function markMoreTab(pageId) {
+  const more = document.getElementById('tab-more');
+  if (more) more.classList.toggle('active', !PRIMARY_TABS.includes(pageId));
+  document.querySelectorAll('#more-menu button').forEach((m) => m.classList.toggle('active', m.dataset.menuPage === pageId));
+}
+
+// --- Riquadri richiudibili ----------------------------------------------------------
+// Toccando il titolo il riquadro si chiude o si apre; lo stato resta
+// memorizzato in questo browser.
+function fieldsetKey(fs) {
+  const page = fs.closest('.page');
+  const legend = fs.querySelector(':scope > legend');
+  return 'fs-collapsed:' + (page ? page.id : '') + ':' + (legend ? legend.textContent.trim().slice(0, 60) : '');
+}
+document.querySelectorAll('fieldset').forEach((fs) => {
+  const legend = fs.querySelector(':scope > legend');
+  if (!legend) return;
+  try { if (localStorage.getItem(fieldsetKey(fs)) === '1') fs.classList.add('collapsed'); } catch (e) {}
+  legend.addEventListener('click', () => {
+    fs.classList.toggle('collapsed');
+    try {
+      if (fs.classList.contains('collapsed')) localStorage.setItem(fieldsetKey(fs), '1');
+      else localStorage.removeItem(fieldsetKey(fs));
+    } catch (e) {}
+  });
+});
+function expandFieldsetOf(el) {
+  const fs = el && el.closest ? el.closest('fieldset') : null;
+  if (fs && fs.classList.contains('collapsed')) fs.classList.remove('collapsed');
+}
+
 
 // Copia negli appunti tramite una textarea temporanea + execCommand invece
 // di navigator.clipboard: questa pagina e' servita in HTTP semplice (un
@@ -1297,7 +1426,7 @@ document.querySelectorAll('.page fieldset').forEach((fs) => {
   settingsSearchIndex.push({
     haystack: (legend.textContent + ' ' + labelTexts).toLowerCase(),
     legend: legend.textContent,
-    pageName: pageBtn ? pageBtn.textContent.trim() : '',
+    pageName: pageBtn ? Array.from(pageBtn.children).map((c) => c.textContent).join(' ').trim() || pageBtn.textContent.trim() : '',
     pageId: page.id,
     el: fs,
   });
@@ -1336,6 +1465,8 @@ document.getElementById('settings-search').addEventListener('input', (ev) => {
     item.innerHTML = visibleLegendText(m.el) + ' <span class="search-result-page">— ' + m.pageName + '</span>';
     item.addEventListener('click', () => {
       goToPage(m.pageId);
+      expandFieldsetOf(m.el);
+      if (m.el.classList) m.el.classList.remove('collapsed');
       m.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       m.el.classList.add('search-highlight');
       setTimeout(() => m.el.classList.remove('search-highlight'), 1500);
