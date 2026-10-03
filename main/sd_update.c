@@ -156,7 +156,7 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
 
     FILE *jf = fopen(MOUNT_POINT "/firmware.json", "r");
     if (!jf) {
-        SET_MSG("Nessun firmware.json trovato sulla scheda SD");
+        SET_MSG("nessun aggiornamento da installare");
         goto cleanup;
     }
     char json_buf[128] = {0};
