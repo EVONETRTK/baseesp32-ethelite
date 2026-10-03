@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.90
+
+- **Schede in alto anche su telefono** (richiesta dell'utente): invece della barra in basso con "Altro", su schermi fino a 700 px le schede stanno in una riga scorrevole dentro l'intestazione fissa, sotto gli indicatori, sempre visibili; tutte e 9 senza menu. Aprendo una scheda la riga si sposta da sola per mostrarla al centro. Sul computer nulla cambia. Provato sul PC simulando un telefono largo 390 px.
+
 ## 1.19.89
 
 - **Pannello adatto al telefono** (richiesta dell'utente), senza cambiare l'aspetto sul computer:

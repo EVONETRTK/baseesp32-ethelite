@@ -96,32 +96,25 @@
   fieldset.collapsed { padding-bottom:.2rem; }
   fieldset.collapsed > *:not(legend) { display:none !important; }
 
-  /* Menu "Altro" della barra in basso (solo telefono) */
-  #more-menu { display:none; }
-
   /* --- Telefono ------------------------------------------------------------ */
   @media (max-width: 700px) {
-    body { margin:.5rem auto; padding:0 .6rem 5.5rem; }
+    body { margin:0 auto .5rem; padding:0 .6rem 1rem; }
     .top-bar h1 { font-size:1.15rem; }
     /* Indicatori su una riga sola, scorrevole */
     .quick-status { flex-wrap:nowrap; overflow-x:auto; gap:.35rem; scrollbar-width:none; }
     .quick-status::-webkit-scrollbar { display:none; }
     .qs-chip { flex:0 0 auto; padding:.35rem .6rem; font-size:.78rem; }
 
-    /* Schede: barra fissa in basso, come nelle app */
-    nav.tabs { position:fixed; left:0; right:0; bottom:0; z-index:20; margin:0; gap:0; flex-wrap:nowrap;
-               background:#fff; border-top:1px solid #d0d3d8; box-shadow:0 -2px 8px rgba(0,0,0,.06);
-               padding:.25rem .2rem calc(.25rem + env(safe-area-inset-bottom)); }
-    nav.tabs button { flex:1 1 0; min-width:0; border:none; border-radius:10px; padding:.3rem .1rem; background:transparent;
-                      display:flex; flex-direction:column; align-items:center; gap:.1rem; font-size:.66rem; line-height:1.1; }
-    nav.tabs button .tab-icon { font-size:1.25rem; }
-    nav.tabs button .tab-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-    nav.tabs button.tab-secondary { display:none; }
-    #more-menu { position:fixed; left:.5rem; right:.5rem; bottom:4.6rem; z-index:21; background:#fff; border:1px solid #d0d3d8;
-                 border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.15); padding:.4rem; }
-    #more-menu.open { display:grid; grid-template-columns:1fr 1fr; gap:.4rem; }
-    #more-menu button { padding:.8rem .5rem; border:1px solid #e5e7eb; border-radius:10px; background:#f9fafb; font-size:.95rem; text-align:left; }
-    #more-menu button.active { background:var(--mode-accent); color:#fff; border-color:var(--mode-accent); }
+    /* Schede: riga scorrevole sotto gli indicatori, dentro l'intestazione
+       fissa (spostate li' da moveTabsForScreen()). Su telefono la scheda
+       aperta resta sempre visibile al centro della riga. */
+    .top-bar { padding-top:.1rem; box-shadow:0 2px 6px rgba(0,0,0,.05); margin:0 -.6rem .6rem; padding-left:.6rem; padding-right:.6rem; }
+    .top-bar h1 { margin:.1rem 0 .3rem; }
+    .top-bar .quick-status { margin-bottom:.4rem; }
+    .top-bar nav.tabs { flex-wrap:nowrap; overflow-x:auto; gap:.3rem; margin:0; padding-bottom:.45rem; scrollbar-width:none; }
+    .top-bar nav.tabs::-webkit-scrollbar { display:none; }
+    .top-bar nav.tabs button { flex:0 0 auto; display:flex; align-items:center; gap:.25rem; padding:.45rem .7rem; font-size:.85rem; min-height:40px; white-space:nowrap; }
+    .top-bar nav.tabs button .tab-icon { font-size:1rem; }
 
     /* Comandi comodi per il dito, niente zoom automatico su iPhone (16 px) */
     input, select, textarea { font-size:16px; min-height:44px; }
@@ -169,7 +162,7 @@
   <button type="button" data-page="page-firmware">⬆️ Firmware</button>
   <button type="button" data-page="page-log">📜 Log</button>
 </nav>
-<div id="more-menu"></div>
+<div id="tabs-home"></div>
 
 <form id="cfg-form">
 
@@ -1310,46 +1303,37 @@ document.querySelectorAll('nav.tabs button[data-page]').forEach((btn) => {
   btn.addEventListener('click', () => goToPage(btn.dataset.page));
 });
 
-// --- Telefono: barra delle schede in basso con "Altro" ------------------------
-// Le 5 schede piu' usate restano nella barra; le altre in un menu. Su schermi
-// larghi la barra resta quella di sempre (le classi agiscono solo in @media).
-const PRIMARY_TABS = ['page-status', 'page-signals', 'page-sim', 'page-gnss', 'page-network'];
+// --- Telefono: schede in alto, in una riga scorrevole --------------------------
+// Su schermi stretti la barra delle schede viene spostata dentro l'intestazione
+// fissa (sotto gli indicatori), cosi' resta sempre visibile; su schermi larghi
+// torna al suo posto, come prima. Icona e nome in due elementi separati.
 (function setupTabs() {
   const nav = document.querySelector('nav.tabs');
-  const menu = document.getElementById('more-menu');
   nav.querySelectorAll('button[data-page]').forEach((b) => {
     const txt = b.textContent.trim();
     const sp = txt.indexOf(' ');
     b.innerHTML = '<span class="tab-icon">' + txt.slice(0, sp) + '</span><span class="tab-label">' + txt.slice(sp + 1) + '</span>';
-    if (!PRIMARY_TABS.includes(b.dataset.page)) {
-      b.classList.add('tab-secondary');
-      const m = document.createElement('button');
-      m.type = 'button';
-      m.dataset.menuPage = b.dataset.page;
-      m.textContent = txt;
-      m.addEventListener('click', () => { goToPage(b.dataset.page); menu.classList.remove('open'); });
-      menu.appendChild(m);
-    }
   });
-  const more = document.createElement('button');
-  more.type = 'button';
-  more.id = 'tab-more';
-  more.innerHTML = '<span class="tab-icon">☰</span><span class="tab-label">Altro</span>';
-  more.style.display = 'none';
-  more.addEventListener('click', (ev) => { ev.stopPropagation(); menu.classList.toggle('open'); });
-  nav.appendChild(more);
-  document.addEventListener('click', (ev) => { if (!menu.contains(ev.target)) menu.classList.remove('open'); });
+  const home = document.getElementById('tabs-home');
+  const topBar = document.querySelector('.top-bar');
   const mq = window.matchMedia('(max-width: 700px)');
-  const apply = () => { more.style.display = mq.matches ? '' : 'none'; if (!mq.matches) menu.classList.remove('open'); };
+  const apply = () => {
+    if (mq.matches) topBar.appendChild(nav);
+    else home.parentNode.insertBefore(nav, home);
+  };
   mq.addEventListener ? mq.addEventListener('change', apply) : mq.addListener(apply);
   apply();
 })();
 
-// Evidenzia "Altro" quando la scheda aperta e' una di quelle nel menu.
+// Tiene la scheda aperta visibile nella riga scorrevole (telefono).
 function markMoreTab(pageId) {
-  const more = document.getElementById('tab-more');
-  if (more) more.classList.toggle('active', !PRIMARY_TABS.includes(pageId));
-  document.querySelectorAll('#more-menu button').forEach((m) => m.classList.toggle('active', m.dataset.menuPage === pageId));
+  const b = document.querySelector('nav.tabs button[data-page="' + pageId + '"]');
+  if (b && window.matchMedia('(max-width: 700px)').matches) {
+    // Spostamento diretto della riga (scrollIntoView veniva annullato dal
+    // ritorno in cima alla pagina fatto da goToPage).
+    const nav = b.parentNode;
+    nav.scrollLeft = b.offsetLeft - nav.offsetLeft - (nav.clientWidth - b.offsetWidth) / 2;
+  }
 }
 
 // --- Riquadri richiudibili ----------------------------------------------------------
