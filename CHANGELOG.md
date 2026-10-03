@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.88
+
+- **Buffer fissi di ricezione WiFi di nuovo a 10** (erano stati ridotti a 6 nella 1.19.86). Con la 1.19.86 e la 1.19.87 la base e' andata in crash due volte su quattro aggiornamenti, pochi minuti dopo il riavvio, sempre nel driver WiFi: la registrazione dei crash (1.19.87) ha mostrato "InstructionFetchError, PC 0x3fcb1414, chiamato da 0x4038bc88", cioe' `ppTask` (driver WiFi, codice chiuso) che salta a un puntatore corrotto all'inizio della memoria dinamica. Era l'unica modifica che toccava il WiFi. Il ritorno automatico alla versione precedente ha recuperato la base da solo entrambe le volte.
+  - Verificato: 4 aggiornamenti di fila con la 1.19.88, tutti confermati dopo 5 minuti, nessun crash (controllato anche nei log della microSD). La causa non e' dimostrata al 100%, ma il crash non si e' piu' ripresentato.
+  - Memoria libera stabile circa 60 KB (i 6,4 KB tornano al WiFi), sempre molto sopra i 37 KB della 1.19.85.
+
 ## 1.19.87
 
 - **Registrazione dei crash**: il 03/10/2026 la 1.19.86 e' andata in crash una volta, 2,5 minuti dopo un aggiornamento (il ritorno automatico alla versione precedente ha funzionato), e non si e' ripetuto in 3 ore di prova: senza cavo USB non si sapeva dove. Ora il gestore dei crash di ESP-IDF e' "avvolto" (`-Wl,--wrap=esp_panic_handler`, funzione in IRAM): prima di riavviare salva in memoria RTC motivo, core, indirizzo del crash, chiamante e, per `abort()`, l'indirizzo della chiamata. All'avvio successivo finiscono nel log e nel pannello (riga "Ultimo riavvio"). Con il file .elf della stessa versione si risale alla riga.

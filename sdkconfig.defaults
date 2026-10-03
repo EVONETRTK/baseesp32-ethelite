@@ -114,7 +114,8 @@ CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM=y
 CONFIG_WL_SECTOR_SIZE_512=y
 # CONFIG_WL_SECTOR_SIZE_4096 is not set
 
-# Buffer fissi di ricezione WiFi da 10 a 6 (1,6 KB ciascuno, 6,4 KB di RAM
-# in piu'). Il traffico della base e' poco (RTCM ~0,5 KB/s, pannello): i
-# buffer dinamici (32) coprono i picchi. La finestra di ricezione resta 6.
-CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
+# Buffer fissi di ricezione WiFi: lasciati a 10 (default). Nella 1.19.86
+# erano stati ridotti a 6 per risparmiare 6,4 KB, ma con quella versione sono
+# comparsi crash rari nel driver WiFi (ppTask, salto a un puntatore corrotto,
+# PC 0x3fcb1414) subito dopo gli aggiornamenti: riportati a 10.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
