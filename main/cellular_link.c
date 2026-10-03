@@ -30,6 +30,7 @@ static esp_netif_t *s_ppp_netif = NULL;
 static volatile bool s_connected = false;
 static volatile bool s_inited = false; // impostato dal task di avvio del modem (net_manager.c)
 static bool s_is_sim868; // dal momento dell'avvio del modem (niente copie delle impostazioni sullo stack)
+static bool s_simcom_std; // idem: modulo SIMCom originale, PWRKEY non collegato
 
 static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -129,6 +130,7 @@ bool cellular_link_init(void)
 
     app_settings_t settings = settings_get();
     s_is_sim868 = settings.cellular_is_sim868;
+    s_simcom_std = settings.cellular_simcom_std;
     modem_power_on(settings.cellular_is_sim868, settings.cellular_simcom_std);
 
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -375,6 +377,42 @@ static bool modem_cmd(const char *cmd, const char *until, char *out, size_t out_
     return err == ESP_OK && s_cmd_found;
 }
 
+bool cellular_link_reset_modem(void)
+{
+    if (!s_inited || !s_dce) {
+        return false;
+    }
+    xEventGroupClearBits(s_events, CELLULAR_CONNECTED_BIT);
+    s_connected = false;
+    esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+    char resp[32] = {0};
+    if (esp_modem_at(s_dce, "AT+CFUN=1,1", resp, 5000) == ESP_OK) {
+        ESP_LOGW(TAG, "Modem riavviato con AT+CFUN=1,1, attesa avvio (20 s)");
+        vTaskDelay(pdMS_TO_TICKS(20000));
+        return true;
+    }
+#if CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN >= 0
+    if (!s_is_sim868 && s_simcom_std) {
+        ESP_LOGE(TAG, "Il modem non risponde e il modulo SIMCom originale non si puo' spegnere dal "
+                      "firmware (PWRKEY scollegato): serve un riavvio dell'alimentazione");
+        return false;
+    }
+    // Il modem non risponde: spegnimento con un impulso lungo su PWRKEY
+    // (SIM7600 >= 2,5 s, SIM868 >= 1 s; stesso verso dell'impulso di
+    // accensione), poi riaccensione normale.
+    ESP_LOGW(TAG, "Il modem non risponde ai comandi: spegnimento e riaccensione con PWRKEY");
+    gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 1);
+    vTaskDelay(pdMS_TO_TICKS(s_is_sim868 ? 1500 : 3000));
+    gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 0);
+    vTaskDelay(pdMS_TO_TICKS(10000));
+    modem_power_on(s_is_sim868, s_simcom_std);
+    return true;
+#else
+    ESP_LOGE(TAG, "Il modem non risponde e il pin PWRKEY non e' configurato");
+    return false;
+#endif
+}
+
 bool cellular_link_modem_present(void)
 {
     char resp[32];
@@ -445,6 +483,7 @@ bool cellular_link_get_signal(int *rssi_dbm) { return false; }
 bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_size,
                                       char *tech_out, size_t tech_out_size) { return false; }
 bool cellular_link_modem_present(void) { return false; }
+bool cellular_link_reset_modem(void) { return false; }
 bool cellular_link_get_iccid(char *out, size_t out_size) { return false; }
 bool cellular_link_ussd(const char *code, char *out, size_t out_size) { return false; }
 bool cellular_link_send_sms(const char *number, const char *text) { return false; }

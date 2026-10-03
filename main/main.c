@@ -88,6 +88,7 @@ static void gnss_uart_task(void *arg)
 {
     uint8_t buf[UART_RX_BUF_SIZE];
     while (1) {
+        sys_stats_heartbeat(HB_GNSS);
         int len = gnss_io_read(buf, sizeof(buf), pdMS_TO_TICKS(100));
         // Ogni byte passa anche dal parser ACK/NAK UBX (gnss_ubx.c attende
         // la risposta ai comandi di configurazione mandati all'avvio), solo
@@ -137,6 +138,7 @@ void app_main(void)
 
     settings_init();
     config_backup_restore_if_missing(); // configurazione persa: ripristino dalla microSD
+    config_backup_crash_guard();        // riavvii a catena: ultima configurazione buona
     ota_update_check_rollback();
     gnss_signal_init();
     gnss_ubx_ack_init();

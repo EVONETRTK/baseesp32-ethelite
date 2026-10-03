@@ -3205,8 +3205,9 @@ function updateReliabilityUi(s) {
   const reset = document.getElementById('st-reset');
   reset.textContent = (s.last_reset || '-') + (s.fw_rollback_note ? ' — ' + s.fw_rollback_note : '') +
     (s.fw_pending ? ' · firmware nuovo in prova: confermato dopo 5 minuti senza problemi' : '') +
-    (s.last_crash ? ' — dettagli: ' + s.last_crash : '');
-  reset.style.color = (/calo di tensione|crash|watchdog/.test(s.last_reset || '') || s.fw_rollback_note) ? '#dc2626' : '';
+    (s.last_crash ? ' — dettagli: ' + s.last_crash : '') +
+    (s.config_guard_note ? ' — ' + s.config_guard_note : '');
+  reset.style.color = (/calo di tensione|crash|watchdog|bloccato/.test(s.last_reset || '') || s.fw_rollback_note || s.config_guard_note) ? '#dc2626' : '';
 
   renderDataBar(document.getElementById('st-data'), s);
   drawDataChart(document.getElementById('st-data-chart'), s);

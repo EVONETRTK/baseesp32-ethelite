@@ -4,6 +4,7 @@
 #include "eth_link.h"
 #include "status.h"
 #include "settings.h"
+#include "sys_stats.h"
 #include "web_ui.h"
 
 #include "sdkconfig.h"
@@ -48,8 +49,15 @@ static void net_manager_task(void *arg)
 {
     active_link_t active = LINK_NONE;
     TickType_t cell_since = 0; // ultimo passaggio al cellulare o tentativo di tornare al WiFi
+    // Tentativi cellulari falliti di fila e ultimo riavvio del modem: dopo 3
+    // fallimenti il modem si riavvia (al massimo ogni 10 minuti). Un modem
+    // LTE "piantato" altrimenti resta tale finche' qualcuno non va sul posto.
+    int cell_fail = 0;
+    TickType_t modem_reset_at = 0;
+    bool modem_reset_done = false;
 
     while (1) {
+        sys_stats_heartbeat(HB_NET);
         // Solo la modalita' di rete, senza copiare tutta la configurazione
         // (~2,2 KB): con la copia, piu' quella dentro wifi_link_connect_known()
         // e l'elenco della scansione WiFi, restavano 416 byte di stack liberi
@@ -95,11 +103,21 @@ static void net_manager_task(void *arg)
             if (settings.network_mode != NETWORK_MODE_WIFI_ONLY) {
                 ESP_LOGW(TAG, "Tentativo rete cellulare...");
                 if (cellular_link_connect()) {
+                    cell_fail = 0;
                     ESP_LOGI(TAG, "Rete attiva: cellulare");
                     status_set_net(NET_STATUS_CELLULAR);
                     active = LINK_CELLULAR;
                     cell_since = xTaskGetTickCount();
                     break;
+                }
+                if (++cell_fail >= 3 &&
+                    (!modem_reset_done || xTaskGetTickCount() - modem_reset_at >= pdMS_TO_TICKS(10 * 60 * 1000))) {
+                    ESP_LOGW(TAG, "Rete cellulare: %d tentativi falliti di fila, riavvio del modem", cell_fail);
+                    sys_stats_heartbeat(HB_NET); // il riavvio del modem dura fino a ~30 s
+                    cellular_link_reset_modem();
+                    modem_reset_done = true;
+                    modem_reset_at = xTaskGetTickCount();
+                    cell_fail = 0;
                 }
             }
 

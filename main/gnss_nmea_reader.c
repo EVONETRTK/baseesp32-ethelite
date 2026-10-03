@@ -1,4 +1,5 @@
 #include "gnss_nmea_reader.h"
+#include "sys_stats.h"
 #include "gnss_io.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_signal.h"
@@ -106,6 +107,7 @@ void gnss_nmea_reader_task(void *arg)
     size_t line_len = 0;
 
     while (1) {
+        sys_stats_heartbeat(HB_GNSS);
         int n = gnss_io_read(read_buf, sizeof(read_buf), pdMS_TO_TICKS(100));
         for (int i = 0; i < n; i++) {
             char c = (char) read_buf[i];

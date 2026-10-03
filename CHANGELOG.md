@@ -2,6 +2,15 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.103
+
+Ripristino da remoto: la base e' spesso lontana e difficile da raggiungere, quindi deve rimettersi in piedi da sola.
+
+- **Watchdog dei task con riavvio**: il watchdog di ESP-IDF era a 5 s e si limitava a segnalare. Ora e' a 60 s e riavvia la base: controlla i due core e il task di sorveglianza `sys_mon`.
+- **Battiti dei task principali** (`sys_stats_heartbeat()`): rete (limite 10 min), client NTRIP (5 min), lettura del ricevitore (2 min) e avvisi (10 min) battono a ogni giro del loro ciclo. Se uno tace oltre il limite (task bloccato senza crash), `sys_mon` riavvia la base con il motivo "task bloccato: ...", visibile in "Ultimo riavvio".
+- **Ultima configurazione buona**: dopo 2 ore di funzionamento senza modifiche, la configurazione viene copiata in `/sdcard/config/settings_good.bin`. Se la base si riavvia 3 volte di fila per un guasto (crash, watchdog o riavvio di sicurezza) prima di arrivare a 10 minuti di funzionamento, all'avvio ripristina quella configurazione. Lo segnala in rosso nella riga "Ultimo riavvio" (`config_guard_note`). I riavvii voluti (pannello, aggiornamenti), l'accensione e il pulsante di reset non contano.
+- **Riavvio del modem**: dopo 3 tentativi cellulari falliti di fila, al massimo ogni 10 minuti, il modem viene riavviato con `AT+CFUN=1,1`. Se non risponde ai comandi, viene spento e riacceso con il pin PWRKEY. Questo non e' possibile con il modulo SIMCom originale, che ha PWRKEY scollegato. Da provare quando arriva il SIM7600.
+
 ## 1.19.99 - 1.19.102
 
 - **Grafico dei satelliti** (segnalato dall'utente: "largo, si sovrappone"): il riquadro si allargava per contenere il grafico (i `fieldset` di default non scendono sotto la larghezza del contenuto) e finiva sopra la colonna vicina; disegnato con la scheda nascosta usava 620 px fissi. Ora `fieldset { min-width:0 }`, il grafico scorre dentro il riquadro, viene ridisegnato all'apertura della scheda Segnali e al cambio di dimensione; la scritta "35 dB" e' a sinistra, visibile anche su telefono. Provato con screenshot da telefono e computer.

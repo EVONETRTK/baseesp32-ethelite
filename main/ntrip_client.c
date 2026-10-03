@@ -11,6 +11,7 @@
 #include "settings.h"
 #include "status.h"
 #include "net_util.h"
+#include "sys_stats.h"
 #include "data_usage.h"
 #include "ntrip_reply.h"
 
@@ -174,6 +175,7 @@ void ntrip_client_task(void *arg)
     uint32_t retry_ms = 5000;
 
     while (1) {
+        sys_stats_heartbeat(HB_NTRIP);
         net_wait_ready(30000);
         app_settings_t settings = settings_get();
         int sock = ntrip_connect_and_handshake(&settings);
@@ -186,6 +188,7 @@ void ntrip_client_task(void *arg)
         s_active_sock = sock;
 
         while (1) {
+            sys_stats_heartbeat(HB_NTRIP);
             size_t len = xStreamBufferReceive(rtcm_stream, buf, sizeof(buf), pdMS_TO_TICKS(1000));
             if (len == 0) {
                 continue;

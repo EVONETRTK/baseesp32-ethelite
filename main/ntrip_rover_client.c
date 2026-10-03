@@ -3,6 +3,7 @@
 #include "settings.h"
 #include "status.h"
 #include "net_util.h"
+#include "sys_stats.h"
 #include "data_usage.h"
 #include "ntrip_reply.h"
 
@@ -382,6 +383,7 @@ void ntrip_rover_client_task(void *arg)
     }
 
     while (1) {
+        sys_stats_heartbeat(HB_NTRIP);
         net_wait_ready(30000);
         app_settings_t settings = settings_get();
         int sock = ntrip_rover_connect(&settings);
@@ -393,6 +395,7 @@ void ntrip_rover_client_task(void *arg)
         set_active_sock(sock);
 
         while (1) {
+            sys_stats_heartbeat(HB_NTRIP);
             int n = recv(sock, net_buf, sizeof(net_buf), 0);
             if (n > 0) {
                 gnss_io_write((const char *) net_buf, n);

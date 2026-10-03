@@ -1,5 +1,6 @@
 #include "sys_stats.h"
 #include "esp_attr.h"
+#include "esp_task_wdt.h"
 #include "ota_update.h"
 #include "data_usage.h"
 
@@ -150,6 +151,22 @@ static TaskStatus_t s_mon_tasks[MON_MAX_TASKS];
 static mon_prev_t s_mon_prev[MON_MAX_TASKS];
 static UBaseType_t s_mon_prev_n;
 
+// Battiti dei task principali (vedi sys_stats.h): ultimo istante e limite.
+static volatile int64_t s_hb_last_us[HB_COUNT];
+static const struct { const char *name; int64_t limit_us; } s_hb_info[HB_COUNT] = {
+    [HB_NET]    = { "rete (net_manager)",  10LL * 60 * 1000000 },
+    [HB_NTRIP]  = { "client NTRIP",          5LL * 60 * 1000000 },
+    [HB_GNSS]   = { "lettura del ricevitore", 2LL * 60 * 1000000 },
+    [HB_ALERTS] = { "avvisi",               10LL * 60 * 1000000 },
+};
+
+void sys_stats_heartbeat(heartbeat_t which)
+{
+    if (which < HB_COUNT) {
+        s_hb_last_us[which] = esp_timer_get_time();
+    }
+}
+
 // Ultima misura (ogni 5 s) dei 3 task con meno stack libero, conservata
 // anche dopo un crash: dice chi era al limite.
 static RTC_NOINIT_ATTR char s_low_stacks_rtc[64];
@@ -232,6 +249,19 @@ static void sys_monitor_task(void *arg)
         int64_t wall = now - prev_wall;
         prev_wall = now;
         safety_restart_check(now);
+        // Task bloccati senza crash (vedi sys_stats_heartbeat).
+        for (int h = 0; h < HB_COUNT; h++) {
+            int64_t last = s_hb_last_us[h];
+            if (last > 0 && now - last > s_hb_info[h].limit_us) {
+                char why[96];
+                snprintf(why, sizeof(why), "task bloccato: %s, fermo da %lld s",
+                         s_hb_info[h].name, (long long) ((now - last) / 1000000));
+                sys_stats_restart_with_reason(why);
+            }
+        }
+        // Watchdog hardware (vedi sys_stats_monitor_start): questo task e'
+        // vivo. Se si blocca lui, o una CPU per 60 s, riavvio automatico.
+        esp_task_wdt_reset();
         {
             static int64_t last_heap_log;
             if (now - last_heap_log >= 600LL * 1000000) { // ogni 10 minuti, per seguire la memoria nel tempo
@@ -349,7 +379,20 @@ static void sys_monitor_task(void *arg)
 
 void sys_stats_monitor_start(void)
 {
-    xTaskCreate(sys_monitor_task, "sys_mon", 4608, NULL, 1, NULL); // 4,5 KB: con elenco dei task e misure dello stack ne restavano meno di 1
+    // Watchdog dei task di ESP-IDF: prima era a 5 s e solo segnalava (nessun
+    // riavvio). Ora 60 s con riavvio: controlla i due core (task inattivi) e
+    // il task di sorveglianza, che a sua volta controlla i battiti degli altri.
+    const esp_task_wdt_config_t twdt = {
+        .timeout_ms = 60000,
+        .idle_core_mask = (1 << 0) | (1 << 1),
+        .trigger_panic = true,
+    };
+    esp_task_wdt_reconfigure(&twdt);
+    TaskHandle_t h = NULL;
+    xTaskCreate(sys_monitor_task, "sys_mon", 4608, NULL, 1, &h);
+    if (h) {
+        esp_task_wdt_add(h);
+    } // 4,5 KB: con elenco dei task e misure dello stack ne restavano meno di 1
 }
 
 // ---------------------------------------------------------------------------
@@ -373,11 +416,24 @@ typedef struct {
 static RTC_NOINIT_ATTR restart_note_t s_restart_note;
 static char s_last_reset[160];
 
+// Riavvio di sicurezza in corso (sys_stats_restart_with_reason): al prossimo
+// avvio conta come guasto per la protezione dai riavvii a catena
+// (config_backup_crash_guard), come un crash.
+#define FAULT_MAGIC 0x46415554u
+static RTC_NOINIT_ATTR uint32_t s_fault_restart;
+static bool s_boot_fault;
+
+bool sys_stats_boot_was_fault(void)
+{
+    return s_boot_fault;
+}
+
 void sys_stats_restart_with_reason(const char *reason)
 {
     s_restart_note.magic = RESTART_MAGIC;
     strncpy(s_restart_note.reason, reason, sizeof(s_restart_note.reason) - 1);
     s_restart_note.reason[sizeof(s_restart_note.reason) - 1] = 0;
+    s_fault_restart = FAULT_MAGIC;
     ESP_LOGW(MON_TAG, "Riavvio: %s", reason);
     vTaskDelay(pdMS_TO_TICKS(500));
     esp_restart();
@@ -388,6 +444,7 @@ void sys_stats_note_restart_reason(const char *reason)
     // Riavvio voluto (pannello, aggiornamento, misura...): se il firmware e'
     // ancora in prova va confermato, altrimenti il bootloader lo annullerebbe.
     ota_update_mark_valid();
+    s_fault_restart = 0;
     s_restart_note.magic = RESTART_MAGIC;
     strncpy(s_restart_note.reason, reason, sizeof(s_restart_note.reason) - 1);
     s_restart_note.reason[sizeof(s_restart_note.reason) - 1] = 0;
@@ -412,6 +469,10 @@ void sys_stats_boot_report(void)
     snprintf(s_last_reset, sizeof(s_last_reset), "%s%s%s", hw,
              have_note ? ": " : "", have_note ? s_restart_note.reason : "");
     s_restart_note.magic = 0;
+    esp_reset_reason_t rr = esp_reset_reason();
+    s_boot_fault = rr == ESP_RST_PANIC || rr == ESP_RST_INT_WDT || rr == ESP_RST_TASK_WDT ||
+                   rr == ESP_RST_WDT || (rr == ESP_RST_SW && s_fault_restart == FAULT_MAGIC);
+    s_fault_restart = 0;
     if (esp_reset_reason() == ESP_RST_PANIC || esp_reset_reason() == ESP_RST_BROWNOUT ||
         esp_reset_reason() == ESP_RST_INT_WDT || esp_reset_reason() == ESP_RST_TASK_WDT ||
         esp_reset_reason() == ESP_RST_WDT) {

@@ -9,6 +9,10 @@
 
 #include "sdkconfig.h"
 #include "esp_log.h"
+#include "esp_attr.h"
+#include "esp_timer.h"
+#include "esp_system.h"
+#include "sys_stats.h"
 #include "nvs.h"
 #include "esp_vfs_fat.h"
 #include "driver/sdspi_host.h"
@@ -23,6 +27,20 @@ static const char *TAG = "config_backup";
 #define BACKUP_DIR   MOUNT_POINT "/config"
 #define BACKUP_FILE  BACKUP_DIR "/settings.bin"
 #define BACKUP_TMP   BACKUP_DIR "/settings.tmp"
+#define GOOD_FILE    BACKUP_DIR "/settings_good.bin"
+
+// Protezione dai riavvii a catena (vedi config_backup.h).
+#define GUARD_MAGIC        0x47524444u
+#define GUARD_MAX_FAULTS   3
+#define GUARD_STABLE_US    (10LL * 60 * 1000000)       // avvio riuscito dopo 10 min
+#define GOOD_AFTER_US      (2LL * 60 * 60 * 1000000)   // configurazione buona dopo 2 ore
+typedef struct {
+    uint32_t magic;
+    uint32_t faults;   // avvii di fila finiti con un guasto prima di GUARD_STABLE_US
+} guard_rtc_t;
+static RTC_NOINIT_ATTR guard_rtc_t s_guard;
+static int64_t s_good_due_us = GOOD_AFTER_US; // 0 = gia' scritta
+static char s_guard_note[96];
 #define BLOB_MAX     2304 // >= sizeof(stored_cfg_t) (2072 byte oggi), con margine per i campi futuri
 
 static volatile bool s_requested;
@@ -75,9 +93,11 @@ static void unmount_sd(void)
 void config_backup_request(void)
 {
     s_requested = true;
+    // Configurazione cambiata: diventa "buona" solo dopo altre 2 ore senza guasti.
+    s_good_due_us = esp_timer_get_time() + GOOD_AFTER_US;
 }
 
-static void write_backup(void)
+static void write_file(const char *path, const char *tmp_path)
 {
     size_t len = settings_export_blob(s_blob, sizeof(s_blob));
     if (len == 0) {
@@ -92,18 +112,18 @@ static void write_backup(void)
     // Scrittura su file temporaneo e poi rinomina: se manca la corrente a
     // meta', la copia precedente resta integra.
     bool ok = false;
-    FILE *f = fopen(BACKUP_TMP, "wb");
+    FILE *f = fopen(tmp_path, "wb");
     if (f) {
         ok = fwrite(s_blob, 1, len, f) == len;
         ok = (fclose(f) == 0) && ok;
     }
     if (ok) {
-        unlink(BACKUP_FILE);
-        ok = rename(BACKUP_TMP, BACKUP_FILE) == 0;
+        unlink(path);
+        ok = rename(tmp_path, path) == 0;
     }
     unmount_sd();
     if (ok) {
-        ESP_LOGI(TAG, "Copia della configurazione salvata sulla microSD (%u byte)", (unsigned) len);
+        ESP_LOGI(TAG, "Copia della configurazione salvata sulla microSD: %s (%u byte)", path, (unsigned) len);
     } else {
         ESP_LOGW(TAG, "Scrittura della copia della configurazione fallita");
     }
@@ -160,8 +180,65 @@ void config_backup_service(void)
 {
     if (s_requested) {
         s_requested = false;
-        write_backup();
+        write_file(BACKUP_FILE, BACKUP_TMP);
     }
+    int64_t up = esp_timer_get_time();
+    if (up >= GUARD_STABLE_US && s_guard.faults != 0) {
+        ESP_LOGI(TAG, "Avvio stabile: azzerato il conteggio dei riavvii per guasto (era %u)",
+                 (unsigned) s_guard.faults);
+        s_guard.faults = 0;
+    }
+    if (s_good_due_us > 0 && up >= s_good_due_us) {
+        s_good_due_us = 0;
+        write_file(GOOD_FILE, BACKUP_DIR "/settings_good.tmp");
+    }
+}
+
+void config_backup_crash_guard(void)
+{
+    if (s_guard.magic != GUARD_MAGIC || esp_reset_reason() == ESP_RST_POWERON) {
+        s_guard.magic = GUARD_MAGIC; // memoria RTC non valida dopo l'accensione
+        s_guard.faults = 0;
+    }
+    if (!sys_stats_boot_was_fault()) {
+        s_guard.faults = 0;
+        return;
+    }
+    s_guard.faults++;
+    ESP_LOGW(TAG, "Avvio dopo un guasto: %u di fila prima di %d minuti di funzionamento",
+             (unsigned) s_guard.faults, (int) (GUARD_STABLE_US / 60000000));
+    if (s_guard.faults < GUARD_MAX_FAULTS) {
+        return;
+    }
+    s_guard.faults = 0;
+    if (!mount_sd()) {
+        ESP_LOGE(TAG, "Riavvii a catena, ma microSD non disponibile: configurazione buona non ripristinabile");
+        return;
+    }
+    size_t len = 0;
+    FILE *f = fopen(GOOD_FILE, "rb");
+    if (f) {
+        len = fread(s_blob, 1, sizeof(s_blob), f);
+        fclose(f);
+    }
+    unmount_sd();
+    if (len == 0) {
+        ESP_LOGE(TAG, "Riavvii a catena, ma nessuna configurazione buona sulla microSD");
+        return;
+    }
+    if (settings_import_blob(s_blob, len, false) != ESP_OK) {
+        ESP_LOGE(TAG, "Configurazione buona sulla microSD non valida (%u byte)", (unsigned) len);
+        return;
+    }
+    settings_init();
+    snprintf(s_guard_note, sizeof(s_guard_note),
+             "%d riavvii per guasto di fila: ripristinata l'ultima configurazione buona", GUARD_MAX_FAULTS);
+    ESP_LOGW(TAG, "%s", s_guard_note);
+}
+
+const char *config_backup_guard_note(void)
+{
+    return s_guard_note;
 }
 
 void config_backup_start(void)

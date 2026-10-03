@@ -293,6 +293,7 @@ static void alerts_task(void *arg)
         // Ogni minuto, o subito se il pannello chiede un'operazione sulla SIM
         // (alerts_wake(), sim_tools.c).
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
+        sys_stats_heartbeat(HB_ALERTS);
 
         app_settings_t s = settings_get();
         sim_plan_tick(&s);  // rinnovo della SIM: promemoria anche con gli altri avvisi spenti

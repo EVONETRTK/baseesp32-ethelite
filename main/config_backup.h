@@ -16,6 +16,18 @@ void config_backup_request(void);
 // true se ha ripristinato.
 bool config_backup_restore_if_missing(void);
 
+// Protezione dai riavvii a catena, all'avvio dopo
+// config_backup_restore_if_missing(). La base e' spesso lontana: se una
+// configurazione sbagliata la fa crashare (o bloccare) di continuo, nessuno
+// puo' correggerla dal pannello. Dopo 3 avvii di fila finiti con un guasto
+// prima di 10 minuti di funzionamento, ripristina l'ultima configurazione
+// buona (/sdcard/config/settings_good.bin, scritta dopo 2 ore di
+// funzionamento senza modifiche).
+void config_backup_crash_guard(void);
+
+// Ultimo ripristino fatto dalla protezione (per il pannello), "" se nessuno.
+const char *config_backup_guard_note(void);
+
 // Chiede la prima copia dopo l'avvio.
 void config_backup_start(void);
 

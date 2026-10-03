@@ -36,6 +36,13 @@ bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_siz
 // Gestione SIM (sim_tools.c), solo dal task degli avvisi. out contiene la
 // risposta grezza del modem.
 bool cellular_link_modem_present(void);
+
+// Riavvio del modem quando non riesce piu' a collegarsi (modem "piantato":
+// capita ai moduli LTE dopo giorni accesi). Prima AT+CFUN=1,1; se il modem
+// non risponde nemmeno ai comandi, spegnimento e riaccensione col pin PWRKEY
+// (non con il modulo SIMCom originale, che ha PWRKEY scollegato). Bloccante
+// (fino a ~30 s), solo dal task della rete con il collegamento dati chiuso.
+bool cellular_link_reset_modem(void);
 bool cellular_link_get_iccid(char *out, size_t out_size);
 bool cellular_link_ussd(const char *code, char *out, size_t out_size);
 bool cellular_link_send_sms(const char *number, const char *text);
