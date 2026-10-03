@@ -5,6 +5,7 @@
 #include "status.h"
 #include "settings.h"
 #include "sys_stats.h"
+#include "vpn_link.h"
 #include "web_ui.h"
 
 #include "sdkconfig.h"
@@ -58,6 +59,7 @@ static void net_manager_task(void *arg)
 
     while (1) {
         sys_stats_heartbeat(HB_NET);
+        vpn_link_tick(); // tunnel VPN per l'accesso remoto (vpn_link.c)
         // Solo la modalita' di rete, senza copiare tutta la configurazione
         // (~2,2 KB): con la copia, piu' quella dentro wifi_link_connect_known()
         // e l'elenco della scansione WiFi, restavano 416 byte di stack liberi
@@ -187,7 +189,8 @@ void net_manager_start(void)
     // variare nel tempo (DHCP). Derivato dall'SSID dell'AP: gia' unico
     // per dispositivo (suffisso dal MAC), cosi' piu' basi/rover sulla
     // stessa rete non si scontrano.
-    app_settings_t settings = settings_get();
+    app_settings_t settings; // riempita senza copie temporanee (vedi settings_get_into)
+    settings_get_into(&settings);
     esp_err_t mdns_err = mdns_init();
     if (mdns_err == ESP_OK) {
         mdns_hostname_set(settings.ap_ssid);

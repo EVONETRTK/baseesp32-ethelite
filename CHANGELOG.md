@@ -2,6 +2,19 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.113 - 1.19.114
+
+- **Accesso remoto con VPN WireGuard** (nuovo `vpn_link.c`, componente `trombik/esp_wireguard` 0.9.0, compila con ESP-IDF 5.3, +29 KB):
+  - la base apre un tunnel verso un server WireGuard e lo tiene aperto con un keepalive ogni 25 s; funziona anche dietro il CGNAT della SIM, perche' e' la base a chiamare il server;
+  - dal PC o dal telefono con l'app WireGuard il pannello si apre all'indirizzo della base nel tunnel (es. http://10.8.0.2);
+  - il tunnel non diventa la rete predefinita: RTCM e caster restano sulla rete normale;
+  - la base ricrea il tunnel al cambio di rete (WiFi/SIM/Ethernet), quando cambiano le impostazioni o se il server non risponde per 5 minuti; aspetta l'ora esatta (NTP) prima di collegarsi;
+  - la chiave privata la genera la base ("Genera chiavi", `POST /api/vpn/keygen`) e non viene mai restituita: il pannello mostra solo la pubblica;
+  - nuovo riquadro "Accesso remoto (VPN WireGuard)" nella scheda Rete, con stato, chiave pubblica e dati del server;
+  - libreria corretta in un punto: alla chiusura rimetteva come rete predefinita quella del momento del collegamento, anche se nel frattempo spenta.
+- **Crash della 1.19.113 al primo avvio, annullato dal bootloader** (la base e' tornata da sola alla 1.19.112). Con i campi VPN la configurazione passa da 2248 a 2432 byte, e le copie annidate all'avvio (`app_main`, `gnss_ubx_configure_base`, `net_manager_start`, `wifi_link_init`, piu' le copie temporanee di `settings_get()`) riempivano i 12 KB di stack di main. Ora `app_main` usa una sola copia statica e le altre funzioni usano il nuovo `settings_get_into()`, senza copie temporanee. Stack libero di main dopo l'avvio: 4772 byte (nuova riga nel log).
+- Copia della configurazione sulla microSD: `BLOB_MAX` portato a 2816 byte.
+
 ## 1.19.112
 
 - **Pannello inaccessibile dopo il cambio di password** ("Header fields are too long", HTTP 431). Il server web leggeva al massimo 512 byte di intestazioni (valore predefinito di ESP-IDF) e Chrome ci stava appena. Con una password piu' lunga, l'intestazione di autenticazione e il cookie superavano il limite, e la richiesta veniva scartata prima del controllo della password (quindi senza traccia nel log). Ora il limite e' `CONFIG_HTTPD_MAX_REQ_HDR_LEN=1536`. Riprodotto con le intestazioni di Chrome: 431 con la 1.19.111, 200 con la 1.19.112.

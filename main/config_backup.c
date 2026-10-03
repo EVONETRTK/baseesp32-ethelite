@@ -41,7 +41,7 @@ typedef struct {
 static RTC_NOINIT_ATTR guard_rtc_t s_guard;
 static int64_t s_good_due_us = GOOD_AFTER_US; // 0 = gia' scritta
 static char s_guard_note[96];
-#define BLOB_MAX     2304 // >= sizeof(stored_cfg_t) (2072 byte oggi), con margine per i campi futuri
+#define BLOB_MAX     2816 // >= sizeof(stored_cfg_t) (~2,4 KB con la VPN, 1.19.113), con margine per i campi futuri
 
 static volatile bool s_requested;
 static sdmmc_card_t *s_card;

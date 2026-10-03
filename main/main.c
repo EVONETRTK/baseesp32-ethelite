@@ -114,6 +114,11 @@ static void fw_archive_save_current_task(void *arg)
     vTaskDelete(NULL);
 }
 
+// Configurazione letta all'avvio da app_main: statica, non sullo stack del
+// task main (2,4 KB; con le copie annidate dell'avvio lo stack di main si
+// riempiva: crash della 1.19.113 al primo avvio, annullato dal bootloader).
+static app_settings_t s_boot_cfg;
+
 void app_main(void)
 {
     log_buffer_init(); // il prima possibile, per non perdere i log di avvio
@@ -160,9 +165,9 @@ void app_main(void)
         // UI: etichetta BASE/ROVER e avviso "riavvio necessario"): ogni
         // app_settings_t in piu' qui pesa ~1.7 KB sullo stack del task main,
         // gia' andato in overflow per questo (vedi sdkconfig.defaults).
-        app_settings_t s = settings_get();
-        status_set_active_rover(s.device_mode == DEVICE_MODE_ROVER);
-        gnss_i2c_probe(s.oled_sda_pin, s.oled_scl_pin);
+        settings_get_into(&s_boot_cfg);
+        status_set_active_rover(s_boot_cfg.device_mode == DEVICE_MODE_ROVER);
+        gnss_i2c_probe(s_boot_cfg.oled_sda_pin, s_boot_cfg.oled_scl_pin);
     }
 
     // Porta su l'AP di setup + tenta WiFi/cellulare/Ethernet in background
@@ -220,8 +225,9 @@ void app_main(void)
     sim_tools_start();
     config_backup_start();
 
-    app_settings_t settings = settings_get();
-    gnss_uart_init(&settings);
+    app_settings_t *const settings_p = &s_boot_cfg;
+    settings_get_into(settings_p);
+    gnss_uart_init(settings_p);
 
     // Il task che legge la UART va avviato PRIMA di gnss_driver_configure():
     // e' lui a inoltrare i byte al parser ACK/NAK (gnss_ubx_ack.c) usato da
@@ -230,7 +236,7 @@ void app_main(void)
     // finestra in cui si aspetta la risposta e il timeout scatta sempre,
     // indipendentemente da cosa risponda il modulo (bug reale, corretto
     // qui: prima l'ordine era invertito).
-    if (settings.device_mode == DEVICE_MODE_ROVER) {
+    if (settings_p->device_mode == DEVICE_MODE_ROVER) {
         // Rover: un solo task legge la UART e smista lo stream NMEA a
         // broadcast UDP (AgOpenGPS/AgIO), inoltro GGA al caster, e stato
         // satelliti per la UI (vedi gnss_nmea_reader.c). Il client NTRIP
@@ -251,9 +257,9 @@ void app_main(void)
         xTaskCreate(gnss_uart_task, "gnss_uart", 5120, NULL, 10, NULL); // 5 KB: con 4 ne restavano ~600 (misurato)
     }
 
-    gnss_driver_configure(s_gnss_uart_num, settings.gnss_chip, settings.device_mode);
+    gnss_driver_configure(s_gnss_uart_num, settings_p->gnss_chip, settings_p->device_mode);
 
-    if (settings.device_mode == DEVICE_MODE_ROVER) {
+    if (settings_p->device_mode == DEVICE_MODE_ROVER) {
         // 4096 andava in overflow su hardware reale in ntrip_rover_connect()
         // esattamente al fallimento della DNS lookup (getaddrinfo() e'
         // gia' di per se' pesante di stack su lwIP) - confermato dopo aver
@@ -270,4 +276,7 @@ void app_main(void)
 
     alerts_start();
     auto_update_start(); // non fa nulla finche' non attivato dalla UI web (settings.auto_update_check_enable)
+    // Margine rimasto sullo stack di main dopo l'avvio (crash della 1.19.113).
+    ESP_LOGI(TAG, "Avvio completato: stack libero minimo del task main %u byte",
+             (unsigned) uxTaskGetStackHighWaterMark(NULL));
 }

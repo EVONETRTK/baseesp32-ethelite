@@ -182,7 +182,8 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     bool i2c = gnss_io_is_i2c();
     ESP_LOGI(TAG, "Configuro ricevitore u-blox come base RTK (Survey-In + RTCM3 su %s)", i2c ? "I2C" : "UART1");
 
-    app_settings_t s = settings_get();
+    app_settings_t s; // riempita senza copie temporanee (vedi settings_get_into)
+    settings_get_into(&s);
 
     if (s.rtcm_1007_enable || s.rtcm_1008_enable || s.rtcm_1019_enable || s.rtcm_1020_enable) {
         ESP_LOGW(TAG, "1007/1008/1019/1020 richiesti nelle impostazioni ma non supportati da u-blox in uscita: ignorati");

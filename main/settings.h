@@ -393,6 +393,16 @@ typedef struct {
     // LTE (il pannello non e' raggiungibile da fuori).
     char remote_url[96];
     uint16_t remote_interval_min;
+
+    // Accesso remoto via VPN WireGuard (vpn_link.c). La chiave privata la
+    // genera la base e non viene mai restituita al pannello.
+    bool vpn_enable;
+    char vpn_private_key[48];     // base64
+    char vpn_address[16];         // indirizzo della base nel tunnel, es. 10.8.0.2 (rete /24)
+    char vpn_peer_public_key[48]; // chiave pubblica del server, base64
+    char vpn_endpoint[64];        // server: nome o IP
+    uint16_t vpn_port;            // 0 = 51820
+    uint16_t vpn_keepalive_s;     // 0 = 25 s
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo
@@ -415,6 +425,12 @@ void settings_init(void);
 // Ritorna una copia della configurazione corrente (struct piccola, copia
 // per evitare di dover gestire un lock condiviso tra i vari task).
 app_settings_t settings_get(void);
+
+// Come settings_get(), ma copia direttamente in *out (di solito una variabile
+// statica): niente copie temporanee sullo stack. La configurazione supera i
+// 2,4 KB e all'avvio le copie annidate (app_main, net_manager_start,
+// wifi_link_init...) avevano riempito lo stack di main (crash della 1.19.113).
+void settings_get_into(app_settings_t *out);
 
 // Sovrascrive e persiste la configurazione su NVS. I campi stringa vuoti
 // passati dal chiamante vanno gestiti a monte (es. web_ui.c non sovrascrive

@@ -16,6 +16,7 @@
 #include "sys_stats.h"
 #include "config_backup.h"
 #include "gnss_ubx_ack.h"
+#include "vpn_link.h"
 #include "gnss_signal.h"
 #include "rtcm3_stats.h"
 #include "gnss_fix.h"
@@ -654,6 +655,12 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         // Gestione della SIM: impostazioni del credito e ultimo esito.
         cJSON_AddStringToObject(root, "sim_operator", s.sim_operator);
         cJSON_AddStringToObject(root, "remote_url", s.remote_url);
+        cJSON_AddBoolToObject(root, "vpn_enable", s.vpn_enable);
+        cJSON_AddStringToObject(root, "vpn_address", s.vpn_address);
+        cJSON_AddStringToObject(root, "vpn_peer_public_key", s.vpn_peer_public_key);
+        cJSON_AddStringToObject(root, "vpn_endpoint", s.vpn_endpoint);
+        cJSON_AddNumberToObject(root, "vpn_port", s.vpn_port ? s.vpn_port : 51820);
+        cJSON_AddBoolToObject(root, "vpn_has_key", s.vpn_private_key[0] != 0);
         cJSON_AddNumberToObject(root, "remote_interval_min", s.remote_interval_min);
         cJSON_AddStringToObject(root, "remote_last", remote_status_last_result());
         cJSON_AddStringToObject(root, "sim_credit_mode", s.sim_credit_mode == 1 ? "sms" : "ussd");
@@ -685,6 +692,17 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "config_guard_note", config_backup_guard_note());
     cJSON_AddStringToObject(root, "gnss_model", gnss_ubx_ack_model());
     cJSON_AddStringToObject(root, "gnss_fw", gnss_ubx_ack_fw());
+    {
+        vpn_status_t vs;
+        vpn_link_get_status(&vs);
+        cJSON_AddBoolToObject(root, "vpn_up", vs.up);
+        cJSON_AddBoolToObject(root, "vpn_started", vs.started);
+        cJSON_AddStringToObject(root, "vpn_public_key", vs.public_key);
+        cJSON_AddStringToObject(root, "vpn_note", vs.last_error);
+        if (vs.up) {
+            cJSON_AddNumberToObject(root, "vpn_up_s", (double) ((esp_timer_get_time() - vs.up_since_us) / 1000000));
+        }
+    }
     cJSON_AddBoolToObject(root, "fw_pending", ota_update_is_pending());
     {
         // Traffico stimato (data_usage.c) e piano dati della SIM.
@@ -1109,6 +1127,19 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     // Credito della SIM (sim_tools.c): campi che si possono anche svuotare.
     copy_field_allow_empty(root, "sim_operator", s.sim_operator, sizeof(s.sim_operator));
     copy_field_allow_empty(root, "remote_url", s.remote_url, sizeof(s.remote_url));
+    {
+        cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "vpn_enable");
+        if (it && cJSON_IsBool(it)) {
+            s.vpn_enable = cJSON_IsTrue(it);
+        }
+        it = cJSON_GetObjectItemCaseSensitive(root, "vpn_port");
+        if (it && cJSON_IsNumber(it) && it->valueint > 0 && it->valueint <= 65535) {
+            s.vpn_port = (uint16_t) it->valueint;
+        }
+    }
+    copy_field_allow_empty(root, "vpn_address", s.vpn_address, sizeof(s.vpn_address));
+    copy_field_allow_empty(root, "vpn_peer_public_key", s.vpn_peer_public_key, sizeof(s.vpn_peer_public_key));
+    copy_field_allow_empty(root, "vpn_endpoint", s.vpn_endpoint, sizeof(s.vpn_endpoint));
     {
         cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "remote_interval_min");
         if (it && cJSON_IsNumber(it) && it->valueint >= 0 && it->valueint <= 1440) {
@@ -2568,6 +2599,21 @@ static esp_err_t test_fault_post_handler(httpd_req_t *req)
     return httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"prova sconosciuta\"}");
 }
 
+// Nuova coppia di chiavi VPN: la privata resta sulla base, si restituisce
+// solo la pubblica (da mettere sul server WireGuard).
+static esp_err_t vpn_keygen_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char pub[48] = "";
+    bool ok = vpn_link_generate_keys(pub, sizeof(pub));
+    char out[96];
+    snprintf(out, sizeof(out), ok ? "{\"ok\":true,\"public_key\":\"%s\"}" : "{\"ok\":false}", pub);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, out);
+}
+
 static esp_err_t sim_action_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -2748,6 +2794,7 @@ void web_ui_start(void)
     httpd_uri_t test_fault_uri = { .uri = "/api/test/fault", .method = HTTP_POST, .handler = test_fault_post_handler };
     httpd_uri_t access_uri     = { .uri = "/access", .method = HTTP_GET, .handler = access_get_handler };
     httpd_uri_t access_sec_uri = { .uri = "/api/access/secrets", .method = HTTP_POST, .handler = access_secrets_post_handler };
+    httpd_uri_t vpn_keygen_uri = { .uri = "/api/vpn/keygen", .method = HTTP_POST, .handler = vpn_keygen_post_handler };
     httpd_uri_t sim_sms_uri    = { .uri = "/api/sim/sms",    .method = HTTP_GET,  .handler = sim_sms_get_handler };
     httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
     httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
@@ -2779,6 +2826,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &test_fault_uri);
     httpd_register_uri_handler(server, &access_uri);
     httpd_register_uri_handler(server, &access_sec_uri);
+    httpd_register_uri_handler(server, &vpn_keygen_uri);
     httpd_register_uri_handler(server, &ntrip_mountpoints_uri);
     httpd_register_uri_handler(server, &ntrip_test_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);

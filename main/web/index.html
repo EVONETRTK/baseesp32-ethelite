@@ -896,6 +896,32 @@
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
+  <fieldset>
+    <legend>🔐 Accesso remoto (VPN WireGuard)</legend>
+    <small class="hint">
+      La base si collega da sola a un server WireGuard (per esempio il server del caster) e ci resta
+      collegata, anche quando usa la SIM. Dal PC o dal telefono con l'app WireGuard, collegati alla stessa
+      VPN, il pannello si apre all'indirizzo della base nel tunnel. Il tunnel serve solo per raggiungere
+      la base: i dati verso il caster continuano a passare dalla rete normale.
+    </small>
+    <div style="margin:.5rem 0"><b>Stato:</b> <span id="vpn-state">-</span></div>
+    <label>Chiave pubblica di questa base (da mettere sul server)
+      <input id="vpn-pubkey" readonly placeholder="nessuna: premi Genera chiavi" style="font-family:ui-monospace,Consolas,monospace">
+    </label>
+    <button type="button" class="action secondary" id="vpn-keygen-btn">🔑 Genera chiavi</button>
+    <small class="hint">La chiave privata resta sulla base e non si vede mai. Generare chiavi nuove richiede di aggiornare la chiave pubblica anche sul server.</small>
+    <label style="flex-direction:row; align-items:center; gap:.5rem; margin-top:.6rem">
+      <input name="vpn_enable" type="checkbox" style="width:auto; margin:0"> Attiva la VPN
+    </label>
+    <label>Server (nome o IP)<input name="vpn_endpoint" placeholder="rtk.evo-net.it"></label>
+    <label>Porta del server<input name="vpn_port" type="number" min="1" max="65535" placeholder="51820"></label>
+    <label>Chiave pubblica del server<input name="vpn_peer_public_key" placeholder="dal file del server (44 caratteri)" style="font-family:ui-monospace,Consolas,monospace"></label>
+    <label>Indirizzo della base nella VPN<input name="vpn_address" placeholder="10.8.0.2"></label>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="vpn_enable,vpn_endpoint,vpn_port,vpn_peer_public_key,vpn_address">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
 </div>
 
 <div id="page-security" class="page">
@@ -1814,6 +1840,15 @@ async function loadStatus() {
     updateReliabilityUi(s);
     updateSimRenewBanner(s);
     updateSimUi(s);
+    {
+      const st = document.getElementById('vpn-state');
+      const fmtUp = n => n >= 3600 ? Math.floor(n / 3600) + ' h ' + Math.floor(n % 3600 / 60) + ' min' : Math.floor(n / 60) + ' min';
+      if (!s.vpn_enable) { st.textContent = 'spenta'; st.style.color = ''; }
+      else if (s.vpn_up) { st.textContent = 'collegata da ' + fmtUp(s.vpn_up_s || 0) + ' — pannello su http://' + (s.vpn_address || '?'); st.style.color = '#16a34a'; }
+      else { st.textContent = 'non collegata' + (s.vpn_note ? ': ' + s.vpn_note : ''); st.style.color = '#d97706'; }
+      const pk = document.getElementById('vpn-pubkey');
+      if (document.activeElement !== pk) pk.value = s.vpn_public_key || '';
+    }
     document.getElementById('remote-last').textContent = s.remote_interval_min > 0
       ? 'Ultimo invio: ' + (s.remote_last || 'non ancora fatto') : 'Spento';
     updateMeasureUi(s);
@@ -1870,6 +1905,11 @@ async function loadStatus() {
       f.data_plan_gb.value = (s.data_plan_mb || 0) / 1000;
       f.sim_operator.value = s.sim_operator || '';
       f.remote_url.value = s.remote_url || '';
+      f.vpn_enable.checked = !!s.vpn_enable;
+      f.vpn_endpoint.value = s.vpn_endpoint || '';
+      f.vpn_port.value = s.vpn_port || 51820;
+      f.vpn_peer_public_key.value = s.vpn_peer_public_key || '';
+      f.vpn_address.value = s.vpn_address || '';
       f.remote_interval_min.value = s.remote_interval_min || 0;
       f.sim_credit_mode.value = s.sim_credit_mode || 'ussd';
       f.sim_credit_code.value = s.sim_credit_code || '';
@@ -2531,7 +2571,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 // parametro) e il fallback "salva tutto" qui sotto, per non doverlo
 // mantenere in due posti.
 const NUMBER_FIELDS = new Set([
-  'remote_interval_min', 'data_plan_gb', 'sim_credit_every_days', 'sim_credit_hour', 'sim_credit_min_eur', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
+  'remote_interval_min', 'vpn_port', 'data_plan_gb', 'sim_credit_every_days', 'sim_credit_hour', 'sim_credit_min_eur', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
   'ntrip_port', 'nmea_udp_port', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
   'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
@@ -2542,7 +2582,7 @@ const NUMBER_FIELDS = new Set([
   'bynav_ant2_z_m', 'bynav_rbv_roll_deg', 'bynav_rbv_pitch_deg', 'bynav_rbv_yaw_deg',
 ]);
 const BOOL_CHECKBOX_FIELDS = new Set([
-  'rgb_led_pwm_active_low', 'oled_flip_h', 'oled_flip_v', 'alert_enable',
+  'vpn_enable', 'rgb_led_pwm_active_low', 'oled_flip_h', 'oled_flip_v', 'alert_enable',
   'base_drift_alert_enable', 'ntrip_caster_server_enable', 'auto_update_check_enable',
   'rtcm_1005_enable', 'rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1230_enable',
   'rtcm_1019_enable', 'rtcm_1020_enable', 'rtcm_1074_enable', 'rtcm_1077_enable',
@@ -3343,6 +3383,16 @@ document.getElementById('sim-sms-del-btn').addEventListener('click', () => {
 // --- Riquadri riassuntivi della scheda Stato ------------------------------------
 // Verde/giallo/rosso a colpo d'occhio; toccandone uno si va ai dettagli.
 let lastSignals = null;
+document.getElementById('vpn-keygen-btn').addEventListener('click', async () => {
+  const pk = document.getElementById('vpn-pubkey');
+  if (pk.value && !confirm('Generare chiavi nuove? La chiave pubblica attuale non varra\' piu\': andra\' aggiornata anche sul server.')) return;
+  try {
+    const r = await fetch('/api/vpn/keygen', { method: 'POST' });
+    const j = await r.json();
+    if (j.ok) { pk.value = j.public_key; pk.select(); }
+    else alert('Generazione delle chiavi fallita');
+  } catch (e) { alert('Errore: ' + e.message); }
+});
 window.addEventListener('resize', () => {
   if (lastSignals && document.getElementById('page-signals').classList.contains('active')) {
     drawSatChart(lastSignals.satellites || []);

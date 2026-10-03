@@ -67,7 +67,8 @@ void wifi_link_init(void)
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
 
-    app_settings_t settings = settings_get();
+    app_settings_t settings; // riempita senza copie temporanee (vedi settings_get_into)
+    settings_get_into(&settings);
 
     // L'AP di setup resta sempre attivo (modalita' APSTA): la UI web e'
     // cosi' raggiungibile in campo anche se WiFi/GPRS non sono ancora

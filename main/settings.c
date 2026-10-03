@@ -373,6 +373,13 @@ void settings_init(void)
     free(buf);
 }
 
+void settings_get_into(app_settings_t *out)
+{
+    xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
+    *out = s_settings;
+    xSemaphoreGive(s_settings_mutex);
+}
+
 app_settings_t settings_get(void)
 {
     xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
