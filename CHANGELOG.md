@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.91
+
+- **Schede su piu' righe su telefono** (richiesta dell'utente: sempre tutte a vista): griglia da 3 colonne nell'intestazione fissa, 9 schede su 3 righe, invece della riga scorrevole. Su telefono "GNSS & NTRIP" diventa "GNSS" per stare anche su schermi da 360 px. Sul computer nulla cambia.
+
 ## 1.19.90
 
 - **Schede in alto anche su telefono** (richiesta dell'utente): invece della barra in basso con "Altro", su schermi fino a 700 px le schede stanno in una riga scorrevole dentro l'intestazione fissa, sotto gli indicatori, sempre visibili; tutte e 9 senza menu. Aprendo una scheda la riga si sposta da sola per mostrarla al centro. Sul computer nulla cambia. Provato sul PC simulando un telefono largo 390 px.

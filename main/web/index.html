@@ -85,6 +85,7 @@
   .qs-chip { cursor:pointer; }
 
   /* --- Intestazione fissa: modalita' e indicatori sempre visibili --------- */
+  .tl-short { display:none; }
   .top-bar { position:sticky; top:0; z-index:15; background:var(--page-bg); padding-top:.3rem; transition: background .3s; }
   .top-bar h1 { position:static; margin-bottom:.4rem; padding:.2rem 0; }
   .top-bar .quick-status { margin-bottom:.6rem; }
@@ -111,10 +112,13 @@
     .top-bar { padding-top:.1rem; box-shadow:0 2px 6px rgba(0,0,0,.05); margin:0 -.6rem .6rem; padding-left:.6rem; padding-right:.6rem; }
     .top-bar h1 { margin:.1rem 0 .3rem; }
     .top-bar .quick-status { margin-bottom:.4rem; }
-    .top-bar nav.tabs { flex-wrap:nowrap; overflow-x:auto; gap:.3rem; margin:0; padding-bottom:.45rem; scrollbar-width:none; }
-    .top-bar nav.tabs::-webkit-scrollbar { display:none; }
-    .top-bar nav.tabs button { flex:0 0 auto; display:flex; align-items:center; gap:.25rem; padding:.45rem .7rem; font-size:.85rem; min-height:40px; white-space:nowrap; }
-    .top-bar nav.tabs button .tab-icon { font-size:1rem; }
+    /* Tutte le schede sempre a vista: griglia da 3 colonne (richiesta dell'utente) */
+    .top-bar nav.tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:.3rem; margin:0; padding-bottom:.45rem; }
+    .top-bar nav.tabs button { display:flex; align-items:center; justify-content:center; gap:.25rem; padding:.3rem .2rem; font-size:.8rem; min-height:36px; min-width:0; white-space:nowrap; }
+    .top-bar nav.tabs button .tab-icon { font-size:.95rem; }
+    .top-bar nav.tabs button .tab-label { overflow:hidden; text-overflow:ellipsis; }
+    .top-bar nav.tabs .tl-long { display:none; }
+    .top-bar nav.tabs .tl-short { display:inline; }
 
     /* Comandi comodi per il dito, niente zoom automatico su iPhone (16 px) */
     input, select, textarea { font-size:16px; min-height:44px; }
@@ -1307,12 +1311,18 @@ document.querySelectorAll('nav.tabs button[data-page]').forEach((btn) => {
 // Su schermi stretti la barra delle schede viene spostata dentro l'intestazione
 // fissa (sotto gli indicatori), cosi' resta sempre visibile; su schermi larghi
 // torna al suo posto, come prima. Icona e nome in due elementi separati.
+// Nomi brevi per la griglia delle schede su telefono.
+const TAB_SHORT = { 'page-gnss': 'GNSS' };
+
 (function setupTabs() {
   const nav = document.querySelector('nav.tabs');
   nav.querySelectorAll('button[data-page]').forEach((b) => {
     const txt = b.textContent.trim();
     const sp = txt.indexOf(' ');
-    b.innerHTML = '<span class="tab-icon">' + txt.slice(0, sp) + '</span><span class="tab-label">' + txt.slice(sp + 1) + '</span>';
+    const label = txt.slice(sp + 1);
+    const short = TAB_SHORT[b.dataset.page];
+    b.innerHTML = '<span class="tab-icon">' + txt.slice(0, sp) + '</span><span class="tab-label">' +
+      (short ? '<span class="tl-long">' + label + '</span><span class="tl-short">' + short + '</span>' : label) + '</span>';
   });
   const home = document.getElementById('tabs-home');
   const topBar = document.querySelector('.top-bar');
