@@ -28,6 +28,10 @@ void config_backup_crash_guard(void);
 // Ultimo ripristino fatto dalla protezione (per il pannello), "" se nessuno.
 const char *config_backup_guard_note(void);
 
+// Prova: scrive la configurazione buona al prossimo giro (entro 30 s),
+// senza aspettare le 2 ore.
+void config_backup_save_good_now(void);
+
 // Chiede la prima copia dopo l'avvio.
 void config_backup_start(void);
 

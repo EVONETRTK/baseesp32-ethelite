@@ -236,6 +236,11 @@ void config_backup_crash_guard(void)
     ESP_LOGW(TAG, "%s", s_guard_note);
 }
 
+void config_backup_save_good_now(void)
+{
+    s_good_due_us = 1;
+}
+
 const char *config_backup_guard_note(void)
 {
     return s_guard_note;

@@ -2,6 +2,19 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.104 - 1.19.106
+
+- **Riavvio del ricevitore ZED**: il ricevitore ha un'alimentazione propria, quindi il riavvio dell'ESP32 non lo riavvia. Verificato: dopo 4 riavvii dell'ESP32, lo ZED risultava acceso da 30 minuti. Ora il riavvio di sicurezza per "ricevitore muto" manda prima allo ZED `UBX-CFG-RST` (riavvio hardware, avvio a caldo). Al riavvio l'ESP32 lo riconfigura.
+- **Prove delle protezioni da remoto**: `POST /api/test/fault` con `{"what": ...}`, solo con la password admin:
+  - `freeze_net`, `freeze_ntrip`, `freeze_gnss`, `freeze_alerts`;
+  - `hang`, `panic`, `gnss_reset`, `save_good`.
+- **I dettagli del crash compaiono anche per i blocchi del watchdog** (prima solo per i crash), con il nome del task bloccato.
+- **Provato sulla base il 03/10**, tutte e quattro le protezioni funzionano:
+  - battito della lettura del ricevitore fermo: riavvio dopo 124 s, motivo "task bloccato: lettura del ricevitore";
+  - core 0 bloccato: riavvio del watchdog dopo 60 s, motivo "blocco del firmware (watchdog)", con task e indirizzo;
+  - 3 guasti di fila: ripristinata la configurazione buona, segnalata nel pannello;
+  - reset dello ZED: il tempo di accensione del ricevitore riparte da zero, RTCM e caster ripartono.
+
 ## 1.19.103
 
 Ripristino da remoto: la base e' spesso lontana e difficile da raggiungere, quindi deve rimettersi in piedi da sola.

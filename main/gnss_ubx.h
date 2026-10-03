@@ -36,3 +36,10 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num);
 // essere un ricevitore con protocollo troppo vecchio per VALSET, che
 // esiste solo da protocol version 27 in su - vedi PROTVER nella risposta).
 esp_err_t gnss_ubx_poll_version(uart_port_t uart_num);
+
+// Riavvio hardware del ricevitore u-blox (UBX-CFG-RST, avvio a caldo: tiene
+// effemeridi e almanacco). Lo ZED ha alimentazione propria: il riavvio
+// dell'ESP32 non lo riavvia, e se e' lui a essersi bloccato la base
+// resterebbe muta anche dopo il riavvio. Va seguito dal riavvio dell'ESP32,
+// che riconfigura il ricevitore (la configurazione e' solo in RAM).
+void gnss_ubx_hw_reset(void);

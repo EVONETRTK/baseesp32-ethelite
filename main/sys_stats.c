@@ -1,6 +1,8 @@
 #include "sys_stats.h"
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
+#include "settings.h"
+#include "gnss_ubx.h"
 #include "ota_update.h"
 #include "data_usage.h"
 
@@ -160,9 +162,11 @@ static const struct { const char *name; int64_t limit_us; } s_hb_info[HB_COUNT] 
     [HB_ALERTS] = { "avvisi",               10LL * 60 * 1000000 },
 };
 
+static volatile uint32_t s_hb_frozen; // prova: battiti ignorati (sys_stats_test_fault)
+
 void sys_stats_heartbeat(heartbeat_t which)
 {
-    if (which < HB_COUNT) {
+    if (which < HB_COUNT && !(s_hb_frozen & (1u << which))) {
         s_hb_last_us[which] = esp_timer_get_time();
     }
 }
@@ -493,18 +497,77 @@ const char *sys_stats_last_reset(void)
 #define GUARD_GNSS_SILENT_US   (10LL * 60 * 1000000)
 #define GUARD_CASTER_DOWN_US   (30LL * 60 * 1000000)
 
+static void peek_chip(const app_settings_t *s, void *ctx)
+{
+    *(gnss_chip_t *) ctx = s->gnss_chip;
+}
+
+// Ricevitore muto: se e' un u-blox lo si riavvia insieme alla base (ha
+// alimentazione propria, il riavvio dell'ESP32 da solo non lo sbloccherebbe).
+static void receiver_silent_restart(const char *why)
+{
+    gnss_chip_t chip = GNSS_CHIP_UBLOX;
+    settings_peek(peek_chip, &chip);
+    if (chip == GNSS_CHIP_UBLOX) {
+        gnss_ubx_hw_reset();
+    }
+    sys_stats_restart_with_reason(why);
+}
+
+static void test_hang_task(void *arg)
+{
+    vTaskDelay(pdMS_TO_TICKS(1000)); // tempo per rispondere alla richiesta
+    ESP_LOGW(MON_TAG, "PROVA: core 0 bloccato, il watchdog deve riavviare entro 60 s");
+    for (;;) {
+    }
+}
+
+static void test_panic_task(void *arg)
+{
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGW(MON_TAG, "PROVA: crash volontario");
+    abort();
+}
+
+bool sys_stats_test_fault(const char *what)
+{
+    static const char *const freeze[HB_COUNT] = {
+        [HB_NET] = "freeze_net", [HB_NTRIP] = "freeze_ntrip",
+        [HB_GNSS] = "freeze_gnss", [HB_ALERTS] = "freeze_alerts",
+    };
+    for (int h = 0; h < HB_COUNT; h++) {
+        if (strcmp(what, freeze[h]) == 0) {
+            ESP_LOGW(MON_TAG, "PROVA: battito di \"%s\" ignorato, la base deve riavviarsi entro %lld s",
+                     s_hb_info[h].name, (long long) (s_hb_info[h].limit_us / 1000000));
+            s_hb_frozen |= 1u << h;
+            return true;
+        }
+    }
+    if (strcmp(what, "hang") == 0) {
+        return xTaskCreatePinnedToCore(test_hang_task, "test_hang", 4096, NULL, 1, NULL, 0) == pdPASS;
+    }
+    if (strcmp(what, "panic") == 0) {
+        return xTaskCreate(test_panic_task, "test_panic", 4096, NULL, 5, NULL) == pdPASS;
+    }
+    if (strcmp(what, "gnss_reset") == 0) {
+        receiver_silent_restart("PROVA: riavvio del ricevitore e della base");
+        return true; // non ci arriva
+    }
+    return false;
+}
+
 static void safety_restart_check(int64_t now)
 {
     char why[96];
     if (!status_get_active_rover()) {
         int64_t last = status_get_last_rtcm_time_us();
         if (last > 0 && now - last > GUARD_GNSS_SILENT_US) {
-            sys_stats_restart_with_reason("nessun dato RTCM dal ricevitore da 10 minuti");
+            receiver_silent_restart("nessun dato RTCM dal ricevitore da 10 minuti");
         }
     } else {
         gnss_fix_status_t fx = gnss_fix_get_status();
         if (fx.valid && now - fx.last_update_us > GUARD_GNSS_SILENT_US) {
-            sys_stats_restart_with_reason("nessun dato NMEA dal ricevitore da 10 minuti");
+            receiver_silent_restart("nessun dato NMEA dal ricevitore da 10 minuti");
         }
     }
     ntrip_conn_status_t nt = status_ntrip_get();
@@ -576,7 +639,9 @@ IRAM_ATTR void __wrap_esp_panic_handler(panic_info_t *info)
 
 void sys_stats_crash_report(void)
 {
-    if (s_crash_note.magic == CRASH_MAGIC && esp_reset_reason() == ESP_RST_PANIC) {
+    if (s_crash_note.magic == CRASH_MAGIC && (esp_reset_reason() == ESP_RST_PANIC ||
+                                         esp_reset_reason() == ESP_RST_TASK_WDT ||
+                                         esp_reset_reason() == ESP_RST_INT_WDT)) {
         s_crash_note.reason[sizeof(s_crash_note.reason) - 1] = 0;
         s_crash_note.details[sizeof(s_crash_note.details) - 1] = 0;
         s_crash_note.descr[sizeof(s_crash_note.descr) - 1] = 0;

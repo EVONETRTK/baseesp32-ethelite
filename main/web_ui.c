@@ -2417,6 +2417,39 @@ static esp_err_t config_import_post_handler(httpd_req_t *req)
 // Le operazioni sul modem le esegue il task degli avvisi: la risposta arriva
 // subito, l'esito poi in /api/status (sim_last_msg, sim_credit_*).
 // "parse" prova soltanto la lettura dell'importo su un testo, senza modem.
+// Prove delle protezioni da remoto (vedi sys_stats_test_fault): fanno
+// riavviare la base apposta. Corpo: {"what":"freeze_gnss"} ecc.
+static esp_err_t test_fault_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char buf[64] = {0};
+    int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
+    if (len <= 0 || httpd_req_recv(req, buf, len) != len) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo mancante");
+    }
+    cJSON *root = cJSON_Parse(buf);
+    const cJSON *w = root ? cJSON_GetObjectItemCaseSensitive(root, "what") : NULL;
+    char what[24] = "";
+    if (w && cJSON_IsString(w)) {
+        strlcpy(what, w->valuestring, sizeof(what));
+    }
+    cJSON_Delete(root);
+    httpd_resp_set_type(req, "application/json");
+    if (strcmp(what, "save_good") == 0) {
+        config_backup_save_good_now();
+        return httpd_resp_sendstr(req, "{\"ok\":true}");
+    }
+    if (strcmp(what, "gnss_reset") == 0) {
+        httpd_resp_sendstr(req, "{\"ok\":true}"); // poi la base si riavvia
+        sys_stats_test_fault(what);
+        return ESP_OK;
+    }
+    bool ok = sys_stats_test_fault(what);
+    return httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"prova sconosciuta\"}");
+}
+
 static esp_err_t sim_action_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -2594,6 +2627,7 @@ void web_ui_start(void)
     httpd_uri_t cfg_export_uri = { .uri = "/api/config/export", .method = HTTP_GET, .handler = config_export_get_handler };
     httpd_uri_t cfg_import_uri = { .uri = "/api/config/import", .method = HTTP_POST, .handler = config_import_post_handler };
     httpd_uri_t sim_action_uri = { .uri = "/api/sim/action", .method = HTTP_POST, .handler = sim_action_post_handler };
+    httpd_uri_t test_fault_uri = { .uri = "/api/test/fault", .method = HTTP_POST, .handler = test_fault_post_handler };
     httpd_uri_t sim_sms_uri    = { .uri = "/api/sim/sms",    .method = HTTP_GET,  .handler = sim_sms_get_handler };
     httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
     httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
@@ -2622,6 +2656,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &icon_uri);
     httpd_register_uri_handler(server, &manifest_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
+    httpd_register_uri_handler(server, &test_fault_uri);
     httpd_register_uri_handler(server, &ntrip_mountpoints_uri);
     httpd_register_uri_handler(server, &ntrip_test_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);

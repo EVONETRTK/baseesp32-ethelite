@@ -41,6 +41,13 @@ typedef enum {
 
 void sys_stats_heartbeat(heartbeat_t which);
 
+// Prove delle protezioni (endpoint /api/test/fault, con password admin):
+// "freeze_net", "freeze_ntrip", "freeze_gnss", "freeze_alerts" (il battito
+// di quel task viene ignorato, come se fosse bloccato), "hang" (un core
+// bloccato: scatta il watchdog), "panic" (crash), "gnss_reset" (riavvio
+// dello ZED e della base, come per il ricevitore muto). false se sconosciuta.
+bool sys_stats_test_fault(const char *what);
+
 // Soglia oltre la quale la temperatura del chip e' considerata alta (log e avvisi).
 #define SYS_TEMP_ALERT_C 70.0f
 #define SYS_TEMP_REARM_C (SYS_TEMP_ALERT_C - 5.0f) // isteresi: nuovo avviso solo dopo essere sceso sotto

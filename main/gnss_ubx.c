@@ -326,6 +326,17 @@ static void svin_poll_task(void *arg)
     }
 }
 
+void gnss_ubx_hw_reset(void)
+{
+    // UBX-CFG-RST (0x06 0x04): navBbrMask 0x0000 = avvio a caldo,
+    // resetMode 0x00 = riavvio hardware immediato (watchdog). Nessun ACK.
+    uint8_t f[6 + 4 + 2] = { UBX_SYNC1, UBX_SYNC2, 0x06, 0x04, 4, 0, 0x00, 0x00, 0x00, 0x00 };
+    ubx_checksum(f + 2, 4 + 4, &f[10], &f[11]);
+    gnss_io_write(f, sizeof(f));
+    vTaskDelay(pdMS_TO_TICKS(500)); // la scrittura I2C la fa il suo task, entro ~20 ms
+    ESP_LOGW(TAG, "Inviato riavvio hardware al ricevitore u-blox (UBX-CFG-RST)");
+}
+
 esp_err_t gnss_ubx_poll_version(uart_port_t uart_num)
 {
     // UBX-MON-VER = classe 0x0A, id 0x04, nessun payload per il poll. La
