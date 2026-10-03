@@ -2,6 +2,24 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.107 - 1.19.110
+
+- **Scheda di accesso stampabile** (`/access`, pulsante "Apri la scheda di accesso" nella scheda Sicurezza), generata dal dispositivo con i dati del momento e pronta per la stampa A4 o il PDF, in 2 pagine:
+  - intestazione con **BASE o ROVER**, matricola, versione del software, ricevitore (modello e firmware) e scheda; per la base anche la posizione;
+  - accesso in locale (IP WiFi/Ethernet, indirizzo .local, QR code del pannello);
+  - rete di emergenza (SSID, password, 192.168.4.1, QR code per collegarsi al WiFi e per aprire il pannello);
+  - caster e accesso da remoto, con la situazione reale (oggi niente accesso da internet senza port forwarding);
+  - tutti gli utenti e le password;
+  - istruzioni per le emergenze e le operazioni comuni, con i nomi veri dei pulsanti del pannello.
+
+  Il contenuto cambia secondo la modalita':
+  - base: mountpoint di invio e caster interno;
+  - rover: correzioni ricevute e uscita NMEA UDP.
+- **Le password** arrivano da `POST /api/access/secrets` solo reinserendo la password admin (non basta il cookie del pannello). Se e' sbagliata: 403 e 1 s di attesa. Senza password la scheda si stampa con le caselle vuote. Nessun'altra risposta contiene password (verificato su `/api/status`).
+- **QR code** generati nella pagina (qrcode-generator 1.4.4, MIT, incorporato): funziona senza internet.
+- **Modello e firmware del ricevitore u-blox** nello stato (`gnss_model`, `gnss_fw`, da UBX-MON-VER). Dopo un riavvio dell'ESP32 la risposta all'avvio si perdeva tra i dati gia' in coda dello ZED: ora la richiesta si ripete ogni minuto finche' non arriva.
+- Endpoint massimi del server web portati da 40 a 44 (36 in uso).
+
 ## 1.19.104 - 1.19.106
 
 - **Riavvio del ricevitore ZED**: il ricevitore ha un'alimentazione propria, quindi il riavvio dell'ESP32 non lo riavvia. Verificato: dopo 4 riavvii dell'ESP32, lo ZED risultava acceso da 30 minuti. Ora il riavvio di sicurezza per "ricevitore muto" manda prima allo ZED `UBX-CFG-RST` (riavvio hardware, avvio a caldo). Al riavvio l'ESP32 lo riconfigura.

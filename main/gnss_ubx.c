@@ -311,6 +311,14 @@ static void svin_poll_task(void *arg)
         if (loop_count++ % 6 == 0 && ubx_send(uart_num, 0x0A, 0x39, NULL, 0) == ESP_OK) {
             gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
         }
+        // Modello e firmware del ricevitore (scheda di accesso, pannello): la
+        // risposta a MON-VER dell'avvio si perde se lo ZED, rimasto acceso
+        // durante il riavvio dell'ESP32, ha gia' dati in coda. Si richiede
+        // ogni minuto finche' non arriva.
+        if (loop_count % 6 == 3 && gnss_ubx_ack_model()[0] == 0 &&
+            ubx_send(uart_num, 0x0A, 0x04, NULL, 0) == ESP_OK) {
+            gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
+        }
         svin_status_t sv = status_svin_get();
         int64_t now = esp_timer_get_time();
         if (sv.have && sv.valid && !logged_valid) {

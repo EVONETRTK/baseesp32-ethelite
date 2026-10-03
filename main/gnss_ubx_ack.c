@@ -47,6 +47,19 @@ static uint8_t s_ck_a, s_calc_ck_a, s_calc_ck_b;
 // che manda i comandi, letto dal task che legge la UART.
 static volatile bool s_armed;
 
+static char s_model[24];
+static char s_fw[24];
+
+const char *gnss_ubx_ack_model(void)
+{
+    return s_model;
+}
+
+const char *gnss_ubx_ack_fw(void)
+{
+    return s_fw;
+}
+
 void gnss_ubx_ack_init(void)
 {
     s_ack_queue = xQueueCreate(1, sizeof(ubx_ack_result_t));
@@ -180,6 +193,11 @@ bool gnss_ubx_ack_feed_byte(uint8_t c)
                 char ext[31] = {0};
                 memcpy(ext, s_payload + off, 30);
                 ESP_LOGI(TAG, "UBX-MON-VER extension: \"%s\"", ext);
+                if (strncmp(ext, "MOD=", 4) == 0) {
+                    strlcpy(s_model, ext + 4, sizeof(s_model));
+                } else if (strncmp(ext, "FWVER=", 6) == 0) {
+                    strlcpy(s_fw, ext + 6, sizeof(s_fw));
+                }
             }
         } else if (checksum_ok && s_class == 0x0A && s_id == 0x39) {
             // UBX-MON-SYS: temperatura e stato interno del ricevitore.

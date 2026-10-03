@@ -7,6 +7,11 @@
 // una volta all'avvio prima di usare le altre funzioni di questo modulo.
 void gnss_ubx_ack_init(void);
 
+// Modello e firmware del ricevitore u-blox, dalle righe "MOD=" e "FWVER="
+// di UBX-MON-VER (letto all'avvio). "" se non ancora ricevuti.
+const char *gnss_ubx_ack_model(void);
+const char *gnss_ubx_ack_fw(void);
+
 // Da chiamare subito PRIMA di spedire un comando UBX di cui si attende la
 // risposta (vedi ubx_send() in gnss_ubx.c): scarta un eventuale ACK residuo
 // e attiva il riconoscimento dei frame UBX sullo stream della UART. Fuori

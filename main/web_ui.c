@@ -15,6 +15,7 @@
 #include "log_buffer.h"
 #include "sys_stats.h"
 #include "config_backup.h"
+#include "gnss_ubx_ack.h"
 #include "gnss_signal.h"
 #include "rtcm3_stats.h"
 #include "gnss_fix.h"
@@ -65,6 +66,10 @@ extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t icon192_png_start[] asm("_binary_icon192_png_start");
 extern const uint8_t icon192_png_end[]   asm("_binary_icon192_png_end");
 extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
+// Scheda di accesso stampabile (web/access.html): indirizzi, utenti, password
+// e istruzioni, generata dalla base con i dati del momento.
+extern const uint8_t access_html_start[] asm("_binary_access_html_start");
+extern const uint8_t access_html_end[]   asm("_binary_access_html_end");
 
 // HTTP Basic Auth, utente fisso "admin" + codice impostabile dalla UI
 // stessa (settings.admin_code). Un codice vuoto disabilita la protezione
@@ -184,6 +189,96 @@ static esp_err_t index_get_handler(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     size_t len = index_html_end - index_html_start;
     return httpd_resp_send(req, (const char *) index_html_start, len);
+}
+
+static esp_err_t access_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
+    // EMBED_TXTFILES aggiunge uno zero finale: non va inviato.
+    return httpd_resp_send(req, (const char *) access_html_start, access_html_end - access_html_start - 1);
+}
+
+typedef struct {
+    const char *given;  // password admin reinserita
+    bool ok;
+    cJSON *out;
+} access_secrets_ctx_t;
+
+static void peek_access_secrets(const app_settings_t *s, void *arg)
+{
+    access_secrets_ctx_t *c = (access_secrets_ctx_t *) arg;
+    c->ok = s->admin_code[0] == 0 || strcmp(c->given, s->admin_code) == 0;
+    if (!c->ok) {
+        return;
+    }
+    cJSON *o = c->out;
+    cJSON_AddStringToObject(o, "admin_password", s->admin_code);
+    cJSON_AddStringToObject(o, "ap_password", s->ap_password);
+    cJSON_AddStringToObject(o, "wifi_password", s->wifi_password);
+    cJSON_AddStringToObject(o, "ntrip_username", s->ntrip_username);
+    cJSON_AddStringToObject(o, "ntrip_password", s->ntrip_password);
+    cJSON_AddStringToObject(o, "rover_username", s->rover_username);
+    cJSON_AddStringToObject(o, "rover_password", s->rover_password);
+    cJSON_AddStringToObject(o, "caster_server_password", s->ntrip_caster_server_password);
+    cJSON_AddStringToObject(o, "cellular_apn", s->cellular_apn);
+    cJSON *nets = cJSON_AddArrayToObject(o, "wifi_networks");
+    for (int i = 0; i < WIFI_KNOWN_NETWORKS_MAX; i++) {
+        if (s->wifi_known_networks[i].ssid[0]) {
+            cJSON *n = cJSON_CreateObject();
+            cJSON_AddStringToObject(n, "ssid", s->wifi_known_networks[i].ssid);
+            cJSON_AddStringToObject(n, "password", s->wifi_known_networks[i].password);
+            cJSON_AddItemToArray(nets, n);
+        }
+    }
+}
+
+// Password per la scheda di accesso: solo con la password admin reinserita
+// (non basta il cookie del pannello rimasto aperto su un PC qualunque).
+// Nessun'altra risposta del pannello contiene password.
+static esp_err_t access_secrets_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char buf[128] = {0};
+    int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
+    if (len <= 0 || httpd_req_recv(req, buf, len) != len) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo mancante");
+    }
+    cJSON *root = cJSON_Parse(buf);
+    const cJSON *p = root ? cJSON_GetObjectItemCaseSensitive(root, "password") : NULL;
+    char given[40] = "";
+    if (p && cJSON_IsString(p)) {
+        strlcpy(given, p->valuestring, sizeof(given));
+    }
+    cJSON_Delete(root);
+    access_secrets_ctx_t ctx = { .given = given, .ok = false, .out = cJSON_CreateObject() };
+    settings_peek(peek_access_secrets, &ctx);
+    memset(given, 0, sizeof(given));
+    memset(buf, 0, sizeof(buf));
+    if (!ctx.ok) {
+        cJSON_Delete(ctx.out);
+        ESP_LOGW(TAG, "Scheda di accesso: password admin errata");
+        vTaskDelay(pdMS_TO_TICKS(1000)); // rallenta i tentativi a caso
+        httpd_resp_set_status(req, "403 Forbidden");
+        return httpd_resp_sendstr(req, "{\"error\":\"password errata\"}");
+    }
+    char *json = cJSON_PrintUnformatted(ctx.out);
+    cJSON_Delete(ctx.out);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    ESP_LOGI(TAG, "Scheda di accesso: password mostrate");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    esp_err_t err = httpd_resp_sendstr(req, json);
+    memset(json, 0, strlen(json));
+    free(json);
+    return err;
 }
 
 // Icona e "manifesto" per aggiungere il pannello alla schermata Home del
@@ -567,6 +662,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "fw_rollback_note", ota_update_rollback_note());
     cJSON_AddStringToObject(root, "last_crash", sys_stats_last_crash());
     cJSON_AddStringToObject(root, "config_guard_note", config_backup_guard_note());
+    cJSON_AddStringToObject(root, "gnss_model", gnss_ubx_ack_model());
+    cJSON_AddStringToObject(root, "gnss_fw", gnss_ubx_ack_fw());
     cJSON_AddBoolToObject(root, "fw_pending", ota_update_is_pending());
     {
         // Traffico stimato (data_usage.c) e piano dati della SIM.
@@ -2594,7 +2691,7 @@ void web_ui_start(void)
     // silenzio (nessun log, nessun crash, solo un 404 inspiegabile su
     // quell'endpoint) - trovato rivedendo il codice, non ancora capitato
     // in pratica.
-    config.max_uri_handlers = 40; // 31 in uso con la gestione SIM (1.19.85)
+    config.max_uri_handlers = 44; // 36 in uso con la scheda di accesso (1.19.107)
     // Con il default (7 socket, nessuna chiusura automatica) bastavano un
     // paio di browser/schede aperte, che tengono le connessioni in
     // keep-alive e interrogano /api/status e /api/signals ogni pochi
@@ -2628,6 +2725,8 @@ void web_ui_start(void)
     httpd_uri_t cfg_import_uri = { .uri = "/api/config/import", .method = HTTP_POST, .handler = config_import_post_handler };
     httpd_uri_t sim_action_uri = { .uri = "/api/sim/action", .method = HTTP_POST, .handler = sim_action_post_handler };
     httpd_uri_t test_fault_uri = { .uri = "/api/test/fault", .method = HTTP_POST, .handler = test_fault_post_handler };
+    httpd_uri_t access_uri     = { .uri = "/access", .method = HTTP_GET, .handler = access_get_handler };
+    httpd_uri_t access_sec_uri = { .uri = "/api/access/secrets", .method = HTTP_POST, .handler = access_secrets_post_handler };
     httpd_uri_t sim_sms_uri    = { .uri = "/api/sim/sms",    .method = HTTP_GET,  .handler = sim_sms_get_handler };
     httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
     httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
@@ -2657,6 +2756,8 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &manifest_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
     httpd_register_uri_handler(server, &test_fault_uri);
+    httpd_register_uri_handler(server, &access_uri);
+    httpd_register_uri_handler(server, &access_sec_uri);
     httpd_register_uri_handler(server, &ntrip_mountpoints_uri);
     httpd_register_uri_handler(server, &ntrip_test_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);
