@@ -498,6 +498,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         }
     }
     cJSON_AddStringToObject(root, "fw_rollback_note", ota_update_rollback_note());
+    cJSON_AddStringToObject(root, "last_crash", sys_stats_last_crash());
     cJSON_AddBoolToObject(root, "fw_pending", ota_update_is_pending());
     {
         // Traffico stimato (data_usage.c) e piano dati della SIM.

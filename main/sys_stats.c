@@ -392,3 +392,77 @@ static void safety_restart_check(int64_t now)
         sys_stats_restart_with_reason(why);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Dove e' avvenuto l'ultimo crash. Il 03/10/2026 la 1.19.86 e' andata in crash
+// una volta, 2,5 minuti dopo un aggiornamento, e non si e' piu' ripetuto:
+// senza cavo USB non si sapeva dove. Il gestore dei crash di ESP-IDF viene
+// "avvolto" (opzione --wrap del linker, vedi CMakeLists.txt): prima di
+// lasciarlo proseguire salva motivo e indirizzi in memoria RTC, che
+// sopravvive al riavvio. All'avvio successivo finiscono nel log e nel
+// pannello; con il file .elf della stessa versione si risale alla riga.
+// ---------------------------------------------------------------------------
+
+#include "esp_private/panic_internal.h"
+#include "xtensa_context.h"
+
+#define CRASH_MAGIC 0x43525348u
+
+typedef struct {
+    uint32_t magic;
+    uint32_t pc;        // istruzione del crash
+    uint32_t caller;    // indirizzo di ritorno (a0): chi ha chiamato
+    int core;
+    char reason[48];
+    char details[64];   // per abort(): "abort() was called at PC ..."
+} crash_note_t;
+
+static RTC_NOINIT_ATTR crash_note_t s_crash_note;
+static char s_crash_text[200];
+
+extern char *g_panic_abort_details;
+extern void __real_esp_panic_handler(panic_info_t *info);
+
+static IRAM_ATTR void copy_str(char *dst, size_t n, const char *src)
+{
+    size_t i = 0;
+    if (src) {
+        for (; i < n - 1 && src[i]; i++) {
+            dst[i] = src[i];
+        }
+    }
+    dst[i] = 0;
+}
+
+IRAM_ATTR void __wrap_esp_panic_handler(panic_info_t *info)
+{
+    // Solo copie semplici: siamo nel gestore del crash.
+    s_crash_note.magic = CRASH_MAGIC;
+    s_crash_note.pc = (uint32_t) info->addr;
+    s_crash_note.caller = info->frame ? (uint32_t) ((const XtExcFrame *) info->frame)->a0 : 0;
+    s_crash_note.core = info->core;
+    copy_str(s_crash_note.reason, sizeof(s_crash_note.reason), info->reason);
+    copy_str(s_crash_note.details, sizeof(s_crash_note.details), g_panic_abort_details);
+    __real_esp_panic_handler(info);
+}
+
+void sys_stats_crash_report(void)
+{
+    if (s_crash_note.magic == CRASH_MAGIC && esp_reset_reason() == ESP_RST_PANIC) {
+        s_crash_note.reason[sizeof(s_crash_note.reason) - 1] = 0;
+        s_crash_note.details[sizeof(s_crash_note.details) - 1] = 0;
+        // Il chiamante e' salvato senza i 2 bit alti dell'indirizzo (convenzione
+        // xtensa): si rimettono a 0x40 per poterlo cercare nel file .elf.
+        uint32_t caller = s_crash_note.caller ? ((s_crash_note.caller & 0x3FFFFFFF) | 0x40000000) : 0;
+        snprintf(s_crash_text, sizeof(s_crash_text), "%s, core %d, PC 0x%08lx, chiamato da 0x%08lx%s%s",
+                 s_crash_note.reason, s_crash_note.core, (unsigned long) s_crash_note.pc, (unsigned long) caller,
+                 s_crash_note.details[0] ? " - " : "", s_crash_note.details);
+        ESP_LOGE(MON_TAG, "Ultimo crash: %s", s_crash_text);
+    }
+    s_crash_note.magic = 0;
+}
+
+const char *sys_stats_last_crash(void)
+{
+    return s_crash_text;
+}

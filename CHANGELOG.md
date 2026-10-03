@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.87
+
+- **Registrazione dei crash**: il 03/10/2026 la 1.19.86 e' andata in crash una volta, 2,5 minuti dopo un aggiornamento (il ritorno automatico alla versione precedente ha funzionato), e non si e' ripetuto in 3 ore di prova: senza cavo USB non si sapeva dove. Ora il gestore dei crash di ESP-IDF e' "avvolto" (`-Wl,--wrap=esp_panic_handler`, funzione in IRAM): prima di riavviare salva in memoria RTC motivo, core, indirizzo del crash, chiamante e, per `abort()`, l'indirizzo della chiamata. All'avvio successivo finiscono nel log e nel pannello (riga "Ultimo riavvio"). Con il file .elf della stessa versione si risale alla riga.
+  - Verificato con un firmware di prova che chiamava `abort()` dopo 60 s: il pannello ha mostrato "abort() was called at PC 0x4200f8b4" e addr2line ha indicato esattamente la riga del crash di prova (`sys_stats.c:230`); la base e' tornata da sola alla versione buona.
+- Corretto: la nota "tornato alla versione precedente" non compariva se due build avevano la stessa versione interna; ora il confronto usa data e ora di compilazione.
+
 ## 1.19.86
 
 - **Recuperati circa 28 KB di RAM** (richiesta dell'utente), senza togliere funzioni. Misurato: memoria libera da 37 a 61-66 KB, minima dall'avvio da 18,5 a 34 KB.

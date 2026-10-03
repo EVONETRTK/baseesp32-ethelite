@@ -186,7 +186,7 @@ void ota_update_check_rollback(void)
         return;
     }
     char key[64];
-    snprintf(key, sizeof(key), "%s %s", bad->label, desc.version);
+    snprintf(key, sizeof(key), "%s %.12s %.8s", bad->label, desc.date, desc.time); // data e ora: la versione interna puo' coincidere tra due build
     nvs_handle_t h;
     if (nvs_open("otaroll", NVS_READWRITE, &h) != ESP_OK) {
         return;

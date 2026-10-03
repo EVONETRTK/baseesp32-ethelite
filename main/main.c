@@ -125,6 +125,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "EVONETRTK firmware v%s", FIRMWARE_VERSION);
     sys_stats_boot_report();
+    sys_stats_crash_report();
 
     esp_err_t nvs_err = nvs_flash_init();
     if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {

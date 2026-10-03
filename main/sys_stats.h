@@ -41,3 +41,8 @@ const char *sys_stats_last_reset(void);
 // pannello. La seconda variante annota soltanto (riavvio fatto dal chiamante).
 void sys_stats_restart_with_reason(const char *reason);
 void sys_stats_note_restart_reason(const char *reason);
+
+// Dettagli dell'ultimo crash (motivo e indirizzi), salvati dal gestore dei
+// crash e scritti nel log all'avvio. Stringa vuota se l'avvio non segue un crash.
+void sys_stats_crash_report(void);
+const char *sys_stats_last_crash(void);
