@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Scheda SIM con credito e SMS; rinnovo del piano con promemoria; ritorno automatico se un aggiornamento va in crash; copia di sicurezza della configurazione; +28 KB di memoria libera."
+#define FIRMWARE_RELEASE_NOTES "Si rimette in piedi da sola (watchdog, configurazione buona, reset di ZED e modem); VPN WireGuard per l'accesso remoto; scheda di accesso stampabile; scheda SIM e traffico; pannello per telefono; crash di stack risolti."
