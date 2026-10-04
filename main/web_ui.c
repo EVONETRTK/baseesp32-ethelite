@@ -2787,7 +2787,7 @@ void web_ui_start(void)
     // serva per gestire richieste normali - confermato da un crash reale
     // su hardware (stessa causa, in un task diverso, del fix allo stack
     // del task "main" durante l'init WiFi fatto in precedenza).
-    config.stack_size = 12288; // 12 KB (era 10): margine per gestore aggiornamenti e risposta di stato
+    config.stack_size = 14336; // 14 KB (era 12): con scheda di accesso, VPN e caster restavano 1092 byte liberi (04/10/2026)
 
     httpd_handle_t server = NULL;
     if (httpd_start(&server, &config) != ESP_OK) {

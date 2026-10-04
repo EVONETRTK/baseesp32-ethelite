@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.123
+
+- Stack del server web da 12 a 14 KB: con scheda di accesso, VPN e caster restavano 1092 byte liberi (04/10/2026), sotto il margine di 1,3 KB.
+
 ## 1.19.121 - 1.19.122
 
 - **Durata del survey-in leggibile**: nel pannello "in corso da 20 h 22 min" invece di "73337 s" (nuova `fmtDurata()`); nel log ore e minuti. Il campo della durata minima dice "secondi, 60 = 1 minuto".
