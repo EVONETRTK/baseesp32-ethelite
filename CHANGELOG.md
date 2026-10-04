@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.121 - 1.19.122
+
+- **Durata del survey-in leggibile**: nel pannello "in corso da 20 h 22 min" invece di "73337 s" (nuova `fmtDurata()`); nel log ore e minuti. Il campo della durata minima dice "secondi, 60 = 1 minuto".
+- **Stack del task del survey-in** (`ubx_svin`) da 3 a 4 KB: con la richiesta UBX (frame da 520 byte) e i log con i decimali restavano 792 byte liberi (log del 04/10/2026), sotto il margine di 1,3 KB.
+- Osservato il 04/10: dalle 09:38 la base non raggiungeva ne' il caster ne' internet. Causa esterna: la connessione IPv4 del FRITZ!Box era ferma (dal PC funzionava solo l'IPv6). La base ritentava correttamente ogni 68 s. La VPN di prova cadeva ogni 3 minuti di notte perche' il PC che fa da server era in standby (il rinnovo delle chiavi falliva); con il PC sveglio nessuna caduta.
+
 ## 1.19.117 - 1.19.120
 
 Collaudo completo del 03/10/2026 (richiesto dall'utente) e revisione del codice.

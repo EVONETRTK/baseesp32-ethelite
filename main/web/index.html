@@ -560,7 +560,7 @@
       </select>
     </label>
     <div id="base-pos-auto-fields">
-      <label>Durata minima del survey-in (secondi)<input name="base_svin_min_dur_s" type="number" min="0" max="65535" step="1" placeholder="0 = predefinito (60)"></label>
+      <label>Durata minima del survey-in (secondi, 60 = 1 minuto)<input name="base_svin_min_dur_s" type="number" min="0" max="65535" step="1" placeholder="0 = predefinito (60)"></label>
       <label>Precisione richiesta (metri)<input name="base_svin_acc_m" type="number" min="0" max="100" step="0.01" placeholder="0 = predefinito del ricevitore"></label>
       <small class="hint">
         La base inizia a trasmettere la sua posizione (1005) solo dopo almeno questa durata e con
@@ -1813,9 +1813,9 @@ async function loadStatus() {
       } else if (s.svin_valid === undefined) {
         el.textContent = 'non disponibile';
       } else if (s.svin_valid) {
-        el.textContent = '✅ completato (' + s.svin_duration_s + ' s, precisione ' + s.svin_mean_acc_m.toFixed(2) + ' m): la base manda la sua posizione';
+        el.textContent = '✅ completato (' + fmtDurata(s.svin_duration_s) + ', precisione ' + s.svin_mean_acc_m.toFixed(2) + ' m): la base manda la sua posizione';
       } else if (s.svin_active) {
-        el.textContent = '⏳ in corso da ' + s.svin_duration_s + ' s, precisione attuale ' + s.svin_mean_acc_m.toFixed(2) + ' m';
+        el.textContent = '⏳ in corso da ' + fmtDurata(s.svin_duration_s) + ', precisione attuale ' + s.svin_mean_acc_m.toFixed(2) + ' m';
       } else {
         el.textContent = '⚠️ non attivo: la base non manda la sua posizione (1005)';
       }
@@ -3420,6 +3420,15 @@ document.getElementById('sim-sms-del-btn').addEventListener('click', () => {
 
 // --- Riquadri riassuntivi della scheda Stato ------------------------------------
 // Verde/giallo/rosso a colpo d'occhio; toccandone uno si va ai dettagli.
+// Durata leggibile: 73337 -> "20 h 22 min", 200 -> "3 min 20 s".
+function fmtDurata(sec) {
+  sec = Math.max(0, Math.round(sec || 0));
+  const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  if (d) return d + ' g ' + h + ' h';
+  if (h) return h + ' h ' + m + ' min';
+  if (m) return m + ' min' + (s ? ' ' + s + ' s' : '');
+  return s + ' s';
+}
 let lastSignals = null;
 document.getElementById('vpn-keygen-btn').addEventListener('click', async () => {
   const pk = document.getElementById('vpn-pubkey');

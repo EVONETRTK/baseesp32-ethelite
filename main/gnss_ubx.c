@@ -265,7 +265,9 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     ubx_valset_group(uart_num, "TMODE (survey-in)", kvs_tmode, sizeof(kvs_tmode) / sizeof(kvs_tmode[0]));
 
     // Stato del survey-in per log e pannello (vedi svin_poll_task).
-    xTaskCreate(svin_poll_task, "ubx_svin", 3072, (void *) (intptr_t) uart_num, 3, NULL);
+    // 4096 (era 3072): con la richiesta UBX (frame da 520 byte) e i log con i
+    // decimali restavano 792 byte liberi (log del 04/10/2026), sotto il margine.
+    xTaskCreate(svin_poll_task, "ubx_svin", 4096, (void *) (intptr_t) uart_num, 3, NULL);
 
     return ESP_OK;
 }
@@ -323,12 +325,14 @@ static void svin_poll_task(void *arg)
         svin_status_t sv = status_svin_get();
         int64_t now = esp_timer_get_time();
         if (sv.have && sv.valid && !logged_valid) {
-            ESP_LOGI(TAG, "Survey-in completato: %u s, precisione %.2f m, %u osservazioni - la base manda la sua posizione (1005)",
-                     (unsigned) sv.duration_s, sv.mean_acc_m, (unsigned) sv.observations);
+            ESP_LOGI(TAG, "Survey-in completato: %u h %02u min, precisione %.2f m, %u osservazioni - la base manda la sua posizione (1005)",
+                     (unsigned) (sv.duration_s / 3600), (unsigned) (sv.duration_s % 3600 / 60), sv.mean_acc_m,
+                     (unsigned) sv.observations);
             logged_valid = true;
         } else if (sv.have && !sv.valid && now - last_log_us > 5LL * 60 * 1000000) {
-            ESP_LOGI(TAG, "Survey-in %s: %u s, precisione attuale %.2f m",
-                     sv.active ? "in corso" : "non attivo", (unsigned) sv.duration_s, sv.mean_acc_m);
+            ESP_LOGI(TAG, "Survey-in %s da %u h %02u min, precisione attuale %.2f m (richiesta: vedi impostazioni)",
+                     sv.active ? "in corso" : "non attivo", (unsigned) (sv.duration_s / 3600),
+                     (unsigned) (sv.duration_s % 3600 / 60), sv.mean_acc_m);
             last_log_us = now;
         }
         vTaskDelay(pdMS_TO_TICKS(10000));
