@@ -611,6 +611,41 @@
   </fieldset>
 
   <fieldset data-mode="base">
+    <legend>📼 Dati grezzi per le coordinate precise (PPP)</legend>
+    <small class="hint">
+      Registra sulla microSD le misure grezze del ricevitore u-blox (UBX RXM-RAWX e RXM-SFRBX). Con
+      un file di almeno 6–24 ore si ottengono le coordinate della base al centimetro con un servizio
+      PPP gratuito, da inserire poi come coordinate fisse. La base intanto continua a lavorare
+      normalmente. Circa 50 MB al giorno con le misure ogni 5 s.
+    </small>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.5rem">
+      <label style="flex:1 1 140px">Durata
+        <select id="raw-hours"><option value="6">6 ore</option><option value="12">12 ore</option><option value="24" selected>24 ore</option><option value="48">48 ore</option><option value="72">72 ore</option></select>
+      </label>
+      <label style="flex:1 1 140px">Misure ogni
+        <select id="raw-interval"><option value="1">1 s</option><option value="5" selected>5 s</option><option value="30">30 s</option></select>
+      </label>
+    </div>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.5rem">
+      <button type="button" class="action" id="raw-start-btn">▶️ Avvia registrazione</button>
+      <button type="button" class="action secondary" id="raw-stop-btn">⏹️ Ferma</button>
+      <button type="button" class="action secondary" id="raw-list-btn">📂 File registrati</button>
+    </div>
+    <div style="margin-top:.5rem"><b>Stato:</b> <span id="raw-state">-</span></div>
+    <div id="raw-msg" class="hint" style="margin-top:.3rem"></div>
+    <ul id="raw-files" style="margin:.4rem 0 0; padding-left:1.2rem"></ul>
+    <details style="margin-top:.6rem"><summary>Come ottenere le coordinate dal file</summary>
+      <ol class="hint" style="margin:.4rem 0 0; padding-left:1.2rem">
+        <li>Scarica il file .ubx (oppure togli la microSD: cartella <code>raw</code>).</li>
+        <li>Convertilo in RINEX con RTKLIB (programma <b>RTKCONV</b> o <code>convbin file.ubx -r ubx -v 3.04</code>): escono un file di osservazioni (.obs) e uno di navigazione (.nav).</li>
+        <li>Carica il file .obs su un servizio PPP gratuito, per esempio <b>CSRS-PPP</b> (Natural Resources Canada), in modalità <b>Static</b>. Dopo qualche minuto arriva per email il risultato con latitudine, longitudine e quota ellissoidica.</li>
+        <li>Inserisci le coordinate qui sopra in "Posizione della base" → coordinate fisse e salva: la base manda subito la sua posizione (1005).</li>
+      </ol>
+      <small class="hint">Per la precisione migliore usa il risultato "final", disponibile circa 2 settimane dopo la registrazione; quello "rapid" (dopo 1–2 giorni) è già al livello di pochi centimetri.</small>
+    </details>
+  </fieldset>
+
+  <fieldset data-mode="base">
     <legend>🎥 Registrazione dati per PPP (posizione base di alta precisione)</legend>
     <small class="hint">
       Registra le osservazioni RTCM3 grezze su SD per diverse ore da un punto fisso - poi converti il file in
@@ -1849,6 +1884,23 @@ async function loadStatus() {
       else { st.textContent = 'non collegata' + (s.vpn_note ? ': ' + s.vpn_note : ''); st.style.color = '#d97706'; }
       const pk = document.getElementById('vpn-pubkey');
       if (document.activeElement !== pk) pk.value = s.vpn_public_key || '';
+    }
+    {
+      const el = document.getElementById('raw-state');
+      if (el) {
+        const mb = b => (b / 1048576).toFixed(1) + ' MB';
+        if (s.raw_active && s.raw_waiting_time) {
+          el.textContent = 'avviata, in attesa dell\'ora esatta (NTP)';
+        } else if (s.raw_active) {
+          const left = Math.max(0, s.raw_end_unix - Date.now() / 1000);
+          el.textContent = '🔴 in registrazione: ' + s.raw_file + ' · ' + mb(s.raw_bytes) + ' · ' + s.raw_frames +
+            ' frame' + (s.raw_dropped ? ' (' + s.raw_dropped + ' persi)' : '') + ' · finisce tra ' + fmtDurata(left);
+        } else {
+          el.textContent = 'ferma' + (s.raw_note ? ' — ultima sessione: ' + s.raw_note : '');
+        }
+        document.getElementById('raw-start-btn').disabled = !!s.raw_active;
+        document.getElementById('raw-stop-btn').disabled = !s.raw_active;
+      }
     }
     document.getElementById('remote-last').textContent = !(s.remote_interval_min > 0) ? 'Spento'
       : (!s.remote_url ? '⚠️ Manca l\'indirizzo: nessun invio' : 'Ultimo invio: ' + (s.remote_last || 'non ancora fatto'));
@@ -3429,6 +3481,43 @@ function fmtDurata(sec) {
   if (m) return m + ' min' + (s ? ' ' + s + ' s' : '');
   return s + ' s';
 }
+async function rawAction(body) {
+  const msg = document.getElementById('raw-msg');
+  msg.textContent = '...';
+  try {
+    const r = await fetch('/api/rawlog/action', { method: 'POST', body: JSON.stringify(body) });
+    const j = await r.json();
+    msg.textContent = j.ok ? 'Fatto' : 'Errore: ' + (j.error || 'operazione non riuscita');
+    return j.ok;
+  } catch (e) { msg.textContent = 'Errore di comunicazione con la base'; return false; }
+}
+async function loadRawFiles() {
+  const ul = document.getElementById('raw-files');
+  ul.innerHTML = '<li>Lettura della microSD...</li>';
+  try {
+    const j = await (await fetch('/api/rawlog/list')).json();
+    if (!j.sd_ok) { ul.innerHTML = '<li>microSD non disponibile</li>'; return; }
+    const free = j.free_bytes !== undefined ? ' — spazio libero ' + (j.free_bytes / 1073741824).toFixed(1) + ' GB' : '';
+    if (!j.files.length) { ul.innerHTML = '<li>Nessun file' + free + '</li>'; return; }
+    j.files.sort((a, b) => b.name.localeCompare(a.name));
+    ul.innerHTML = j.files.map(f => '<li><a href="/api/rawlog/download?name=' + encodeURIComponent(f.name) + '">' + f.name +
+      '</a> (' + (f.size / 1048576).toFixed(1) + ' MB) <a href="#" data-raw-del="' + f.name + '" style="color:#dc2626">elimina</a></li>').join('') +
+      (free ? '<li style="list-style:none">' + free.slice(3) + '</li>' : '');
+  } catch (e) { ul.innerHTML = '<li>Errore di comunicazione con la base</li>'; }
+}
+document.getElementById('raw-start-btn').addEventListener('click', () => rawAction({
+  action: 'start', hours: Number(document.getElementById('raw-hours').value), interval: Number(document.getElementById('raw-interval').value),
+}));
+document.getElementById('raw-stop-btn').addEventListener('click', () => {
+  if (confirm('Fermare la registrazione dei dati grezzi?')) rawAction({ action: 'stop' });
+});
+document.getElementById('raw-list-btn').addEventListener('click', loadRawFiles);
+document.getElementById('raw-files').addEventListener('click', async (ev) => {
+  const name = ev.target.dataset && ev.target.dataset.rawDel;
+  if (!name) return;
+  ev.preventDefault();
+  if (confirm('Eliminare ' + name + ' dalla microSD?') && await rawAction({ action: 'delete', name })) loadRawFiles();
+});
 let lastSignals = null;
 document.getElementById('vpn-keygen-btn').addEventListener('click', async () => {
   const pk = document.getElementById('vpn-pubkey');

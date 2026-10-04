@@ -17,6 +17,7 @@ idf_component_register(
         "sim_tools.c"
         "remote_status.c"
         "vpn_link.c"
+        "raw_log.c"
         "config_backup.c"
         "gnss_driver.c"
         "gnss_ubx.c"

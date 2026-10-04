@@ -2,6 +2,16 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.124
+
+- **Registrazione dei dati grezzi per il PPP** (nuovo `raw_log.c`, riquadro "Dati grezzi per le coordinate precise (PPP)" nella scheda GNSS & NTRIP):
+  - lo ZED invia UBX RXM-RAWX (ogni 1, 5 o 30 s) e RXM-SFRBX; il task del survey-in applica la configurazione, cosi' c'e' un solo task che parla con il ricevitore;
+  - i frame (checksum verificato) passano da un buffer di 512 KB nella PSRAM e vengono scritti ogni 10 s in `/sdcard/raw/EVO_AAAAMMGG_HHMM.ubx`, a blocchi brevi: con la SD montata l'I2C del ricevitore e' fermo;
+  - durata 6-72 h con arresto automatico; la sessione riprende dopo un riavvio (fine prevista in NVS); si ferma se la microSD ha meno di 20 MB liberi;
+  - elenco, scaricamento a blocchi (`/api/rawlog/list`, `/api/rawlog/download`), eliminazione e avvio/arresto (`/api/rawlog/action`); guida in pagina (RTKLIB convbin -> RINEX -> CSRS-PPP -> coordinate fisse).
+- **Smistatore del flusso del ricevitore**: i frame UBX fino a 8 KB vengono saltati per intero (prima il limite era 2 KB). Un RAWX lungo veniva abbandonato a meta' e i suoi byte riletti come possibili inizi di RTCM, con il rischio di perdere il frame RTCM seguente.
+- Verificato sulla base: ACK del ricevitore; file con 692 frame tutti integri, RAWX esattamente ogni 5 s con 35-43 misure; nessun frame perso; RTCM dal caster locale 150/150 integri durante la registrazione; 0,7 KB/s (circa 60 MB al giorno); scaricamento a circa 110 KB/s.
+
 ## 1.19.123
 
 - Stack del server web da 12 a 14 KB: con scheda di accesso, VPN e caster restavano 1092 byte liberi (04/10/2026), sotto il margine di 1,3 KB.

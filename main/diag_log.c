@@ -3,6 +3,7 @@
 #include "log_buffer.h"
 #include "sd_mutex.h"
 #include "config_backup.h"
+#include "raw_log.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -178,7 +179,10 @@ static void diag_log_task(void *arg)
 
     while (1) {
         // Ogni 30 s, oppure subito se richiesto (diag_log_flush_now).
-        bool forced = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(FLUSH_INTERVAL_MS)) > 0;
+        // Con la registrazione dei dati grezzi attiva ogni 10 s: blocchi piccoli
+        // sulla SD, cosi' l'I2C del ricevitore resta fermo poco ogni volta.
+        bool forced = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(raw_log_active() ? 10000 : FLUSH_INTERVAL_MS)) > 0;
+        raw_log_service();
         diag_flush(session_path, &session_bytes, buf, sizeof(buf));
         config_backup_service(); // copia della configurazione, se richiesta (anche prima di un riavvio)
         if (forced) {

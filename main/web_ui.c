@@ -17,6 +17,7 @@
 #include "config_backup.h"
 #include "gnss_ubx_ack.h"
 #include "vpn_link.h"
+#include "raw_log.h"
 #include "gnss_signal.h"
 #include "rtcm3_stats.h"
 #include "gnss_fix.h"
@@ -702,6 +703,19 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         if (vs.up) {
             cJSON_AddNumberToObject(root, "vpn_up_s", (double) ((esp_timer_get_time() - vs.up_since_us) / 1000000));
         }
+    }
+    {
+        raw_log_status_t rs;
+        raw_log_get_status(&rs);
+        cJSON_AddBoolToObject(root, "raw_active", rs.active);
+        cJSON_AddBoolToObject(root, "raw_waiting_time", rs.waiting_time);
+        cJSON_AddStringToObject(root, "raw_file", rs.file);
+        cJSON_AddNumberToObject(root, "raw_bytes", (double) rs.bytes);
+        cJSON_AddNumberToObject(root, "raw_frames", rs.frames);
+        cJSON_AddNumberToObject(root, "raw_dropped", rs.dropped);
+        cJSON_AddNumberToObject(root, "raw_end_unix", (double) rs.end_unix);
+        cJSON_AddNumberToObject(root, "raw_interval_s", rs.interval_s);
+        cJSON_AddStringToObject(root, "raw_note", rs.note);
     }
     cJSON_AddBoolToObject(root, "fw_pending", ota_update_is_pending());
     {
@@ -2628,6 +2642,75 @@ static esp_err_t vpn_keygen_post_handler(httpd_req_t *req)
     return httpd_resp_sendstr(req, out);
 }
 
+// Registrazione dei dati grezzi: {"action":"start","hours":24,"interval":5},
+// {"action":"stop"}, {"action":"delete","name":"EVO_....ubx"}.
+static esp_err_t rawlog_action_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char buf[160] = {0};
+    int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
+    if (len <= 0 || httpd_req_recv(req, buf, len) != len) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo mancante");
+    }
+    cJSON *root = cJSON_Parse(buf);
+    const cJSON *a = root ? cJSON_GetObjectItemCaseSensitive(root, "action") : NULL;
+    const char *action = (a && cJSON_IsString(a)) ? a->valuestring : "";
+    char err[96] = "";
+    bool ok = false;
+    if (strcmp(action, "start") == 0) {
+        const cJSON *h = cJSON_GetObjectItemCaseSensitive(root, "hours");
+        const cJSON *iv = cJSON_GetObjectItemCaseSensitive(root, "interval");
+        ok = raw_log_start(cJSON_IsNumber(h) ? (uint32_t) h->valueint : 0,
+                           cJSON_IsNumber(iv) ? (uint8_t) iv->valueint : 0, err, sizeof(err));
+    } else if (strcmp(action, "stop") == 0) {
+        raw_log_stop("fermata dal pannello");
+        ok = true;
+    } else if (strcmp(action, "delete") == 0) {
+        const cJSON *n = cJSON_GetObjectItemCaseSensitive(root, "name");
+        ok = n && cJSON_IsString(n) && raw_log_delete(n->valuestring);
+        if (!ok) {
+            strlcpy(err, "file non cancellato (inesistente o in registrazione)", sizeof(err));
+        }
+    } else {
+        strlcpy(err, "azione sconosciuta", sizeof(err));
+    }
+    cJSON_Delete(root);
+    cJSON *out = cJSON_CreateObject();
+    cJSON_AddBoolToObject(out, "ok", ok);
+    if (!ok) {
+        cJSON_AddStringToObject(out, "error", err);
+    }
+    char *json = cJSON_PrintUnformatted(out);
+    cJSON_Delete(out);
+    httpd_resp_set_type(req, "application/json");
+    esp_err_t e = httpd_resp_sendstr(req, json ? json : "{\"ok\":false}");
+    free(json);
+    return e;
+}
+
+static esp_err_t rawlog_list_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    return raw_log_send_list(req);
+}
+
+static esp_err_t rawlog_download_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char query[96] = {0}, name[48] = {0};
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "name", name, sizeof(name)) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "manca ?name=");
+    }
+    return raw_log_send_file(req, name);
+}
+
 static esp_err_t sim_action_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -2772,7 +2855,7 @@ void web_ui_start(void)
     // silenzio (nessun log, nessun crash, solo un 404 inspiegabile su
     // quell'endpoint) - trovato rivedendo il codice, non ancora capitato
     // in pratica.
-    config.max_uri_handlers = 44; // 36 in uso con la scheda di accesso (1.19.107)
+    config.max_uri_handlers = 48; // 41 in uso con la registrazione dei dati grezzi (1.19.124)
     // Con il default (7 socket, nessuna chiusura automatica) bastavano un
     // paio di browser/schede aperte, che tengono le connessioni in
     // keep-alive e interrogano /api/status e /api/signals ogni pochi
@@ -2809,6 +2892,9 @@ void web_ui_start(void)
     httpd_uri_t access_uri     = { .uri = "/access", .method = HTTP_GET, .handler = access_get_handler };
     httpd_uri_t access_sec_uri = { .uri = "/api/access/secrets", .method = HTTP_POST, .handler = access_secrets_post_handler };
     httpd_uri_t vpn_keygen_uri = { .uri = "/api/vpn/keygen", .method = HTTP_POST, .handler = vpn_keygen_post_handler };
+    httpd_uri_t rawlog_action_uri = { .uri = "/api/rawlog/action", .method = HTTP_POST, .handler = rawlog_action_post_handler };
+    httpd_uri_t rawlog_list_uri   = { .uri = "/api/rawlog/list", .method = HTTP_GET, .handler = rawlog_list_get_handler };
+    httpd_uri_t rawlog_dl_uri     = { .uri = "/api/rawlog/download", .method = HTTP_GET, .handler = rawlog_download_get_handler };
     httpd_uri_t sim_sms_uri    = { .uri = "/api/sim/sms",    .method = HTTP_GET,  .handler = sim_sms_get_handler };
     httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
     httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
@@ -2841,6 +2927,9 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &access_uri);
     httpd_register_uri_handler(server, &access_sec_uri);
     httpd_register_uri_handler(server, &vpn_keygen_uri);
+    httpd_register_uri_handler(server, &rawlog_action_uri);
+    httpd_register_uri_handler(server, &rawlog_list_uri);
+    httpd_register_uri_handler(server, &rawlog_dl_uri);
     httpd_register_uri_handler(server, &ntrip_mountpoints_uri);
     httpd_register_uri_handler(server, &ntrip_test_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);

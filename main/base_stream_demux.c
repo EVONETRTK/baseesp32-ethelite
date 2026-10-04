@@ -139,7 +139,11 @@ void base_stream_demux_feed(const uint8_t *buf, size_t len, base_demux_rtcm_cb_t
                 s_ubx_hdr[s_ubx_pos++] = c;
                 if (s_ubx_pos == sizeof(s_ubx_hdr)) {
                     s_ubx_remaining = (size_t) (s_ubx_hdr[2] | (s_ubx_hdr[3] << 8)) + 2;
-                    if (s_ubx_remaining > 2048) {
+                    // 8192: i frame RXM-RAWX (registrazione dei dati grezzi) superano
+                    // i 2,5 KB con 4 costellazioni. Con il limite a 2048 il frame
+                    // veniva abbandonato a meta' e i suoi byte riletti come possibili
+                    // inizi di RTCM, con il rischio di perdere il frame RTCM seguente.
+                    if (s_ubx_remaining > 8192) {
                         // Lunghezza assurda per le risposte che arrivano qui:
                         // non era un frame UBX, meglio non saltare dati.
                         s_state = ST_IDLE;

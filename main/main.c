@@ -51,6 +51,7 @@
 #include "sim_plan.h"
 #include "sim_tools.h"
 #include "config_backup.h"
+#include "raw_log.h"
 
 static const char *TAG = "main";
 
@@ -100,6 +101,7 @@ static void gnss_uart_task(void *arg)
         }
         if (len > 0) {
             base_stream_demux_feed(buf, (size_t) len, base_forward_rtcm_frame);
+            raw_log_feed(buf, (size_t) len); // dati grezzi per il PPP, se la registrazione e' attiva
         }
     }
 }
@@ -235,6 +237,7 @@ void app_main(void)
     // gia' in uso da un altro modulo in quel momento.
     xTaskCreate(fw_archive_save_current_task, "fw_archive_boot", 8192, NULL, 2, NULL);
     diag_log_start();
+    raw_log_init(); // registrazione dei dati grezzi (riprende una sessione in corso)
     sys_stats_monitor_start();
     data_usage_start();
     sim_plan_start();

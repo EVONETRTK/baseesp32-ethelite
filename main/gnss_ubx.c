@@ -2,6 +2,7 @@
 #include "gnss_io.h"
 #include "settings.h"
 #include "gnss_ubx_ack.h"
+#include "raw_log.h"
 #include "status.h"
 #include "esp_timer.h"
 
@@ -321,6 +322,22 @@ static void svin_poll_task(void *arg)
         if (loop_count % 6 == 3 && gnss_ubx_ack_model()[0] == 0 &&
             ubx_send(uart_num, 0x0A, 0x04, NULL, 0) == ESP_OK) {
             gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
+        }
+        // Registrazione dei dati grezzi (raw_log.c): RXM-RAWX ogni N epoche e
+        // RXM-SFRBX (dati di navigazione) quando richiesto. Lo applica questo
+        // task, l'unico che manda comandi al ricevitore (una sola attesa di ACK).
+        {
+            static uint8_t applied = 0xFF;
+            uint8_t want = raw_log_wanted_rate();
+            if (want != applied) {
+                const uint32_t port_off = gnss_io_is_i2c() ? 1 : 0;
+                const ubx_cfg_kv32_t kv[2] = {
+                    { 0x209102a5 - port_off, want },          // CFG-MSGOUT-UBX_RXM_RAWX (UART1; -1 = I2C)
+                    { 0x20910232 - port_off, want ? 1u : 0u }, // CFG-MSGOUT-UBX_RXM_SFRBX
+                };
+                ubx_valset(uart_num, want ? "DATI GREZZI attivi" : "DATI GREZZI spenti", kv, 2);
+                applied = want;
+            }
         }
         svin_status_t sv = status_svin_get();
         int64_t now = esp_timer_get_time();
