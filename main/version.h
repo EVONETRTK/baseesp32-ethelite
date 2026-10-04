@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "PSRAM da 8 MB attivata: memoria libera da 40 KB a 8 MB, aggiornamento online di nuovo funzionante con la VPN attiva. Messaggio della microSD piu' chiaro."
+#define FIRMWARE_RELEASE_NOTES "Caster locale NTRIP standard (tabella sorgenti, 401, NTRIP 2.0); credenziali protette dal riempimento automatico; VPN piu' sicura; log salvato prima dei riavvii; piu' RAM libera; correzioni dal collaudo."
