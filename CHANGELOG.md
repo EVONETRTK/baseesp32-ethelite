@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.129
+
+- Ricerca alta esattamente come gli indicatori (richiesta dell'utente): la riga allinea gli elementi in altezza e alla casella e' tolto il margine generale dei campi. Misurato: 38,4 px su computer, 35,2 px su telefono, come "SD".
+
 ## 1.19.128
 
 - **Ricerca compatta nella barra fissa** (richiesta dell'utente): sul computer subito a destra degli indicatori (dopo "SD"), con i risultati in un riquadro a discesa; sul telefono in una riga sottile sotto i 4 indicatori. Non scorre piu' via con la pagina.

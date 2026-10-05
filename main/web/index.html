@@ -100,9 +100,11 @@
   .top-bar { box-shadow:0 2px 6px rgba(0,0,0,.05); }
   /* Ricerca compatta nella riga degli indicatori, dentro la barra fissa
      (richiesta dell'utente: a destra di "SD", sempre a vista). */
-  .quick-status { align-items:center; }
-  .quick-status .search-box { position:relative; flex:0 1 200px; margin:0; }
-  .quick-status #settings-search { padding:.38rem .8rem; border-radius:20px; font-size:.85rem; }
+  /* Stessa altezza degli indicatori: la riga allinea tutti gli elementi in
+     altezza e la casella riempie la sua cella (richiesta dell'utente). */
+  .quick-status { align-items:stretch; }
+  .quick-status .search-box { position:relative; display:flex; flex:0 1 200px; margin:0; }
+  .quick-status #settings-search { height:auto; min-height:0; margin:0; padding:0 .8rem; border-radius:20px; font-size:.82rem; border:1px solid #c5c9d0; box-sizing:border-box; }
   .quick-status #settings-search-results { position:absolute; top:calc(100% + .3rem); left:0; width:min(420px, 92vw); z-index:30; margin:0; }
 
   /* --- Riquadri richiudibili (titolo cliccabile, stato ricordato) --------- */
@@ -120,7 +122,7 @@
     .quick-status { display:grid; grid-template-columns:repeat(4, 1fr); gap:.3rem; }
     .qs-chip { min-width:0; justify-content:center; padding:.35rem .3rem; font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .quick-status .search-box { grid-column:1 / -1; flex:none; }
-    .quick-status #settings-search { padding:.3rem .7rem; font-size:16px; min-height:34px; }
+    .quick-status #settings-search { padding:0 .7rem; font-size:16px; min-height:0; height:2.2rem; }
     .quick-status #settings-search-results { width:100%; }
 
     /* Schede: riga scorrevole sotto gli indicatori, dentro l'intestazione
