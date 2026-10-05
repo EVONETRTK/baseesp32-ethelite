@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Caster locale NTRIP standard (tabella sorgenti, 401, NTRIP 2.0); credenziali protette dal riempimento automatico; VPN piu' sicura; log salvato prima dei riavvii; piu' RAM libera; correzioni dal collaudo."
+#define FIRMWARE_RELEASE_NOTES "Registrazione dei dati grezzi (RAWX/SFRBX) sulla microSD per calcolare le coordinate precise della base con il PPP; piu' margine agli stack di sistema e del caster locale."
