@@ -268,7 +268,10 @@ void app_main(void)
         // a 320 byte per non troncarle, vedi gnss_nmea_reader.c) - margine
         // verificato con build (uso flash/RAM), non ancora su stack reale
         // via log HWM essendo il path Bynav M21D non esercitato su hardware.
-        xTaskCreate(gnss_nmea_reader_task, "nmea_reader", 4608,
+        // 6144 (era 4608): oltre alla lettura, parsing NMEA con i decimali,
+        // inoltro del GGA al caster e NMEA in UDP. Restavano 420 byte liberi
+        // (collaudo del rover del 05/10/2026).
+        xTaskCreate(gnss_nmea_reader_task, "nmea_reader", 6144,
                     (void *)(intptr_t) s_gnss_uart_num, 6, NULL);
     } else {
         rtcm3_1005_init();

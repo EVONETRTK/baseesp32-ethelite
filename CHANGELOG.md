@@ -2,6 +2,18 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.126
+
+Collaudo della modalita' rover (05/10/2026) contro un caster NTRIP finto sul PC, che inviava RTCM vero registrato dalla base e registrava richieste, credenziali e GGA del rover.
+
+- **Attesa crescente tra i tentativi falliti del rover** (5, 10, 20... fino a 120 s, azzerata al primo successo): con password o mountpoint sbagliati riprovava ogni 5 s all'infinito, 12 volte al minuto, e un caster vero puo' bloccare indirizzo o account. Verificato: 5, 10, 20, 40, 80 s.
+- **GGA al caster ogni 10 s** (il primo subito dopo il collegamento) invece che ogni secondo: circa 7 MB al giorno in meno sulla SIM. Verificato.
+- **Stack di `nmea_reader`** (lettura del ricevitore in rover) da 4,6 a 6 KB: restavano 420 byte liberi.
+- **Tipi RTCM ricevuti contati anche in rover** (grafico "RTCM per tipo" del pannello, prima vuoto).
+- Verificato senza modifiche: collegamento in 6 s dall'avvio; caster che chiude (si ricollega dopo 15 s), caster muto (rilevato dopo 20 s), password sbagliata e mountpoint inesistente (messaggi chiari), server irraggiungibile, ritorno alla configurazione giusta; NMEA in UDP sulla porta 5005 (tutte le frasi, 0 checksum errati); pannello in modalita' rover senza errori in console; riavvio di sicurezza per lettura del ricevitore ferma anche in rover; RAM interna in rover 72 KB liberi (minima 58 KB). Ritorno alla modalita' base con la configurazione salvata: caster collegato in 7 s.
+- Non provato: il fix RTK vero, perche' servono credenziali valide per un mountpoint (quelle di ALTAMURA vengono rifiutate).
+- Noto: in rover la riga "Ricevitore GNSS" non mostra modello e temperatura dello ZED (le letture periodiche girano solo in base).
+
 ## 1.19.125
 
 - **Stack dei task IPC** (cache, flash, PSRAM) da 1280 a 2048 byte (`CONFIG_ESP_IPC_TASK_STACK_SIZE`): con la PSRAM attiva lo stack libero di ipc0 calava (444, 412, 372 byte in tre giorni). Ora 1204 byte liberi.

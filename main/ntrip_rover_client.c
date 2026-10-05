@@ -4,6 +4,8 @@
 #include "status.h"
 #include "net_util.h"
 #include "sys_stats.h"
+#include "esp_timer.h"
+#include "rtcm3_stats.h"
 #include "data_usage.h"
 #include "ntrip_reply.h"
 
@@ -366,8 +368,13 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     return count;
 }
 
+#define GGA_INTERVAL_US (10LL * 1000000)
+static volatile int64_t s_last_gga_us;
+static uint32_t s_retry_ms = 5000;
+
 static void set_active_sock(int sock)
 {
+    s_last_gga_us = 0; // nuovo collegamento: il primo GGA parte subito
     xSemaphoreTake(s_sock_mutex, portMAX_DELAY);
     s_sock = sock;
     xSemaphoreGive(s_sock_mutex);
@@ -388,9 +395,15 @@ void ntrip_rover_client_task(void *arg)
         app_settings_t settings = settings_get();
         int sock = ntrip_rover_connect(&settings);
         if (sock < 0) {
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            // Attesa crescente (5, 10, 20... fino a 120 s): con password o
+            // mountpoint sbagliati il rover riprovava ogni 5 s all'infinito,
+            // 12 volte al minuto, e un caster vero puo' bloccare indirizzo o
+            // account (collaudo del 05/10/2026). Si azzera al primo successo.
+            vTaskDelay(pdMS_TO_TICKS(s_retry_ms));
+            s_retry_ms = s_retry_ms * 2 > 120000 ? 120000 : s_retry_ms * 2;
             continue;
         }
+        s_retry_ms = 5000;
 
         set_active_sock(sock);
 
@@ -399,6 +412,7 @@ void ntrip_rover_client_task(void *arg)
             int n = recv(sock, net_buf, sizeof(net_buf), 0);
             if (n > 0) {
                 gnss_io_write((const char *) net_buf, n);
+                rtcm3_stats_feed(net_buf, (size_t) n); // tipi RTCM ricevuti, per il pannello
                 data_usage_add((uint32_t) n, false);
                 status_note_rtcm_bytes((uint32_t) n);
             } else if (n == 0) {
@@ -439,6 +453,14 @@ void ntrip_rover_client_forward_gga(const char *line, size_t len)
     if (sock < 0 || len > 100) {
         return;
     }
+    // Ogni 10 s (il primo subito dopo il collegamento): ai caster basta
+    // cosi' per scegliere la stazione o calcolare la VRS. Ogni secondo erano
+    // circa 7 MB al giorno di traffico in piu' sulla SIM (collaudo del 05/10).
+    int64_t now = esp_timer_get_time();
+    if (s_last_gga_us != 0 && now - s_last_gga_us < GGA_INTERVAL_US) {
+        return;
+    }
+    s_last_gga_us = now;
 
     char buf[128];
     int n = snprintf(buf, sizeof(buf), "%.*s\r\n", (int) len, line);
