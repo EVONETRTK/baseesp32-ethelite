@@ -98,7 +98,12 @@
   .top-bar .quick-status { margin-bottom:.6rem; }
   .top-bar nav.tabs { margin-bottom:.6rem; }
   .top-bar { box-shadow:0 2px 6px rgba(0,0,0,.05); }
-  .search-box { margin-top:.6rem; }
+  /* Ricerca compatta nella riga degli indicatori, dentro la barra fissa
+     (richiesta dell'utente: a destra di "SD", sempre a vista). */
+  .quick-status { align-items:center; }
+  .quick-status .search-box { position:relative; flex:0 1 200px; margin:0; }
+  .quick-status #settings-search { padding:.38rem .8rem; border-radius:20px; font-size:.85rem; }
+  .quick-status #settings-search-results { position:absolute; top:calc(100% + .3rem); left:0; width:min(420px, 92vw); z-index:30; margin:0; }
 
   /* --- Riquadri richiudibili (titolo cliccabile, stato ricordato) --------- */
   fieldset > legend { cursor:pointer; user-select:none; }
@@ -114,6 +119,9 @@
     /* Indicatori sempre tutti a vista: 4 colonne fisse, niente scorrimento */
     .quick-status { display:grid; grid-template-columns:repeat(4, 1fr); gap:.3rem; }
     .qs-chip { min-width:0; justify-content:center; padding:.35rem .3rem; font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .quick-status .search-box { grid-column:1 / -1; flex:none; }
+    .quick-status #settings-search { padding:.3rem .7rem; font-size:16px; min-height:34px; }
+    .quick-status #settings-search-results { width:100%; }
 
     /* Schede: riga scorrevole sotto gli indicatori, dentro l'intestazione
        fissa (spostate li' da moveTabsForScreen()). Su telefono la scheda
@@ -200,12 +208,11 @@
   <div class="qs-chip" id="qs-ntrip"><span class="qs-icon">📡</span><span class="qs-label">NTRIP</span></div>
   <div class="qs-chip" id="qs-fix"><span class="qs-icon">🎯</span><span class="qs-label">Fix</span></div>
   <div class="qs-chip" id="qs-sd"><span class="qs-icon">💾</span><span class="qs-label">SD</span></div>
+  <div class="search-box">
+    <input type="text" id="settings-search" placeholder="🔍 Cerca..." autocomplete="off">
+    <div id="settings-search-results"></div>
+  </div>
 </div>
-</div>
-
-<div class="search-box">
-  <input type="text" id="settings-search" placeholder="🔍 Cerca un'impostazione..." autocomplete="off">
-  <div id="settings-search-results"></div>
 </div>
 
 <nav class="tabs">
@@ -1562,7 +1569,10 @@ document.querySelectorAll('.page fieldset').forEach((fs) => {
   settingsSearchIndex.push({
     haystack: (legend.textContent + ' ' + labelTexts).toLowerCase(),
     legend: legend.textContent,
-    pageName: pageBtn ? Array.from(pageBtn.children).map((c) => c.textContent).join(' ').trim() || pageBtn.textContent.trim() : '',
+    // Icona + nome lungo della scheda (senza il nome corto per il telefono:
+    // prima usciva "GNSS & NTRIPGNSS").
+    pageName: pageBtn ? ((pageBtn.querySelector('.tab-icon')?.textContent || '') + ' ' +
+      (pageBtn.querySelector('.tl-long') || pageBtn.querySelector('.tab-label') || pageBtn).textContent).trim() : '',
     pageId: page.id,
     el: fs,
   });

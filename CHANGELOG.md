@@ -2,6 +2,11 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.128
+
+- **Ricerca compatta nella barra fissa** (richiesta dell'utente): sul computer subito a destra degli indicatori (dopo "SD"), con i risultati in un riquadro a discesa; sul telefono in una riga sottile sotto i 4 indicatori. Non scorre piu' via con la pagina.
+- Risultati della ricerca: il nome della scheda usciva doppio ("GNSS & NTRIPGNSS"); ora "GNSS & NTRIP".
+
 ## 1.19.127
 
 - **Barra in alto sempre visibile su ogni schermo** (richiesta dell'utente): titolo, indicatori (Rete, NTRIP, Fix, SD) e schede (Stato, Rete, GNSS...) restano fissi in cima anche scorrendo la pagina; la ricerca sta sotto la barra. Prima, sul computer, le schede stavano sotto la ricerca e scorrevoli via. Su telefono gli indicatori sono in 4 colonne fisse invece che su una riga scorrevole. Verificato misurando la posizione della barra dopo lo scorrimento a 1280, 900, 600 e 390 px.
