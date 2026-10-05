@@ -2,6 +2,12 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.125
+
+- **Stack dei task IPC** (cache, flash, PSRAM) da 1280 a 2048 byte (`CONFIG_ESP_IPC_TASK_STACK_SIZE`): con la PSRAM attiva lo stack libero di ipc0 calava (444, 412, 372 byte in tre giorni). Ora 1204 byte liberi.
+- **Stack del caster locale** (`ntrip_cst_listen`) da 6 a 8 KB: con tabella delle sorgenti e risposte NTRIP 2.0 restavano 1220 byte.
+- Verificato: sessione di registrazione di prova di 1 h terminata da sola (34144 frame, 0 persi, 2,4 MB); notte 4-5/10 senza crash.
+
 ## 1.19.124
 
 - **Registrazione dei dati grezzi per il PPP** (nuovo `raw_log.c`, riquadro "Dati grezzi per le coordinate precise (PPP)" nella scheda GNSS & NTRIP):

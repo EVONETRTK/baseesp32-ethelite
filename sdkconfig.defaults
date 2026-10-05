@@ -153,3 +153,7 @@ CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 # scendeva a 15-17 KB, occupata soprattutto dai buffer di rete (collaudo del
 # 03/10/2026).
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+
+# Task IPC (cache, flash, PSRAM): con la PSRAM attiva lo stack libero di ipc0
+# calava (444, 412, 372 byte in tre giorni, 05/10/2026). Era 1280 (predefinito).
+CONFIG_ESP_IPC_TASK_STACK_SIZE=2048

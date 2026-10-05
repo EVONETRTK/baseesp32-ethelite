@@ -315,7 +315,9 @@ void ntrip_caster_server_start(void)
     s_feed_stream = xStreamBufferCreate(4096, 1);
 
     xTaskCreate(broadcast_task, "ntrip_cst_bc", 4096, NULL, 5, NULL);
-    xTaskCreate(listen_task, "ntrip_cst_listen", 6144, NULL, 5, NULL);
+    // 8192 (era 6144): con tabella delle sorgenti e risposte NTRIP 2.0 restavano
+    // 1220 byte liberi (05/10/2026).
+    xTaskCreate(listen_task, "ntrip_cst_listen", 8192, NULL, 5, NULL);
 }
 
 void ntrip_caster_server_feed(const uint8_t *data, size_t len)
