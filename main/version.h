@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Registrazione dei dati grezzi (RAWX/SFRBX) sulla microSD per calcolare le coordinate precise della base con il PPP; piu' margine agli stack di sistema e del caster locale."
+#define FIRMWARE_RELEASE_NOTES "Rover: attesa crescente tra i tentativi e GGA ogni 10 s; barra in alto sempre visibile con indicatori, ricerca e schede; piu' margine agli stack."
