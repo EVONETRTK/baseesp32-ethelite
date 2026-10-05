@@ -121,6 +121,17 @@
       <li><b>Riavviare a distanza:</b> scheda Stato &rarr; "Riavvia dispositivo".</li>
     </ol>
   </section>
+
+  <section>
+    <h2>7. Firmware e GitHub</h2>
+    <table id="t-gh"></table>
+    <div class="qrs" id="qr-gh"></div>
+    <ol>
+      <li><b>Online</b> (serve internet): scheda Firmware &rarr; "Controlla aggiornamenti online". Con l'aggiornamento automatico attivo la base lo fa da sola ogni N ore.</li>
+      <li><b>Dal PC</b>: scarica <span class="v">firmware.bin</span> dalla pagina delle release e caricalo nella scheda Firmware.</li>
+      <li><b>Da microSD</b>, senza internet: copia nella cartella principale della scheda <span class="v">firmware.bin</span> e un file <span class="v">firmware.json</span> con dentro <span class="v">{"version":"x.y.z"}</span> (la versione del file), poi "Aggiorna da microSD" o riavvia.</li>
+    </ol>
+  </section>
 </div>
 
 <script>
@@ -243,6 +254,17 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     cred.push(['SIM: APN', sec ? v(sec.cellular_apn || '-') : blank]);
     if (s.sim_iccid) cred.push(['SIM: ICCID', v(s.sim_iccid)]);
     rows('t-cred', cred);
+
+    const repo = 'https://github.com/EVONETRTK/baseesp32-ethelite';
+    rows('t-gh', [
+      ['Versione installata', v(s.firmware_version || '-')],
+      ['Codice sorgente (pubblico)', v(repo)],
+      ['Release (firmware da scaricare)', v(repo + '/releases')],
+      ['Indirizzo aggiornamento online', s.ota_update_url ? v(s.ota_update_url) : '<i>non impostato: aggiornamento online spento</i>'],
+      ['Aggiornamento automatico', s.auto_update_check_enable ? 'attivo, ogni ' + esc(s.auto_update_check_interval_h || 24) + ' ore' : 'spento'],
+      ['Istruzioni VPN del server', v(repo + '/blob/main/docs/vpn-server.md')],
+    ]);
+    $('qr-gh').innerHTML = qr(repo + '/releases', 'Pagina delle release');
   }
 
   async function loadStatus() {

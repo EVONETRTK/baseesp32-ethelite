@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.130
+
+- **Scheda di accesso: sezione "Firmware e GitHub"** (richiesta dell'utente): versione installata, repository pubblico, pagina delle release con QR code, indirizzo dell'aggiornamento online, stato dell'aggiornamento automatico, istruzioni della VPN; come aggiornare online, dal PC o da microSD (firmware.bin + firmware.json). La scheda resta su 2 pagine A4.
+
 ## 1.19.129
 
 - Ricerca alta esattamente come gli indicatori (richiesta dell'utente): la riga allinea gli elementi in altezza e alla casella e' tolto il margine generale dei campi. Misurato: 38,4 px su computer, 35,2 px su telefono, come "SD".
