@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.127
+
+- **Barra in alto sempre visibile su ogni schermo** (richiesta dell'utente): titolo, indicatori (Rete, NTRIP, Fix, SD) e schede (Stato, Rete, GNSS...) restano fissi in cima anche scorrendo la pagina; la ricerca sta sotto la barra. Prima, sul computer, le schede stavano sotto la ricerca e scorrevoli via. Su telefono gli indicatori sono in 4 colonne fisse invece che su una riga scorrevole. Verificato misurando la posizione della barra dopo lo scorrimento a 1280, 900, 600 e 390 px.
+
 ## 1.19.126
 
 Collaudo della modalita' rover (05/10/2026) contro un caster NTRIP finto sul PC, che inviava RTCM vero registrato dalla base e registrava richieste, credenziali e GGA del rover.
