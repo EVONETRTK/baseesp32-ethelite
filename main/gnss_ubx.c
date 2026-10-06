@@ -3,6 +3,7 @@
 #include "settings.h"
 #include "gnss_ubx_ack.h"
 #include "raw_log.h"
+#include "time_sync.h"
 #include "status.h"
 #include "esp_timer.h"
 
@@ -321,6 +322,11 @@ static void svin_poll_task(void *arg)
         // ogni minuto finche' non arriva.
         if (loop_count % 6 == 3 && gnss_ubx_ack_model()[0] == 0 &&
             ubx_send(uart_num, 0x0A, 0x04, NULL, 0) == ESP_OK) {
+            gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
+        }
+        // Ora dai satelliti finche' l'NTP non risponde (time_sync.c):
+        // UBX-NAV-TIMEUTC (0x01 0x21), letto da gnss_ubx_ack.c.
+        if (time_sync_wants_gnss() && ubx_send(uart_num, 0x01, 0x21, NULL, 0) == ESP_OK) {
             gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
         }
         // Registrazione dei dati grezzi (raw_log.c): RXM-RAWX ogni N epoche e

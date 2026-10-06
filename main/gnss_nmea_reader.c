@@ -1,5 +1,6 @@
 #include "gnss_nmea_reader.h"
 #include "sys_stats.h"
+#include "time_sync.h"
 #include "gnss_io.h"
 #include "nmea_udp_broadcast.h"
 #include "gnss_signal.h"
@@ -99,6 +100,29 @@ static void handle_bynav_line(const char *line)
     }
 }
 
+// "$GxRMC,hhmmss.ss,A,...,ddmmyy,...": ora UTC con data, solo se valida ("A").
+static void nmea_rmc_time(const char *line)
+{
+    const char *f[10] = {0};
+    int n = 0;
+    for (const char *p = line; *p && n < 10; p++) {
+        if (*p == ',') {
+            f[n++] = p + 1;
+        }
+    }
+    // f[0] ora, f[1] stato, f[8] data
+    if (n < 9 || f[1][0] != 'A' || f[0][0] == ',' || f[8][0] == ',') {
+        return;
+    }
+    int hh = (f[0][0] - '0') * 10 + (f[0][1] - '0');
+    int mi = (f[0][2] - '0') * 10 + (f[0][3] - '0');
+    int ss = (f[0][4] - '0') * 10 + (f[0][5] - '0');
+    int dd = (f[8][0] - '0') * 10 + (f[8][1] - '0');
+    int mo = (f[8][2] - '0') * 10 + (f[8][3] - '0');
+    int yy = (f[8][4] - '0') * 10 + (f[8][5] - '0');
+    time_sync_from_gnss(2000 + yy, mo, dd, hh, mi, ss);
+}
+
 void gnss_nmea_reader_task(void *arg)
 {
     (void) arg; // porta verso il ricevitore gestita da gnss_io (seriale o I2C)
@@ -130,6 +154,9 @@ void gnss_nmea_reader_task(void *arg)
 
                     // Formato NMEA: '$' + talker (2 char) + tipo sentenza
                     // (3 char), es. "$GPGGA"/"$GNGGA"/"$GPGSV"...
+                    if (memcmp(&line[3], "RMC", 3) == 0 && time_sync_wants_gnss()) {
+                        nmea_rmc_time(line); // ora dai satelliti finche' manca l'NTP
+                    }
                     if (memcmp(&line[3], "GGA", 3) == 0) {
                         ntrip_rover_client_forward_gga(line, line_len);
                         gnss_fix_parse_gga(line);

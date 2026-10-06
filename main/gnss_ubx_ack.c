@@ -1,5 +1,6 @@
 #include "gnss_ubx_ack.h"
 #include "status.h"
+#include "time_sync.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -198,6 +199,13 @@ bool gnss_ubx_ack_feed_byte(uint8_t c)
                 } else if (strncmp(ext, "FWVER=", 6) == 0) {
                     strlcpy(s_fw, ext + 6, sizeof(s_fw));
                 }
+            }
+        } else if (checksum_ok && s_class == 0x01 && s_id == 0x21 && s_payload_idx >= 20) {
+            // UBX-NAV-TIMEUTC: ora UTC dai satelliti, solo se il ricevitore la
+            // dichiara valida (bit validUTC, che include i secondi intercalari).
+            if (s_payload[19] & 0x04) {
+                time_sync_from_gnss(s_payload[12] | (s_payload[13] << 8), s_payload[14], s_payload[15],
+                                    s_payload[16], s_payload[17], s_payload[18]);
             }
         } else if (checksum_ok && s_class == 0x0A && s_id == 0x39) {
             // UBX-MON-SYS: temperatura e stato interno del ricevitore.

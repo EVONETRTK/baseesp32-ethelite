@@ -2,6 +2,15 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.132
+
+- **Ora dai satelliti quando manca internet** (`time_sync_from_gnss()`). Il 04/10, con l'IPv4 del FRITZ!Box fermo, la base e' rimasta per ore senza ora esatta: VPN ferma ad aspettare l'NTP, registrazione dei dati grezzi bloccata, niente orari nel pannello.
+  - Base: finche' l'NTP non ha mai risposto, il task del survey-in chiede UBX-NAV-TIMEUTC al ricevitore ogni 10 s; l'ora si usa solo con il bit validUTC.
+  - Rover: ora dalla frase NMEA RMC (stato "A").
+  - L'NTP ha sempre la precedenza appena risponde; dai satelliti l'orologio si riallinea al massimo ogni 10 minuti.
+  - Nel pannello la riga "Ora della base" indica la fonte (NTP, oppure "dai satelliti").
+  - Verificato: calcolo della data provato sul PC su 27.759 giorni (2024-2099) senza errori, e lettura della RMC; sulla base all'avvio ora dai satelliti dopo 4 s, poi NTP a 30 s, uguale all'ora del PC.
+
 ## 1.19.131
 
 - **Icona della base anche nella scheda di accesso e nella pagina "Accesso negato"**, e risposta a `/favicon.ico` con la stessa immagine. Prima i browser chiedevano `/favicon.ico` per quelle pagine e nel log compariva un 404 a ogni apertura.

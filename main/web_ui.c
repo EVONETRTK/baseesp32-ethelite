@@ -691,6 +691,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "fw_rollback_note", ota_update_rollback_note());
     cJSON_AddStringToObject(root, "last_crash", sys_stats_last_crash());
     cJSON_AddStringToObject(root, "config_guard_note", config_backup_guard_note());
+    cJSON_AddStringToObject(root, "time_source", time_sync_source());
     cJSON_AddStringToObject(root, "gnss_model", gnss_ubx_ack_model());
     cJSON_AddStringToObject(root, "gnss_fw", gnss_ubx_ack_fw());
     {
