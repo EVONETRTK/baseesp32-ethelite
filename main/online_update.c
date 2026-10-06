@@ -363,6 +363,9 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
         .http_client_init_cb = ota_http_client_init_cb,
     };
 
+    // Come in ota_update_apply(): una versione ancora in prova va confermata,
+    // altrimenti esp_https_ota_begin() rifiuta il nuovo aggiornamento.
+    ota_update_mark_valid();
     esp_https_ota_handle_t handle = NULL;
     esp_err_t err = esp_https_ota_begin(&ota_config, &handle);
     if (err != ESP_OK) {

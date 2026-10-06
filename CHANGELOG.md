@@ -2,6 +2,16 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.134 - 1.19.136
+
+Terza tornata di collaudo (06/10/2026), sulle funzioni non ancora provate.
+
+- **"Importa e applica" della configurazione JSON non funzionava mai**: il file scaricato dal pannello (stato completo, oltre 5 KB) superava il limite di 2 KB del salvataggio delle impostazioni, che rispondeva "corpo non valido". Limite portato a 16 KB (buffer allocato al momento, PSRAM). Verificato: reimportare la configurazione della base stessa la lascia identica byte per byte.
+- **Aggiornamento rifiutato durante i 5 minuti di prova del firmware precedente**: `esp_ota_begin()` (e `esp_https_ota_begin()` per quello online) falliscono con ESP_ERR_OTA_ROLLBACK_INVALID_STATE se la versione in esecuzione non e' ancora confermata; il pannello mostrava un generico errore 500. Ora, se si avvia un nuovo aggiornamento (PC, online, microSD, archivio), la versione attuale viene confermata prima. Verificato: secondo aggiornamento subito dopo il primo, riuscito.
+- **Il cookie del pannello conteneva la password in chiaro**. Ora contiene un codice derivato (SHA-256 di un valore casuale della base, salvato in NVS, piu' la password), che cambia da solo quando cambia la password; aggiunto SameSite=Lax. Verificato: accesso con il solo cookie, rifiuto del vecchio cookie con la password, validita' dopo un riavvio, invalidazione dopo un cambio password.
+- Il controllo dell'accesso a ogni richiesta non copia piu' tutta la configurazione (2,4 KB) sullo stack del server web, e nemmeno il salvataggio delle impostazioni.
+- Provati senza difetti: monitoraggio remoto verso un ricevitore sul PC (JSON valido, 22 campi, nessuna password); prova di collegamento NTRIP (server inesistente, DNS fallito, credenziali rifiutate; pannello reattivo durante l'attesa); prova degli avvisi senza configurazione; cambio della password del pannello; ripristino di un firmware dall'archivio della microSD (nomi non validi rifiutati); misura della posizione con RTK con credenziali rifiutate (si ferma dopo 3 minuti con un messaggio chiaro, torna base, coordinate invariate).
+
 ## 1.19.133
 
 Secondo collaudo completo in modalita' base e rover (06/10/2026).

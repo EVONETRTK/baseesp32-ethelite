@@ -42,6 +42,9 @@
 #include "esp_timer.h"
 #include "cJSON.h"
 #include "mbedtls/base64.h"
+#include "esp_random.h"
+#include "nvs.h"
+#include "mbedtls/sha256.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -78,10 +81,22 @@ extern const uint8_t access_html_end[]   asm("_binary_access_html_end");
 // (usato anche come stato transitorio, es. subito dopo un flash pulito
 // prima che venga letta la configurazione - non dovrebbe capitare visto
 // che apply_defaults() imposta sempre un codice di default).
-static bool check_auth(httpd_req_t *req)
+static void peek_admin_code(const app_settings_t *s, void *ctx)
 {
-    app_settings_t s = settings_get();
-    if (strlen(s.admin_code) == 0) {
+    strlcpy((char *) ctx, s->admin_code, sizeof(s->admin_code));
+}
+
+// Codice admin attuale, senza copiare tutta la configurazione (2,4 KB) sullo
+// stack del server web a ogni richiesta.
+static void admin_code_get(char out[33])
+{
+    out[0] = '\0';
+    settings_peek(peek_admin_code, out);
+}
+
+static bool check_auth(httpd_req_t *req, const char *admin_code)
+{
+    if (admin_code[0] == '\0') {
         return true;
     }
 
@@ -102,7 +117,7 @@ static bool check_auth(httpd_req_t *req)
     decoded[decoded_len] = '\0';
 
     char expected[128];
-    snprintf(expected, sizeof(expected), "admin:%s", s.admin_code);
+    snprintf(expected, sizeof(expected), "admin:%s", admin_code);
 
     return strcmp((const char *) decoded, expected) == 0;
 }
@@ -117,17 +132,54 @@ static bool check_auth(httpd_req_t *req)
 #define AUTH_COOKIE_NAME "evonetrtk_auth"
 #define AUTH_COOKIE_MAX_AGE_S (30 * 24 * 3600)
 
-static bool check_auth_cookie(httpd_req_t *req, const app_settings_t *s)
+// Valore del cookie: SHA-256 di (valore casuale della base + password),
+// troncato a 32 cifre esadecimali. Prima il cookie conteneva la password in
+// chiaro: chi leggeva i cookie del browser la vedeva (collaudo del
+// 06/10/2026). Cambia da solo quando cambia la password. Il valore casuale e'
+// generato una volta e salvato in NVS ("auth"/"salt"), uguale tra i riavvii.
+static void auth_token(const char *admin_code, char out[33])
 {
-    if (strlen(s->admin_code) == 0) {
+    static uint8_t salt[16];
+    static bool salt_ok;
+    if (!salt_ok) {
+        nvs_handle_t h;
+        size_t len = sizeof(salt);
+        if (nvs_open("auth", NVS_READWRITE, &h) == ESP_OK) {
+            if (nvs_get_blob(h, "salt", salt, &len) != ESP_OK || len != sizeof(salt)) {
+                esp_fill_random(salt, sizeof(salt));
+                nvs_set_blob(h, "salt", salt, sizeof(salt));
+                nvs_commit(h);
+            }
+            nvs_close(h);
+            salt_ok = true;
+        }
+    }
+    uint8_t hash[32];
+    mbedtls_sha256_context c;
+    mbedtls_sha256_init(&c);
+    mbedtls_sha256_starts(&c, 0);
+    mbedtls_sha256_update(&c, salt, sizeof(salt));
+    mbedtls_sha256_update(&c, (const uint8_t *) admin_code, strlen(admin_code));
+    mbedtls_sha256_finish(&c, hash);
+    mbedtls_sha256_free(&c);
+    for (int i = 0; i < 16; i++) {
+        snprintf(out + i * 2, 3, "%02x", hash[i]);
+    }
+}
+
+static bool check_auth_cookie(httpd_req_t *req, const char *admin_code)
+{
+    if (admin_code[0] == '\0') {
         return true;
     }
     char cookie_hdr[160];
     if (httpd_req_get_hdr_value_str(req, "Cookie", cookie_hdr, sizeof(cookie_hdr)) != ESP_OK) {
         return false;
     }
-    char expected[160];
-    snprintf(expected, sizeof(expected), AUTH_COOKIE_NAME "=%s", s->admin_code);
+    char token[33];
+    auth_token(admin_code, token);
+    char expected[64];
+    snprintf(expected, sizeof(expected), AUTH_COOKIE_NAME "=%s", token);
     return strstr(cookie_hdr, expected) != NULL;
 }
 
@@ -147,13 +199,14 @@ static esp_err_t require_auth(httpd_req_t *req)
         ESP_LOGI(TAG, "Richiesta %s %s", http_method_str(req->method), req->uri);
     }
 
-    app_settings_t s = settings_get();
+    char admin_code[33];
+    admin_code_get(admin_code);
 
-    if (check_auth_cookie(req, &s)) {
+    if (check_auth_cookie(req, admin_code)) {
         return ESP_OK;
     }
 
-    if (check_auth(req)) {
+    if (check_auth(req, admin_code)) {
         // Autenticato via Basic Auth: imposta anche il cookie di sessione
         // cosi' le richieste successive non lo richiedono piu'. Buffer
         // "static": il server web qui gestisce una richiesta alla volta
@@ -161,8 +214,10 @@ static esp_err_t require_auth(httpd_req_t *req)
         // fino a quando httpd_resp_send* viene chiamato piu' avanti nello
         // stesso handler che ha invocato questa funzione.
         static char cookie_val[192];
-        snprintf(cookie_val, sizeof(cookie_val), AUTH_COOKIE_NAME "=%s; Max-Age=%d; Path=/",
-                 s.admin_code, AUTH_COOKIE_MAX_AGE_S);
+        char token[33];
+        auth_token(admin_code, token);
+        snprintf(cookie_val, sizeof(cookie_val), AUTH_COOKIE_NAME "=%s; Max-Age=%d; Path=/; SameSite=Lax",
+                 token, AUTH_COOKIE_MAX_AGE_S);
         httpd_resp_set_hdr(req, "Set-Cookie", cookie_val);
         return ESP_OK;
     }
@@ -1093,7 +1148,11 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     if (require_auth(req) != ESP_OK) {
         return ESP_FAIL;
     }
-    if (req->content_len <= 0 || req->content_len > 2048) {
+    // 16 KB (era 2048): "Importa e applica" del pannello manda il file JSON
+    // scaricato, cioe' lo stato completo (oltre 5 KB): con il limite a 2 KB
+    // l'importazione falliva sempre con "corpo non valido" (collaudo del
+    // 06/10/2026). Il buffer e' allocato al momento (PSRAM).
+    if (req->content_len <= 0 || req->content_len > 16384) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo non valido");
         return ESP_FAIL;
     }
@@ -1124,7 +1183,8 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     }
 
     xSemaphoreTake(s_settings_edit_mutex, portMAX_DELAY);
-    app_settings_t s = settings_get();
+    app_settings_t s;
+    settings_get_into(&s); // senza la copia temporanea di settings_get() (2,4 KB di stack in meno)
 
     // wifi_ssid passa da safe_utf8_to_raw_ssid_bytes() (vedi commento sopra
     // la sua definizione) invece del semplice copy_field(): puo' arrivare

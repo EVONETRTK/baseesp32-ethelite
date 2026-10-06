@@ -28,6 +28,13 @@ esp_err_t ota_update_apply(ota_read_fn_t read_cb, void *ctx)
     ESP_LOGI(TAG, "Scrittura nuova immagine su partizione '%s' (offset 0x%lx, size 0x%lx)",
              target->label, (unsigned long) target->address, (unsigned long) target->size);
 
+    // Nuovo aggiornamento mentre quello attuale e' ancora in prova (primi 5
+    // minuti): esp_ota_begin() lo rifiuterebbe (ESP_ERR_OTA_ROLLBACK_INVALID_STATE)
+    // e l'aggiornamento falliva con un generico errore 500 (collaudo del
+    // 06/10/2026). La versione attuale funziona (sta servendo la richiesta):
+    // la si conferma, e se la nuova fallisce si torna a questa.
+    ota_update_mark_valid();
+
     esp_ota_handle_t handle;
     esp_err_t err = esp_ota_begin(target, OTA_SIZE_UNKNOWN, &handle);
     if (err != ESP_OK) {
