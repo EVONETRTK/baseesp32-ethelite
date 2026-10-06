@@ -11,4 +11,4 @@
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Scheda di accesso con la sezione Firmware e GitHub (release, aggiornamento online e da microSD); rover con attesa crescente e GGA ogni 10 s; barra in alto sempre visibile."
+#define FIRMWARE_RELEASE_NOTES "Ora dai satelliti senza internet; importazione JSON della configurazione corretta; aggiornamento possibile anche durante la prova del precedente; cookie del pannello senza password; nuovo tentativo NTRIP subito dopo una correzione."
