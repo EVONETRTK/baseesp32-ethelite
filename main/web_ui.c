@@ -182,7 +182,7 @@ static esp_err_t require_auth(httpd_req_t *req)
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_sendstr(req,
         "<!doctype html><html lang=\"it\"><head><meta charset=\"utf-8\">"
-        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Accesso negato</title></head>"
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Accesso negato</title><link rel=\"icon\" type=\"image/png\" href=\"/icon192.png\"></head>"
         "<body style=\"font-family:system-ui,Arial,sans-serif;max-width:520px;margin:40px auto;padding:0 16px;line-height:1.5\">"
         "<h2>Accesso negato</h2>"
         "<p>Per entrare nel pannello servono:</p>"
@@ -2880,6 +2880,9 @@ void web_ui_start(void)
 
     httpd_uri_t index_uri      = { .uri = "/",              .method = HTTP_GET,  .handler = index_get_handler };
     httpd_uri_t icon_uri       = { .uri = "/icon192.png",   .method = HTTP_GET,  .handler = icon_get_handler };
+    // I browser chiedono /favicon.ico per le pagine che non dichiarano l'icona:
+    // stessa immagine (PNG, accettato da tutti i browser) invece di un 404 nel log.
+    httpd_uri_t favicon_uri    = { .uri = "/favicon.ico",   .method = HTTP_GET,  .handler = icon_get_handler };
     httpd_uri_t manifest_uri   = { .uri = "/manifest.json", .method = HTTP_GET,  .handler = manifest_get_handler };
     httpd_uri_t status_uri     = { .uri = "/api/status",     .method = HTTP_GET,  .handler = status_get_handler };
     httpd_uri_t signals_uri    = { .uri = "/api/signals",    .method = HTTP_GET,  .handler = signals_get_handler };
@@ -2921,6 +2924,7 @@ void web_ui_start(void)
 
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &icon_uri);
+    httpd_register_uri_handler(server, &favicon_uri);
     httpd_register_uri_handler(server, &manifest_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
     httpd_register_uri_handler(server, &test_fault_uri);

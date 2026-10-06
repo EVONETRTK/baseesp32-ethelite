@@ -2,6 +2,10 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.131
+
+- **Icona della base anche nella scheda di accesso e nella pagina "Accesso negato"**, e risposta a `/favicon.ico` con la stessa immagine. Prima i browser chiedevano `/favicon.ico` per quelle pagine e nel log compariva un 404 a ogni apertura.
+
 ## 1.19.130
 
 - **Scheda di accesso: sezione "Firmware e GitHub"** (richiesta dell'utente): versione installata, repository pubblico, pagina delle release con QR code, indirizzo dell'aggiornamento online, stato dell'aggiornamento automatico, istruzioni della VPN; come aggiornare online, dal PC o da microSD (firmware.bin + firmware.json). La scheda resta su 2 pagine A4.
