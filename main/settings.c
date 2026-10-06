@@ -373,6 +373,13 @@ void settings_init(void)
     free(buf);
 }
 
+static volatile uint32_t s_generation;
+
+uint32_t settings_generation(void)
+{
+    return s_generation;
+}
+
 void settings_get_into(app_settings_t *out)
 {
     xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
@@ -412,6 +419,7 @@ esp_err_t settings_save(const app_settings_t *s)
 
     xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
     s_settings = *s;
+    s_generation++;
     xSemaphoreGive(s_settings_mutex);
 
     // Costruito da *s (parametro del chiamante, non condiviso/soggetto a
@@ -596,6 +604,7 @@ esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx)
     xSemaphoreTake(s_save_mutex, portMAX_DELAY);
     xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
     fn(&s_settings, ctx);
+    s_generation++;
     s_save_buf.magic = CFG_MAGIC;
     s_save_buf.s = s_settings;
     xSemaphoreGive(s_settings_mutex);

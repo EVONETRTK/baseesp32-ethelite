@@ -1958,7 +1958,7 @@ async function loadStatus() {
     renderCpuBar('cpu1-bar', 'cpu1-text', s.cpu1_percent, 'Core 1');
     renderChipTemp(s.chip_temp_c, s.chip_temp_max_c, s.chip_temp_max_at, s.chip_temp_max_ago_s);
     document.getElementById('st-time').textContent = (s.local_time
-        ? s.local_time + (s.time_source === 'GNSS' ? ' (dai satelliti: internet/NTP non raggiungibile)' : s.time_source ? ' (' + s.time_source + ')' : '')
+        ? s.local_time + (s.time_source === 'GNSS' ? ' (dai satelliti, in attesa dell\'NTP)' : s.time_source ? ' (' + s.time_source + ')' : '')
         : 'non sincronizzata (manca internet e il ricevitore non ha ancora l\x27ora)') +
       ' · accesa da ' + fmtDuration(s.now_us / 1e6);
     document.getElementById('st-heap-free').textContent = formatBytes(s.free_heap_bytes);

@@ -93,7 +93,7 @@ void time_sync_from_gnss(int year, int month, int day, int hour, int min, int se
         s_valid = true;
         char now[24];
         time_sync_format_now(now, sizeof(now));
-        ESP_LOGI(TAG, "Ora presa dai satelliti (GNSS), NTP non ancora raggiungibile: %s (accesa da %lld s)", now,
+        ESP_LOGI(TAG, "Ora presa dai satelliti (GNSS), in attesa dell'NTP: %s (accesa da %lld s)", now,
                  (long long) (now_us / 1000000));
     }
 }

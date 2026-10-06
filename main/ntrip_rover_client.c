@@ -399,8 +399,17 @@ void ntrip_rover_client_task(void *arg)
             // mountpoint sbagliati il rover riprovava ogni 5 s all'infinito,
             // 12 volte al minuto, e un caster vero puo' bloccare indirizzo o
             // account (collaudo del 05/10/2026). Si azzera al primo successo.
-            vTaskDelay(pdMS_TO_TICKS(s_retry_ms));
-            s_retry_ms = s_retry_ms * 2 > 120000 ? 120000 : s_retry_ms * 2;
+            // Impostazioni corrette dal pannello durante l'attesa: si riprova
+            // subito (prima si aspettava fino a 2 minuti anche dopo aver
+            // rimesso la password giusta, collaudo del 06/10/2026).
+            uint32_t gen = settings_generation();
+            bool changed = false;
+            for (uint32_t waited = 0; waited < s_retry_ms && !changed; waited += 1000) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                sys_stats_heartbeat(HB_NTRIP);
+                changed = settings_generation() != gen;
+            }
+            s_retry_ms = changed ? 5000 : (s_retry_ms * 2 > 120000 ? 120000 : s_retry_ms * 2);
             continue;
         }
         s_retry_ms = 5000;

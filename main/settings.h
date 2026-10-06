@@ -432,6 +432,11 @@ app_settings_t settings_get(void);
 // wifi_link_init...) avevano riempito lo stack di main (crash della 1.19.113).
 void settings_get_into(app_settings_t *out);
 
+// Cresce a ogni salvataggio delle impostazioni (pannello, import, aggiornamenti
+// sul posto). Chi aspetta tra un tentativo e l'altro (client NTRIP di base e
+// rover) lo controlla: impostazioni cambiate = si riprova subito.
+uint32_t settings_generation(void);
+
 // Sovrascrive e persiste la configurazione su NVS. I campi stringa vuoti
 // passati dal chiamante vanno gestiti a monte (es. web_ui.c non sovrascrive
 // una password esistente con una stringa vuota).

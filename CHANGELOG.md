@@ -2,6 +2,16 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+## 1.19.133
+
+Secondo collaudo completo in modalita' base e rover (06/10/2026).
+
+- **Nuovo tentativo subito dopo una correzione delle impostazioni** (nuovo `settings_generation()`). Con l'attesa crescente tra i tentativi falliti, dopo aver rimesso la password giusta il rover aspettava fino a 2 minuti (misurato: 120 s) prima di riprovare; la base fino a 60 s. Ora durante l'attesa i client NTRIP controllano ogni secondo se le impostazioni sono cambiate e in quel caso riprovano subito. Verificato sul rover: attese 5, 10, 20, 40, 80 s con la password sbagliata, poi ricollegato 2 s dopo la correzione.
+- Ora dai satelliti: il testo dice "in attesa dell'NTP" invece di "NTP non raggiungibile" (nei primi secondi dopo l'avvio internet c'e', l'NTP non ha ancora risposto).
+- Collaudo, base: 25 prove funzionali; analisi statica e Chrome senza errori; robustezza; carico (8 client, 1 richiesta su 341 in coda oltre 15 s, gia' nota); caster locale con credenziali di prova; registrazione dei dati grezzi (268 frame integri, RAWX ogni secondo); VPN; riavvio con il log salvato fino all'ultima riga; ora dai satelliti a 4 s, caster e VPN di nuovo collegati in 11 s (prima circa 40).
+- Collaudo, rover (caster finto sul PC): avvio con ora dalla RMC a 2 s e collegamento in 8 s; caster che chiude, muto, password e mountpoint sbagliati, server irraggiungibile; GGA ogni 10 s; tipi RTCM; NMEA UDP con 0 checksum errati; Chrome senza errori; riavvio di sicurezza con lettura del ricevitore ferma; memoria minima 56 KB.
+- Osservazioni (non difetti): una richiesta ai segnali al minuto impiega 0,5 s (nuovo tentativo con il modem assente); con un indirizzo oltre 512 caratteri il server risponde 414 ma a volte chiude prima che il client lo riceva.
+
 ## 1.19.132
 
 - **Ora dai satelliti quando manca internet** (`time_sync_from_gnss()`). Il 04/10, con l'IPv4 del FRITZ!Box fermo, la base e' rimasta per ore senza ora esatta: VPN ferma ad aspettare l'NTP, registrazione dei dati grezzi bloccata, niente orari nel pannello.

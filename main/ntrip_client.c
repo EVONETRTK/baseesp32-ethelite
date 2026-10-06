@@ -180,8 +180,15 @@ void ntrip_client_task(void *arg)
         app_settings_t settings = settings_get();
         int sock = ntrip_connect_and_handshake(&settings);
         if (sock < 0) {
-            vTaskDelay(pdMS_TO_TICKS(retry_ms));
-            retry_ms = (retry_ms * 2 > 60000) ? 60000 : retry_ms * 2;
+            // Impostazioni corrette durante l'attesa: si riprova subito.
+            uint32_t gen = settings_generation();
+            bool changed = false;
+            for (uint32_t waited = 0; waited < retry_ms && !changed; waited += 1000) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                sys_stats_heartbeat(HB_NTRIP);
+                changed = settings_generation() != gen;
+            }
+            retry_ms = changed ? 5000 : ((retry_ms * 2 > 60000) ? 60000 : retry_ms * 2);
             continue;
         }
         retry_ms = 5000;
