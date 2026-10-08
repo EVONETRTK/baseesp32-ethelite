@@ -8,6 +8,10 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.28.2
+
+- **Correzione urgente del pannello**: nella 1.28.0-1.28.1 un apostrofo nel testo del banner "antenna spostata" bloccava tutto lo script del pannello (nessun dato, pulsanti e salvataggi fermi). Da ora la sintassi dello script si controlla a ogni versione e il pannello si prova in Chrome con i dati della base.
+
 ## 1.28.1
 
 - Tabelle del controllo dello spostamento (effemeridi, sottoframe, ~20 KB) spostate nella PSRAM: nella 1.28.0 erano nella RAM interna e la memoria interna libera era scesa a 16 KB (minima 10 KB).

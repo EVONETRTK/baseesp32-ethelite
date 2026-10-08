@@ -2864,8 +2864,8 @@ function renderDriftStatus(s) {
     if (s.selfpos_alarm) {
       document.getElementById('moved-reason').textContent = 'La posizione ricalcolata dai satelliti differisce di ' +
         (s.selfpos_horiz_m || 0).toFixed(1) + ' m in orizzontale e ' + (s.selfpos_du_m || 0).toFixed(1) +
-        ' m in verticale da quella trasmessa, in due controlli di fila (circa un'ora). Controlla che l'antenna ' +
-        'sia al suo posto e ben fissata; se e' stata spostata apposta, rimisura la posizione (Posizione e correzioni → Posizione base).';
+        " m in verticale da quella trasmessa, in due controlli di fila (circa un'ora). Controlla che l'antenna " +
+        "sia al suo posto e ben fissata; se e' stata spostata apposta, rimisura la posizione (Posizione e correzioni → Posizione base).";
     }
   }
   const baselineEl = document.getElementById('drift-baseline');
