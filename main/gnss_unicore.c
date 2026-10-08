@@ -326,11 +326,22 @@ esp_err_t gnss_unicore_configure_rover(uart_port_t uart_num)
         send_cmd(uart_num, "CONFIG PPP DISABLE");
     }
 
-    // Modalita' rover standard Unicore UM98x, con uscita NMEA GGA a 1Hz
-    // (usata da ntrip_rover_client.c per inoltrare la posizione al caster).
-    static const char *const cmds[] = {
+    // Modalita' rover standard Unicore UM98x. GGA, RMC e VTG con il periodo
+    // scelto nel pannello (1.27.0: 1, 0.2 o 0.1 s, per il software di guida;
+    // la GGA verso il caster la limita ntrip_rover_client.c), GSV ogni secondo.
+    // RMC passa anche dalla conversione ETRF2000 di gnss_nmea_reader.c.
+    const uint8_t hz = settings_nmea_rate_hz();
+    const char *period = hz == 10 ? "0.1" : (hz == 5 ? "0.2" : "1");
+    ESP_LOGI(TAG, "Uscita NMEA rover: %u posizioni al secondo (GGA, RMC, VTG), GSV ogni secondo", (unsigned) hz);
+    static char cmd_gga[16], cmd_rmc[16], cmd_vtg[16];
+    snprintf(cmd_gga, sizeof(cmd_gga), "GPGGA %s", period);
+    snprintf(cmd_rmc, sizeof(cmd_rmc), "GPRMC %s", period);
+    snprintf(cmd_vtg, sizeof(cmd_vtg), "GPVTG %s", period);
+    const char *const cmds[] = {
         "MODE ROVER",
-        "GPGGA 1",
+        cmd_gga,
+        cmd_rmc,
+        cmd_vtg,
         "GPGSV 1",
         "SAVECONFIG",
     };

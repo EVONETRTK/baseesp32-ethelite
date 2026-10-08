@@ -1,0 +1,53 @@
+<svg viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <!-- Disegno originale EVONETRTK: posizionamento dell'antenna, buono e cattivo -->
+  <defs>
+    <marker id="cl-fr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#c4161c"/></marker>
+  </defs>
+
+  <!-- ===== Riquadro SI ===== -->
+  <rect x="5" y="5" width="335" height="290" rx="10" fill="#f3faf5" stroke="#1a7f4a" stroke-width="2"/>
+  <circle cx="34" cy="34" r="16" fill="#1a7f4a"/><path d="M26 34 L32 40 L43 27" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+  <text x="58" y="40" font-size="16" font-weight="700" fill="#14532d">SÌ: cielo libero</text>
+  <!-- cupola del cielo -->
+  <path d="M30 230 A142 142 0 0 1 314 230" fill="#dff0fb" stroke="#9cc3ea" stroke-width="1.5"/>
+  <!-- angolo minimo -->
+  <path d="M172 230 L40 195" stroke="#2f6fb0" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <path d="M172 230 L304 195" stroke="#2f6fb0" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <path d="M118 230 A54 54 0 0 1 120 216" fill="none" stroke="#2f6fb0" stroke-width="1.5"/>
+  <text x="62" y="222" fill="#2f6fb0">10–15°</text>
+  <!-- satelliti -->
+  <g fill="#16365c"><circle cx="90" cy="150" r="5"/><circle cx="150" cy="105" r="5"/><circle cx="210" cy="100" r="5"/><circle cx="262" cy="140" r="5"/><circle cx="292" cy="196" r="5"/><circle cx="58" cy="200" r="5"/></g>
+  <!-- terreno, palo, antenna -->
+  <rect x="5" y="230" width="335" height="65" fill="#cfe5d6"/>
+  <rect x="169" y="186" width="6" height="44" fill="#556070"/>
+  <ellipse cx="172" cy="184" rx="20" ry="6" fill="#1f6b3f"/>
+  <text x="172" y="258" text-anchor="middle" fill="#14532d">campo aperto, tetto libero, torretta</text>
+  <text x="172" y="276" text-anchor="middle" fill="#14532d">nessun ostacolo sopra l'orizzonte</text>
+
+  <!-- ===== Riquadro NO ===== -->
+  <rect x="360" y="5" width="335" height="290" rx="10" fill="#fdf2f2" stroke="#c4161c" stroke-width="2"/>
+  <circle cx="389" cy="34" r="16" fill="#c4161c"/><path d="M382 27 L396 41 M396 27 L382 41" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+  <text x="413" y="40" font-size="16" font-weight="700" fill="#7f1d1d">NO: ostacoli e riflessi</text>
+  <path d="M385 230 A142 142 0 0 1 669 230" fill="#eef2f6" stroke="#c7cdd4" stroke-width="1.5"/>
+  <!-- edificio -->
+  <rect x="380" y="95" width="80" height="135" fill="#b9bec5" stroke="#556070" stroke-width="2"/>
+  <g fill="#e8ecef"><rect x="392" y="110" width="16" height="16"/><rect x="430" y="110" width="16" height="16"/><rect x="392" y="145" width="16" height="16"/><rect x="430" y="145" width="16" height="16"/><rect x="392" y="180" width="16" height="16"/><rect x="430" y="180" width="16" height="16"/></g>
+  <!-- albero -->
+  <rect x="628" y="170" width="10" height="60" fill="#7a5230"/>
+  <circle cx="633" cy="150" r="34" fill="#4e9466"/>
+  <!-- satelliti: uno bloccato, uno riflesso -->
+  <g fill="#16365c"><circle cx="470" cy="60" r="5"/><circle cx="560" cy="88" r="5"/><circle cx="655" cy="80" r="5"/></g>
+  <!-- segnale riflesso dal muro -->
+  <path d="M470 60 L460 168" stroke="#c4161c" stroke-width="2" stroke-dasharray="6 4"/>
+  <path d="M460 168 L522 190" stroke="#c4161c" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#cl-fr)"/>
+  <text x="472" y="150" fill="#c4161c" font-weight="600">riflesso</text>
+  <!-- segnale bloccato dall'albero -->
+  <path d="M655 80 L640 128" stroke="#c4161c" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="580" y="122" fill="#c4161c" font-weight="600">bloccato</text>
+  <!-- terreno, antenna -->
+  <rect x="360" y="230" width="335" height="65" fill="#e5e7e9"/>
+  <rect x="527" y="196" width="6" height="34" fill="#556070"/>
+  <ellipse cx="530" cy="194" rx="20" ry="6" fill="#1f6b3f"/>
+  <text x="527" y="258" text-anchor="middle" fill="#7f1d1d">vicino a muri, lamiere, alberi,</text>
+  <text x="527" y="276" text-anchor="middle" fill="#7f1d1d">tettoie, altre antenne o al chiuso</text>
+</svg>

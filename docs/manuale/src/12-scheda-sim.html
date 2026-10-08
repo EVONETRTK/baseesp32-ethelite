@@ -1,0 +1,124 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Tutto ciò che riguarda la SIM dati e il modem: identificazione della SIM, numero di telefono, modello del modem, APN, piano dati con i promemoria di rinnovo, controllo del credito e SMS ricevuti.</p>
+
+<p>In cima alla scheda tre righe riassumono l'identità della SIM: <strong>numero di telefono</strong>, <strong>ICCID</strong> (il numero stampato sulla SIM) e <strong>IMEI</strong> del modem. Sono i dati da comunicare all'operatore in caso di problemi.</p>
+
+<h2>Dati e stato della SIM</h2>
+
+<h3>Dati della SIM dati</h3>
+
+<ul>
+  <li><strong>Numero di telefono</strong>: spesso non è scritto nella SIM e il modem non lo conosce. Si scopre con l'SMS di prova (sezione seguente) e si scrive qui; dopo il salvataggio il ricevitore prova a memorizzarlo anche nella SIM.</li>
+  <li><strong>ICCID</strong>: si può scrivere a mano finché il modem non è montato; dopo lo legge il ricevitore.</li>
+</ul>
+
+<h3>Stato della SIM</h3>
+
+<p>I dati letti dal modem: <strong>modulo</strong>, <strong>operatore di rete</strong>, <strong>segnale</strong>, ICCID, IMEI, numero e la <strong>rete usata dal ricevitore</strong> in quel momento (WiFi, Ethernet o cellulare).</p>
+
+<h2>Scoprire il numero della SIM</h2>
+
+<p>Il ricevitore manda un SMS dalla SIM dati a un numero di cellulare che scrivete voi; sul telefono il <strong>mittente</strong> dell'SMS è il numero della SIM.</p>
+
+<ol>
+  <li>Scrivete il vostro numero di cellulare nel campo <strong>Tuo numero di cellulare</strong>.</li>
+  <li>Premete <strong>Invia SMS di prova</strong>. Sul telefono arriva un SMS con il nome del ricevitore.</li>
+  <li>Copiate il numero del mittente nel campo <strong>Numero di telefono</strong> del riquadro <em>Dati della SIM dati</em> e salvate.</li>
+</ol>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>L'SMS può costare secondo l'offerta della SIM, e con le offerte solo dati di solito costa. Servono modem montato, SIM inserita, credito e segnale: se manca qualcosa l'invio fallisce e compare il motivo. Non serve rispondere all'SMS; se non arriva entro qualche minuto controllate il credito e riprovate una volta sola.</div>
+
+<h2>Modem e piano dati</h2>
+
+<h3>Il modem</h3>
+
+<p>Il campo <strong>Modulo modem montato</strong> indica quale modem è nello shield: <strong>SIM7600 modulo LilyGO</strong>, <strong>SIM7600 Mini PCIe originale SIMCom</strong> (varianti G-H, E-H) o <strong>SIM868</strong>. Lo slot è lo stesso, ma accensione e comandi cambiano. Vale dopo il riavvio; nel log deve comparire il nome del modulo scelto.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Prima di montare un <strong>SIM7600 originale SIMCom</strong>:
+<ul>
+  <li>spegnete i DIP <strong>POWERKEY</strong> (SW2, posizione 5) e <strong>RESET</strong> (SW3) dello shield, che servono solo ai moduli LilyGO;</li>
+  <li>per l'Italia scegliete la variante <strong>G-H</strong> (tutte le bande, anche la B28 a 700 MHz) o <strong>E-H</strong> (B1, B3, B7, B8, B20, senza B28); non vanno bene A-H, NA-H, SA-H e JC-H, pensate per altri continenti;</li>
+  <li>il formato deve essere <strong>Mini PCIe</strong>, non M.2 né modulo da saldare;</li>
+  <li>collegate l'<strong>antenna LTE prima di accendere</strong>: senza antenna il modulo può scaldarsi e non registrarsi alla rete.</li>
+</ul>
+La seriale del modulo è a 1,8 V: lo shield ha già il convertitore di livello, non serve altro.</div>
+
+<h3>APN</h3>
+
+<p>L'<strong>APN operatore SIM</strong> è il nome del punto di accesso a internet dell'operatore, per esempio <code>internet.it</code> per Very Mobile. Si trova nelle istruzioni dell'operatore o sul suo sito. Un APN sbagliato è la causa più comune di una SIM che "prende segnale ma non va su internet". Vale dopo il riavvio.</p>
+
+<h3>Piano dati della SIM</h3>
+
+<p>Con i dati del piano il ricevitore conta il traffico come l'operatore e avvisa in tempo, prima di restare senza dati o di superare la scadenza.</p>
+
+<table class="divisibile">
+  <tr><th>Campo</th><th>Uso</th></tr>
+  <tr><td><strong>GB al mese</strong></td><td>I gigabyte del piano.</td></tr>
+  <tr><td><strong>Tipo di rinnovo</strong></td><td><em>Ogni mese nello stesso giorno</em>, <em>Ogni N giorni</em> (per esempio 28 o 30) o <em>Scadenza unica</em> (piano annuale o ricarica a mano).</td></tr>
+  <tr><td><strong>Data del prossimo rinnovo</strong></td><td>Lasciata vuota, i promemoria sono spenti. Nei rinnovi periodici la data passa da sola al ciclo successivo.</td></tr>
+  <tr><td><strong>Ogni quanti giorni</strong></td><td>Solo per il rinnovo ogni N giorni.</td></tr>
+  <tr><td><strong>Primo e secondo promemoria</strong></td><td>Quanti giorni prima del rinnovo arrivano i promemoria (0 = il giorno stesso), dalle 9:00, via email o WhatsApp.</td></tr>
+</table>
+
+<ul>
+  <li>Il traffico si conta da un rinnovo all'altro. È una <strong>stima</strong>, fatta sui dati inviati più le intestazioni di rete, e può differire un poco dal conteggio dell'operatore.</li>
+  <li>Con gli avvisi attivi arriva un avviso quando il traffico supera l'<strong>80%</strong> del piano.</li>
+  <li>Con la <em>scadenza unica</em>, una volta scaduta, arriva un promemoria al giorno finché non inserite la nuova data.</li>
+  <li>Il consumo giorno per giorno si vede nel grafico del riquadro <em>Sistema</em> della scheda <em>Stato</em> (capitolo <a data-cap="Scheda Stato"></a>).</li>
+</ul>
+
+<p>Promemoria e avvisi arrivano solo se è configurato almeno un canale nella scheda <em>Avvisi</em> (capitolo <a data-cap="Scheda Avvisi"></a>).</p>
+
+<h2>SIM con eSIM</h2>
+
+<p>Nel ricevitore si può montare anche una <strong>SIM con eSIM</strong>: una scheda SIM fisica, dello stesso formato delle altre, che al suo interno conserva uno o più <strong>profili eSIM</strong> scaricati da internet, anche di operatori diversi. Il modem la vede come una SIM normale, con il profilo che in quel momento è attivo.</p>
+
+<h3>Prima di montarla</h3>
+
+<ol>
+  <li>Con il <strong>telefono</strong> e l'<strong>app del produttore</strong> della scheda, scaricate il profilo dell'operatore dati con il codice di attivazione o il QR code ricevuto dall'operatore.</li>
+  <li>Sempre dall'app, impostate quel profilo come <strong>attivo</strong>.</li>
+  <li>Se il profilo ha un codice PIN, <strong>disattivatelo</strong>: il ricevitore non inserisce il PIN.</li>
+  <li>Inserite la scheda nello shield a ricevitore spento.</li>
+</ol>
+
+<h3>Nel pannello</h3>
+
+<ul>
+  <li>Inserite l'<strong>APN</strong> dell'operatore del profilo attivo.</li>
+  <li>Dopo il riavvio controllate in <em>Stato della SIM</em> operatore e segnale.</li>
+  <li>L'<strong>ICCID</strong> letto dal modem è quello del profilo attivo: cambia se si cambia profilo.</li>
+</ul>
+
+<div class="box nota"><span class="box-titolo">Nota</span>In questa versione del firmware il caricamento, l'attivazione e il cambio dei profili eSIM si fanno solo dal telefono, con l'app del produttore della scheda: per cambiare profilo la scheda va tolta dal ricevitore. Dal pannello del ricevitore non è ancora possibile.</div>
+
+<h2>Credito</h2>
+
+<p>Per le SIM ricaricabili il ricevitore può chiedere il credito all'operatore e avvisare quando scende sotto una soglia. Il riquadro mostra l'ultimo credito letto; <strong>Controlla credito ora</strong> lo chiede subito.</p>
+
+<table class="divisibile">
+  <tr><th>Campo</th><th>Uso</th></tr>
+  <tr><td><strong>Operatore della SIM</strong></td><td>TIM, Vodafone, ho. Mobile, WindTre, PosteMobile, Iliad, Kena Mobile, Very Mobile, Fastweb, CoopVoce, oppure <em>Altro / IoT</em>: propone il metodo giusto per quell'operatore.</td></tr>
+  <tr><td><strong>Come chiedere il credito</strong></td><td>Con un <strong>codice USSD</strong> (per esempio <code>*123#</code>) o con un <strong>SMS</strong> a un numero di servizio, con il suo testo.</td></tr>
+  <tr><td><strong>Controllo automatico</strong></td><td>Ogni quanti giorni chiedere il credito (0 = mai) e da che ora.</td></tr>
+  <tr><td><strong>Avvisami se il credito scende sotto</strong></td><td>La soglia in euro (0 = mai). Se nel controllo automatico il ricevitore non riesce a leggere l'importo, manda il testo della risposta dell'operatore.</td></tr>
+</table>
+
+<p>Per le prove ci sono anche: l'invio di un <strong>codice USSD</strong> o di un <strong>SMS</strong> scritto al momento, per vedere la risposta dell'operatore, e <strong>Prova lettura</strong>, che verifica se il ricevitore riesce a leggere l'importo da un testo di esempio incollato.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Le SIM per uso IoT e molti abbonamenti non hanno un credito da controllare: lasciate il controllo automatico a 0 e usate i promemoria di rinnovo del piano dati.</div>
+
+<h2>SMS ricevuti</h2>
+
+<p><strong>Leggi SMS</strong> mostra gli SMS arrivati alla SIM: avvisi dell'operatore, conferme di ricarica, offerte in scadenza, risposte alle richieste di credito. <strong>Cancella tutti</strong> li elimina dalla SIM, che ne può conservare un numero limitato.</p>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Date un'occhiata agli SMS ricevuti quando una SIM smette di funzionare: spesso l'operatore ha mandato un avviso di offerta scaduta o di credito esaurito.</div>
+
+<div class="in-breve">
+<ul>
+  <li>Numero, ICCID e IMEI identificano SIM e modem; il numero si scopre con l'SMS di prova.</li>
+  <li>Modem: SIM7600 G-H o E-H Mini PCIe per l'Italia, DIP POWERKEY e RESET spenti, antenna LTE collegata prima di accendere.</li>
+  <li>APN giusto: senza, la SIM prende segnale ma non va su internet.</li>
+  <li>Piano dati e date di rinnovo: promemoria prima della scadenza e avviso all'80% del traffico.</li>
+  <li>Credito via USSD o SMS, con controllo automatico e soglia di avviso.</li>
+</ul>
+</div>

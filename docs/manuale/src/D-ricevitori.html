@@ -1,0 +1,42 @@
+<p class="sommario-capitolo">I moduli GNSS, i modem e gli accessori che il firmware sa gestire, con le funzioni disponibili e lo stato delle prove alla data del manuale.</p>
+
+<h2>Moduli GNSS</h2>
+
+<table class="divisibile">
+  <tr><th>Modulo</th><th>Collegamento</th><th>Base</th><th>Rover</th><th>Galileo HAS</th><th>Prua / IMU</th><th>Stato</th></tr>
+  <tr><td><strong>u-blox ZED-F9P</strong></td><td>I2C o seriale</td><td>Sì</td><td>Sì, 1/5/10 Hz</td><td>No</td><td>No</td><td><strong>Provato sul campo</strong></td></tr>
+  <tr><td>u-blox ZED-X20P</td><td>I2C o seriale</td><td>Sì</td><td>Sì, 1/5/10 Hz</td><td>No</td><td>No</td><td>Non ancora provato su questa scheda</td></tr>
+  <tr><td>Unicore UM980</td><td>Seriale</td><td>Sì</td><td>Sì, 1/5/10 Hz</td><td>Sì (riserva rover e misura della base)</td><td>No</td><td>Non ancora provato su questa scheda</td></tr>
+  <tr><td>Unicore UM982</td><td>Seriale</td><td>Sì</td><td>Sì, 1/5/10 Hz</td><td>Sì (riserva rover e misura della base)</td><td>Doppia antenna presente, prua non ancora inviata</td><td>Non ancora provato su questa scheda</td></tr>
+  <tr><td>ComNav K922</td><td>Seriale</td><td>Sì</td><td>Sì, 5 Hz</td><td>Da verificare</td><td>Prua (HDT) e INS</td><td>Non ancora provato</td></tr>
+  <tr><td>Quectel LC29H (BA, CA, DA, EA)</td><td>Seriale (460800 di fabbrica)</td><td>Sì</td><td>Sì</td><td>No</td><td>No</td><td>Supportato</td></tr>
+  <tr><td>Bynav M20, M20D</td><td>Seriale</td><td>Sì</td><td>Sì</td><td>No</td><td>No</td><td>Non verificato su hardware</td></tr>
+  <tr><td>Bynav M21D</td><td>Seriale</td><td>—</td><td>Sì</td><td>No</td><td>INS</td><td>Non verificato su hardware</td></tr>
+  <tr><td>Quectel L76K (dello shield)</td><td>Seriale</td><td>—</td><td>Solo prove</td><td>No</td><td>No</td><td>Nessun RTK</td></tr>
+</table>
+
+<p>Con la scelta <strong>Automatico</strong> il firmware riconosce da solo all'avvio i moduli u-blox, Unicore e ComNav.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>I moduli indicati come "non ancora provati" o "non verificati" vanno collaudati al banco prima di installarli in campo: controllate nel log che il modulo accetti la configurazione e che arrivino dati e satelliti.</div>
+
+<h2>Modem per la rete mobile</h2>
+
+<table>
+  <tr><th>Modem</th><th>Note</th></tr>
+  <tr><td><strong>SIMCom SIM7600G-H</strong>, Mini PCIe originale</td><td>Tutte le bande, anche B20 e B28: consigliato per l'Italia. DIP POWERKEY e RESET dello shield spenti.</td></tr>
+  <tr><td>SIMCom SIM7600E-H, Mini PCIe originale</td><td>Bande europee B1, B3, B7, B8, B20 (senza B28).</td></tr>
+  <tr><td>SIM7600 in versione LilyGO</td><td>Supportato.</td></tr>
+  <tr><td>SIM868</td><td>Solo 2G, solo per prove.</td></tr>
+</table>
+
+<p>Non vanno bene le varianti SIM7600 per altri continenti (A-H, NA-H, SA-H, JC-H). Il formato deve essere Mini PCIe.</p>
+
+<h2>Software di guida e display</h2>
+
+<table>
+  <tr><th>Software o apparecchio</th><th>Collegamento</th></tr>
+  <tr><td><strong>AgOpenGPS</strong> (riferimento 6.8.6)</td><td>In rete, UDP porta 9999; capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a></td></tr>
+  <tr><td>Altri programmi che leggono NMEA in UDP</td><td>In rete, porta configurabile</td></tr>
+  <tr><td>Display con ricevitore proprio</td><td>Il ricevitore EVONETRTK non serve: il display usa le correzioni del caster (capitolo <a data-cap="Collegare il trattore"></a>, strada A)</td></tr>
+  <tr><td>Display che accettano solo seriale o Bluetooth</td><td>Non collegabili al ricevitore EVONETRTK</td></tr>
+</table>

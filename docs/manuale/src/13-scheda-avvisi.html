@@ -1,0 +1,63 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Come far avvisare il ricevitore, via email o WhatsApp, quando qualcosa non va: collegamento al caster interrotto, posizione della base non inviata, temperatura alta, cambio della posizione della base, SIM in scadenza. Come configurare i due canali e come provarli.</p>
+
+<p>Gli avvisi sono pensati soprattutto per le basi lasciate incustodite in campo. Per riceverli servono due cose: almeno un <strong>avviso attivo</strong> e almeno un <strong>canale</strong> configurato, email o WhatsApp, oppure tutti e due. Ogni avviso arriva quando il problema compare e di nuovo quando si risolve.</p>
+
+<h2>Caster disconnesso e temperatura</h2>
+
+<p>La casella <strong>Avvisami se la connessione al caster resta interrotta troppo a lungo o se la base si scalda troppo</strong> attiva il gruppo principale di avvisi:</p>
+
+<table class="divisibile">
+  <tr><th>Avviso</th><th>Quando arriva</th><th>Rientro</th></tr>
+  <tr><td><strong>Caster disconnesso</strong></td><td>Quando il collegamento al caster resta interrotto per più dei <strong>minuti di disconnessione</strong> impostati.</td><td>Quando il collegamento riprende.</td></tr>
+  <tr><td><strong>Posizione della base non inviata</strong> (solo base)</td><td>Quando la base non invia il 1005 da oltre 30 minuti: i rover non possono lavorare in RTK.</td><td>Quando il 1005 riprende.</td></tr>
+  <tr><td><strong>Temperatura alta</strong></td><td>Quando il chip supera i <strong>70 °C</strong>, per esempio con il sole diretto sulla custodia.</td><td>Quando scende sotto i 65 °C.</td></tr>
+</table>
+
+<p>Con le basi collegate tramite SIM è normale che il collegamento cada per pochi secondi, quando l'operatore interrompe la connessione dati: scegliete un numero di minuti che non faccia scattare l'avviso per queste brevi interruzioni, per esempio 5–10.</p>
+
+<p>Sugli stessi canali arrivano anche i <strong>promemoria della SIM</strong>: rinnovo del piano e credito sotto la soglia; con questo gruppo di avvisi attivo, anche il traffico oltre l'80% del piano (capitolo <a data-cap="Scheda SIM e costi"></a>).</p>
+
+<h2>Avviso di cambio posizione della base</h2>
+
+<p><span class="pubblico tecnico">Solo base</span> La casella <strong>Avvisami se l'antenna della base si sposta</strong> confronta la posizione che la base trasmette ai rover (messaggio 1005) con quella trasmessa la prima volta dopo l'avvio, e avvisa se la differenza supera la <strong>distanza minima</strong> impostata, in metri. Il riquadro mostra la posizione di riferimento e lo spostamento attuale. Questo avviso richiede anche l'avviso di disconnessione attivo, di cui usa i canali.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>In questa versione del firmware l'avviso controlla la posizione <strong>trasmessa</strong> dalla base, non quella fisica dell'antenna. Una base trasmette la stessa posizione fino al riavvio, sia con le coordinate fisse sia dopo il survey-in: per questo <strong>uno spostamento fisico dell'antenna, per esempio un urto, non viene rilevato</strong>. Dopo ogni urto, lavoro o maltempo vicino alla base, controllate a vista che l'antenna sia al suo posto.</div>
+
+<h2>Il canale email</h2>
+
+<table class="divisibile">
+  <tr><th>Campo</th><th>Uso</th></tr>
+  <tr><td><strong>Server SMTP</strong>, <strong>Porta SMTP</strong></td><td>Il server di posta in uscita, per esempio <code>smtp.gmail.com</code> e la porta <code>465</code> o <code>587</code>, come indicato dal fornitore della casella.</td></tr>
+  <tr><td><strong>Utente/mittente</strong></td><td>L'indirizzo email da cui partono gli avvisi.</td></tr>
+  <tr><td><strong>Password</strong></td><td>Con Gmail e con molti altri fornitori serve una <strong>password per le app</strong>, non la password normale dell'account.</td></tr>
+  <tr><td><strong>Destinatario avviso</strong></td><td>L'indirizzo che riceve gli avvisi.</td></tr>
+</table>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Usate una casella email dedicata agli avvisi delle basi, non quella personale. Con Gmail la password per le app si crea su <code>myaccount.google.com/apppasswords</code> e richiede la verifica in due passaggi attiva.</div>
+
+<h2>Il canale WhatsApp</h2>
+
+<p>Gli avvisi WhatsApp passano da <strong>CallMeBot</strong>, un servizio gratuito di terze parti, non ufficiale di WhatsApp. Il numero che deve ricevere gli avvisi va registrato una volta:</p>
+
+<ol>
+  <li>Dal sito di CallMeBot prendete il numero del loro bot e salvatelo tra i contatti del telefono che riceverà gli avvisi.</li>
+  <li>Da quel telefono mandate su WhatsApp al bot il messaggio di autorizzazione indicato sul sito (<em>I allow callmebot to send me messages</em>).</li>
+  <li>Il bot risponde con la vostra <strong>API key</strong>, un numero di sole cifre.</li>
+  <li>Nel pannello inserite il <strong>Numero WhatsApp</strong> con il prefisso internazionale (per esempio <code>+39…</code>) e l'<strong>API key</strong>, e salvate.</li>
+</ol>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Quando il servizio è sovraccarico, il bot risponde <em>This Bot is full</em> e indica un altro numero di bot: non è un errore vostro. Salvate il nuovo numero tra i contatti e ripetete l'autorizzazione con quello, anche più volte. Non scambiate il numero del nuovo bot per l'API key: la chiave vera arriva in un messaggio che dice <em>API Activated… Your APIKey is</em> ed è fatta di sole cifre, senza spazi né prefisso.</div>
+
+<h2>Prova degli avvisi</h2>
+
+<p>Il pulsante <strong>Invia avviso di prova</strong> manda subito un messaggio sui canali configurati e mostra l'esito dell'invio. Fatelo sempre a fine installazione, e ogni volta che cambiate un canale: un avviso che non arriva si scopre così, e non il giorno in cui la base si ferma.</p>
+
+<div class="in-breve">
+<ul>
+  <li>Servono un avviso attivo e almeno un canale, email o WhatsApp; ogni avviso ha anche il messaggio di rientro.</li>
+  <li>Avvisi principali: caster disconnesso oltre i minuti scelti, 1005 non inviato da 30 minuti (base), chip oltre 70 °C; in più i promemoria della SIM.</li>
+  <li>L'avviso di cambio posizione non rileva gli spostamenti fisici dell'antenna: controllatela a vista.</li>
+  <li>Email: password per le app. WhatsApp: autorizzazione una tantum con CallMeBot.</li>
+  <li>A fine installazione: Invia avviso di prova.</li>
+</ul>
+</div>

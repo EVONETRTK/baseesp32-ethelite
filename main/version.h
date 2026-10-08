@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.26.3"
+#define FIRMWARE_VERSION "1.27.2"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Nuovo ricevitore ComNav K922 (base, rover, direzione a doppia antenna, INS con IMU); Galileo HAS letto dalla soluzione PPP del ricevitore, con filtri e scarto dei salti."
+#define FIRMWARE_RELEASE_NOTES "Rover per l'autosterzo: 1, 5 o 10 posizioni al secondo verso AgOpenGPS, con velocita' e direzione (RMC, VTG), per u-blox e Unicore."

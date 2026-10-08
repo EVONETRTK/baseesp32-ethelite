@@ -1,0 +1,226 @@
+<p class="sommario-capitolo">Come fa un ricevitore a sapere dove si trova, perché da solo sbaglia di qualche metro e come una base fissa permette di scendere a pochi centimetri. Le parole introdotte qui (RTK, fix, caster, mountpoint) ritornano in tutto il manuale.</p>
+
+<h2>I satelliti di navigazione</h2>
+
+<p><strong>GNSS</strong> (<em>Global Navigation Satellite System</em>, sistema globale di navigazione satellitare) è il nome generale di tutti i sistemi che permettono di conoscere la propria posizione grazie ai satelliti. Il più famoso è il GPS americano, al punto che spesso si dice "GPS" per indicarli tutti; oggi però ne esistono quattro con copertura mondiale, e i ricevitori moderni li usano tutti insieme.</p>
+
+<table>
+  <tr><th>Sistema</th><th>Gestito da</th><th>Satelliti attivi (circa)</th><th>Note</th></tr>
+  <tr><td><strong>GPS</strong></td><td>Stati Uniti</td><td>31</td><td>Il primo e il più diffuso.</td></tr>
+  <tr><td><strong>GLONASS</strong></td><td>Russia</td><td>24</td><td>Utile alle nostre latitudini.</td></tr>
+  <tr><td><strong>Galileo</strong></td><td>Unione Europea</td><td>27</td><td>Sistema civile europeo; offre anche il servizio di correzione gratuito HAS.</td></tr>
+  <tr><td><strong>BeiDou</strong></td><td>Cina</td><td>45</td><td>Il più numeroso; molto presente anche in Europa.</td></tr>
+</table>
+
+<p>I satelliti orbitano a circa <strong>20&nbsp;000 km</strong> di quota e trasmettono di continuo segnali radio che contengono l'ora esatta, misurata da orologi atomici, e la loro posizione nello spazio. In campo aperto un ricevitore che usa tutte e quattro le costellazioni vede spesso <strong>più di 30 satelliti</strong> contemporaneamente.</p>
+
+<h2>Come si calcola la posizione</h2>
+
+<p>Il principio è semplice: il ricevitore misura <strong>quanto tempo</strong> impiega il segnale di ogni satellite ad arrivare. Le onde radio viaggiano alla velocità della luce, quindi dal tempo si ricava la distanza. Conoscendo la distanza da più satelliti di cui si sa la posizione, si ricava il punto in cui ci si trova: è lo stesso ragionamento con cui si trova un punto su una mappa conoscendo la distanza da tre paesi.</p>
+
+<figure>
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <rect x="0" y="0" width="640" height="300" fill="#f6f9fc"/>
+  <path d="M-20 300 Q320 190 660 300 Z" fill="#cfe5d6"/>
+  <path d="M-20 300 Q320 205 660 300" fill="none" stroke="#1f6b3f" stroke-width="2"/>
+  <g stroke="#2f6fb0" stroke-width="1.6" stroke-dasharray="6 5">
+    <line x1="90" y1="60" x2="320" y2="226"/>
+    <line x1="245" y1="30" x2="320" y2="226"/>
+    <line x1="410" y1="40" x2="320" y2="226"/>
+    <line x1="560" y1="80" x2="320" y2="226"/>
+  </g>
+  <g fill="#ffffff" stroke="#16365c" stroke-width="2">
+    <g transform="translate(90 60)"><rect x="-9" y="-9" width="18" height="18" rx="3"/><rect x="-33" y="-5" width="20" height="10" fill="#9cc3ea"/><rect x="13" y="-5" width="20" height="10" fill="#9cc3ea"/></g>
+    <g transform="translate(245 30)"><rect x="-9" y="-9" width="18" height="18" rx="3"/><rect x="-33" y="-5" width="20" height="10" fill="#9cc3ea"/><rect x="13" y="-5" width="20" height="10" fill="#9cc3ea"/></g>
+    <g transform="translate(410 40)"><rect x="-9" y="-9" width="18" height="18" rx="3"/><rect x="-33" y="-5" width="20" height="10" fill="#9cc3ea"/><rect x="13" y="-5" width="20" height="10" fill="#9cc3ea"/></g>
+    <g transform="translate(560 80)"><rect x="-9" y="-9" width="18" height="18" rx="3"/><rect x="-33" y="-5" width="20" height="10" fill="#9cc3ea"/><rect x="13" y="-5" width="20" height="10" fill="#9cc3ea"/></g>
+  </g>
+  <g fill="#16365c" font-weight="600">
+    <text x="90" y="92" text-anchor="middle">GPS</text>
+    <text x="245" y="62" text-anchor="middle">Galileo</text>
+    <text x="410" y="72" text-anchor="middle">BeiDou</text>
+    <text x="560" y="112" text-anchor="middle">GLONASS</text>
+  </g>
+  <circle cx="320" cy="226" r="7" fill="#1f6b3f" stroke="#fff" stroke-width="2"/>
+  <text x="335" y="248" fill="#164f2e" font-weight="700">ricevitore</text>
+  <text x="140" y="165" fill="#2f6fb0" transform="rotate(36 140 165)">distanza = tempo × velocità della luce</text>
+</svg>
+<figcaption><b>Figura 1.</b> Il ricevitore misura la distanza da ciascun satellite e da queste ricava la propria posizione. Servono almeno quattro satelliti: tre per la posizione e uno per correggere l'orologio del ricevitore.</figcaption>
+</figure>
+
+<p>Servono almeno <strong>quattro satelliti</strong>: tre per le tre dimensioni (est, nord, quota) e un quarto perché l'orologio del ricevitore non è atomico e il suo errore va calcolato insieme alla posizione. Più satelliti si vedono, più il calcolo è solido.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>La luce percorre 30 cm in un miliardesimo di secondo. Per sbagliare di un solo metro basta un errore di tempo di poco più di tre miliardesimi di secondo: per questo i satelliti hanno orologi atomici e le correzioni sono indispensabili.</div>
+
+<h2>Perché da solo sbaglia di qualche metro</h2>
+
+<p>Un buon ricevitore, da solo, conosce la sua posizione con un'incertezza che va <strong>da 1 a 5 metri</strong>. Abbastanza per un navigatore stradale, troppo per seminare o per tornare sulla stessa fila. Le cause principali sono:</p>
+
+<ul>
+  <li><strong>Ionosfera</strong>: lo strato alto dell'atmosfera, carico di particelle elettriche, rallenta il segnale. È la causa più grande e varia con il Sole, con l'ora del giorno e con la stagione.</li>
+  <li><strong>Troposfera</strong>: l'aria più bassa, con l'umidità, rallenta anch'essa il segnale, soprattutto dei satelliti bassi sull'orizzonte.</li>
+  <li><strong>Orbite e orologi dei satelliti</strong>: la posizione e l'ora trasmesse dai satelliti hanno piccoli errori, che pesano comunque qualche decina di centimetri.</li>
+  <li><strong>Riflessioni</strong> (in inglese <em>multipath</em>): il segnale rimbalza su tetti, muri, silos o macchine e arriva al ricevitore per una strada più lunga.</li>
+  <li><strong>Ostacoli e disturbi</strong>: alberi, edifici e apparecchi radio vicini all'antenna riducono il numero di satelliti utili o ne disturbano il segnale.</li>
+</ul>
+
+<p>Gli errori dovuti all'atmosfera, alle orbite e agli orologi hanno una caratteristica preziosa: <strong>sono quasi uguali per due ricevitori vicini</strong>. È su questo che si basano le correzioni.</p>
+
+<h2>Le correzioni: dal metro al centimetro</h2>
+
+<p>Esistono diversi modi per correggere gli errori, con precisioni e costi diversi. La tabella riassume quelli che si incontrano in agricoltura.</p>
+
+<table>
+  <tr><th>Metodo</th><th>Precisione tipica</th><th>Da dove arrivano le correzioni</th><th>Uso tipico</th></tr>
+  <tr><td>Nessuna correzione</td><td>1–5 m</td><td>—</td><td>Navigazione, mappe indicative</td></tr>
+  <tr><td><strong>EGNOS</strong> (SBAS)</td><td>sotto il metro</td><td>Satelliti geostazionari europei, gratuito</td><td>Concimazione, trattamenti su grandi larghezze</td></tr>
+  <tr><td><strong>Galileo HAS</strong> (PPP)</td><td>circa 20 cm, dopo alcuni minuti</td><td>Satelliti Galileo o internet, gratuito</td><td>Riserva quando manca l'RTK</td></tr>
+  <tr><td><strong>RTK</strong></td><td><strong>1–2 cm</strong></td><td>Una base fissa vicina, via internet o radio</td><td>Semina, sarchiatura, autosterzo, linee ripetibili</td></tr>
+</table>
+
+<p>La base EVONETRTK serve a fornire correzioni <strong>RTK</strong>, le più precise. Alcuni ricevitori da trattore possono usare <strong>Galileo HAS</strong> come riserva automatica quando le correzioni RTK mancano, per esempio in una zona senza copertura telefonica: la precisione scende, ma il lavoro può continuare.</p>
+
+<h2>Come funziona l'RTK</h2>
+
+<p><strong>RTK</strong> significa <em>Real Time Kinematic</em>, cioè "cinematico in tempo reale". Il sistema è formato da due ricevitori:</p>
+
+<ul>
+  <li>la <strong>base</strong>: un ricevitore fermo, installato in un punto di cui si conoscono con precisione le coordinate. Confrontando la posizione che misura con quella che sa di avere, calcola istante per istante gli errori dei satelliti;</li>
+  <li>il <strong>rover</strong>: il ricevitore in movimento, per esempio sul trattore. Riceve dalla base le misure e le correzioni e le usa per eliminare gli stessi errori dalla propria posizione.</li>
+</ul>
+
+<p>Il segreto della precisione al centimetro è che l'RTK non si limita a misurare il tempo di arrivo del segnale: misura anche la <strong>fase dell'onda radio</strong>, cioè il punto esatto dell'oscillazione in cui arriva il segnale. La lunghezza d'onda è di circa 19–25 cm, e misurarne la fase permette di apprezzare differenze di pochi millimetri. Il ricevitore deve però capire quante onde intere ci sono tra sé e ogni satellite: quando ci riesce si dice che ha ottenuto il <strong>fix</strong>.</p>
+
+<figure>
+<svg viewBox="0 0 680 270" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <rect x="0" y="0" width="680" height="270" fill="#f6f9fc"/>
+  <rect x="0" y="210" width="680" height="60" fill="#cfe5d6"/>
+  <g fill="#fff" stroke="#16365c" stroke-width="2">
+    <g transform="translate(190 34)"><rect x="-8" y="-8" width="16" height="16" rx="3"/><rect x="-28" y="-4" width="17" height="8" fill="#9cc3ea"/><rect x="11" y="-4" width="17" height="8" fill="#9cc3ea"/></g>
+    <g transform="translate(340 22)"><rect x="-8" y="-8" width="16" height="16" rx="3"/><rect x="-28" y="-4" width="17" height="8" fill="#9cc3ea"/><rect x="11" y="-4" width="17" height="8" fill="#9cc3ea"/></g>
+    <g transform="translate(490 34)"><rect x="-8" y="-8" width="16" height="16" rx="3"/><rect x="-28" y="-4" width="17" height="8" fill="#9cc3ea"/><rect x="11" y="-4" width="17" height="8" fill="#9cc3ea"/></g>
+  </g>
+  <g stroke="#9cc3ea" stroke-width="1.5" stroke-dasharray="5 4">
+    <line x1="190" y1="44" x2="95" y2="150"/><line x1="340" y1="32" x2="95" y2="150"/><line x1="490" y1="44" x2="95" y2="150"/>
+    <line x1="190" y1="44" x2="585" y2="178"/><line x1="340" y1="32" x2="585" y2="178"/><line x1="490" y1="44" x2="585" y2="178"/>
+  </g>
+  <!-- base -->
+  <rect x="62" y="160" width="66" height="50" fill="#e8ece9" stroke="#556070" stroke-width="2"/>
+  <path d="M55 162 L95 132 L135 162 Z" fill="#b5560a"/>
+  <line x1="95" y1="132" x2="95" y2="152" stroke="#333" stroke-width="3"/>
+  <ellipse cx="95" cy="150" rx="13" ry="4" fill="#1f6b3f"/>
+  <text x="95" y="232" text-anchor="middle" font-weight="700" fill="#164f2e">BASE</text>
+  <text x="95" y="248" text-anchor="middle" fill="#334">posizione nota</text>
+  <!-- caster -->
+  <path d="M300 128 a24 24 0 0 1 44 -12 a20 20 0 0 1 34 10 a18 18 0 0 1 -2 36 h-72 a17 17 0 0 1 -4 -34 z" fill="#fff" stroke="#2f6fb0" stroke-width="2"/>
+  <text x="340" y="146" text-anchor="middle" font-weight="700" fill="#2f6fb0">CASTER</text>
+  <text x="340" y="182" text-anchor="middle" fill="#334">internet</text>
+  <!-- frecce -->
+  <defs><marker id="fr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#1f6b3f"/></marker></defs>
+  <path d="M132 170 C190 170 230 150 290 146" fill="none" stroke="#1f6b3f" stroke-width="3" marker-end="url(#fr)"/>
+  <path d="M392 146 C450 150 490 170 545 182" fill="none" stroke="#1f6b3f" stroke-width="3" marker-end="url(#fr)"/>
+  <text x="205" y="196" text-anchor="middle" fill="#164f2e">correzioni (RTCM)</text>
+  <text x="472" y="198" text-anchor="middle" fill="#164f2e">correzioni (RTCM)</text>
+  <!-- trattore -->
+  <g transform="translate(560 168)">
+    <rect x="0" y="12" width="56" height="22" rx="3" fill="#1f6b3f"/>
+    <rect x="30" y="-6" width="24" height="20" fill="#cfe9d8" stroke="#1f6b3f" stroke-width="2"/>
+    <circle cx="14" cy="38" r="14" fill="#333"/><circle cx="14" cy="38" r="6" fill="#999"/>
+    <circle cx="50" cy="40" r="10" fill="#333"/><circle cx="50" cy="40" r="4" fill="#999"/>
+    <ellipse cx="42" cy="-8" rx="10" ry="3" fill="#164f2e"/>
+  </g>
+  <text x="590" y="250" text-anchor="middle" font-weight="700" fill="#164f2e">ROVER</text>
+</svg>
+<figcaption><b>Figura 2.</b> La base e il rover vedono gli stessi satelliti. La base invia le sue misure e correzioni al caster su internet; il rover sul trattore le riceve e calcola la propria posizione al centimetro.</figcaption>
+</figure>
+
+<h3>Fix, float e posizione autonoma</h3>
+
+<p>Il ricevitore del trattore indica sempre la qualità della posizione che sta usando. Sono i tre stati che si vedono più spesso sul display:</p>
+
+<figure>
+  <img src="img/stati-fix.svg" alt="Dalla posizione autonoma all'RTK fisso">
+  <figcaption><b>Figura 0.</b> Dalla posizione autonoma all'RTK fisso: a ogni passo l'incertezza della posizione si riduce.</figcaption>
+</figure>
+
+<table>
+  <tr><th>Stato</th><th>Cosa significa</th><th>Precisione</th></tr>
+  <tr><td><strong>RTK fix</strong></td><td>Correzioni ricevute e onde intere risolte: è lo stato di lavoro normale.</td><td>1–2 cm</td></tr>
+  <tr><td><strong>RTK float</strong></td><td>Correzioni ricevute ma calcolo non ancora risolto. Succede all'avvio, dopo un ostacolo o se la base è lontana.</td><td>da 10 cm a mezzo metro</td></tr>
+  <tr><td><strong>Autonomo</strong> (o DGPS)</td><td>Nessuna correzione RTK in arrivo.</td><td>da sotto il metro a qualche metro</td></tr>
+</table>
+
+<p>Dopo l'accensione, o dopo essere passati sotto un filare di alberi, il passaggio da float a fix richiede di solito da pochi secondi a un minuto.</p>
+
+<h3>La distanza dalla base</h3>
+
+<p>Le correzioni funzionano perché base e rover subiscono quasi gli stessi errori. Più sono lontani, più gli errori diventano diversi: la precisione peggiora di circa <strong>1 mm per ogni chilometro</strong> e il fix diventa più lento e meno stabile. In pratica si lavora bene entro <strong>20–30 km</strong> dalla base; oltre conviene usare una base più vicina.</p>
+
+<h2>Come arrivano le correzioni al trattore</h2>
+
+<p>La base non manda le correzioni direttamente a ogni trattore: le invia via internet a un server centrale, il <strong>caster</strong>, che le smista a tutti i rover collegati. Il linguaggio usato è il protocollo <strong>NTRIP</strong> (<em>Networked Transport of RTCM via Internet Protocol</em>), uno standard supportato da praticamente tutti i ricevitori e display agricoli.</p>
+
+<ul>
+  <li><strong>Caster</strong>: il server che riceve le correzioni dalle basi e le distribuisce. Per la rete EVONETRTK l'indirizzo è indicato nei dati di accesso forniti al cliente.</li>
+  <li><strong>Mountpoint</strong>: il nome con cui ogni base, o ogni servizio, compare sul caster; il rover sceglie a quale mountpoint collegarsi. È come il nome di un canale.</li>
+  <li><strong>Server NTRIP</strong>: la base, che <em>invia</em> le correzioni al caster.</li>
+  <li><strong>Client NTRIP</strong>: il rover, che le <em>riceve</em>, con nome utente e password.</li>
+  <li><strong>RTCM 3</strong>: il formato standard dei messaggi di correzione. Ogni tipo di messaggio ha un numero: per esempio il <strong>1005</strong> contiene la posizione della base, senza la quale il rover non può arrivare al fix.</li>
+</ul>
+
+<p>Il rover, oltre a ricevere le correzioni, invia al caster la propria posizione approssimata ogni pochi secondi (un messaggio chiamato <strong>GGA</strong>): così il caster sa dove si trova e può servirgli la base più vicina.</p>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>La base EVONETRTK può fare anche da <strong>caster locale</strong>: i rover collegati alla stessa rete WiFi della base ricevono le correzioni direttamente, anche senza internet. È utile per le prove e nelle zone senza copertura.</div>
+
+<h2>Coordinate e sistemi di riferimento</h2>
+
+<p>Una posizione è fatta di numeri (latitudine, longitudine, quota) che hanno senso solo rispetto a un <strong>sistema di riferimento</strong>, cioè a una "griglia" stabilita sulla Terra. La cosa sorprendente è che i continenti si muovono: l'Europa si sposta di circa <strong>2,5 cm all'anno</strong> verso nord-est. Un sistema mondiale come quello del GPS vede quindi un campo italiano cambiare coordinate ogni anno.</p>
+
+<p>Per evitarlo, in Europa si usa un sistema solidale con il continente, l'<strong>ETRF2000</strong>. In Italia è il sistema ufficiale, con il nome di <strong>RDN2008</strong>, ed è quello usato dalle basi EVONETRTK: le coordinate di un punto del vostro campo restano le stesse negli anni.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Il rover eredita la posizione della base: se le coordinate della base sono sbagliate di 50 cm, <strong>tutte</strong> le posizioni del trattore sono spostate di 50 cm. Per questo le coordinate della base vanno misurate una volta con cura e poi non vanno più cambiate: è ciò che garantisce che le linee di guida tracciate quest'anno coincidano con quelle dell'anno prossimo.</div>
+
+<h3>Precisione, accuratezza e ripetibilità</h3>
+
+<p>Tre parole che sembrano uguali ma indicano cose diverse, ed è utile distinguerle quando si parla di guida in campo:</p>
+
+<ul>
+  <li><strong>Precisione</strong>: quanto le posizioni misurate sono vicine tra loro, cioè quanto il trattore "trema" attorno alla linea.</li>
+  <li><strong>Accuratezza</strong>: quanto la posizione misurata è vicina a quella vera sulla Terra.</li>
+  <li><strong>Ripetibilità</strong>: la capacità di tornare sullo stesso punto in un altro momento, il giorno dopo o la stagione dopo. In agricoltura è la qualità che conta di più, e dipende soprattutto dalla stabilità delle coordinate della base.</li>
+</ul>
+
+<h2>Cosa influisce sulla qualità del segnale</h2>
+
+<p>Sia la base sia il rover lavorano bene solo se la loro antenna riceve bene i satelliti. Le regole sono le stesse:</p>
+
+<ul>
+  <li><strong>Cielo libero</strong>: l'antenna deve vedere il cielo in tutte le direzioni, il più possibile fino all'orizzonte. Alberi, tettoie e muri vicini riducono i satelliti.</li>
+  <li><strong>Lontano dalle superfici riflettenti</strong>: tetti in lamiera, silos e pareti vicine creano riflessioni che peggiorano la posizione.</li>
+  <li><strong>Lontano dai disturbi radio</strong>: modem, antenne di telefonia e alimentatori di scarsa qualità vicino all'antenna GNSS possono disturbarla.</li>
+  <li><strong>Cavo e connettori in buono stato</strong>: un connettore allentato o un cavo schiacciato o con acqua all'interno fanno perdere i satelliti in modo intermittente, uno dei guasti più difficili da riconoscere.</li>
+</ul>
+
+<h2>Il GNSS in agricoltura</h2>
+
+<p>La posizione precisa è alla base di quasi tutte le tecniche dell'agricoltura di precisione:</p>
+
+<ul>
+  <li><strong>Guida assistita e autosterzo</strong>: il trattore segue da solo linee rette o curve, senza sovrapposizioni né zone scoperte, anche di notte o con la nebbia.</li>
+  <li><strong>Linee AB ripetibili</strong>: le stesse linee si ritrovano a ogni passaggio e a ogni stagione, per seminare, sarchiare e raccogliere sulla stessa fila.</li>
+  <li><strong>Controllo delle sezioni</strong>: seminatrici, botti e spandiconcime chiudono le sezioni dove si è già passati, risparmiando prodotto.</li>
+  <li><strong>Dosaggio variabile</strong>: la quantità di seme o concime cambia punto per punto in base a una mappa.</li>
+  <li><strong>Traffico controllato</strong>: le macchine passano sempre sulle stesse corsie, riducendo il compattamento del terreno.</li>
+</ul>
+
+<p>Per la concimazione o i trattamenti con barre larghe bastano spesso pochi decimetri di precisione; per la semina, la sarchiatura, lo strip-till e tutto ciò che richiede di ritrovare la stessa fila serve l'<strong>RTK</strong>. È il compito della base EVONETRTK.</p>
+
+<div class="in-breve">
+<ul>
+  <li>Il ricevitore calcola la posizione misurando la distanza da almeno quattro satelliti; da solo sbaglia di 1–5 metri.</li>
+  <li>Una base fissa con coordinate note calcola gli errori e li invia al caster; il rover sul trattore li usa per arrivare a 1–2 cm (stato <strong>RTK fix</strong>).</li>
+  <li>Le correzioni viaggiano su internet con il protocollo NTRIP: la base è il server, il trattore il client, il mountpoint il nome del canale.</li>
+  <li>Le coordinate della base, in ETRF2000, vanno misurate con cura una volta sola: da esse dipende la ripetibilità delle linee negli anni.</li>
+  <li>Cielo libero e connettori in ordine sono la prima condizione perché tutto funzioni.</li>
+</ul>
+</div>

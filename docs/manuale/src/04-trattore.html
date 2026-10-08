@@ -1,0 +1,105 @@
+<p class="sommario-capitolo"><span class="pubblico agricoltore">Agricoltore</span> Le due strade per lavorare in RTK sul trattore con le correzioni EVONETRTK: il ricevitore che il trattore ha già, oppure un ricevitore EVONETRTK in modo rover. Quali dati inserire e come capire se tutto funziona.</p>
+
+<h2>Due strade per l'RTK sul trattore</h2>
+
+<table>
+  <tr><th></th><th>A. Ricevitore del trattore</th><th>B. Ricevitore EVONETRTK rover</th></tr>
+  <tr><td><strong>Cosa si usa</strong></td><td>Il ricevitore e il display già presenti sul trattore, di qualunque marca.</td><td>Un ricevitore EVONETRTK con la sua antenna sulla cabina.</td></tr>
+  <tr><td><strong>Per chi è</strong></td><td>Chi ha già un sistema di guida della casa del trattore o di un'altra marca.</td><td>Chi usa programmi di guida su tablet, come AgOpenGPS, o vuole una soluzione economica.</td></tr>
+  <tr><td><strong>Dove si inseriscono i dati del caster</strong></td><td>Nel menu del display o del ricevitore del trattore.</td><td>Nel pannello del ricevitore EVONETRTK, dal telefono.</td></tr>
+  <tr><td><strong>Internet</strong></td><td>Modem del display o del ricevitore, oppure il telefono.</td><td>WiFi (per esempio l'hotspot del telefono) o SIM del ricevitore.</td></tr>
+</table>
+
+<p>In tutti e due i casi servono gli stessi <strong>dati di accesso al caster</strong>, forniti con il servizio:</p>
+
+<table>
+  <tr><th>Dato</th><th>Cosa contiene</th><th>Esempio</th></tr>
+  <tr><td>Indirizzo (host)</td><td>L'indirizzo del caster EVONETRTK</td><td><code>rtk.evo-net.it</code></td></tr>
+  <tr><td>Porta</td><td>Il numero della porta</td><td><code>2101</code></td></tr>
+  <tr><td>Mountpoint</td><td>Il nome del servizio di correzione</td><td><code>AGRI_MSM4</code></td></tr>
+  <tr><td>Utente</td><td>Il vostro nome utente</td><td><code>rossi.trattore1</code></td></tr>
+  <tr><td>Password</td><td>La vostra password</td><td><code>••••••••</code></td></tr>
+</table>
+
+<p>Il mountpoint di rete, come <code>AGRI_MSM4</code>, non è legato a una base precisa: il caster guarda dove si trova il trattore e gli manda le correzioni della <strong>base più vicina</strong>, cambiandola da solo se ci si sposta in un'altra zona. Per farlo ha bisogno che il rover gli comunichi la sua posizione approssimata, con un messaggio chiamato <strong>GGA</strong>.</p>
+
+<h2>Strada A: il ricevitore del trattore</h2>
+
+<h3>Prima di iniziare</h3>
+
+<ol>
+  <li><strong>Il ricevitore è abilitato all'RTK.</strong> Alcuni costruttori vendono lo stesso ricevitore in versioni con precisioni diverse (per esempio "sub-metrica", "decimetrica", "RTK") e l'RTK va sbloccato con una licenza. Se il ricevitore non è abilitato, chiedete al rivenditore del trattore.</li>
+  <li><strong>Il display o il ricevitore accetta correzioni NTRIP da un servizio esterno.</strong> Di solito la voce si chiama "NTRIP", "RTK via internet", "RTK di rete" o "correzioni di terze parti". Alcuni sistemi accettano solo il servizio della propria marca: in quel caso serve un modem esterno o un'abilitazione apposita, oppure si passa alla strada B.</li>
+  <li><strong>C'è una connessione a internet in cabina</strong>: un modem con SIM nel display o nel ricevitore, oppure il telefono collegato al display in WiFi o Bluetooth.</li>
+</ol>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Insieme ai dati di accesso EVONETRTK si può ricevere una <strong>scheda di configurazione per la marca del vostro display</strong>, con i passaggi dei menu già pronti. Chiedetela indicando marca e modello del display e del ricevitore.</div>
+
+<h3>Inserire i dati</h3>
+
+<p>Nel menu delle correzioni del display, alla voce NTRIP, inserite i cinque dati di accesso. Molti display, dopo aver inserito indirizzo e porta, hanno un pulsante per <strong>scaricare l'elenco dei mountpoint</strong>: si può scegliere il proprio da lì invece di scriverlo.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Se nel display c'è un'opzione come "Invia GGA", "Invia posizione NMEA" o "VRS", deve essere <strong>attiva</strong>. Senza la posizione il caster non sa quale base servire e il ricevitore non riceve correzioni, anche se risulta collegato.</div>
+
+<h2>Strada B: il ricevitore EVONETRTK in modo rover</h2>
+
+<p>Il ricevitore EVONETRTK in modo rover si monta sul trattore con la sua antenna sul tetto della cabina; l'installazione, l'alimentazione dal trattore e la scelta del modo rover le fa il tecnico (capitolo <a data-cap="Installare il ricevitore sul trattore"></a>). L'agricoltore può inserire o cambiare da solo i dati di accesso al caster, dal telefono.</p>
+
+<h3>Inserire i dati</h3>
+
+<ol>
+  <li>Aprite il pannello del ricevitore dal telefono (capitolo <a data-cap="Il pannello in un colpo d'occhio"></a>): in cabina il modo più semplice è collegarsi alla sua rete WiFi <strong>EVONETRTK-…</strong> e aprire <code>http://192.168.4.1</code>.</li>
+  <li>Aprite la scheda <strong>Posizione</strong> e cercate il riquadro <strong>Client NTRIP</strong>.</li>
+  <li>Inserite indirizzo, porta, mountpoint, utente e password. Il pulsante <strong>Cerca mountpoint disponibili</strong> mostra l'elenco dei mountpoint del caster.</li>
+  <li>Premete <strong>Prova connessione al caster</strong>: il pannello dice subito se i dati sono accettati.</li>
+  <li>Premete <strong>💾 Salva</strong>.</li>
+</ol>
+
+<figure>
+  <img class="schermata" src="img/rover-config-ntrip.png" alt="Riquadro Client NTRIP del pannello in modo rover">
+  <figcaption><b>Figura 9.</b> Il riquadro <em>Client NTRIP</em> del ricevitore in modo rover, con i dati di accesso di esempio.</figcaption>
+</figure>
+
+<p>Non serve attivare nessuna opzione per la GGA: il ricevitore EVONETRTK comunica da solo la sua posizione al caster ogni 10 secondi.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Base e rover hanno dati di accesso separati: se lo stesso ricevitore viene usato prima come base e poi come rover, ognuno dei due modi conserva i suoi.</div>
+
+<h3>Passare la posizione alla guida</h3>
+
+<div class="box avvertenza" data-pitto="autosterzo"><span class="box-titolo">Guida assistita e autosterzo</span>La posizione può mancare o essere imprecisa senza preavviso. Con la guida assistita o l'autosterzo restate sempre al posto di guida, pronti a intervenire, controllate il percorso e le persone, e non usate l'autosterzo su strada (capitolo <a data-cap="Avvertenze di sicurezza"></a>).</div>
+
+
+<p>Il ricevitore EVONETRTK trasmette la posizione precisa in rete, via WiFi o cavo, nel formato standard NMEA. Il caso più comune è <strong>AgOpenGPS</strong> su un tablet, che riceve i dati sulla rete WiFi del ricevitore senza fili né abbinamenti: la configurazione è spiegata nel capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Il ricevitore invia i dati in rete (WiFi o cavo), non in Bluetooth. Per questo funziona con qualsiasi tablet o computer, Android, Windows o iPad, senza abbinamenti.</div>
+
+<h3>La riserva Galileo HAS</h3>
+
+<p>Con i moduli GNSS <strong>Unicore UM980/UM982</strong> e <strong>ComNav K922</strong>, il ricevitore in modo rover può usare come riserva automatica le correzioni gratuite di <strong>Galileo HAS</strong>, che arrivano direttamente dai satelliti. Se mancano le correzioni RTK, per esempio in una zona senza copertura telefonica, la precisione scende a circa <strong>20 cm</strong> invece che a 1–2 metri; quando le correzioni RTK tornano, il ricevitore riprende l'RTK da solo. La riserva si attiva dalla scheda <em>Posizione</em>, riquadro <em>Riserva Galileo HAS</em>.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Galileo HAS non basta per la semina di precisione, lo strip-till e la sarchiatura, che richiedono 2–3 cm. Va bene per concimazione, trattamenti, trinciatura e mappe. Dopo l'accensione o dopo un passaggio sotto gli alberi servono da alcuni minuti a qualche decina di minuti prima che HAS torni preciso.</div>
+
+<h2>Dopo il collegamento</h2>
+
+<p>Se i dati sono giusti, entro pochi secondi le correzioni arrivano e il rover passa da <strong>GPS</strong> (posizione autonoma) a <strong>RTK float</strong> e poi a <strong>RTK fisso</strong>, di solito in meno di un minuto con il cielo libero. Sul display del trattore spesso compare anche l'<strong>età delle correzioni</strong> in secondi; nel pannello del ricevitore EVONETRTK i riquadri <strong>Caster</strong> e <strong>Fix</strong> diventano verdi.</p>
+
+<table class="divisibile">
+  <tr><th>Cosa vedete</th><th>Cosa controllare</th></tr>
+  <tr><td>Accesso rifiutato, o "utente o password non accettati"</td><td>Utente e password: attenzione a maiuscole, minuscole e spazi finali.</td></tr>
+  <tr><td>Il mountpoint non viene trovato</td><td>Il nome del mountpoint, scritto esattamente come nei dati di accesso.</td></tr>
+  <tr><td>Collegato, ma le correzioni non arrivano</td><td>Sul ricevitore del trattore, l'invio della GGA; in ogni caso che il rover abbia già una posizione propria (all'aperto, dopo un minuto dall'accensione).</td></tr>
+  <tr><td>Le correzioni arrivano ma resta in float</td><td>Il cielo intorno al trattore e la distanza dalla base; se il problema continua chiedete il mountpoint più adatto al vostro ricevitore.</td></tr>
+  <tr><td>Non si collega affatto</td><td>La connessione a internet in cabina: credito e copertura della SIM, o il telefono e il suo hotspot.</td></tr>
+</table>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Le correzioni consumano pochi dati: qualche megabyte per ora di lavoro. Un normale abbonamento telefonico basta per un'intera stagione.</div>
+
+<div class="in-breve">
+<ul>
+  <li>Due strade: il ricevitore che il trattore ha già (strada A) oppure un ricevitore EVONETRTK in modo rover (strada B).</li>
+  <li>Servono sempre gli stessi cinque dati: indirizzo, porta, mountpoint, utente e password.</li>
+  <li>Strada A: dati nel display e invio della GGA attivo.</li>
+  <li>Strada B: dati nel riquadro <em>Client NTRIP</em> del pannello, con il pulsante di prova; la GGA parte da sola.</li>
+  <li>Il ricevitore EVONETRTK passa la posizione in rete ad AgOpenGPS e, con i moduli Unicore o ComNav, usa Galileo HAS come riserva.</li>
+</ul>
+</div>

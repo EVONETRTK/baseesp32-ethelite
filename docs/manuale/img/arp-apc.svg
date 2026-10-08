@@ -1,0 +1,48 @@
+<svg viewBox="0 0 640 330" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <!-- Disegno originale EVONETRTK: ARP, centro di fase e altezza dell'antenna -->
+  <defs>
+    <marker id="aa-f" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1f5fa8"/></marker>
+  </defs>
+  <rect width="640" height="330" fill="#f8fafc"/>
+  <!-- terreno o tetto -->
+  <rect x="0" y="292" width="640" height="38" fill="#cfd8dc"/>
+  <!-- palo -->
+  <rect x="226" y="150" width="14" height="142" fill="#8a96a3"/>
+  <!-- filettatura -->
+  <rect x="222" y="138" width="22" height="14" fill="#556070"/>
+  <!-- antenna -->
+  <path d="M168 138 H298 V120 Q298 72 233 66 Q168 72 168 120 Z" fill="#1f6b3f" stroke="#164f2e" stroke-width="2"/>
+  <rect x="168" y="128" width="130" height="10" fill="#164f2e"/>
+  <!-- APC -->
+  <circle cx="233" cy="100" r="6" fill="#f9c400" stroke="#1a1a1a" stroke-width="2"/>
+  <!-- ARP -->
+  <path d="M215 138 H251" stroke="#c4161c" stroke-width="3"/>
+  <circle cx="233" cy="138" r="5" fill="#c4161c"/>
+  <!-- punto a terra -->
+  <path d="M220 292 L233 280 L246 292 Z" fill="#1a1a1a"/>
+
+  <!-- quote -->
+  <path d="M120 140 V290" stroke="#1f5fa8" stroke-width="2" marker-start="url(#aa-f)" marker-end="url(#aa-f)"/>
+  <path d="M110 138 H215 M110 292 H220" stroke="#1f5fa8" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="24" y="210" fill="#1f5fa8" font-weight="700">altezza</text>
+  <text x="24" y="227" fill="#1f5fa8" font-weight="700">misurata</text>
+
+  <path d="M330 102 V136" stroke="#1f5fa8" stroke-width="2" marker-start="url(#aa-f)" marker-end="url(#aa-f)"/>
+  <path d="M240 100 H340 M251 138 H340" stroke="#1f5fa8" stroke-width="1" stroke-dasharray="4 3"/>
+
+  <!-- etichette -->
+  <g font-weight="700">
+    <text x="360" y="72" fill="#7a5a00">Centro di fase (APC)</text>
+    <text x="360" y="122" fill="#1f5fa8">Scostamento ARP–APC</text>
+    <text x="360" y="172" fill="#c4161c">ARP · punto di riferimento</text>
+    <text x="360" y="286" fill="#1a1a1a">Punto a terra (se c'è)</text>
+  </g>
+  <g fill="#334" font-size="12">
+    <text x="360" y="88">dove il segnale viene davvero ricevuto</text>
+    <text x="360" y="138">dai dati del costruttore (tabelle IGS)</text>
+    <text x="360" y="188">di solito la base della filettatura:</text>
+    <text x="360" y="203">le coordinate della base si riferiscono qui</text>
+  </g>
+  <path d="M352 76 L240 98" stroke="#7a5a00" stroke-width="1"/>
+  <path d="M352 168 L252 140" stroke="#c4161c" stroke-width="1"/>
+</svg>

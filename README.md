@@ -214,7 +214,7 @@ scheda, quindi restano impostazioni di build come i pin UART.
   `LILYGO_T_ETH_ELITE_ESP32S3`.
 - **Uscita NMEA per software di guida** (solo rover): ogni riga NMEA
   emessa dal GNSS viene inoltrata in broadcast UDP sulla porta
-  configurabile `nmea_udp_port` (default 5005), su AP di setup, WiFi
+  configurabile `nmea_udp_port` (default 9999, la porta di AgIO), su AP di setup, WiFi
   station ed Ethernet — verificare che la porta corrisponda a quella
   configurata lato AgIO. Questa scheda (ESP32-S3) non ha Bluetooth
   Classic: l'UDP e' l'unico trasporto, ma funziona su qualunque

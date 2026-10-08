@@ -263,7 +263,24 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
         { i2c ? 0x10720002 : 0x10740002, 1 },
         { 0x209100bb - port_off, 1 },   // CFG-MSGOUT-NMEA_ID_GGA (ogni epoca)
         { 0x209100c5 - port_off, 1 },   // CFG-MSGOUT-NMEA_ID_GSV
+        // RMC/VTG servono solo al rover (1.27.0): spente esplicitamente,
+        // perche' il modulo resta acceso quando l'ESP32 si riavvia e terrebbe
+        // la configurazione rover.
+        { 0x209100ac - port_off, 0 },   // CFG-MSGOUT-NMEA_ID_RMC
+        { 0x209100b1 - port_off, 0 },   // CFG-MSGOUT-NMEA_ID_VTG
+        // GLL e GSA, attive di fabbrica, non le usa nessuno: solo traffico sul
+        // bus (con l'I2C a 100 kHz conta). 1.27.1.
+        { 0x209100ca - port_off, 0 },   // CFG-MSGOUT-NMEA_ID_GLL
+        { 0x209100c0 - port_off, 0 },   // CFG-MSGOUT-NMEA_ID_GSA
     };
+    // Un'epoca al secondo, per lo stesso motivo: dopo un rover a 5-10 Hz
+    // resterebbe la frequenza alta, e il 1005 "ogni 10 epoche" sotto
+    // conta proprio sulle epoche da 1 s.
+    const ubx_cfg_kv32_t kvs_rate[] = {
+        { 0x30210001, 1000 },   // CFG-RATE-MEAS (ms)
+        { 0x30210002, 1 },      // CFG-RATE-NAV (una soluzione per misura)
+    };
+    ubx_valset_group(uart_num, "FREQUENZA", kvs_rate, sizeof(kvs_rate) / sizeof(kvs_rate[0]));
     ubx_valset_group(uart_num, i2c ? "PORTA I2C" : "PORTA UART1", kvs_port, sizeof(kvs_port) / sizeof(kvs_port[0]));
 
     ubx_cfg_kv32_t kvs[16];
@@ -536,6 +553,17 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
     };
     ubx_valset_group(uart_num, "SIGNAL (costellazioni)", kvs_signals, sizeof(kvs_signals) / sizeof(kvs_signals[0]));
 
+    // Posizioni al secondo per il software di guida (1.27.0): GGA, RMC e VTG
+    // a ogni epoca, GSV una volta al secondo (i valori CFG-MSGOUT contano le
+    // epoche). Alla GGA verso il caster ci pensa ntrip_rover_client.c (10 s).
+    const uint32_t hz = settings_nmea_rate_hz();
+    const ubx_cfg_kv32_t kvs_rate[] = {
+        { 0x30210001, 1000 / hz },  // CFG-RATE-MEAS (ms)
+        { 0x30210002, 1 },          // CFG-RATE-NAV
+    };
+    ubx_valset_group(uart_num, "FREQUENZA", kvs_rate, sizeof(kvs_rate) / sizeof(kvs_rate[0]));
+    ESP_LOGI(TAG, "Uscita NMEA rover: %lu posizioni al secondo (GGA, RMC, VTG), GSV ogni secondo", (unsigned long) hz);
+
     if (i2c) {
         // Ricevitore collegato via I2C (es. HAT Syneda uRTK6.0): stessa
         // configurazione dei gruppi UART sotto, ma sulla porta I2C. Le UART
@@ -545,7 +573,13 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
             { 0x10720004, 0 },    // CFG-I2COUTPROT-RTCM3X
             { 0x10720002, 1 },    // CFG-I2COUTPROT-NMEA
             { 0x209100ba, 1 },    // CFG-MSGOUT-NMEA_ID_GGA_I2C
-            { 0x209100c4, 1 },    // CFG-MSGOUT-NMEA_ID_GSV_I2C
+            { 0x209100c4, hz },   // CFG-MSGOUT-NMEA_ID_GSV_I2C (una volta al secondo)
+            { 0x209100ab, 1 },    // CFG-MSGOUT-NMEA_ID_RMC_I2C
+            { 0x209100b0, 1 },    // CFG-MSGOUT-NMEA_ID_VTG_I2C
+            // GLL e GSA (attive di fabbrica): inutili ai programmi di guida e a
+            // 10 Hz erano ~50 righe GSA al secondo sull'I2C (prova del 08/10).
+            { 0x209100c9, 0 },    // CFG-MSGOUT-NMEA_ID_GLL_I2C
+            { 0x209100bf, 0 },    // CFG-MSGOUT-NMEA_ID_GSA_I2C
         };
         ubx_valset_group(uart_num, "I2C", kvs_i2c, sizeof(kvs_i2c) / sizeof(kvs_i2c[0]));
         return ESP_OK;
@@ -557,8 +591,12 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
         { 0x10740002, 1 },    // CFG-UART1OUTPROT-NMEA: riabilita NMEA in uscita (per il $GxGGA)
         { 0x209100bb, 1 },    // CFG-MSGOUT-NMEA_ID_GGA_UART1: abilitare il protocollo non basta,
                                // serve anche abilitare esplicitamente il messaggio GGA (1 = ogni epoca)
-        { 0x209100c5, 1 },    // CFG-MSGOUT-NMEA_ID_GSV_UART1: idem per GSV, da cui gnss_signal.c
-                               // ricava l'elenco satelliti/SNR mostrato in /api/signals
+        { 0x209100c5, hz },   // CFG-MSGOUT-NMEA_ID_GSV_UART1: idem per GSV, da cui gnss_signal.c
+                               // ricava l'elenco satelliti/SNR mostrato in /api/signals (ogni secondo)
+        { 0x209100ac, 1 },    // CFG-MSGOUT-NMEA_ID_RMC_UART1
+        { 0x209100b1, 1 },    // CFG-MSGOUT-NMEA_ID_VTG_UART1
+        { 0x209100ca, 0 },    // CFG-MSGOUT-NMEA_ID_GLL_UART1 (come per l'I2C)
+        { 0x209100c0, 0 },    // CFG-MSGOUT-NMEA_ID_GSA_UART1
     };
     ubx_valset_group(uart_num, "UART1", kvs_uart1, sizeof(kvs_uart1) / sizeof(kvs_uart1[0]));
 
@@ -573,7 +611,11 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
         { 0x10760004, 0 },    // CFG-UART2OUTPROT-RTCM3X
         { 0x10760002, 1 },    // CFG-UART2OUTPROT-NMEA
         { 0x209100bc, 1 },    // CFG-MSGOUT-NMEA_ID_GGA_UART2
-        { 0x209100c6, 1 },    // CFG-MSGOUT-NMEA_ID_GSV_UART2
+        { 0x209100c6, hz },   // CFG-MSGOUT-NMEA_ID_GSV_UART2
+        { 0x209100ad, 1 },    // CFG-MSGOUT-NMEA_ID_RMC_UART2
+        { 0x209100b2, 1 },    // CFG-MSGOUT-NMEA_ID_VTG_UART2
+        { 0x209100cb, 0 },    // CFG-MSGOUT-NMEA_ID_GLL_UART2
+        { 0x209100c1, 0 },    // CFG-MSGOUT-NMEA_ID_GSA_UART2
     };
     ubx_valset_group(uart_num, "UART2", kvs_uart2, sizeof(kvs_uart2) / sizeof(kvs_uart2[0]));
 

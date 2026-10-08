@@ -735,6 +735,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddStringToObject(root, "remote_url", s.remote_url);
         cJSON_AddBoolToObject(root, "vpn_enable", s.vpn_enable);
         cJSON_AddBoolToObject(root, "rover_has_fallback", s.rover_has_fallback);
+        cJSON_AddNumberToObject(root, "nmea_rate_hz", (s.nmea_rate_hz == 5 || s.nmea_rate_hz == 10) ? s.nmea_rate_hz : 1);
         cJSON_AddStringToObject(root, "rover_has_state", gnss_nmea_reader_has_state());
         cJSON_AddStringToObject(root, "vpn_address", s.vpn_address);
         cJSON_AddStringToObject(root, "vpn_peer_public_key", s.vpn_peer_public_key);
@@ -1276,6 +1277,10 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         it = cJSON_GetObjectItemCaseSensitive(root, "rover_has_fallback");
         if (it && cJSON_IsBool(it)) {
             s.rover_has_fallback = cJSON_IsTrue(it);
+        }
+        it = cJSON_GetObjectItemCaseSensitive(root, "nmea_rate_hz");
+        if (it && cJSON_IsNumber(it) && (it->valueint == 1 || it->valueint == 5 || it->valueint == 10)) {
+            s.nmea_rate_hz = (uint8_t) it->valueint;
         }
         it = cJSON_GetObjectItemCaseSensitive(root, "vpn_port");
         if (it && cJSON_IsNumber(it) && it->valueint > 0 && it->valueint <= 65535) {

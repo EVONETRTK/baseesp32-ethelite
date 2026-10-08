@@ -8,6 +8,26 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.27.2
+
+- Porta UDP preimpostata per il software di guida: **9999** (era 5005), la porta su cui AgIO di AgOpenGPS 6.8.6 riceve la posizione (verificato nel codice di AgIO: ascolta su tutte le reti, accetta le frasi $G..., legge GGA, VTG e HDT; la RMC e' disattivata). Vale per i ricevitori nuovi o ripristinati: chi ha gia' salvato una porta la tiene.
+- Manuale: nuovo capitolo 15 "AgOpenGPS con il ricevitore EVONETRTK" (riferimento AgOpenGPS 6.8.6); porta 9999 nei capitoli 7 e 10.
+
+## 1.27.1
+
+- u-blox: spente le frasi NMEA GLL e GSA (attive di fabbrica, non usate): in rover a 10 Hz erano circa 50 righe GSA al secondo in piu' sull'I2C. Provato sul ricevitore di prova: GGA, RMC e VTG a 10 al secondo verso AgOpenGPS, GSV a 1.
+
+## 1.27.0
+
+Rover pronto per l'autosterzo con AgOpenGPS (08/10/2026).
+- **Posizioni al secondo** nel riquadro "Uscita dati per software di guida" (Posizione e correzioni, solo rover): 1, 5 o 10, salvata in `nmea_rate_hz` (campo nuovo in fondo ad `app_settings_t`, 0 = 1 come prima). Vale dopo il riavvio ed entra nella barra "Modifiche salvate ma non ancora attive".
+- **u-blox in rover**: CFG-RATE-MEAS = 1000/Hz ms; GGA, **RMC** (velocita') e **VTG** (direzione) a ogni epoca, GSV una volta al secondo, su I2C, UART1 e UART2. Prima uscivano solo GGA e GSV a 1 Hz: troppo poco per l'autosterzo.
+- **u-blox in base**: rimessi esplicitamente 1 Hz e RMC/VTG spente, perche' il modulo resta acceso durante il riavvio dell'ESP32 e terrebbe la configurazione rover (il 1005 "ogni 10 epoche" conta su epoche da 1 s).
+- **Unicore in rover**: GPGGA, GPRMC e GPVTG con periodo 1, 0.2 o 0.1 s, GPGSV ogni secondo (non ancora provato su un UM98x collegato a questa scheda).
+- La posizione inviata al caster resta una ogni 10 s (ntrip_rover_client.c), qualunque sia la frequenza.
+- Testi del pannello: "Quota ellissoidica ETRF2000" (era WGS84: le basi della rete sono in ETRF2000); alimentazione 12-24 V nella nota sul modem SIMCom (era "5 V 3 A"); il pulsante "Riavvia dispositivo" e' nella scheda Stato (la nota diceva Connessione).
+- Manuale (`docs/manuale`): capitoli 7 e 10 aggiornati.
+
 ## 1.26.3
 
 Correzioni dal controllo qualita' dell'08/10/2026.

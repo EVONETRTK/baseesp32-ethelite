@@ -763,7 +763,7 @@
     <div id="base-pos-manual-fields" style="display:none">
       <label>Latitudine (gradi decimali)<input name="base_fixed_lat_deg" type="number" step="0.0000001"></label>
       <label>Longitudine (gradi decimali)<input name="base_fixed_lon_deg" type="number" step="0.0000001"></label>
-      <label>Quota ellissoidica WGS84 (metri)<input name="base_fixed_height_m" type="number" step="0.001"></label>
+      <label>Quota ellissoidica ETRF2000 (metri)<input name="base_fixed_height_m" type="number" step="0.001"></label>
       <button type="button" class="action secondary" id="base-pos-use-current-btn">Usa posizione attuale rilevata</button>
       <div id="base-pos-current-hint" class="hint" style="margin-top:.4rem">Nessuna posizione ancora rilevata dal ricevitore.</div>
       <small class="hint" id="base-pos-maps-wrap" style="display:none">
@@ -963,12 +963,29 @@
     <small class="hint">
       In modalita' rover, ogni riga NMEA emessa dal GNSS (posizione, satelliti, ecc.) viene
       trasmessa in broadcast UDP su questa porta, su tutte le reti attive (AP di setup, WiFi,
-      Ethernet se abilitata) - per software come AgOpenGPS/AgIO. Verifica che la porta
-      corrisponda a quella configurata lato AgIO.
+      Ethernet se abilitata) - per software come AgOpenGPS/AgIO. AgIO (AgOpenGPS) ascolta sulla
+      porta 9999, il valore di fabbrica.
     </small>
   
     <div class="fieldset-save-row">
       <button type="button" class="action fieldset-save-btn" data-fields="nmea_udp_port">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+    <label style="margin-top:.8rem">Posizioni al secondo
+      <select name="nmea_rate_hz">
+        <option value="1">1 (solo per vedere la posizione)</option>
+        <option value="5">5</option>
+        <option value="10">10 (consigliato per l'autosterzo)</option>
+      </select>
+    </label>
+    <small class="hint">
+      Con i ricevitori u-blox e Unicore: quante posizioni al secondo (frasi GGA, RMC con la velocita'
+      e VTG con la direzione) arrivano al software di guida. Per l'autosterzo AgOpenGPS ne servono 5-10;
+      l'elenco dei satelliti (GSV) resta una volta al secondo e al caster la posizione va sempre ogni 10 s.
+      Con il ComNav K922 la frequenza e' fissa (5 al secondo). Richiede un riavvio.
+    </small>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="nmea_rate_hz" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset></div>
@@ -1056,7 +1073,7 @@
         <li>Formato <b>Mini PCIe</b> (schedina con contatti dorati su un lato), non M.2 ne' modulo da saldare.</li>
         <li>La seriale del modulo e' a 1,8 V: lo shield ha gia' il convertitore di livello (U1), non serve altro.</li>
         <li>Collega l'antenna LTE <b>prima</b> di accendere: senza antenna il modulo puo' scaldarsi e non registrarsi.</li>
-        <li>Alimentatore da almeno 5 V 3 A: il modem LTE assorbe picchi di circa 2 A durante la trasmissione.</li>
+        <li>Alimentazione 12-24 V di buona qualita' (scheda di alimentazione del ricevitore): il modem LTE assorbe picchi di circa 2 A durante la trasmissione.</li>
         <li>Dopo il salvataggio serve un riavvio; nel log deve comparire "Modulo SIM7600 SIMCom originale".</li>
       </ul>
     </div>
@@ -1612,7 +1629,7 @@
 <small class="hint">
   Ogni campo si salva da solo con il pulsante 💾 accanto, senza riavviare il dispositivo - molte
   impostazioni (es. WiFi, NTRIP) si applicano subito. Alcune (pin del ricevitore, LED e display) richiedono comunque un riavvio manuale per applicarsi: usa il pulsante "Riavvia
-  dispositivo" nella scheda Connessione quando serve.
+  dispositivo" in fondo alla scheda Stato quando serve.
 </small>
 </form>
 
@@ -2240,6 +2257,7 @@ async function loadStatus() {
       f.rover_mountpoint.value = s.rover_mountpoint || '';
       f.rover_username.value = s.rover_username || '';
       f.nmea_udp_port.value = s.nmea_udp_port || '';
+      f.nmea_rate_hz.value = String(s.nmea_rate_hz || 1);
       f.gnss_chip.value = s.gnss_chip || 'ublox';
       f.device_mode.value = s.device_mode || 'base';
       gnssChipEffective = s.gnss_chip_effective || '';
@@ -2891,7 +2909,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 // mantenere in due posti.
 const NUMBER_FIELDS = new Set([
   'remote_interval_min', 'vpn_port', 'data_plan_gb', 'sim_credit_every_days', 'sim_credit_hour', 'sim_credit_min_eur', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
-  'ntrip_port', 'nmea_udp_port', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
+  'ntrip_port', 'nmea_udp_port', 'nmea_rate_hz', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
   'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
   'alert_smtp_port', 'base_drift_threshold_m', 'ntrip_caster_server_port', 'base_fixed_lat_deg',

@@ -1,0 +1,57 @@
+<p class="sommario-capitolo">Le caratteristiche tecniche del ricevitore EVONETRTK nella configurazione di riferimento, per la versione del firmware indicata in copertina.</p>
+
+<h2>Hardware</h2>
+
+<table class="divisibile">
+  <tr><th>Voce</th><th>Caratteristica</th></tr>
+  <tr><td>Scheda di controllo</td><td>LilyGO T-ETH-Elite, processore Espressif ESP32-S3 a due core</td></tr>
+  <tr><td>Memoria</td><td>16 MB flash, 8 MB PSRAM</td></tr>
+  <tr><td>Alimentazione</td><td>12–24 V in corrente continua, con la scheda di alimentazione del ricevitore</td></tr>
+  <tr><td>Modulo GNSS</td><td>Intercambiabile: vedi l'appendice <a data-cap="Ricevitori e chip supportati"></a></td></tr>
+  <tr><td>Collegamento al modulo GNSS</td><td>I2C (u-blox, indirizzo 0x42) o seriale UART (fino a 460800 baud)</td></tr>
+  <tr><td>WiFi</td><td>2,4 GHz, rete propria di configurazione sempre attiva e collegamento a una rete esterna contemporaneamente</td></tr>
+  <tr><td>Ethernet</td><td>10/100 Mbit/s (chip W5500), indirizzo da DHCP</td></tr>
+  <tr><td>Rete mobile</td><td>Opzionale: modem SIM7600 Mini PCIe nello shield LTE; SIM attiva senza PIN</td></tr>
+  <tr><td>Memoria esterna</td><td>microSD fino a 32 GB, FAT32</td></tr>
+  <tr><td>Accessori opzionali</td><td>LED RGB (WS2812 o 3 canali PWM), display OLED 128×64 I2C (SSD1306, SH1106, SSD1309)</td></tr>
+  <tr><td>Pulsante</td><td>BOOT: tenuto premuto 5 secondi cancella la configurazione</td></tr>
+</table>
+
+<h2>Funzioni e protocolli</h2>
+
+<table class="divisibile">
+  <tr><th>Funzione</th><th>Caratteristica</th></tr>
+  <tr><td>Modi di lavoro</td><td>Base o rover, scelti dal pannello</td></tr>
+  <tr><td>Correzioni</td><td>RTCM 3.3, messaggi selezionabili singolarmente (appendice <a data-cap="Messaggi RTCM 3"></a>)</td></tr>
+  <tr><td>Collegamento al caster</td><td>NTRIP: server (base) e client (rover), porta predefinita 2101</td></tr>
+  <tr><td>Posizione al caster (rover)</td><td>GGA ogni 10 secondi</td></tr>
+  <tr><td>Caster locale (base)</td><td>Per i rover sulla stessa rete, porta predefinita 2101, con utente e password</td></tr>
+  <tr><td>Uscita verso il software di guida (rover)</td><td>NMEA in broadcast UDP su tutte le reti attive, porta predefinita 9999; GGA, RMC e VTG a 1, 5 o 10 Hz (u-blox, Unicore), GSV a 1 Hz; con il ComNav K922 anche HDT, a 5 Hz</td></tr>
+  <tr><td>Posizione della base</td><td>Survey-in, coordinate fisse, misura con RTK, misura con Galileo HAS; sistema della rete ETRF2000</td></tr>
+  <tr><td>Dati grezzi</td><td>Registrazione su microSD (u-blox RAWX/SFRBX o RTCM3) per il calcolo PPP</td></tr>
+  <tr><td>Riserva senza RTK (rover)</td><td>Galileo HAS con i moduli Unicore e ComNav, convertito in ETRF2000</td></tr>
+  <tr><td>Pannello</td><td>Pagina web interna, HTTP con utente e password, sessione ricordata 30 giorni</td></tr>
+  <tr><td>Accesso remoto</td><td>VPN WireGuard (porta UDP 51820 del server); monitoraggio remoto con invio periodico dello stato in HTTPS</td></tr>
+  <tr><td>Avvisi</td><td>Email (SMTP con TLS) e WhatsApp (CallMeBot): caster scollegato, 1005 non inviato, temperatura oltre 70 °C, cambio posizione della base, promemoria SIM</td></tr>
+  <tr><td>Aggiornamenti</td><td>Online (anche automatici), da file, da microSD; ritorno automatico alla versione precedente; archivio delle ultime 2 versioni</td></tr>
+  <tr><td>Affidabilità</td><td>Watchdog con riavvio automatico; ritorno all'ultima configurazione funzionante dopo 3 riavvii per guasto; copia automatica della configurazione su microSD</td></tr>
+  <tr><td>Ora</td><td>NTP da internet; dai satelliti in attesa dell'NTP</td></tr>
+</table>
+
+<h2>Porte di rete</h2>
+
+<p>Tutte le connessioni partono dal ricevitore; l'unica porta in entrata è quella del caster locale, se attivato, sulla rete locale.</p>
+
+<table>
+  <tr><th>Uso</th><th>Porta</th></tr>
+  <tr><td>Caster NTRIP</td><td>TCP 2101 in uscita</td></tr>
+  <tr><td>Aggiornamenti, WhatsApp, monitoraggio remoto</td><td>TCP 443 in uscita</td></tr>
+  <tr><td>Email</td><td>TCP 465 o 587 in uscita</td></tr>
+  <tr><td>Ora (NTP)</td><td>UDP 123 in uscita</td></tr>
+  <tr><td>VPN WireGuard</td><td>UDP 51820 in uscita</td></tr>
+  <tr><td>Software di guida</td><td>UDP 9999 in broadcast sulla rete locale</td></tr>
+  <tr><td>Pannello</td><td>TCP 80 sulla rete locale</td></tr>
+  <tr><td>Caster locale</td><td>TCP 2101 sulla rete locale</td></tr>
+</table>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Dimensioni, peso, grado di protezione e temperature di funzionamento dipendono dalla custodia fornita con il ricevitore e sono indicati nella sua documentazione.</div>

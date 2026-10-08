@@ -1,0 +1,172 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Come usare il ricevitore EVONETRTK come GPS di AgOpenGPS, il programma libero di guida e autosterzo: cosa serve, collegamento in rete con il tablet, configurazione di AgIO e di AgOpenGPS, linee di guida ripetibili, autosterzo, doppia antenna e soluzione dei problemi più comuni.</p>
+
+<div class="box nota"><span class="box-titolo">Versione di riferimento</span>Questo capitolo è scritto per <strong>AgOpenGPS 6.8.6</strong>, l'ultima versione pubblicata alla data del manuale (17 agosto 2026), e per il firmware del ricevitore indicato in copertina. Le versioni successive di AgOpenGPS possono avere menu e nomi diversi.</div>
+
+<h2>Cosa sono AgOpenGPS e AgIO</h2>
+
+<p><strong>AgOpenGPS</strong> è un programma gratuito e a codice aperto per la guida assistita, l'autosterzo, il controllo delle sezioni e le mappe di lavoro, sviluppato da una comunità internazionale di agricoltori e tecnici. Gira su un tablet o un computer Windows in cabina ed è disponibile anche in italiano.</p>
+
+<p>È formato da due programmi che lavorano insieme:</p>
+
+<ul>
+  <li><strong>AgIO</strong>: il programma delle comunicazioni. Riceve la posizione dal GPS, parla con i moduli di sterzo e delle sezioni e, se serve, scarica le correzioni RTK. Resta aperto in secondo piano.</li>
+  <li><strong>AgOpenGPS</strong>: il programma che si usa in campo, con la mappa, le linee di guida e i comandi.</li>
+</ul>
+
+<p>Nella combinazione con il ricevitore EVONETRTK, il ricevitore fa da <strong>GPS RTK</strong>: riceve da solo le correzioni dal caster EVONETRTK e manda la posizione precisa ad AgIO in rete. AgIO non deve occuparsi delle correzioni.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Alla data del manuale la versione per Windows di AgOpenGPS (la 6.8) riceve solo correzioni di errori: gli sviluppatori lavorano a una nuova versione, <strong>AgValoniaGPS</strong>, che girerà anche su Linux, macOS e Raspberry Pi. Le versioni si scaricano dalla pagina ufficiale del progetto su GitHub (<code>github.com/AgOpenGPS-Official/AgOpenGPS</code>).</div>
+
+<h2>Cosa serve</h2>
+
+<div class="box avvertenza" data-pitto="autosterzo"><span class="box-titolo">Kit di sterzo</span>Un kit di autosterzo interviene sullo sterzo del mezzo: un montaggio o una taratura sbagliati possono far sterzare il trattore in modo improvviso. Il kit va installato e collaudato da personale qualificato, secondo le istruzioni del suo costruttore e senza alterare i sistemi di sicurezza del mezzo.</div>
+
+
+<p>Per lavorare con AgOpenGPS e il ricevitore EVONETRTK servono i componenti elencati qui sotto; quelli dell'ultima parte della tabella servono solo per l'autosterzo.</p>
+
+<table class="divisibile">
+  <tr><th>Componente</th><th>Note</th></tr>
+  <tr><td><strong>Ricevitore EVONETRTK</strong> in modo rover</td><td>Con modulo u-blox ZED-F9P o Unicore UM980/UM982; con ComNav K922 per doppia antenna e IMU. Installato come nel capitolo <a data-cap="Installare il ricevitore sul trattore"></a>.</td></tr>
+  <tr><td><strong>Antenna GNSS</strong> sulla cabina</td><td>Multibanda, al centro del tetto, su supporto rigido.</td></tr>
+  <tr><td><strong>Internet</strong> per il ricevitore</td><td>SIM nel modem del ricevitore oppure hotspot del telefono.</td></tr>
+  <tr><td><strong>Dati di accesso</strong> al caster EVONETRTK</td><td>Indirizzo, porta, mountpoint, utente e password.</td></tr>
+  <tr><td><strong>Tablet o computer Windows</strong> in cabina</td><td>Windows 10 o 11, con WiFi; schermo da almeno 10" e luminoso, leggibile al sole.</td></tr>
+  <tr><td colspan="2"><strong>Solo per l'autosterzo</strong></td></tr>
+  <tr><td>Kit di sterzo</td><td>Motore elettrico sul volante oppure valvola idraulica, con il <strong>modulo di sterzo</strong> di AgOpenGPS (scheda di controllo collegata ad AgIO) e il <strong>sensore dell'angolo delle ruote</strong>.</td></tr>
+  <tr><td>Sensore di inclinazione (IMU)</td><td>Fortemente consigliato nei terreni in pendenza: corregge lo spostamento dell'antenna quando il trattore si inclina. Di solito è sulla scheda di sterzo.</td></tr>
+</table>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Il ricevitore EVONETRTK sostituisce il GPS del sistema AgOpenGPS, ma <strong>non</strong> il kit di sterzo: motore o valvola, scheda di sterzo e sensore dell'angolo delle ruote vanno acquistati e installati a parte, seguendo la documentazione di AgOpenGPS.</div>
+
+<h2>Le misure dell'antenna</h2>
+
+<p>AgOpenGPS deve sapere dove si trova l'antenna rispetto al trattore. Le misure da prendere sono descritte nel capitolo <a data-cap="Installare il ricevitore sul trattore"></a>; in AgOpenGPS (interfaccia in italiano) si inseriscono nelle impostazioni del veicolo con questi nomi. Le lettere sono quelle della figura del capitolo <a data-cap="Installare il ricevitore sul trattore"></a>:</p>
+
+<table>
+  <tr><th>Misura</th><th>Voce in AgOpenGPS (italiano)</th><th>Voce in inglese</th></tr>
+  <tr><td>A · Altezza dell'antenna da terra</td><td>Altezza Antenna</td><td>Antenna Height</td></tr>
+  <tr><td>B · Distanza dell'antenna dall'asse posteriore, positiva se l'antenna è più avanti</td><td>Distanza Antenna da Asse Posteriore</td><td>Pivot Distance</td></tr>
+  <tr><td>C · Spostamento laterale dell'antenna dal centro</td><td>Disallineamento Antenna</td><td>Antenna Offset</td></tr>
+  <tr><td>D · Distanza tra asse anteriore e posteriore</td><td>Passo</td><td>Wheelbase</td></tr>
+</table>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Misurate due volte e al centimetro. Un errore sulla <em>Distanza Antenna da Asse Posteriore</em> si nota in curva, uno sul <em>Disallineamento</em> come uno spostamento costante della linea, che cambia lato a ogni passata: è il difetto che fa lasciare strisce non lavorate o sovrapposte.</div>
+
+<h2>Il ricevitore in modo rover</h2>
+
+<p>Nel pannello del ricevitore (capitolo <a data-cap="Scheda Posizione e correzioni"></a>):</p>
+
+<ol>
+  <li><strong>Modalità operativa</strong>: <em>Rover</em>.</li>
+  <li><strong>Ricevitore GNSS e collegamento</strong>: il modulo montato, oppure <em>Automatico</em>.</li>
+  <li><strong>Client NTRIP</strong>: i dati di accesso al caster EVONETRTK; premete <strong>Prova connessione al caster</strong> e salvate.</li>
+  <li><strong>Uscita dati per software di guida</strong>:
+    <ul>
+      <li><strong>Porta UDP</strong>: <code>9999</code>, la porta su cui AgIO riceve la posizione (è il valore di fabbrica);</li>
+      <li><strong>Posizioni al secondo</strong>: <code>10</code> per l'autosterzo.</li>
+    </ul>
+  </li>
+  <li>Riavviate il ricevitore e controllate, a cielo libero, che i riquadri <strong>Caster</strong> e <strong>Fix</strong> della scheda <em>Stato</em> diventino verdi.</li>
+</ol>
+
+<p>Il ricevitore manda le frasi <strong>GGA</strong> (posizione e qualità del fix) e <strong>VTG</strong> (velocità e direzione), che sono quelle lette da AgIO, più RMC e GSV. Con il ComNav K922 manda anche la prua dalla doppia antenna (<strong>HDT</strong>), che AgIO riconosce.</p>
+
+<h2>La rete tra ricevitore e tablet</h2>
+
+<p>Il ricevitore trasmette la posizione a tutti i dispositivi della rete (broadcast), sulla porta 9999. Il tablet la riceve se è sulla stessa rete del ricevitore. Ci sono tre modi:</p>
+
+<table class="divisibile">
+  <tr><th>Collegamento</th><th>Come</th><th>Note</th></tr>
+  <tr><td><strong>A. Rete WiFi del ricevitore</strong> (consigliato)</td><td>Il tablet si collega alla rete <strong>EVONETRTK-…</strong> del ricevitore.</td><td>Non dipende dal telefono né da altri apparecchi. Il ricevitore intanto può usare la SIM o l'hotspot del telefono per internet: le due cose funzionano insieme.</td></tr>
+  <tr><td>B. Hotspot del telefono</td><td>Ricevitore e tablet sono collegati entrambi all'hotspot del telefono.</td><td>Il tablet ha anche internet, ma tutto si ferma se il telefono si allontana o spegne l'hotspot.</td></tr>
+  <tr><td>C. Cavo di rete</td><td>Tablet o computer collegato via Ethernet al ricevitore, direttamente o con uno switch.</td><td>Il più stabile; utile se in cabina c'è già uno switch con i moduli di AgOpenGPS.</td></tr>
+</table>
+
+<div class="box avviso"><span class="box-titolo">IMPORTANTE – Il firewall di Windows: causa n. 1 dei problemi di installazione</span>Al primo avvio Windows chiede se consentire ad AgIO l'accesso alla rete: rispondete <strong>Consenti</strong> anche per le <strong>reti pubbliche</strong>. Windows classifica come "pubblica" la rete WiFi del ricevitore: se AgIO è consentito solo sulle reti private, la posizione arriva al tablet ma Windows la blocca, e AgIO resta senza GPS. In alternativa, nelle impostazioni di rete di Windows impostate la rete <strong>EVONETRTK-…</strong> come rete privata.</div>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Collegato solo alla rete del ricevitore, il tablet non ha internet: Windows può segnalarlo, ma per lavorare non serve, perché alle correzioni pensa il ricevitore. AgIO riceve la posizione da qualunque rete del tablet: l'impostazione della sottorete di AgIO (<em>Set Subnet</em>) riguarda solo i moduli di sterzo e delle sezioni collegati via cavo e non va cambiata per il ricevitore.</div>
+
+<h2>Configurare AgIO</h2>
+
+<ol>
+  <li><strong>Profilo</strong>: avviate AgIO e scegliete o create un profilo (menu <em>Profiles</em>). Senza profilo AgIO non permette di attivare la rete.</li>
+  <li><strong>Attivate l'UDP</strong>: premete il pulsante della rete (UDP) nella finestra di AgIO. Se l'UDP è spento si apre la finestra <em>Ethernet Configuration</em>: spuntate la casella <strong>UDP Is Off</strong>, che diventa <em>UDP On</em>, e premete <strong>OK</strong>. AgIO si riavvia e da quel momento ascolta la posizione sulla porta 9999.</li>
+  <li><strong>NTRIP di AgIO spento</strong>: nella sezione NTRIP di AgIO lasciate il collegamento disattivato. Le correzioni le riceve già il ricevitore EVONETRTK: attivarle anche in AgIO non serve e non arriverebbero comunque al ricevitore.</li>
+  <li><strong>Nessuna porta COM</strong> per il GPS: la posizione arriva in rete, non da una porta seriale.</li>
+  <li><strong>Controllo</strong>: nella finestra di AgIO il GPS deve risultare attivo, con la posizione (latitudine e longitudine) che si aggiorna. Dal menu <em>UDP Monitor</em> si vedono le frasi che arrivano dal ricevitore, con l'indirizzo di provenienza.</li>
+</ol>
+
+<h2>Configurare AgOpenGPS</h2>
+
+<p>Avviate AgOpenGPS (si collega da solo ad AgIO sullo stesso computer) e impostate:</p>
+
+<ul>
+  <li><strong>Lingua</strong>: italiano, dal menu delle impostazioni.</li>
+  <li><strong>Veicolo</strong>: tipo di mezzo e <strong>Passo</strong>.</li>
+  <li><strong>Antenna</strong>: <strong>Altezza Antenna</strong>, <strong>Distanza Antenna da Asse Posteriore</strong> e <strong>Disallineamento Antenna</strong>, con le misure prese.</li>
+  <li><strong>Fonte della direzione</strong>: con una sola antenna (u-blox, Unicore) usate le <strong>Configurazioni Singola Antenna</strong>: AgOpenGPS ricava la direzione dallo spostamento tra due posizioni (<em>Distanza tra i FIX</em>). Con la doppia antenna del K922 usate la <strong>Configurazione Doppia Antenna</strong>.</li>
+  <li><strong>Attrezzo</strong>: larghezza di lavoro, numero di sezioni, distanza e posizione rispetto al trattore.</li>
+  <li><strong>Allarme RTK fix Perso</strong>: attivatelo, così AgOpenGPS avvisa quando la posizione esce dall'RTK.</li>
+</ul>
+
+<p>Nella barra di stato di AgOpenGPS controllate la <strong>qualità del fix</strong> (RTK fix) e la <strong>frequenza</strong> delle posizioni, che deve essere vicina a 10 al secondo.</p>
+
+<h2>Linee AB, curve e ripetibilità</h2>
+
+<ul>
+  <li><strong>Linea AB</strong>: si registra il punto A all'inizio della passata e il punto B alla fine; AgOpenGPS genera le linee parallele alla larghezza dell'attrezzo. La <strong>Creazione Veloce Linea AB</strong> la crea da un punto e una direzione.</li>
+  <li><strong>Curve</strong> e <strong>perimetri</strong>: si registrano guidando lungo il percorso o il bordo del campo.</li>
+  <li>Linee, curve e confini si salvano con il campo e si ritrovano nelle stagioni successive.</li>
+</ul>
+
+<p>La <strong>ripetibilità</strong>, cioè ritrovare le stesse file anno dopo anno, dipende dalle coordinate della base: le basi EVONETRTK lavorano con coordinate fisse in ETRF2000, il sistema ufficiale italiano, che non si sposta con la deriva del continente (capitolo <a data-cap="Il mondo GNSS in breve"></a>). Anche le posizioni della riserva Galileo HAS sono convertite in ETRF2000, per non spostare le linee quando il ricevitore passa da RTK a HAS e ritorno.</p>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Prima di affidarvi alle linee di un anno precedente, fate la prova del picchetto (capitolo <a data-cap="Installare il ricevitore sul trattore"></a>): un punto segnato e ritrovato a distanza di tempo deve coincidere entro 2–3 cm.</div>
+
+<h2>L'autosterzo</h2>
+
+<p>Con il kit di sterzo installato, AgOpenGPS comanda il motore o la valvola per tenere il trattore sulla linea. Dal lato del ricevitore servono:</p>
+
+<ul>
+  <li><strong>RTK fisso</strong> stabile: in float l'autosterzo ondeggia;</li>
+  <li><strong>10 posizioni al secondo</strong>: con meno posizioni la guida è a scatti, soprattutto a velocità alta;</li>
+  <li>misure dell'antenna precise e, nei terreni in pendenza, il sensore di inclinazione.</li>
+</ul>
+
+<p>La taratura del sensore dell'angolo delle ruote e dei parametri di sterzo si fa in AgOpenGPS seguendo la sua documentazione.</p>
+
+<div class="box avvertenza" data-pitto="autosterzo"><span class="box-titolo">Rischio di investimento e di incidente</span>L'autosterzo è un aiuto alla guida, non una guida autonoma. L'operatore deve restare al posto di guida, con le mani pronte sul volante, e sorvegliare sempre il percorso, gli ostacoli e le persone. Non usatelo su strade pubbliche, vicino a fossi, scarpate o persone, né quando il fix RTK è instabile. Prima dell'uso in campo provatelo a bassa velocità in un'area sgombra.</div>
+
+<h2>Doppia antenna e IMU</h2>
+
+<ul>
+  <li><strong>ComNav K922</strong>: con due antenne calcola la <strong>prua</strong> anche da fermo e in retromarcia, e il ricevitore la invia ad AgIO con la frase HDT, 5 volte al secondo. Con l'<strong>INS</strong> attivo la posizione continua per qualche istante anche sotto alberi o capannoni. In AgOpenGPS usate la <em>Configurazione Doppia Antenna</em>. La frequenza con il K922 è fissa a 5 posizioni al secondo.</li>
+  <li><strong>Unicore UM982</strong>: il modulo ha la doppia antenna, ma in questa versione del firmware il ricevitore non ne invia ancora la prua ad AgIO: si usa come antenna singola.</li>
+  <li><strong>Inclinazione (rollio)</strong>: il ricevitore non la invia ad AgOpenGPS; usate il sensore di inclinazione della scheda di sterzo.</li>
+</ul>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Le funzioni del K922 (doppia antenna e INS) non sono ancora state provate su un modulo reale: verificatele prima dell'uso per la guida.</div>
+
+<h2>Problemi comuni e soluzioni</h2>
+
+<table class="divisibile">
+  <tr><th>Cosa succede</th><th>Causa probabile</th><th>Soluzione</th></tr>
+  <tr><td>AgIO non riceve nessuna posizione</td><td>UDP spento in AgIO; firewall di Windows; tablet su un'altra rete; porta diversa da 9999.</td><td>Attivate l'UDP in AgIO; consentite AgIO sulle reti pubbliche; collegate il tablet alla rete EVONETRTK-…; controllate la porta nel pannello del ricevitore.</td></tr>
+  <tr><td>Nell'UDP Monitor arrivano frasi ma senza posizione</td><td>Il ricevitore non ha ancora una posizione (antenna coperta, appena acceso).</td><td>Portate il trattore a cielo libero e aspettate un minuto; controllate il riquadro Satelliti nel pannello.</td></tr>
+  <tr><td>Posizione presente ma niente RTK</td><td>Correzioni non in arrivo al ricevitore.</td><td>Riquadro <strong>Caster</strong> del pannello: leggete il motivo; internet del ricevitore (SIM, hotspot) e dati di accesso.</td></tr>
+  <tr><td>Frequenza bassa (1 al secondo)</td><td>Posizioni al secondo a 1, o modifica non ancora attiva.</td><td>Impostate 10 e riavviate il ricevitore.</td></tr>
+  <tr><td>Direzione instabile da fermo o a bassa velocità</td><td>Con una sola antenna la direzione si calcola dal movimento.</td><td>Normale da fermi: partite e la direzione si assesta; per la prua da fermo serve la doppia antenna.</td></tr>
+  <tr><td>Linea spostata di qualche centimetro sempre dallo stesso lato</td><td>Disallineamento Antenna errato.</td><td>Rimisurate lo spostamento laterale dell'antenna.</td></tr>
+  <tr><td>Linea spostata alternando il lato a ogni passata</td><td>Misure dell'antenna o dell'attrezzo errate, oppure inclinazione non compensata.</td><td>Controllate le misure; attivate il sensore di inclinazione.</td></tr>
+  <tr><td>Perdite di RTK frequenti</td><td>Ostacoli, antenna o cavo, copertura della SIM.</td><td>Pagina <em>Segnali</em> del pannello; capitolo <a data-cap="Risoluzione dei problemi"></a>.</td></tr>
+</table>
+
+<div class="in-breve">
+<ul>
+  <li>Riferimento: AgOpenGPS 6.8.6 (agosto 2026). AgIO riceve la posizione in UDP sulla porta 9999 e legge GGA, VTG e HDT.</li>
+  <li>Ricevitore in rover: dati del caster, porta 9999, 10 posizioni al secondo.</li>
+  <li>Tablet sulla rete WiFi del ricevitore; AgIO consentito nel firewall anche sulle reti pubbliche.</li>
+  <li>In AgIO: profilo, UDP attivo, NTRIP spento, nessuna porta COM. In AgOpenGPS: misure dell'antenna, fonte della direzione, attrezzo, allarme RTK.</li>
+  <li>L'autosterzo richiede il kit di sterzo di AgOpenGPS, RTK fisso a 10 Hz e un operatore sempre pronto.</li>
+</ul>
+</div>

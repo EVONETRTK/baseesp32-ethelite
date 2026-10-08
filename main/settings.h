@@ -433,6 +433,12 @@ typedef struct {
     bool comnav_ins_enable;
     uint8_t comnav_imu_axes;
     bool comnav_heading_enable;
+
+    // Rover (1.27.0): posizioni al secondo in uscita verso il software di
+    // guida (u-blox e Unicore), con RMC e VTG oltre a GGA: per l'autosterzo
+    // AgOpenGPS servono 5-10 Hz e velocita'/direzione. 0 = 1 (come prima);
+    // valori ammessi 1, 5, 10. Vedi settings_nmea_rate_hz().
+    uint8_t nmea_rate_hz;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo
@@ -486,6 +492,9 @@ bool settings_loaded_from_nvs(void);
 // settings_update() salva anche in NVS.
 void settings_peek(void (*fn)(const app_settings_t *s, void *ctx), void *ctx);
 esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx);
+
+// Posizioni al secondo del rover (nmea_rate_hz normalizzato): 1, 5 o 10.
+uint8_t settings_nmea_rate_hz(void);
 
 // Configurazione come blob NVS (magic + app_settings_t): esportazione,
 // copia sulla microSD e importazione. Dopo l'importazione serve un riavvio

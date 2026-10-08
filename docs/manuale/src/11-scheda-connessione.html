@@ -1,0 +1,105 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Come il ricevitore si collega a internet: scelta della connettività, WiFi con le reti ricordate, Ethernet, riserva cellulare, rete di setup, monitoraggio remoto e accesso remoto con la VPN WireGuard. I dati della SIM e del piano sono nel capitolo successivo.</p>
+
+<h2>Connettività</h2>
+
+<p>Il campo <strong>Connettività da usare</strong> decide quali connessioni il ricevitore usa per raggiungere internet. Vale dopo il riavvio.</p>
+
+<table class="divisibile">
+  <tr><th>Scelta</th><th>Comportamento</th><th>Quando usarla</th></tr>
+  <tr><td><strong>WiFi con fallback cellulare</strong> (consigliata)</td><td>Prova il WiFi; se non si collega entro circa 15 secondi passa alla SIM. Mentre è sulla SIM riprova il WiFi ogni 5 minuti e, appena il WiFi torna, chiude la connessione cellulare per non consumare traffico.</td><td>Quasi sempre; senza modem il ricevitore lavora solo in WiFi.</td></tr>
+  <tr><td><strong>Solo WiFi</strong></td><td>Ignora il modem anche se è montato.</td><td>Per non consumare mai traffico della SIM.</td></tr>
+  <tr><td><strong>Solo cellulare</strong></td><td>Usa solo la SIM e non si collega a nessuna rete WiFi.</td><td>Basi isolate senza WiFi, o per provare la SIM.</td></tr>
+  <tr><td><strong>⚠️ Solo Ethernet</strong></td><td>Spegne del tutto la radio WiFi, compresa la rete di setup.</td><td>Solo per escludere disturbi della radio WiFi sul GNSS, con un cavo di rete già verificato.</td></tr>
+</table>
+
+<div class="box avviso"><span class="box-titolo">Pericolo</span>Con <strong>Solo Ethernet</strong> la rete WiFi <strong>EVONETRTK-…</strong> non c'è più. Se il cavo di rete non funziona, il ricevitore non è più raggiungibile in nessun modo e l'unico rimedio è il ripristino di fabbrica con il pulsante BOOT, che cancella tutta la configurazione. Sceglietela solo dopo aver verificato che via cavo il pannello si apre.</div>
+
+<p>L'<strong>Ethernet</strong>, quando il cavo è collegato, funziona in ogni caso, indipendentemente da questa scelta. Il ricevitore prende l'indirizzo automaticamente dal router (DHCP); per avere sempre lo stesso indirizzo, riservatelo nel router.</p>
+
+<h2>WiFi</h2>
+
+<ul>
+  <li><strong>SSID</strong>: il nome della rete. <strong>Cerca reti WiFi</strong> elenca le reti in vista con la loro intensità; quelle a cui il ricevitore si è già collegato sono evidenziate. Toccando una rete il nome si inserisce da solo.</li>
+  <li><strong>Password</strong>: appare sempre vuota, perché il ricevitore non restituisce mai le password salvate. Lasciata vuota, la password attuale resta valida.</li>
+  <li><strong>Connetti</strong>: prova subito la rete con il nome e la password scritti, senza salvare e senza riavviare. Se funziona, la rete viene salvata e ricordata.</li>
+</ul>
+
+<h3>Le reti ricordate</h3>
+
+<p>Oltre alla rete principale il ricevitore ricorda fino a <strong>5 reti</strong> a cui si è collegato con successo. Se la rete principale non c'è, prova da solo le altre: un rover che passa dall'hotspot del telefono al WiFi dell'azienda si ricollega senza reinserire niente.</p>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Su una base fissa controllate il segnale WiFi nella pagina <em>Segnali</em> (capitolo <a data-cap="Scheda Stato"></a>): sotto i −75 dBm il collegamento cade spesso. Meglio un ripetitore, un'antenna WiFi esterna o il cavo di rete.</div>
+
+<h2>Rete di setup</h2>
+
+<p><span class="pubblico tecnico">Avanzate</span> È la rete WiFi del ricevitore, <strong>EVONETRTK-…</strong>, sempre attiva per l'accesso di emergenza e per il tablet del rover.</p>
+
+<ul>
+  <li><strong>SSID AP</strong>: il nome della rete. Di norma lasciate quello con la matricola, così il ricevitore si riconosce subito.</li>
+  <li><strong>Password AP</strong>: almeno 8 caratteri. Cambiatela alla prima configurazione: quella di fabbrica è uguale per tutti i ricevitori.</li>
+</ul>
+
+<p>Il pannello chiede conferma prima di salvare questi campi: se sbagliati, tagliano fuori chi è collegato a quella rete.</p>
+
+<h2>Monitoraggio remoto</h2>
+
+<p><span class="pubblico tecnico">Avanzate</span> Una base collegata solo con la SIM non si raggiunge da fuori. Con questa funzione è la base a mandare, a intervalli regolari, un riassunto del suo stato a un indirizzo web, per esempio una pagina sul server del caster: stato del caster, posizione, memoria, temperatura, ultimo riavvio, traffico e credito. Il riassunto non contiene né impostazioni né password.</p>
+
+<ul>
+  <li><strong>Indirizzo</strong>: l'indirizzo che riceve i dati (<code>http://</code> o <code>https://</code>), in formato JSON con il metodo POST.</li>
+  <li><strong>Ogni quanti minuti</strong>: l'intervallo; 0 spegne la funzione.</li>
+</ul>
+
+<p>Sotto i campi compare l'esito dell'ultimo invio.</p>
+
+<h2>Accesso remoto con la VPN WireGuard</h2>
+
+<p>Per aprire il pannello di una base lontana, anche quando usa la SIM, il ricevitore può collegarsi da solo a un server <strong>WireGuard</strong> e restarci collegato. Dal computer o dal telefono, collegati alla stessa rete privata, il pannello si apre all'indirizzo della base nella VPN, per esempio <code>http://10.8.0.2</code>. Il tunnel serve solo per raggiungere la base: le correzioni verso il caster continuano a passare dalla connessione normale.</p>
+
+<p>Funziona anche con le SIM che non accettano connessioni in entrata, perché è la base a chiamare il server, e tiene il collegamento aperto con un segnale ogni 25 secondi.</p>
+
+<h3>Configurazione nel pannello</h3>
+
+<ol>
+  <li><strong>Genera chiavi</strong>: il ricevitore crea la sua coppia di chiavi. La chiave privata resta nel ricevitore e non si vede mai; la <strong>chiave pubblica</strong> compare nel campo e va comunicata a chi gestisce il server.</li>
+  <li>Sul server viene aggiunta la base, con la sua chiave pubblica e il suo indirizzo nella VPN.</li>
+  <li>Nel pannello compilate <strong>Server</strong> (nome o indirizzo), <strong>Porta del server</strong> (di solito 51820), <strong>Chiave pubblica del server</strong> e <strong>Indirizzo della base nella VPN</strong>, spuntate <strong>Attiva la VPN</strong> e salvate.</li>
+  <li>Entro un minuto lo <strong>Stato</strong> diventa "collegata".</li>
+</ol>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Generare chiavi nuove rende inutile la chiave pubblica precedente: va aggiornata anche sul server, altrimenti la base non si collega più. Generatele una volta sola, alla prima configurazione.</div>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Il server può collegare la VPN delle basi alla rete privata Tailscale dei tecnici: in quel caso chi ha l'app Tailscale autorizzata raggiunge le basi senza configurare WireGuard sul proprio telefono. La procedura per il server è descritta nella documentazione tecnica del firmware (<code>docs/vpn-server.md</code>).</div>
+
+<div class="box avviso"><span class="box-titolo">Pericolo</span>Con la VPN il pannello è raggiungibile da tutti i dispositivi della rete privata: usate una password del pannello robusta e diversa dalla matricola.</div>
+
+<h2>Il firewall della rete</h2>
+
+<p>Nelle installazioni nelle reti aziendali il firewall è la causa più frequente di una base che "non si collega" pur avendo internet: il ricevitore si collega alla rete WiFi o al cavo, ma il firewall del router o dell'azienda blocca le porte che usa. Tutte le connessioni partono dal ricevitore verso l'esterno: non serve aprire nessuna porta in entrata verso il ricevitore.</p>
+
+<p>Prima di installare una base in una rete gestita, chiedete al responsabile della rete di permettere in <strong>uscita</strong>:</p>
+
+<table class="divisibile">
+  <tr><th>Servizio</th><th>Porta e protocollo</th><th>Verso</th><th>Se bloccato</th></tr>
+  <tr><td><strong>Caster NTRIP</strong></td><td>TCP <strong>2101</strong> (o quella del caster)</td><td>il caster EVONETRTK</td><td>La base non invia correzioni: <em>Connessione … fallita</em> o <em>Nessuna risposta dal caster</em>.</td></tr>
+  <tr><td>Aggiornamenti, WhatsApp, monitoraggio remoto</td><td>TCP 443 (HTTPS)</td><td>github.com, api.callmebot.com, indirizzo del monitoraggio</td><td>Niente aggiornamenti online e niente avvisi WhatsApp.</td></tr>
+  <tr><td>Avvisi email</td><td>TCP 465 o 587</td><td>il server SMTP</td><td>Gli avvisi email non partono.</td></tr>
+  <tr><td>Ora esatta</td><td>UDP 123 (NTP)</td><td>pool.ntp.org, time.google.com</td><td>Il ricevitore prende l'ora dai satelliti: funziona, ma i log possono avere l'ora sbagliata finché non c'è una posizione.</td></tr>
+  <tr><td>Nomi degli indirizzi</td><td>UDP/TCP 53 (DNS)</td><td>il DNS della rete</td><td><em>Indirizzo del caster non trovato (DNS)</em>.</td></tr>
+  <tr><td>VPN WireGuard (se usata)</td><td>UDP <strong>51820</strong></td><td>il server VPN</td><td>La VPN resta scollegata.</td></tr>
+</table>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Alcune reti per ospiti e alcuni firewall aziendali bloccano tutte le porte tranne quelle del web (80 e 443): il pannello del ricevitore mostra internet attivo, la prova del caster fallisce. Si verifica subito con il pulsante <strong>Prova connessione al caster</strong>. Se la rete non si può aprire, usate la SIM del ricevitore, che non passa dal firewall aziendale.</div>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Sul server, il caster EVONETRTK accetta le connessioni sulla porta 2101 e la VPN sulla porta UDP 51820: anche il firewall del server, e quello del pannello del fornitore del server, devono lasciarle passare. Questo riguarda chi gestisce il caster, non l'installazione della base.</div>
+
+<div class="in-breve">
+<ul>
+  <li>Connettività consigliata: WiFi con fallback cellulare; l'Ethernet funziona sempre quando il cavo c'è.</li>
+  <li>Mai <em>Solo Ethernet</em> senza aver verificato il cavo: si perde la rete WiFi di emergenza.</li>
+  <li><strong>Connetti</strong> prova la rete WiFi prima di salvarla; il ricevitore ricorda fino a 5 reti.</li>
+  <li>Cambiate la password della rete di setup.</li>
+  <li>Monitoraggio remoto: la base manda il suo stato a un indirizzo web; VPN WireGuard: si apre il pannello di una base lontana, anche via SIM.</li>
+  <li>Nelle reti aziendali il firewall deve lasciare uscire almeno la porta 2101 verso il caster: provate sempre con <strong>Prova connessione al caster</strong>.</li>
+</ul>
+</div>

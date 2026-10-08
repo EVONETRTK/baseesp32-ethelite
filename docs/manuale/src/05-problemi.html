@@ -1,0 +1,104 @@
+<p class="sommario-capitolo"><span class="pubblico agricoltore">Agricoltore</span> Cosa controllare da soli quando il trattore non lavora in RTK o un ricevitore sembra fermo, cosa non fare mai e quali informazioni preparare prima di chiamare l'assistenza.</p>
+
+<h2>Il trattore non arriva al fix</h2>
+
+<p>Quando il trattore resta in <strong>float</strong> o senza correzioni, il problema può essere sul trattore, nella sua connessione o nella base. Conviene procedere in quest'ordine, dal controllo più semplice al più impegnativo.</p>
+
+<h3>1. Guardate il rover del trattore</h3>
+
+<p>Con un ricevitore di un'altra marca guardate il <strong>display</strong>; con un <strong>ricevitore EVONETRTK in modo rover</strong> aprite il suo pannello dal telefono e guardate i riquadri <strong>Caster</strong>, <strong>Fix</strong> e <strong>Satelliti</strong>.</p>
+
+<ul>
+  <li><strong>Le correzioni arrivano?</strong> Quasi tutti i display mostrano lo stato del collegamento NTRIP e l'<strong>età delle correzioni</strong> in secondi: 1–2 secondi è normale. Nel pannello EVONETRTK il riquadro <strong>Caster</strong> deve essere verde; se è rosso, sotto c'è scritto il motivo. Se le correzioni non arrivano, passate al punto 2.</li>
+  <li><strong>Le correzioni arrivano ma resta in float?</strong> Spostatevi in un punto con il cielo libero, lontano da alberi, capannoni e linee elettriche, e aspettate un paio di minuti. Se lì arriva al fix, il problema erano gli ostacoli.</li>
+  <li><strong>Quanti satelliti vede?</strong> Con meno di 10–12 satelliti il fix è difficile; nel pannello EVONETRTK il riquadro <strong>Satelliti</strong> diventa arancione o rosso. Controllate che nulla copra l'antenna sulla cabina e che il suo cavo sia ben avvitato.</li>
+</ul>
+
+<h3>2. Controllate la connessione del trattore</h3>
+
+<ul>
+  <li>La SIM del modem o del telefono ha credito e copertura? Provate ad aprire un sito internet con il telefono nello stesso punto.</li>
+  <li>Se usate il telefono come modem o come hotspot, è ancora collegato? Dopo una chiamata o un riavvio del telefono il collegamento a volte si interrompe, e alcuni telefoni spengono l'hotspot da soli quando nessuno lo usa.</li>
+  <li>I dati di accesso sono ancora giusti? Se il display o il pannello dicono che utente o password non sono accettati, controllateli (capitolo <a data-cap="Collegare il trattore"></a>).</li>
+</ul>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Il ricevitore EVONETRTK in modo rover riprova da solo il collegamento al caster, aspettando un po' di più a ogni tentativo fallito, fino a 2 minuti. Se correggete i dati dal pannello riprova subito; dopo aver riacceso l'hotspot del telefono, invece, possono servire fino a 2 minuti prima che si ricolleghi.</div>
+
+<h3>3. Controllate la base</h3>
+
+<p>Aprite il pannello della base dal telefono (capitolo <a data-cap="Il pannello in un colpo d'occhio"></a>) e guardate i riquadri <strong>Caster</strong> e <strong>Posizione base</strong>:</p>
+
+<table>
+  <tr><th>Cosa vedete nel pannello</th><th>Cosa significa</th><th>Cosa fare</th></tr>
+  <tr><td>Caster e Posizione base verdi</td><td>La base lavora: il problema è sul trattore o nella sua connessione.</td><td>Tornate ai punti 1 e 2.</td></tr>
+  <tr><td>Posizione base rossa o arancione, Satelliti rosso</td><td>L'antenna della base non riceve i satelliti.</td><td>Controllate se qualcosa copre l'antenna o se il suo cavo è stato toccato, poi chiamate il tecnico.</td></tr>
+  <tr><td>Caster rosso</td><td>La base non riesce a collegarsi al caster.</td><td>Controllate che il router o il WiFi dell'azienda funzionino; se la base usa la SIM, il credito e la scadenza del piano dati.</td></tr>
+  <tr><td>Il pannello non si apre</td><td>La base è spenta, oppure non è raggiungibile da quella rete.</td><td>Vedete la sezione successiva.</td></tr>
+</table>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Se il problema riguarda tutti i trattori dell'azienda nello stesso momento, è quasi sempre la base o la sua connessione. Se riguarda un solo trattore, è quasi sempre quel trattore.</div>
+
+<h2>Un ricevitore risulta spento o scollegato</h2>
+
+<div class="box avvertenza" data-pitto="caduta"><span class="box-titolo">Non salite sulla base</span>Se la base è su un tetto, un palo o una torretta, non salite per controllarla: chiamate il tecnico. Per i controlli dal trattore, fermatelo in un luogo sicuro, inserite il freno di stazionamento e spegnete il motore prima di intervenire su cavi e collegamenti.</div>
+
+
+<p>Se il pannello di un ricevitore non si apre, oppure se avete ricevuto un avviso WhatsApp o email, procedete così:</p>
+
+<ol>
+  <li><strong>Avvicinatevi al ricevitore</strong> e collegate il telefono alla sua rete WiFi <strong>EVONETRTK-…</strong>, poi aprite <code>http://192.168.4.1</code>. Se il pannello si apre, il ricevitore è acceso: il problema è nella connessione a internet (router, WiFi, hotspot del telefono, SIM).</li>
+  <li><strong>Se la rete EVONETRTK-… non compare</strong>, il ricevitore probabilmente non è alimentato. Per una base controllate la presa, l'alimentatore, eventuali interruttori o salvavita della linea. Per un rover controllate che il trattore sia sotto chiave, il fusibile e il connettore dell'alimentazione.</li>
+  <li><strong>Riavviate il ricevitore</strong>, se il pannello si apre ma qualcosa resta bloccato: scheda <em>Stato</em>, pulsante <strong>Riavvia dispositivo</strong> in fondo alla pagina. Il riavvio dura circa un minuto.</li>
+  <li>Se il pannello non si apre e l'alimentazione c'è, potete <strong>staccare e riattaccare l'alimentazione</strong> (per un rover, spegnere e riaccendere il trattore): aspettate 10 secondi prima di riattaccarla. Dopo un paio di minuti il ricevitore riparte da solo con le sue impostazioni.</li>
+</ol>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Dopo un'interruzione di corrente il ricevitore riparte da solo senza bisogno di nessun intervento. Una base con le coordinate fisse riprende a inviare le correzioni in un paio di minuti; se calcola la sua posizione da sola (survey-in), può servire qualche minuto in più. Un rover torna in RTK fisso di solito entro un minuto dal collegamento al caster.</div>
+
+<div class="box avviso"><span class="box-titolo">Pericolo</span><strong>Non tenete mai premuto il pulsante sul ricevitore.</strong> Tenuto premuto per 5 secondi a ricevitore acceso, <strong>cancella tutte le impostazioni</strong>: rete WiFi, dati del caster, coordinate della base e password. Il ricevitore smette di funzionare finché il tecnico non lo riconfigura. Non aprite la custodia, non scollegate l'antenna e non spostate la base.</div>
+
+<h3>Gli avvisi WhatsApp ed email</h3>
+
+<p>Se il ricevitore è configurato per mandare avvisi, i messaggi dicono già cosa sta succedendo. Ogni avviso ha il suo messaggio di "rientro" quando il problema si risolve da solo, come capita spesso con le interruzioni della rete telefonica:</p>
+
+<table class="divisibile">
+  <tr><th>Avviso</th><th>Cosa fare</th></tr>
+  <tr><td>Collegamento al caster interrotto</td><td>Aspettate il messaggio di rientro per qualche minuto; se non arriva, controllate la connessione del ricevitore come sopra.</td></tr>
+  <tr><td>La base non invia la sua posizione</td><td>Controllate l'antenna della base, poi chiamate il tecnico.</td></tr>
+  <tr><td>Temperatura alta</td><td>Controllate che la custodia non sia al sole diretto o coperta; se si ripete, il tecnico valuterà un'ombreggiatura.</td></tr>
+  <tr><td>Cambio della posizione della base</td><td>La posizione trasmessa dalla base è cambiata: non lavorate di precisione e chiamate subito il tecnico, perché le linee di guida potrebbero essere spostate.</td></tr>
+  <tr><td>Rinnovo o credito della SIM</td><td>Ricaricate o rinnovate il piano dati entro la data indicata.</td></tr>
+</table>
+
+<h2>Chi chiamare e cosa comunicare</h2>
+
+<p>Se i controlli di questo capitolo non risolvono il problema, contattate l'assistenza. Avere a portata di mano alcune informazioni rende l'intervento molto più rapido, spesso a distanza e senza bisogno di un sopralluogo.</p>
+
+<div class="box nota" style="padding:1.1em 1.2em">
+<span class="box-titolo">Assistenza EVONETRTK</span>
+<p style="margin:.6em 0 0">Telefono: ________________________________</p>
+<p style="margin:.9em 0 0">WhatsApp: ______________________________</p>
+<p style="margin:.9em 0 0">Email: _________________________________</p>
+<p style="margin:.9em 0 0">Matricola della base: ____________________</p>
+<p style="margin:.9em 0 0">Matricola del rover: _____________________</p>
+</div>
+
+<h3>Cosa preparare prima di chiamare</h3>
+
+<ul>
+  <li><strong>La matricola del ricevitore</strong>: è sulla scheda di accesso ed è il numero nel nome della rete WiFi del ricevitore (<strong>EVONETRTK-</strong><em>matricola</em>).</li>
+  <li><strong>Cosa succede</strong>: il trattore non arriva al fix? Il display dà un messaggio di errore? Riguarda uno o tutti i trattori?</li>
+  <li><strong>Da quando</strong>: da stamattina, da ieri, dopo un temporale o un'interruzione di corrente, dopo un lavoro vicino alla base.</li>
+  <li><strong>Una foto del pannello</strong>: uno screenshot della scheda Stato, con i riquadri colorati, dice al tecnico più di tante parole.</li>
+  <li><strong>Una foto del display del trattore</strong> con lo stato del GPS e delle correzioni.</li>
+  <li><strong>Marca e modello</strong> del display e del ricevitore del trattore, se il problema riguarda il trattore.</li>
+</ul>
+
+<div class="in-breve">
+<ul>
+  <li>Prima il trattore (correzioni in arrivo? cielo libero?), poi la sua connessione, poi la base.</li>
+  <li>Nel pannello della base, Caster e Posizione base verdi vogliono dire che la base lavora.</li>
+  <li>Se il pannello non si apre: rete WiFi EVONETRTK-… vicino al ricevitore, alimentazione, riavvio.</li>
+  <li>Mai tenere premuto il pulsante del ricevitore: cancella tutte le impostazioni.</li>
+  <li>Prima di chiamare l'assistenza: matricola, cosa succede, da quando e una foto del pannello.</li>
+</ul>
+</div>

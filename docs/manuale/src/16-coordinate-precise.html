@@ -1,0 +1,112 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Perché una base in servizio deve avere coordinate fisse e precise, quali metodi ci sono per misurarle, come ottenere le coordinate al centimetro con 24 ore di dati grezzi e un servizio PPP gratuito, come convertirle nel sistema della rete e come inserirle e verificarle.</p>
+
+<h2>Perché il survey-in non basta</h2>
+
+<p>Con il survey-in la base calcola la propria posizione da sola, a ogni avvio, facendo la media per qualche minuto. È comodo per le prove, ma per una base in servizio ha due difetti gravi:</p>
+
+<ul>
+  <li><strong>è imprecisa</strong>: l'errore è di decimetri o metri, e tutti i rover lo ereditano;</li>
+  <li><strong>cambia a ogni avvio</strong>: dopo un'interruzione di corrente la base riparte con una posizione diversa e tutte le linee di guida si spostano.</li>
+</ul>
+
+<p>Una base in servizio deve quindi lavorare con <strong>coordinate fisse</strong>, misurate una volta con cura, nel sistema della rete: <strong>ETRF2000 (RDN2008)</strong>. Sono queste coordinate a garantire che le linee di guida tracciate oggi coincidano con quelle degli anni successivi e con quelle delle altre basi della rete.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Le coordinate valgono per quell'antenna in quella posizione. Se l'antenna viene spostata, sostituita o rimontata, anche di pochi centimetri, le coordinate vanno misurate di nuovo.</div>
+
+<h2>I metodi a confronto</h2>
+
+<table class="divisibile">
+  <tr><th>Metodo</th><th>Precisione</th><th>Tempo</th><th>Requisiti</th><th>Conversione in ETRF2000</th></tr>
+  <tr><td>Survey-in</td><td>decimetri o metri</td><td>minuti</td><td>Nessuno</td><td>—</td></tr>
+  <tr><td><strong>Misura con RTK</strong></td><td>1–2 cm, rispetto alla base usata</td><td>pochi minuti</td><td>Un'altra base della rete entro 20–30 km, con coordinate già precise; credenziali da rover</td><td>Non serve: le coordinate sono già nel sistema della rete</td></tr>
+  <tr><td><strong>Misura con Galileo HAS</strong></td><td>circa 10 cm</td><td>6 ore consigliate</td><td>Modulo Unicore UM980/UM982 (o ComNav K922)</td><td>Automatica, fatta dal ricevitore</td></tr>
+  <tr><td><strong>Dati grezzi e PPP</strong></td><td>1–2 cm</td><td>24 ore di registrazione, più l'elaborazione</td><td>microSD; un computer per la conversione e il caricamento</td><td><strong>Da fare a mano</strong>, con lo strumento EUREF</td></tr>
+</table>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Per la <strong>prima base di una zona</strong> usate il PPP con 24 ore di dati: è il metodo più preciso e non dipende da altre stazioni. Per le basi successive vicine a una base già misurata, la misura con RTK è la più rapida e mantiene le basi coerenti tra loro. HAS è una soluzione intermedia quando servono coordinate buone in giornata senza altre stazioni vicine.</div>
+
+<p>Le misure con RTK e con HAS si avviano dal pannello e salvano da sole le coordinate: sono descritte nel capitolo <a data-cap="Scheda Posizione e correzioni"></a>. Il resto di questo capitolo spiega il metodo PPP, il più preciso.</p>
+
+<h2>Registrare 24 ore di dati grezzi</h2>
+
+<ol>
+  <li>Montate l'antenna nella <strong>posizione definitiva</strong>, sul supporto definitivo, con il cielo libero.</li>
+  <li>Inserite una microSD con almeno 1 GB libero (capitolo <a data-cap="Hardware e installazione della base"></a>).</li>
+  <li>Nel pannello attivate le <strong>Avanzate</strong> e aprite la scheda <em>Posizione</em>, riquadro <strong>Dati per le coordinate precise (PPP)</strong>.</li>
+  <li>Con un modulo <strong>u-blox</strong> scegliete <strong>Durata</strong> <em>24 ore</em> e <strong>Misure ogni</strong> <em>5 s</em> (circa 50 MB al giorno), poi <strong>Avvia registrazione</strong>. Con gli altri moduli usate la registrazione delle <strong>osservazioni RTCM3</strong> nello stesso riquadro.</li>
+  <li>Lasciate lavorare la base: continua a inviare le correzioni normalmente. La registrazione si ferma da sola alla fine.</li>
+  <li>Scaricate il file dal pannello (<strong>File registrati</strong> o <strong>Scarica log</strong>), oppure togliete la microSD e copiatelo dalla cartella <code>raw</code>.</li>
+</ol>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Più ore significano più precisione, soprattutto in quota: con 6 ore si arriva a pochi centimetri, con 24 ore a 1–2 cm. Se nel periodo manca la corrente, ripetete la registrazione: un file interrotto si può usare, ma con meno ore.</div>
+
+<h2>Convertire il file in RINEX</h2>
+
+<p>I servizi PPP accettano i dati nel formato standard <strong>RINEX</strong>. La conversione si fa sul computer con <strong>RTKLIB</strong>, un programma gratuito: <strong>RTKCONV</strong> se si preferisce una finestra, <code>convbin</code> da riga di comando.</p>
+
+<ul>
+  <li>File u-blox: <code>convbin file.ubx -r ubx -v 3.04</code></li>
+  <li>File RTCM3: <code>convbin ppp_log.rtcm3 -r rtcm3 -v 3.03 -n ppp_log.obs</code></li>
+</ul>
+
+<p>Escono un file di <strong>osservazioni</strong> (<code>.obs</code>) e uno di <strong>navigazione</strong> (<code>.nav</code>). Ai servizi PPP serve il file <code>.obs</code>.</p>
+
+<div class="box avviso"><span class="box-titolo">il tipo di antenna</span>Nelle opzioni di RTKCONV, nell'intestazione del file RINEX, inserite il <strong>tipo di antenna</strong> con il suo nome ufficiale IGS e l'<strong>altezza</strong> <code>0</code>. Così il servizio PPP restituisce la posizione dell'<strong>ARP</strong> (il punto di riferimento dell'antenna), che è quella che la base deve trasmettere. Senza il tipo di antenna, il risultato si riferisce al centro elettrico dell'antenna, che di solito è alcuni centimetri più in alto: la quota della base, e di tutti i rover, risulterebbe sbagliata di quei centimetri.</div>
+
+<h2>Calcolo PPP con CSRS-PPP</h2>
+
+<p><strong>CSRS-PPP</strong> è il servizio gratuito dell'ente geodetico canadese (Natural Resources Canada) e funziona per qualunque punto del mondo. Richiede una registrazione gratuita.</p>
+
+<ol>
+  <li>Caricate il file <code>.obs</code> scegliendo la modalità <strong>Static</strong> e il sistema di riferimento <strong>ITRF</strong>.</li>
+  <li>Dopo qualche minuto arriva per email il risultato: latitudine, longitudine e <strong>quota ellissoidica</strong>, con la loro precisione stimata.</li>
+  <li>Il risultato dipende da quanto tempo è passato dalla registrazione: subito si ottiene una soluzione preliminare; quella <strong>rapida</strong>, dopo 1–2 giorni, è già al livello di pochi centimetri; quella <strong>finale</strong>, dopo circa due settimane, è la migliore. Per una base, se possibile, aspettate la finale.</li>
+</ol>
+
+<div class="box avviso"><span class="box-titolo">il sistema di riferimento</span>CSRS-PPP restituisce le coordinate in <strong>ITRF2020</strong> (IGS20) all'epoca della registrazione, <strong>non</strong> nel sistema della rete. In Italia, nel 2026, la differenza tra ITRF2020 ed ETRF2000 è di circa <strong>1 metro</strong>. Inserite così come sono, quelle coordinate sposterebbero tutti i rover di un metro rispetto alle altre basi e alle mappe. <strong>Vanno sempre convertite in ETRF2000</strong> prima di inserirle nel ricevitore.</div>
+
+<h2>Conversione in ETRF2000</h2>
+
+<p>La conversione ufficiale si fa con lo strumento gratuito di <strong>EUREF</strong>, l'organismo che gestisce i sistemi di riferimento europei: la pagina <em>Coordinate transformation</em> del sito della rete permanente EUREF (<code>epncb.oma.be</code>, sezione <em>Products &amp; Services</em>).</p>
+
+<ol>
+  <li>Inserite le coordinate di CSRS-PPP (latitudine, longitudine, quota ellissoidica, oppure le coordinate cartesiane X, Y, Z).</li>
+  <li>Come sistema di partenza scegliete <strong>ITRF2020</strong> e come <strong>epoca</strong> quella della registrazione, in anni decimali (per esempio <code>2026.77</code> per l'8 ottobre 2026), indicata anche nel risultato di CSRS-PPP.</li>
+  <li>Come sistema di arrivo scegliete <strong>ETRF2000</strong>.</li>
+  <li>Il risultato sono le coordinate ETRF2000 da inserire nel ricevitore. È la stessa trasformazione (EUREF, EPSG 10586) che il ricevitore usa da solo per le misure con Galileo HAS.</li>
+</ol>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Il sistema ufficiale italiano RDN2008 corrisponde a ETRF2000 all'epoca 2008.0. Le coordinate ETRF2000 di un punto cambiano solo per i piccoli movimenti locali del terreno, pochi millimetri all'anno, qualche centimetro in quasi vent'anni nelle zone più attive come la Puglia e la Sicilia: per l'uso agricolo la differenza è trascurabile.</div>
+
+<h2>Inserire le coordinate fisse</h2>
+
+<ol>
+  <li>Nel pannello, scheda <em>Posizione</em>, riquadro <strong>Posizione base</strong>, scegliete <strong>Manuale (coordinate fisse)</strong>.</li>
+  <li>Inserite <strong>Latitudine</strong> e <strong>Longitudine</strong> in gradi decimali con 7 decimali (il settimo decimale vale circa 1 cm), e la <strong>Quota ellissoidica ETRF2000</strong> in metri, con il millimetro.</li>
+  <li>Salvate e riavviate il ricevitore.</li>
+  <li>Controllate nella scheda <em>Stato</em> che il riquadro <strong>Posizione base</strong> diventi verde con la scritta <em>coordinate fisse</em>.</li>
+  <li>Scaricate una <strong>copia completa della configurazione</strong> e annotate le coordinate, con la data e il metodo usato, nel registro della base.</li>
+</ol>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Gradi decimali, non gradi-primi-secondi: <code>40.8341234</code>, non <code>40°50'02.8"</code>. La quota è quella <strong>ellissoidica</strong>, circa 40–50 m più alta di quella sul livello del mare: un servizio che restituisce la quota "ortometrica" o "sul livello del mare" non va usato così com'è.</div>
+
+<h2>Verificare il risultato</h2>
+
+<p>Prima di mettere la base in servizio conviene un controllo indipendente:</p>
+
+<ul>
+  <li>con un rover in RTK collegato a <strong>un'altra base</strong> della rete, misurate un punto ben riconoscibile, poi misuratelo di nuovo con il rover collegato alla <strong>base nuova</strong>: le due misure devono coincidere entro 2–3 cm in orizzontale e pochi centimetri in quota;</li>
+  <li>oppure confrontate le coordinate PPP con quelle di una misura con RTK fatta dalla base nuova verso una base vicina.</li>
+</ul>
+
+<p>Una differenza di circa un metro indica quasi sempre coordinate non convertite in ETRF2000; una differenza di pochi centimetri solo in quota indica di solito il tipo di antenna mancante nel file RINEX.</p>
+
+<div class="in-breve">
+<ul>
+  <li>Una base in servizio va in coordinate fisse ETRF2000: il survey-in è impreciso e cambia a ogni avvio.</li>
+  <li>Prima base di una zona: 24 ore di dati grezzi e PPP; basi vicine: misura con RTK; in giornata senza stazioni vicine: Galileo HAS.</li>
+  <li>RINEX con RTKLIB, con il tipo di antenna e altezza 0; calcolo con CSRS-PPP in modalità statica.</li>
+  <li>CSRS-PPP risponde in ITRF2020: convertire sempre in ETRF2000 con lo strumento EUREF, all'epoca della registrazione.</li>
+  <li>Gradi decimali, quota ellissoidica, verifica con un rover su un punto noto.</li>
+</ul>
+</div>

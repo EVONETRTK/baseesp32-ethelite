@@ -1,0 +1,123 @@
+{
+  "titolo": "Manuale del ricevitore",
+  "sottotitolo": "Ricevitore GNSS RTK EVONETRTK, base e rover",
+  "parti": [
+    {
+      "titolo": "Introduzione",
+      "capitoli": [
+        {
+          "titolo": "Avvertenze di sicurezza",
+          "file": "00-sicurezza.html"
+        },
+        {
+          "file": "01-gnss.html",
+          "titolo": "Il mondo GNSS in breve"
+        }
+      ]
+    },
+    {
+      "titolo": "Parte 1 · Guida per l'agricoltore",
+      "capitoli": [
+        {
+          "titolo": "Il ricevitore EVONETRTK: base e rover",
+          "file": "02-ricevitore.html"
+        },
+        {
+          "titolo": "Il pannello in un colpo d'occhio",
+          "file": "03-pannello.html"
+        },
+        {
+          "titolo": "Collegare il trattore",
+          "file": "04-trattore.html"
+        },
+        {
+          "titolo": "Se qualcosa non va",
+          "file": "05-problemi.html"
+        }
+      ]
+    },
+    {
+      "titolo": "Parte 2 · Manuale tecnico",
+      "capitoli": [
+        {
+          "titolo": "Guide rapide",
+          "file": "05b-guide-rapide.html"
+        },
+        {
+          "titolo": "Hardware e installazione della base",
+          "file": "06-hardware-base.html"
+        },
+        {
+          "titolo": "Installare il ricevitore sul trattore",
+          "file": "07-trattore-installazione.html"
+        },
+        {
+          "titolo": "Primo avvio e accesso al pannello",
+          "file": "08-primo-avvio.html"
+        },
+        {
+          "titolo": "Scheda Stato",
+          "file": "09-scheda-stato.html"
+        },
+        {
+          "titolo": "Scheda Posizione e correzioni",
+          "file": "10-scheda-posizione.html"
+        },
+        {
+          "titolo": "Scheda Connessione",
+          "file": "11-scheda-connessione.html"
+        },
+        {
+          "titolo": "Scheda SIM e costi",
+          "file": "12-scheda-sim.html"
+        },
+        {
+          "titolo": "Scheda Avvisi",
+          "file": "13-scheda-avvisi.html"
+        },
+        {
+          "titolo": "Scheda Manutenzione",
+          "file": "14-scheda-manutenzione.html"
+        },
+        {
+          "titolo": "AgOpenGPS con il ricevitore EVONETRTK",
+          "file": "15-agopengps.html"
+        },
+        {
+          "titolo": "Coordinate precise della base",
+          "file": "16-coordinate-precise.html"
+        },
+        {
+          "titolo": "Risoluzione dei problemi",
+          "file": "17-problemi-tecnici.html"
+        }
+      ]
+    },
+    {
+      "titolo": "Appendici",
+      "appendici": true,
+      "capitoli": [
+        {
+          "titolo": "Glossario",
+          "file": "A-glossario.html"
+        },
+        {
+          "titolo": "Dati tecnici",
+          "file": "B-dati-tecnici.html"
+        },
+        {
+          "titolo": "Messaggi RTCM 3",
+          "file": "C-rtcm.html"
+        },
+        {
+          "titolo": "Ricevitori e chip supportati",
+          "file": "D-ricevitori.html"
+        },
+        {
+          "titolo": "Note legali e garanzia",
+          "file": "E-note-legali.html"
+        }
+      ]
+    }
+  ]
+}

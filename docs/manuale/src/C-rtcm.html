@@ -1,0 +1,39 @@
+<p class="sommario-capitolo">I messaggi di correzione RTCM 3 che la base può inviare, cosa contengono e quali servono davvero ai rover. La scelta si fa nella scheda <em>Posizione</em>, riquadro <em>Messaggi RTCM inviati</em> (capitolo <a data-cap="Scheda Posizione e correzioni"></a>).</p>
+
+<h2>I messaggi</h2>
+
+<table class="divisibile">
+  <tr><th>Messaggio</th><th>Contenuto</th><th>Necessario?</th><th>Note</th></tr>
+  <tr><td><strong>1005</strong></td><td>Posizione dell'antenna della base (ARP), in coordinate cartesiane</td><td><strong>Sì</strong></td><td>Senza, nessun rover arriva al fix. Con gli u-blox è inviato ogni 10 secondi, perché non cambia.</td></tr>
+  <tr><td>1007</td><td>Descrittore dell'antenna</td><td>No</td><td>Utile ai rover che correggono il centro di fase dell'antenna della base. Non disponibile sugli u-blox.</td></tr>
+  <tr><td>1008</td><td>Descrittore dell'antenna e numero di serie</td><td>No</td><td>Come il 1007. Non disponibile sugli u-blox.</td></tr>
+  <tr><td>1019</td><td>Effemeridi GPS</td><td>No</td><td>Il rover le riceve direttamente dai satelliti. Non disponibile sugli u-blox.</td></tr>
+  <tr><td>1020</td><td>Effemeridi GLONASS</td><td>No</td><td>Come il 1019.</td></tr>
+  <tr><td>1074 / 1077</td><td>Misure GPS, MSM4 / MSM7</td><td><strong>Sì</strong>, uno dei due</td><td rowspan="4">Per ogni costellazione si invia MSM4 oppure MSM7. Una costellazione non inviata non è usata dal rover per l'RTK.</td></tr>
+  <tr><td>1084 / 1087</td><td>Misure GLONASS, MSM4 / MSM7</td><td>Consigliato</td></tr>
+  <tr><td>1094 / 1097</td><td>Misure Galileo, MSM4 / MSM7</td><td>Consigliato</td></tr>
+  <tr><td>1124 / 1127</td><td>Misure BeiDou, MSM4 / MSM7</td><td>Consigliato</td></tr>
+  <tr><td><strong>1230</strong></td><td>Bias di codice e fase GLONASS</td><td>Sì, se si inviano le misure GLONASS</td><td>Senza, molti rover non usano GLONASS per il fix.</td></tr>
+</table>
+
+<h2>MSM4 o MSM7</h2>
+
+<p>I messaggi <strong>MSM</strong> (<em>Multiple Signal Messages</em>) contengono le misure dei satelliti di una costellazione su tutte le frequenze:</p>
+
+<ul>
+  <li><strong>MSM4</strong>: misure di codice e di fase con la risoluzione necessaria all'RTK. È il formato più compatibile, accettato da quasi tutti i ricevitori agricoli, e il più leggero per il traffico dati.</li>
+  <li><strong>MSM7</strong>: le stesse misure con risoluzione maggiore e in più l'effetto Doppler. Può migliorare di poco il fix dei ricevitori recenti, ma occupa più traffico e alcuni ricevitori più vecchi non lo accettano.</li>
+</ul>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>La scelta standard per una base EVONETRTK è: <strong>1005, 1230 e MSM4 per tutte e quattro le costellazioni</strong> (1074, 1084, 1094, 1124). È quella del pulsante <strong>Standard MSM4 (leggero)</strong>. Per ricevitori vecchi che non usano Galileo e BeiDou c'è <strong>Solo GPS+GLONASS</strong>.</div>
+
+<h2>Limiti dei moduli GNSS</h2>
+
+<table>
+  <tr><th>Modulo</th><th>Limiti</th></tr>
+  <tr><td>u-blox (ZED-F9P, ZED-X20P)</td><td>Non emette 1007, 1008, 1019 e 1020: se spuntati vengono ignorati.</td></tr>
+  <tr><td>Quectel LC29H</td><td>Un solo interruttore MSM4/MSM7 per tutte le costellazioni; non può spegnere singolarmente 1007, 1008, 1019, 1020 e 1230.</td></tr>
+  <tr><td>Unicore, ComNav, Bynav</td><td>Messaggi gestiti singolarmente come nel pannello.</td></tr>
+</table>
+
+<p>Il peso reale di ogni messaggio inviato dalla base si legge nella pagina <em>Segnali</em>, riquadro <em>Byte RTCM per messaggio</em> (capitolo <a data-cap="Scheda Stato"></a>).</p>

@@ -1,0 +1,141 @@
+<p class="sommario-capitolo"><span class="pubblico agricoltore">Agricoltore</span> Come aprire il pannello del ricevitore dal telefono e come capire in pochi secondi, dai colori, se sta lavorando bene, sia come base sia come rover.</p>
+
+<h2>Aprire il pannello dal telefono</h2>
+
+<p>Il ricevitore ha un piccolo sito interno, il <strong>pannello</strong>, che si apre con il browser del telefono o del computer (Chrome, Safari, Edge…). Non serve installare nessuna app. Il pannello si può aprire in due modi.</p>
+
+<h3>Dalla stessa rete WiFi del ricevitore</h3>
+
+<p>Se il telefono è collegato alla stessa rete WiFi del ricevitore (per esempio quella dell'azienda per una base, o l'hotspot del telefono per un rover), basta scrivere nella barra degli indirizzi del browser l'indirizzo riportato sulla <strong>scheda di accesso</strong> del ricevitore, che il tecnico consegna all'installazione. Gli indirizzi sono di due tipi:</p>
+
+<ul>
+  <li>con il nome del ricevitore, per esempio <code>http://EVONETRTK-123456.local</code>;</li>
+  <li>con i numeri, per esempio <code>http://192.168.1.50</code>.</li>
+</ul>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Su alcuni telefoni Android l'indirizzo con il nome (quello che finisce in <code>.local</code>) non funziona: in quel caso usate l'indirizzo con i numeri.</div>
+
+<h3>Vicino al ricevitore, senza WiFi</h3>
+
+<p>Il ricevitore crea sempre una sua rete WiFi, chiamata <strong>EVONETRTK-</strong> seguito dalla matricola, per esempio <code>EVONETRTK-123456</code>. Funziona anche quando il ricevitore non ha internet, ed è il modo per raggiungerlo in campo o in cabina:</p>
+
+<ol>
+  <li>Avvicinatevi al ricevitore, a qualche decina di metri al massimo.</li>
+  <li>Nelle impostazioni WiFi del telefono collegatevi alla rete <strong>EVONETRTK-…</strong> con la password indicata sulla scheda di accesso. Se il telefono avvisa che la rete "non ha accesso a internet", scegliete di restare collegati.</li>
+  <li>Nel browser scrivete <code>http://192.168.4.1</code>.</li>
+</ol>
+
+<h3>La password</h3>
+
+<p>All'apertura il browser chiede un <strong>nome utente</strong> e una <strong>password</strong>. Il nome utente è sempre <code>admin</code>; la password è quella della scheda di accesso. Il telefono la ricorda per 30 giorni, quindi non va inserita ogni volta.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Con la password si possono cambiare tutte le impostazioni del ricevitore. Non comunicatela a estranei e conservate la scheda di accesso in un posto sicuro. Nel pannello è meglio guardare e non toccare: le modifiche spettano al tecnico.</div>
+
+<h2>La parte alta del pannello</h2>
+
+<p>In cima al pannello ci sono, sempre visibili, le informazioni più importanti. Il colore di sfondo dice subito in che modo lavora il ricevitore: <strong>azzurro con 🏠 BASE</strong> oppure <strong>verde con 🚜 ROVER</strong>.</p>
+
+<figure>
+  <img class="schermata" src="img/pannello-testata.png" alt="Parte alta del pannello di una base">
+  <figcaption><b>Figura 3.</b> La parte alta del pannello di una base, come appare sul telefono.</figcaption>
+</figure>
+
+<p>Sotto il nome ci sono quattro <strong>pallini di stato</strong>: verde vuol dire che va bene, rosso che c'è un problema.</p>
+
+<ul>
+  <li><strong>WiFi</strong> o <strong>Cellulare</strong>: la connessione a internet in uso. "Assente" in rosso: il ricevitore non è collegato a internet.</li>
+  <li><strong>NTRIP OK</strong>: il ricevitore è collegato al caster; una base gli manda le correzioni, un rover le riceve. "NTRIP giù" in rosso: il collegamento è interrotto.</li>
+  <li><strong>Fix</strong>: la qualità della posizione. Sul rover deve indicare <strong>RTK fisso</strong> (verde); <em>RTK float</em> (arancione) vuol dire che il calcolo non è ancora risolto, <em>No RTK</em> (rosso) che le correzioni non vengono usate. Su una base invece <em>No RTK</em> è normale: la base non riceve correzioni, le produce.</li>
+  <li><strong>SD</strong>: la scheda di memoria dove il ricevitore salva il suo diario di funzionamento.</li>
+</ul>
+
+<p>Il campo <strong>Cerca</strong> trova un'impostazione scrivendone il nome. I pulsanti in basso aprono le <strong>sei schede</strong> del pannello: Stato, Posizione, Connessione, SIM, Avvisi e Manutenzione. All'agricoltore interessa soprattutto la prima, <strong>Stato</strong>.</p>
+
+<h2>Le schede di riepilogo e i colori</h2>
+
+<p>La scheda <strong>Stato</strong> si apre con alcuni riquadri di riepilogo. Il colore della striscia a sinistra dice subito com'è la situazione:</p>
+
+<table>
+  <tr><th>Colore</th><th>Significato</th></tr>
+  <tr><td><strong style="color:#15803d">Verde</strong></td><td>Tutto a posto.</td></tr>
+  <tr><td><strong style="color:#b45309">Arancione</strong></td><td>Situazione da tenere d'occhio, o lavoro in corso. Non è un guasto.</td></tr>
+  <tr><td><strong style="color:#b91c1c">Rosso</strong></td><td>Problema: il ricevitore non sta lavorando come dovrebbe.</td></tr>
+</table>
+
+<p>Toccando un riquadro si apre la scheda del pannello con i dettagli. I riquadri sono in parte diversi per la base e per il rover.</p>
+
+<h3>I riquadri della base</h3>
+
+<figure>
+  <img class="schermata" src="img/pannello-riepilogo.png" alt="Riquadri di riepilogo di una base: caster, posizione base, satelliti, sistema e SIM">
+  <figcaption><b>Figura 4.</b> I riquadri di una base durante una prova al chiuso: il caster è collegato (verde), ma l'antenna non vede satelliti (rosso) e quindi la base non riesce a calcolare la sua posizione (arancione).</figcaption>
+</figure>
+
+<table class="divisibile">
+  <tr><th>Riquadro</th><th>Verde</th><th>Arancione</th><th>Rosso</th></tr>
+  <tr><td><strong>Caster</strong></td><td>Collegato: le correzioni partono.</td><td>—</td><td>Scollegato: i trattori non ricevono correzioni da questa base.</td></tr>
+  <tr><td><strong>Posizione base</strong></td><td>Inviata: i trattori possono lavorare in RTK.</td><td>Survey-in: la base sta ancora calcolando la sua posizione.</td><td>Non inviata: i trattori non possono arrivare al fix.</td></tr>
+  <tr><td><strong>Satelliti</strong></td><td>8 o più con segnale buono.</td><td>Da 4 a 7: pochi.</td><td>Meno di 4: l'antenna non riceve.</td></tr>
+  <tr><td><strong>Sistema</strong></td><td>Il ricevitore sta bene.</td><td>Memoria scarsa o temperatura sopra i 60 °C.</td><td>Memoria quasi finita o temperatura oltre i 70 °C.</td></tr>
+  <tr><td><strong>SIM</strong></td><td>Pronta o in uso, credito sufficiente.</td><td>Non in uso, piano dati oltre il 70%, rinnovo vicino.</td><td>Credito basso, piano dati oltre il 90%, rinnovo scaduto.</td></tr>
+</table>
+
+<p>Per una base i due riquadri che contano di più sono <strong>Caster</strong> e <strong>Posizione base</strong>: se sono verdi, i trattori possono lavorare.</p>
+
+<h3>I riquadri del rover</h3>
+
+<figure>
+  <img class="schermata" src="img/rover-testata.png" alt="Parte alta del pannello di un rover, con sfondo verde">
+  <figcaption><b>Figura 5.</b> Lo stesso pannello in modo rover: sfondo verde e scritta ROVER.</figcaption>
+</figure>
+
+<p>In modo rover il riquadro <strong>Posizione base</strong> è sostituito dal riquadro <strong>Fix</strong>, che indica la qualità della posizione del trattore:</p>
+
+<table>
+  <tr><th>Fix</th><th>Colore</th><th>Cosa significa</th></tr>
+  <tr><td><strong>RTK fisso</strong></td><td style="color:#15803d"><strong>Verde</strong></td><td>Si lavora al centimetro.</td></tr>
+  <tr><td><strong>RTK float</strong> o <strong>DGPS</strong></td><td style="color:#b45309"><strong>Arancione</strong></td><td>Correzioni in uso ma calcolo non ancora risolto, oppure precisione ridotta: aspettate o spostatevi a cielo libero.</td></tr>
+  <tr><td><strong>GPS</strong> o <strong>Nessun fix</strong></td><td style="color:#b91c1c"><strong>Rosso</strong></td><td>"GPS": posizione autonoma, senza correzioni (qualche metro). "Nessun fix": nessuna posizione.</td></tr>
+</table>
+
+<figure>
+  <img class="schermata" src="img/rover-riepilogo.png" alt="Riquadri di riepilogo di un rover: caster scollegato e nessun fix">
+  <figcaption><b>Figura 6.</b> I riquadri di un rover durante una prova al chiuso: il caster ha rifiutato utente e password (rosso) e l'antenna non vede satelliti, quindi non c'è nessun fix.</figcaption>
+</figure>
+
+<p>Il riquadro <strong>Caster</strong>, quando è rosso, riporta anche il motivo, come "utente o password non accettati" nella figura: è l'informazione da comunicare all'assistenza. Per un rover i due riquadri che contano di più sono <strong>Caster</strong> e <strong>Fix</strong>: verdi tutti e due vogliono dire che il trattore lavora in RTK.</p>
+
+<h2>I segnali da tenere d'occhio</h2>
+
+<p>Quando c'è qualcosa che richiede attenzione, sotto i riquadri compare un <strong>avviso colorato</strong> con la spiegazione del problema e, quando possibile, il suggerimento per risolverlo.</p>
+
+<figure>
+  <img class="schermata" src="img/pannello-avviso-1005.png" alt="Avviso rosso: la base non sta inviando la sua posizione">
+  <figcaption><b>Figura 7.</b> L'avviso più importante di una base: non invia la propria posizione e i trattori non possono lavorare in RTK.</figcaption>
+</figure>
+
+<p>Gli avvisi che si possono incontrare sono:</p>
+
+<ul>
+  <li><strong>La base NON sta inviando la sua posizione</strong> (rosso, solo base): è l'avviso più importante, perché senza posizione della base nessun trattore arriva al fix. Spesso dipende dall'antenna che vede pochi satelliti. Va chiamato il tecnico.</li>
+  <li><strong>Misura della posizione base in corso</strong> (azzurro, solo base): il tecnico ha avviato la misura precisa della posizione della base. Dura qualche minuto; al termine la base torna a lavorare da sola.</li>
+  <li><strong>Rinnovo della SIM</strong> (giallo): il piano dati della SIM sta per scadere. Ricordate di controllare il credito o di rinnovare il piano entro la data indicata, altrimenti il ricevitore resta senza internet quando il WiFi non c'è.</li>
+  <li><strong>Modifiche salvate ma non ancora attive</strong> (giallo): qualcuno ha cambiato un'impostazione che vale solo dopo un riavvio. Se non siete stati voi o il tecnico, non toccate niente e avvisate il tecnico.</li>
+</ul>
+
+<figure>
+  <img class="schermata" src="img/pannello-avviso-sim.png" alt="Avviso giallo: il piano della SIM si rinnova tra pochi giorni">
+  <figcaption><b>Figura 8.</b> Promemoria per il rinnovo del piano dati della SIM.</figcaption>
+</figure>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Prima di una giornata di lavoro importante, una semina per esempio, date un'occhiata al pannello dal telefono: se sulla base i riquadri <strong>Caster</strong> e <strong>Posizione base</strong> sono verdi, la base è pronta; se sul rover acceso in campo <strong>Caster</strong> e <strong>Fix</strong> sono verdi, il trattore è pronto.</div>
+
+<div class="in-breve">
+<ul>
+  <li>Il pannello si apre con il browser del telefono: dalla stessa rete WiFi con l'indirizzo della scheda di accesso, oppure vicino al ricevitore collegandosi alla rete <strong>EVONETRTK-…</strong> e aprendo <code>http://192.168.4.1</code>.</li>
+  <li>Nome utente <code>admin</code>, password sulla scheda di accesso.</li>
+  <li>Sfondo azzurro: base. Sfondo verde: rover.</li>
+  <li>Verde va bene, arancione da tenere d'occhio, rosso è un problema.</li>
+  <li>Base: contano <strong>Caster</strong> e <strong>Posizione base</strong>. Rover: contano <strong>Caster</strong> e <strong>Fix</strong>.</li>
+</ul>
+</div>

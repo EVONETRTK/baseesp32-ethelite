@@ -1,0 +1,137 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Come montare un ricevitore EVONETRTK in modo rover su un trattore: alimentazione dall'impianto del mezzo, posizione e misure dell'antenna, connessione a internet in campo, uscita dei dati verso tablet e display, e la prova da fare prima della stagione.</p>
+
+<h2>Alimentazione dal trattore</h2>
+
+<div class="box avvertenza" data-pitto="incendio"><span class="box-titolo">Cortocircuito e incendio</span>Un collegamento senza fusibile o un cavo schiacciato può provocare un incendio nella cabina. Montate sempre il fusibile vicino al punto di prelievo, fissate i cavi lontano da parti in movimento, spigoli e fonti di calore, e fate i collegamenti con il motore spento, la chiave tolta e, se il costruttore lo prevede, la batteria scollegata.</div>
+
+
+<p>Il ricevitore EVONETRTK ha una <strong>scheda di alimentazione</strong> che porta la tensione dell'impianto ai 5 V che servono all'elettronica: si collega quindi <strong>direttamente all'impianto del mezzo, a 12 V o a 24 V</strong>, senza convertitori esterni.</p>
+
+<ul>
+  <li>Prendete l'alimentazione da una <strong>linea sotto chiave</strong>: la presa di servizio a 3 poli della cabina o un'uscita che si spegne con il trattore. Così il ricevitore si accende e si spegne con il mezzo e non scarica la batteria.</li>
+  <li>Mettete un <strong>fusibile</strong> sulla linea, vicino al punto di prelievo.</li>
+  <li>Rispettate la polarità e fissate bene i cavi lontano da parti in movimento, da fonti di calore e dalle cerniere delle porte.</li>
+</ul>
+
+<div class="box nota"><span class="box-titolo">Nota</span>All'avviamento del motore la tensione dell'impianto cala per un istante e il ricevitore può riavviarsi. Non è un problema: riparte da solo in pochi secondi e si ricollega al caster. Se succede anche a motore acceso, controllate il convertitore e i collegamenti.</div>
+
+<h2>Antenna sulla cabina: posizione e misure</h2>
+
+<h3>Dove montarla</h3>
+
+<div class="box avvertenza" data-pitto="caduta"><span class="box-titolo">Caduta dal tetto della cabina</span>Per montare l'antenna usate una scala o una piattaforma stabile; non salite sul tetto della cabina, che di solito non è calpestabile, e non appoggiatevi a fari e specchi.</div>
+
+<div class="box avvertenza" data-pitto="elettricita"><span class="box-titolo">Altezza del mezzo</span>L'antenna aumenta l'altezza del trattore. Tenetene conto passando sotto linee elettriche aeree, porte di capannoni, ponti e rami: annotate la nuova altezza totale e comunicatela agli operatori.</div>
+
+
+<ul>
+  <li>Sul punto più alto del tetto della cabina, con il <strong>cielo libero</strong> in tutte le direzioni: niente lampeggianti, fari di lavoro o antenne più alti dell'antenna GNSS vicino a lei.</li>
+  <li>Il più possibile <strong>sull'asse longitudinale</strong> del trattore, cioè al centro rispetto alla larghezza. Se non è possibile, misurate di quanto è spostata di lato.</li>
+  <li>Su un <strong>supporto rigido</strong> che non vibri: un supporto magnetico va bene su un tetto in acciaio; sui tetti in plastica serve una staffa avvitata o una piastra metallica che faccia anche da piano di massa.</li>
+  <li>Ad almeno <strong>mezzo metro, meglio un metro</strong>, dall'antenna del modem LTE, della radio o del telefono.</li>
+</ul>
+
+<h3>Le misure da prendere</h3>
+
+<p>Il programma di guida deve sapere dove si trova l'antenna rispetto al trattore, altrimenti la linea che segue è spostata. Con il trattore su un piano, prendete e annotate queste misure:</p>
+
+<figure>
+  <img src="img/misure-trattore.svg" alt="Misure dell'antenna sul trattore">
+  <figcaption><b>Figura 0.</b> Le misure dell'antenna: A altezza da terra, B distanza dall'asse posteriore, C spostamento laterale dal centro, D passo.</figcaption>
+</figure>
+
+<table>
+  <tr><th>Misura</th><th>Come si prende</th><th>Dove serve</th></tr>
+  <tr><td><strong>A · Altezza dell'antenna</strong></td><td>Dal terreno alla base dell'antenna.</td><td>Correzione dell'inclinazione nei terreni in pendenza.</td></tr>
+  <tr><td><strong>B · Distanza dall'asse posteriore</strong></td><td>In orizzontale, dal centro delle ruote posteriori alla verticale dell'antenna; positiva se l'antenna è più avanti.</td><td>Calcolo della traiettoria in curva.</td></tr>
+  <tr><td><strong>C · Spostamento laterale</strong></td><td>Dall'asse centrale del trattore al centro dell'antenna; indicate se è a destra o a sinistra.</td><td>Allineamento della linea di guida.</td></tr>
+  <tr><td><strong>D · Passo</strong></td><td>Distanza tra asse anteriore e asse posteriore.</td><td>Autosterzo.</td></tr>
+</table>
+
+<p>Le stesse misure si inseriscono nel programma di guida: per AgOpenGPS si veda il capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>.</p>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Scrivete le misure su un'etichetta attaccata all'interno della cabina. Se il ricevitore viene spostato su un altro trattore, o il tablet viene sostituito, le misure sono già pronte.</div>
+
+<h3>Il ricevitore in cabina</h3>
+
+<ul>
+  <li>Fissatelo in un punto riparato da sole diretto, acqua e polvere, per esempio dietro il sedile o sotto il tetto della cabina, con supporti che smorzino le vibrazioni.</li>
+  <li>Fate passare il cavo dell'antenna dalla guarnizione o da un passacavo, senza schiacciarlo nella porta o nel finestrino.</li>
+  <li>Lasciate accessibile la microSD, ma non il pulsante BOOT: tenuto premuto 5 secondi cancella la configurazione.</li>
+</ul>
+
+<h2>Connessione a internet in campo</h2>
+
+<p>Il rover deve ricevere le correzioni dal caster, quindi ha bisogno di internet anche in mezzo al campo. Le possibilità, scelte nella scheda <em>Connessione</em> (capitolo <a data-cap="Scheda Connessione"></a>), sono due:</p>
+
+<table>
+  <tr><th>Soluzione</th><th>Pro</th><th>Contro</th></tr>
+  <tr><td><strong>Hotspot del telefono</strong>: il ricevitore si collega in WiFi al telefono dell'operatore.</td><td>Nessuna SIM in più; si usa il traffico del telefono.</td><td>Se il telefono si allontana, si spegne o disattiva l'hotspot, il rover perde le correzioni.</td></tr>
+  <tr><td><strong>SIM nel modem</strong> del ricevitore.</td><td>Il trattore è autonomo, indipendente dal telefono.</td><td>Serve una SIM dati dedicata, attiva e senza PIN, e il modem LTE.</td></tr>
+</table>
+
+<p>Con il modem montato, la scelta consigliata è <strong>WiFi con riserva cellulare</strong>: il ricevitore usa l'hotspot del telefono quando c'è e passa da solo alla SIM quando manca.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Alcuni telefoni spengono da soli l'hotspot quando per qualche minuto nessun dispositivo lo usa, o per risparmiare batteria. Nelle impostazioni del telefono disattivate lo spegnimento automatico dell'hotspot.</div>
+
+<h2>Uscita dati verso tablet e display</h2>
+
+<p>Il ricevitore in modo rover trasmette le frasi <strong>NMEA</strong> del modulo GNSS (posizione e satelliti) in <strong>broadcast UDP</strong> sulla rete, alla porta impostata nella scheda <em>Posizione</em>, riquadro <em>Uscita dati per software di guida</em> (preimpostata: <code>9999</code>, la porta su cui riceve AgIO di AgOpenGPS). I dati escono contemporaneamente su tutte le reti attive:</p>
+
+<ul>
+  <li>sulla <strong>rete WiFi del ricevitore</strong> (<strong>EVONETRTK-…</strong>): è il collegamento consigliato per il tablet in cabina, perché non dipende da altri apparecchi;</li>
+  <li>sulla <strong>rete WiFi a cui è collegato il ricevitore</strong>, per esempio l'hotspot del telefono, se anche il tablet è collegato lì;</li>
+  <li>sul <strong>cavo di rete</strong> (Ethernet), per un computer di bordo collegato via cavo.</li>
+</ul>
+
+<figure>
+  <img class="schermata" src="img/rover-uscita-guida.png" alt="Riquadro Uscita dati per software di guida">
+  <figcaption><b>Figura 11.</b> Il riquadro <em>Uscita dati per software di guida</em>, con la porta UDP e le posizioni al secondo.</figcaption>
+</figure>
+
+<h3>Posizioni al secondo</h3>
+
+<p>Nello stesso riquadro, il campo <strong>Posizioni al secondo</strong> sceglie quante volte al secondo il rover manda la posizione al programma di guida: <strong>1</strong>, <strong>5</strong> o <strong>10</strong>. Con i moduli u-blox e Unicore il rover trasmette:</p>
+
+<ul>
+  <li><strong>GGA</strong> (posizione e qualità del fix), <strong>RMC</strong> (con la velocità) e <strong>VTG</strong> (con la direzione di marcia), alla frequenza scelta;</li>
+  <li><strong>GSV</strong> (satelliti in vista) una volta al secondo.</li>
+</ul>
+
+<p>Con il ComNav K922 la frequenza è fissa a 5 posizioni al secondo, con in più la prua dalla doppia antenna (GPHDT). La posizione inviata al caster resta in ogni caso una ogni 10 secondi, per non consumare traffico.</p>
+
+<table>
+  <tr><th>Uso</th><th>Posizioni al secondo</th></tr>
+  <tr><td>Vedere la posizione, mappe, guida a bassa velocità</td><td>1</td></tr>
+  <tr><td>Guida assistita con barra luminosa</td><td>5</td></tr>
+  <tr><td><strong>Autosterzo</strong> (AgOpenGPS)</td><td><strong>10</strong></td></tr>
+</table>
+
+<div class="box nota"><span class="box-titolo">Nota</span>La scelta vale dopo il riavvio. Dieci posizioni al secondo sono state verificate sull'uscita del ricevitore con il modulo u-blox ZED-F9P; con alcune combinazioni di modulo e costellazioni il modulo può calcolare meno posizioni di quelle richieste. Controllate in AgIO la frequenza che arriva davvero.</div>
+
+<p>Il ricevitore non ha un'uscita seriale (RS-232) né Bluetooth per i display: si collega solo in rete, WiFi o cavo. I display che accettano solo una porta seriale vanno collegati con il loro ricevitore e le correzioni EVONETRTK (capitolo <a data-cap="Collegare il trattore"></a>, strada A).</p>
+
+<h2>Prova in campo prima della stagione</h2>
+
+<p>Prima di affidare il trattore all'operatore, fate una prova completa in un campo aperto:</p>
+
+<ol>
+  <li><strong>Alimentazione</strong>: girate la chiave; entro un minuto la rete WiFi <strong>EVONETRTK-…</strong> deve comparire. Spegnete il trattore: il ricevitore deve spegnersi.</li>
+  <li><strong>Internet e caster</strong>: nel pannello il pallino <strong>NTRIP OK</strong> e il riquadro <strong>Caster</strong> devono essere verdi. Provate sia con l'hotspot del telefono sia con la SIM, se presente, spegnendo l'hotspot.</li>
+  <li><strong>Fix</strong>: a cielo libero il riquadro <strong>Fix</strong> deve arrivare a <strong>RTK fisso</strong> entro un paio di minuti dall'accensione. Il riquadro <strong>Satelliti</strong> deve essere verde.</li>
+  <li><strong>Programma di guida</strong>: il tablet riceve la posizione e indica la stessa qualità del fix del pannello.</li>
+  <li><strong>Ripetibilità</strong>: piantate un picchetto, segnate il punto con il programma di guida, allontanatevi e tornate dopo qualche ora o il giorno dopo. Il punto ritrovato deve coincidere con il picchetto entro 2–3 cm.</li>
+  <li><strong>Avvisi</strong>: se il ricevitore è configurato per gli avvisi, provateli dal pannello (scheda <em>Avvisi</em>, <strong>Prova avvisi</strong>).</li>
+</ol>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Lasciate all'operatore la scheda di accesso del ricevitore e la Parte 1 di questo manuale, e mostrategli una volta il pannello dal suo telefono: sapere dove guardare i riquadri <strong>Caster</strong> e <strong>Fix</strong> risolve da solo la maggior parte dei dubbi in campo.</div>
+
+<div class="in-breve">
+<ul>
+  <li>Alimentazione diretta dall'impianto del mezzo, 12 o 24 V (scheda di alimentazione integrata), da linea sotto chiave e con fusibile.</li>
+  <li>Antenna in alto, al centro della cabina, su supporto rigido e lontana dalle altre antenne; annotate altezza, distanza dall'asse posteriore, spostamento laterale e passo.</li>
+  <li>Internet dall'hotspot del telefono o dalla SIM del ricevitore; con il modem, "WiFi con riserva cellulare".</li>
+  <li>Posizione al tablet in UDP (porta 9999, quella di AgIO) sulla rete WiFi del ricevitore, sull'hotspot o via cavo; per l'autosterzo 10 posizioni al secondo.</li>
+  <li>Prima della stagione: alimentazione, caster, fix, programma di guida, ripetibilità su un picchetto, avvisi.</li>
+</ul>
+</div>

@@ -104,7 +104,9 @@ static void apply_defaults(void)
     s_settings.gnss_chip = GNSS_CHIP_AUTO;
     s_settings.device_mode = DEVICE_MODE_BASE;
     s_settings.network_mode = NETWORK_MODE_BOTH;
-    s_settings.nmea_udp_port = 5005;
+    // 9999: la porta su cui AgIO (AgOpenGPS) ascolta la posizione in UDP
+    // (UDP.designer.cs della 6.8.6: Bind(IPAddress.Any, 9999)). 1.27.2; prima 5005.
+    s_settings.nmea_udp_port = 9999;
 
     s_settings.gnss_uart_num = CONFIG_BASEESP32_GNSS_UART_NUM;
     s_settings.gnss_uart_tx_pin = CONFIG_BASEESP32_GNSS_UART_TX_PIN;
@@ -594,6 +596,14 @@ void settings_peek(void (*fn)(const app_settings_t *s, void *ctx), void *ctx)
     xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
     fn(&s_settings, ctx);
     xSemaphoreGive(s_settings_mutex);
+}
+
+uint8_t settings_nmea_rate_hz(void)
+{
+    xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
+    uint8_t hz = s_settings.nmea_rate_hz;
+    xSemaphoreGive(s_settings_mutex);
+    return (hz == 5 || hz == 10) ? hz : 1;
 }
 
 esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx)

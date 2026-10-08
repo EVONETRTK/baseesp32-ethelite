@@ -21,6 +21,7 @@ typedef struct {
     bool comnav_ins_enable, comnav_heading_enable;
     uint8_t comnav_imu_axes;
     bool rover_has_fallback;
+    uint8_t nmea_rate_hz;
     int oled_sda_pin, oled_scl_pin;
     uint8_t oled_i2c_addr;
     oled_controller_t oled_controller;
@@ -58,6 +59,7 @@ static void pick(const app_settings_t *s, restart_fields_t *o)
     o->comnav_heading_enable = s->comnav_heading_enable;
     o->comnav_imu_axes = s->comnav_imu_axes;
     o->rover_has_fallback = s->rover_has_fallback;
+    o->nmea_rate_hz = s->nmea_rate_hz;
     o->oled_sda_pin = s->oled_sda_pin;
     o->oled_scl_pin = s->oled_scl_pin;
     o->oled_i2c_addr = s->oled_i2c_addr;
@@ -119,6 +121,7 @@ void pending_restart_describe(const app_settings_t *s, char *out, size_t out_siz
         add(out, out_size, "IMU e doppia antenna (K922)");
     }
     if (n.rover_has_fallback != b->rover_has_fallback) add(out, out_size, "riserva Galileo HAS");
+    if (n.nmea_rate_hz != b->nmea_rate_hz) add(out, out_size, "posizioni al secondo");
     if (n.oled_sda_pin != b->oled_sda_pin || n.oled_scl_pin != b->oled_scl_pin || n.oled_i2c_addr != b->oled_i2c_addr ||
         n.oled_controller != b->oled_controller || n.oled_flip_h != b->oled_flip_h || n.oled_flip_v != b->oled_flip_v) {
         add(out, out_size, "display OLED");

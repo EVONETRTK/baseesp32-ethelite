@@ -1,0 +1,89 @@
+<p class="sommario-capitolo"><span class="pubblico agricoltore">Agricoltore</span> Cos'è il ricevitore EVONETRTK, i suoi due modi di lavorare, base e rover, come le correzioni arrivano al trattore e cosa fa il ricevitore da solo, senza bisogno di nessuno.</p>
+
+<h2>Un ricevitore, due ruoli</h2>
+
+<p>Il ricevitore EVONETRTK è un piccolo apparecchio con un'antenna satellitare. Lo stesso apparecchio può fare due lavori diversi, scelti dal tecnico al momento dell'installazione:</p>
+
+<table>
+  <tr><th></th><th>🏠 Base</th><th>🚜 Rover</th></tr>
+  <tr><td><strong>Dove sta</strong></td><td>Fermo in un punto fisso: tetto di un capannone, palo, torretta.</td><td>Sul trattore, con l'antenna sul tetto della cabina.</td></tr>
+  <tr><td><strong>Cosa fa</strong></td><td>Calcola gli errori dei satelliti e li manda al caster su internet.</td><td>Riceve le correzioni dal caster e calcola la posizione del trattore al centimetro.</td></tr>
+  <tr><td><strong>A chi serve</strong></td><td>A tutti i trattori della zona, di qualunque marca.</td><td>Al trattore su cui è montato: passa la posizione al display o al programma di guida.</td></tr>
+  <tr><td><strong>Quando lavora</strong></td><td>Sempre, giorno e notte, tutto l'anno.</td><td>Quando il trattore è acceso.</td></tr>
+</table>
+
+<p>Nel pannello di controllo (capitolo <a data-cap="Il pannello in un colpo d'occhio"></a>) si vede subito in che modo sta lavorando: in alto compare la scritta <strong>🏠 BASE</strong> su sfondo azzurro oppure <strong>🚜 ROVER</strong> su sfondo verde.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Per lavorare in RTK non serve avere un ricevitore EVONETRTK sul trattore: le correzioni delle basi EVONETRTK funzionano con quasi tutti i ricevitori agricoli di altre marche. Il ricevitore EVONETRTK in modo rover è una possibilità in più, utile soprattutto per chi usa programmi di guida su tablet come AgOpenGPS.</div>
+
+<h2>Dalla base al trattore</h2>
+
+<p>Il compito della base è <strong>dire al trattore quanto stanno sbagliando i satelliti in questo momento</strong>. La base conosce la propria posizione al centimetro; confrontandola con quella che le indicano i satelliti, capisce di quanto sbagliano e manda queste correzioni al trattore, che le usa per correggere a sua volta la propria posizione.</p>
+
+<p>Il percorso delle correzioni è questo:</p>
+
+<ol>
+  <li>L'<strong>antenna della base</strong> riceve i segnali dei satelliti.</li>
+  <li>Il <strong>ricevitore della base</strong> calcola le correzioni e le invia su internet, con la rete WiFi, il cavo di rete o una SIM telefonica.</li>
+  <li>Il <strong>caster EVONETRTK</strong>, un server su internet, raccoglie le correzioni di tutte le basi della rete.</li>
+  <li>Il <strong>rover del trattore</strong>, un ricevitore EVONETRTK o di un'altra marca, si collega al caster, riceve le correzioni della base più vicina e passa in <strong>RTK fix</strong>: la posizione è precisa a 1–2 cm.</li>
+</ol>
+
+<p>Tutto il percorso richiede meno di un secondo, e si ripete in continuazione mentre il trattore lavora.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Il trattore non deve "vedere" la base: le correzioni viaggiano su internet. Conta solo la <strong>distanza</strong>: per lavorare bene il trattore deve trovarsi entro 20–30 km da una base della rete.</div>
+
+<h2>Cosa serve per lavorare in RTK</h2>
+
+<p>Dal lato del trattore servono tre cose:</p>
+
+<table class="divisibile">
+  <tr><th>Cosa</th><th>A cosa serve</th></tr>
+  <tr><td><strong>Un rover RTK</strong></td><td>Il ricevitore sul trattore, con la sua antenna sul tetto della cabina: un ricevitore EVONETRTK in modo rover, oppure un ricevitore agricolo di un'altra marca abilitato all'RTK, che accetti correzioni in formato standard (RTCM 3).</td></tr>
+  <tr><td><strong>Una connessione a internet</strong></td><td>Una SIM nel modem del ricevitore o del display, oppure il telefono collegato in WiFi. Il traffico è modesto: con un abbonamento dati normale non ci sono problemi.</td></tr>
+  <tr><td><strong>I dati di accesso al caster</strong></td><td>Indirizzo, porta, mountpoint, nome utente e password, forniti con il servizio. Vanno inseriti una sola volta nel rover o nel display.</td></tr>
+</table>
+
+<p>Dal lato della base non serve fare niente: una volta installata e configurata dal tecnico, lavora da sola. Il capitolo <a data-cap="Collegare il trattore"></a>, spiega passo per passo dove inserire i dati di accesso.</p>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Tenete i dati di accesso al caster scritti in cabina o fotografati sul telefono: servono ogni volta che si cambia display, ricevitore o SIM.</div>
+
+<h2>Cosa fa il ricevitore da solo</h2>
+
+<p>Il ricevitore EVONETRTK è pensato per lavorare senza assistenza, sia come base lasciata incustodita in campo sia come rover sul trattore. Oltre al suo lavoro principale, controlla di continuo il proprio stato e interviene da solo quando qualcosa non va:</p>
+
+<ul>
+  <li><strong>Sceglie la connessione migliore.</strong> Usa il WiFi o il cavo di rete quando ci sono; se cadono, passa da solo alla SIM telefonica e torna indietro appena possibile.</li>
+  <li><strong>Si riconnette da solo.</strong> Se il collegamento con il caster si interrompe, per esempio per un buco della rete telefonica, lo riallaccia automaticamente.</li>
+  <li><strong>Si riavvia da solo se si blocca.</strong> Un controllo interno sorveglia il funzionamento; se qualcosa si ferma, il ricevitore si riavvia in meno di un minuto. Se dopo una modifica non riparte bene, torna da solo all'ultima configurazione che funzionava.</li>
+  <li><strong>Avvisa quando c'è un problema.</strong> Può mandare un messaggio WhatsApp o un'email quando il collegamento con il caster resta interrotto o quando si scalda troppo (oltre 70 °C, per esempio con il sole diretto sulla custodia). Una base avvisa anche quando non riesce a inviare la propria posizione. Quando tutto torna a posto arriva un secondo messaggio.</li>
+  <li><strong>Tiene d'occhio la SIM.</strong> Controlla i dati consumati e il credito e avvisa prima della scadenza del piano dati.</li>
+  <li><strong>Si aggiorna.</strong> Può scaricare da internet le nuove versioni del suo programma; se una versione nuova non funziona, torna da sola a quella precedente.</li>
+</ul>
+
+<h3>Le funzioni in più della base</h3>
+
+<ul>
+  <li><strong>Funziona anche senza internet.</strong> I rover collegati alla stessa rete WiFi della base possono ricevere le correzioni direttamente, senza passare dal caster.</li>
+  <li><strong>Misura da sola la propria posizione precisa</strong>, con le correzioni di un'altra base della rete o con quelle gratuite dei satelliti Galileo, e la conserva come posizione fissa.</li>
+</ul>
+
+<h3>Le funzioni in più del rover</h3>
+
+<ul>
+  <li><strong>Passa la posizione al programma di guida</strong> in rete, via WiFi o cavo, per esempio ad AgOpenGPS su un tablet: si veda il capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>.</li>
+  <li><strong>Comunica al caster dove si trova</strong> ogni 10 secondi, così riceve sempre le correzioni della base più vicina, anche spostandosi da un'azienda all'altra.</li>
+  <li><strong>Ha una riserva quando manca l'RTK.</strong> Con alcuni moduli GNSS può usare le correzioni gratuite Galileo HAS, a circa 20 cm, nelle zone senza copertura telefonica.</li>
+</ul>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Il ricevitore può controllare tutto tranne la sua antenna: se l'antenna viene coperta, spostata o se il suo cavo si danneggia, il ricevitore vede pochi satelliti. Una base smette di inviare correzioni, un rover perde il fix. Non spostate, non coprite e non scollegate l'antenna della base; se notate che qualcosa è cambiato vicino alla base (un'impalcatura, un telo, un ramo cresciuto), avvisate il tecnico.</div>
+
+<div class="in-breve">
+<ul>
+  <li>Il ricevitore EVONETRTK lavora come <strong>base</strong> (fisso, manda le correzioni) o come <strong>rover</strong> (sul trattore, le riceve).</li>
+  <li>La base manda le correzioni al caster su internet; il rover del trattore le riceve e lavora a 1–2 cm, entro 20–30 km dalla base.</li>
+  <li>Le basi EVONETRTK funzionano anche con ricevitori da trattore di altre marche.</li>
+  <li>Il ricevitore lavora da solo: si riconnette, si riavvia, avvisa via WhatsApp o email, si aggiorna.</li>
+  <li>L'unica cosa che non può controllare è la sua antenna.</li>
+</ul>
+</div>

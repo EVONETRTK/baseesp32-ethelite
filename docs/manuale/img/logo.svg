@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="4 34 232 184" role="img" aria-label="EVONETRTK">
+  <!-- Logo PROVVISORIO EVONETRTK: robottino alla guida di un trattore moderno
+       (stessa sagoma del disegno delle misure) nei campi, con un satellite che
+       invia le onde radio all'antenna. Personaggio originale (non il robot
+       Android). Ruote generate da strumenti/ruote.js. Per cambiare logo basta
+       sostituire questo file e rigenerare il manuale. -->
+  <defs>
+    <linearGradient id="lg-cielo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9fd3f7"/><stop offset=".7" stop-color="#e6f5ff"/><stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <linearGradient id="lg-campo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#86c997"/><stop offset="1" stop-color="#2f7d4b"/>
+    </linearGradient>
+    <linearGradient id="lg-corpo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a9a60"/><stop offset=".45" stop-color="#23774a"/><stop offset="1" stop-color="#175535"/>
+    </linearGradient>
+    <linearGradient id="lg-vetro" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f0f8fd"/><stop offset="1" stop-color="#9cc3e0"/>
+    </linearGradient>
+    <linearGradient id="lg-scuro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d434a"/><stop offset="1" stop-color="#22262b"/>
+    </linearGradient>
+    <linearGradient id="lg-anello" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f6b3f"/><stop offset="1" stop-color="#123f25"/>
+    </linearGradient>
+    <radialGradient id="lg-testa" cx=".35" cy=".3" r=".8">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfd8e0"/>
+    </radialGradient>
+  </defs>
+
+  <g>
+    <!-- colline -->
+    <path d="M18 160 Q60 140 118 150 T224 148 Q226 166 214 172 H28 Q16 168 18 160 Z" fill="#a9d8b6"/>
+    <!-- campo con i filari in prospettiva -->
+    <path d="M10 172 Q120 150 230 172 Q236 196 214 204 Q120 222 26 204 Q4 196 10 172 Z" fill="url(#lg-campo)"/>
+    <g stroke="#1f6b3f" stroke-width="2.2" fill="none" opacity=".5" stroke-linecap="round">
+      <path d="M120 162 L48 206"/><path d="M120 162 L80 211"/><path d="M120 162 L108 213"/>
+      <path d="M120 162 L132 213"/><path d="M120 162 L160 211"/><path d="M120 162 L192 206"/>
+    </g>
+
+    <!-- satellite -->
+    <g transform="translate(158 56) rotate(-28) scale(.8)">
+      <rect x="-31" y="-7" width="20" height="14" rx="1.5" fill="#2f6fb0" stroke="#16365c" stroke-width="1.2"/>
+      <path d="M-24 -7 V7 M-17 -7 V7 M-31 0 H-11" stroke="#9cc3ea" stroke-width=".8"/>
+      <rect x="11" y="-7" width="20" height="14" rx="1.5" fill="#2f6fb0" stroke="#16365c" stroke-width="1.2"/>
+      <path d="M18 -7 V7 M25 -7 V7 M11 0 H31" stroke="#9cc3ea" stroke-width=".8"/>
+      <path d="M-11 0 H11" stroke="#16365c" stroke-width="2"/>
+      <rect x="-7" y="-9" width="14" height="18" rx="3" fill="#e9edf1" stroke="#16365c" stroke-width="1.2"/>
+      <path d="M-6 9 Q0 18 6 9" fill="#c9d1d9" stroke="#16365c" stroke-width="1.2"/>
+    </g>
+    <!-- onde radio tra il satellite e l'antenna del trattore -->
+    <g fill="none" stroke="#f28c28" stroke-linecap="round">
+      <path d="M109.0 64.4 A13 13 0 0 1 118.6 75.9" stroke-width="3.2" opacity="1"/>
+      <path d="M111.3 55.7 A22 22 0 0 1 127.5 75.1" stroke-width="3" opacity="0.8"/>
+      <path d="M113.6 47.1 A31 31 0 0 1 136.5 74.3" stroke-width="2.8" opacity="0.6"/>
+    </g>
+
+    <!-- trattore moderno in scala (stessa sagoma del disegno delle misure) -->
+    <g transform="translate(18 50) scale(.38)">
+      <!-- sollevatore -->
+      <g stroke="#2b3036" stroke-width="6" stroke-linecap="round" fill="none"><path d="M104 238 L84 252"/><path d="M106 224 L86 232"/><path d="M84 252 L86 232"/></g>
+      <!-- telaio e zavorre -->
+      <path d="M200 220 H414 V242 Q414 248 408 248 H200 Z" fill="url(#lg-scuro)"/>
+      <path d="M410 228 H446 Q456 228 456 238 V250 Q456 258 446 258 H410 Z" fill="url(#lg-scuro)"/>
+      <!-- cofano -->
+      <path d="M282 160 C316 160 352 166 378 176 C396 184 408 194 411 208 L411 222 Q410 228 403 228 H282 Z" fill="url(#lg-corpo)" stroke="#124a2c" stroke-width="3"/>
+      <path d="M290 178 C322 178 356 184 384 196" fill="none" stroke="#56b37b" stroke-width="3"/>
+      <path d="M318 188 C336 189 352 192 366 197 L366 206 C352 202 336 199 318 199 Z" fill="#22262b"/>
+      <path d="M378 182 C392 187 402 194 407 202 L392 203 Z" fill="#ffffff"/>
+      <path d="M404 210 Q410 214 410 220 V226 H402 Z" fill="#22262b"/>
+      <!-- cabina -->
+      <path d="M152 99 C152 91 160 87 176 85.5 C212 82.5 256 82.5 286 85.5 C298 87 304 91 304 99 V104 Q304 106 300 106 H156 Q152 106 152 104 Z" fill="url(#lg-corpo)" stroke="#124a2c" stroke-width="3"/>
+      <rect x="164" y="100" width="13" height="4" rx="2" fill="#ffffff"/><rect x="279" y="100" width="13" height="4" rx="2" fill="#ffffff"/>
+      <path d="M166 106 H286 C287 140 288 176 289 210 H172 C165 188 160 164 160 142 C160 126 162 114 166 106 Z" fill="url(#lg-vetro)"/>
+      <!-- ROBOTTINO alla guida -->
+      <path d="M214 126 V114" stroke="#556070" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="214" cy="111" r="6.5" fill="#f28c28"/>
+      <rect x="184" y="125" width="60" height="44" rx="19" fill="url(#lg-testa)" stroke="#556070" stroke-width="4"/>
+      <rect x="193" y="136" width="43" height="20" rx="10" fill="#1d2b3a"/>
+      <circle cx="206" cy="146" r="5" fill="#5fd4ff"/><circle cx="224" cy="146" r="5" fill="#5fd4ff"/>
+      <circle cx="208" cy="144" r="1.8" fill="#ffffff"/><circle cx="226" cy="144" r="1.8" fill="#ffffff"/>
+      <rect x="189" y="169" width="50" height="34" rx="12" fill="url(#lg-testa)" stroke="#556070" stroke-width="4"/>
+      <circle cx="214" cy="184" r="4.5" fill="#3a9a60"/>
+      <path d="M236 180 L258 168" stroke="#cfd8e0" stroke-width="10" stroke-linecap="round"/>
+      <path d="M236 180 L258 168" stroke="#556070" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M264 166 L272 190" stroke="#22262b" stroke-width="4" stroke-linecap="round"/>
+      <ellipse cx="262" cy="164" rx="12" ry="4.5" fill="none" stroke="#22262b" stroke-width="4.5" transform="rotate(-25 262 164)"/>
+      <!-- montanti e pavimento -->
+      <g fill="none" stroke="#22262b" stroke-width="7" stroke-linecap="round"><path d="M166 106 C162 114 160 126 160 142 C160 164 165 188 172 210"/><path d="M286 106 C287 140 288 176 289 210"/></g>
+      <rect x="162" y="206" width="130" height="10" rx="4" fill="#124a2c"/>
+      <path d="M286 114 L308 106" stroke="#22262b" stroke-width="4"/>
+      <rect x="306" y="94" width="9" height="22" rx="3" fill="#22262b"/>
+      <!-- scaletta -->
+      <path d="M258 214 V276 M282 214 V276" stroke="#2b3036" stroke-width="4"/>
+      <g fill="#3a4047"><rect x="256" y="230" width="28" height="5" rx="2"/><rect x="256" y="250" width="28" height="5" rx="2"/><rect x="256" y="270" width="28" height="5" rx="2"/></g>
+      <!-- ruote e parafanghi -->
+      <!--RUOTA:post:170:244:66:30-->
+  <circle cx="189.8" cy="244" r="66" fill="#111111"/>
+  <circle cx="170" cy="244" r="66" fill="#202020"/>
+  <circle cx="170" cy="244" r="54.1" fill="#222222" stroke="#151515" stroke-width="1.3"/>
+  <circle cx="170" cy="244" r="47.5" fill="none" stroke="#2b2b2b" stroke-width="1.3"/>
+  <path d="M121.2 230.8 A50.8 50.8 0 0 1 156.8 195.2" fill="none" stroke="#3a3a3a" stroke-width="3.3" stroke-linecap="round"/>
+  <circle cx="170" cy="244" r="38.3" fill="#5c646c" stroke="#8b949c" stroke-width="2.6"/>
+  <circle cx="170" cy="244" r="31.4" fill="#6c757e"/>
+  <circle cx="190.5" cy="252.5" r="4.2" fill="#3b4148"/>
+  <circle cx="178.5" cy="264.5" r="4.2" fill="#3b4148"/>
+  <circle cx="161.5" cy="264.5" r="4.2" fill="#3b4148"/>
+  <circle cx="149.5" cy="252.5" r="4.2" fill="#3b4148"/>
+  <circle cx="149.5" cy="235.5" r="4.2" fill="#3b4148"/>
+  <circle cx="161.5" cy="223.5" r="4.2" fill="#3b4148"/>
+  <circle cx="178.5" cy="223.5" r="4.2" fill="#3b4148"/>
+  <circle cx="190.5" cy="235.5" r="4.2" fill="#3b4148"/>
+  <circle cx="170" cy="244" r="14.5" fill="#8b949c" stroke="#4a5058" stroke-width="1.3"/>
+  <circle cx="180.3" cy="244" r="1.5" fill="#3b4148"/>
+  <circle cx="177.3" cy="251.3" r="1.5" fill="#3b4148"/>
+  <circle cx="170" cy="254.3" r="1.5" fill="#3b4148"/>
+  <circle cx="162.7" cy="251.3" r="1.5" fill="#3b4148"/>
+  <circle cx="159.7" cy="244" r="1.5" fill="#3b4148"/>
+  <circle cx="162.7" cy="236.7" r="1.5" fill="#3b4148"/>
+  <circle cx="170" cy="233.7" r="1.5" fill="#3b4148"/>
+  <circle cx="177.3" cy="236.7" r="1.5" fill="#3b4148"/>
+  <circle cx="170" cy="244" r="5.7" fill="#4a5058"/>
+  <!--/RUOTA:post-->
+      <path d="M246 208.5 A84 84 0 0 0 93.9 208.5 L104.7 213.6 A72 72 0 0 1 235.3 213.6 Z" fill="url(#lg-corpo)" stroke="#124a2c" stroke-width="2"/>
+      <path d="M93.9 208.5 L104.7 213.6 L104 232 L92 232 Z" fill="#2b3036"/>
+      <!--RUOTA:ant:369:264:47:24-->
+  <circle cx="383.1" cy="264" r="47" fill="#111111"/>
+  <circle cx="369" cy="264" r="47" fill="#202020"/>
+  <circle cx="369" cy="264" r="38.5" fill="#222222" stroke="#151515" stroke-width="0.9"/>
+  <circle cx="369" cy="264" r="33.8" fill="none" stroke="#2b2b2b" stroke-width="0.9"/>
+  <path d="M334.2 254.6 A36.2 36.2 0 0 1 359.6 229.2" fill="none" stroke="#3a3a3a" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="369" cy="264" r="27.3" fill="#5c646c" stroke="#8b949c" stroke-width="1.9"/>
+  <circle cx="369" cy="264" r="22.4" fill="#6c757e"/>
+  <circle cx="383.6" cy="270.1" r="3" fill="#3b4148"/>
+  <circle cx="375.1" cy="278.6" r="3" fill="#3b4148"/>
+  <circle cx="362.9" cy="278.6" r="3" fill="#3b4148"/>
+  <circle cx="354.4" cy="270.1" r="3" fill="#3b4148"/>
+  <circle cx="354.4" cy="257.9" r="3" fill="#3b4148"/>
+  <circle cx="362.9" cy="249.4" r="3" fill="#3b4148"/>
+  <circle cx="375.1" cy="249.4" r="3" fill="#3b4148"/>
+  <circle cx="383.6" cy="257.9" r="3" fill="#3b4148"/>
+  <circle cx="369" cy="264" r="10.4" fill="#8b949c" stroke="#4a5058" stroke-width="0.9"/>
+  <circle cx="376.4" cy="264" r="1.1" fill="#3b4148"/>
+  <circle cx="374.2" cy="269.2" r="1.1" fill="#3b4148"/>
+  <circle cx="369" cy="271.4" r="1.1" fill="#3b4148"/>
+  <circle cx="363.8" cy="269.2" r="1.1" fill="#3b4148"/>
+  <circle cx="361.6" cy="264" r="1.1" fill="#3b4148"/>
+  <circle cx="363.8" cy="258.8" r="1.1" fill="#3b4148"/>
+  <circle cx="369" cy="256.6" r="1.1" fill="#3b4148"/>
+  <circle cx="374.2" cy="258.8" r="1.1" fill="#3b4148"/>
+  <circle cx="369" cy="264" r="4.1" fill="#4a5058"/>
+  <!--/RUOTA:ant-->
+      <path d="M318.3 245 A54 54 0 0 1 419.7 245 L414.1 247.1 A48 48 0 0 0 323.9 247.1 Z" fill="url(#lg-scuro)"/>
+      <!-- antenna GNSS al centro del tetto -->
+      <rect x="226" y="72" width="8" height="14" fill="#556070"/>
+      <path d="M208 73 H252 V68 Q252 54 230 52 Q208 54 208 68 Z" fill="#f9c400" stroke="#1a1a1a" stroke-width="2.5"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,81 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Le due procedure complete, passo per passo: installare una base e mettere in funzione un rover sul trattore. Ogni passo rimanda al capitolo con i dettagli; alla fine di ciascuna c'è una lista di controllo da spuntare e conservare con la documentazione dell'installazione.</p>
+
+<div class="box avvertenza" data-pitto="manuale"><span class="box-titolo">Prima di iniziare</span>Leggete il capitolo <a data-cap="Avvertenze di sicurezza"></a>. Le guide rapide riassumono le procedure, ma non sostituiscono le avvertenze dei singoli capitoli.</div>
+
+<h2>Installare una base</h2>
+
+<h3>Fase 1 · Preparazione</h3>
+<ol class="passi">
+  <li>Scegliete il punto: cielo libero fino a 10–15° sopra l'orizzonte, supporto rigido, <strong>nessuna linea elettrica vicina</strong>, accesso sicuro per i lavori in quota (capitolo <a data-cap="Hardware e installazione della base"></a>).</li>
+  <li>Verificate la connessione disponibile: cavo di rete, WiFi con buon segnale o copertura della rete mobile. In una rete aziendale chiedete che il <span>firewall</span> lasci uscire la porta 2101 (capitolo <a data-cap="Scheda Connessione"></a>).</li>
+  <li>Procuratevi dal gestore del caster il nome della mountpoint e la password sorgente.</li>
+</ol>
+
+<h3>Fase 2 · Montaggio</h3>
+<ol class="passi" start="4">
+  <li>Montate palo e antenna, collegate il supporto a terra, stendete il cavo con la curva verso il basso, montate lo scaricatore e proteggete i connettori dall'acqua.</li>
+  <li>Montate l'antenna LTE ad almeno 1 m da quella GNSS.</li>
+  <li>Sistemate il ricevitore nella custodia, al riparo, e collegate antenna, rete e alimentazione 12–24 V con il fusibile.</li>
+</ol>
+
+<h3>Fase 3 · Configurazione</h3>
+<ol class="passi" start="7">
+  <li>Primo collegamento dalla rete <strong>EVONETRTK-…</strong>, cambio delle due password di fabbrica (capitolo <a data-cap="Primo avvio e accesso al pannello"></a>).</li>
+  <li>Connessione, modo <strong>Base</strong>, modulo GNSS, <strong>Server NTRIP</strong> con <strong>Prova connessione al caster</strong> (capitolo <a data-cap="Scheda Posizione e correzioni"></a>).</li>
+  <li>Posizione: survey-in solo per la prova iniziale, poi <strong>coordinate fisse ETRF2000</strong> misurate con RTK, HAS o PPP (capitolo <a data-cap="Coordinate precise della base"></a>).</li>
+  <li>SIM, avvisi con prova di invio, copia completa della configurazione, scheda di accesso stampata.</li>
+</ol>
+
+<h3>Fase 4 · Verifica</h3>
+<p>Nella scheda <em>Stato</em> i riquadri <strong>Caster</strong>, <strong>Posizione base</strong> (con la scritta <em>coordinate fisse</em>) e <strong>Satelliti</strong> devono essere verdi. Con un rover collegato alla base nuova misurate un punto noto: lo scarto deve essere di 2–3 cm al massimo.</p>
+
+<h3>Lista di controllo della base</h3>
+<ul class="checklist">
+  <li>Nessuna linea elettrica aerea entro le distanze di sicurezza; lavoro in quota con le protezioni</li>
+  <li>Antenna a cielo libero, su supporto rigido; antenna LTE ad almeno 1 m</li>
+  <li>Supporto a terra, scaricatore montato, connettori stretti e protetti</li>
+  <li>Alimentazione 12–24 V con fusibile; ricevitore nella custodia, al riparo</li>
+  <li>Password del pannello e della rete di setup cambiate</li>
+  <li><span>firewall</span>: prova del caster riuscita</li>
+  <li>Coordinate fisse ETRF2000 inserite e annotate nel registro, con data e metodo</li>
+  <li>Caster, Posizione base e Satelliti verdi; prova su un punto noto superata</li>
+  <li>Avvisi provati; copia completa della configurazione salvata; scheda di accesso consegnata</li>
+</ul>
+
+<h2>Mettere in funzione un rover</h2>
+
+<h3>Fase 1 · Montaggio sul trattore</h3>
+<ol class="passi">
+  <li>Antenna al centro del tetto della cabina, su supporto rigido, lontana dalle altre antenne; annotate la nuova altezza del mezzo (capitolo <a data-cap="Installare il ricevitore sul trattore"></a>).</li>
+  <li>Prendete le misure <strong>A, B, C, D</strong> dell'antenna e scrivetele su un'etichetta in cabina.</li>
+  <li>Alimentazione dal mezzo, 12 o 24 V, da linea sotto chiave e con fusibile; cavi fissati lontano da parti in movimento.</li>
+</ol>
+
+<h3>Fase 2 · Configurazione</h3>
+<ol class="passi" start="4">
+  <li>Primo collegamento e cambio delle password; modo <strong>Rover</strong>; modulo GNSS.</li>
+  <li>Internet: hotspot del telefono o SIM, con <strong>WiFi con fallback cellulare</strong> se c'è il modem.</li>
+  <li><strong>Client NTRIP</strong> con i dati del cliente e <strong>Prova connessione al caster</strong> (capitolo <a data-cap="Collegare il trattore"></a>).</li>
+  <li>Uscita dati: porta <strong>9999</strong> e <strong>10</strong> posizioni al secondo per l'autosterzo; riavvio.</li>
+</ol>
+
+<h3>Fase 3 · Programma di guida</h3>
+<ol class="passi" start="8">
+  <li>Tablet sulla rete del ricevitore; AgIO consentito dal <span>firewall</span> di Windows anche sulle reti pubbliche.</li>
+  <li>AgIO con UDP attivo e NTRIP spento; AgOpenGPS con le misure A, B, C, D (capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>).</li>
+</ol>
+
+<h3>Fase 4 · Verifica in campo</h3>
+<p>A cielo libero i riquadri <strong>Caster</strong> e <strong>Fix</strong> diventano verdi (<em>RTK fisso</em>) entro un paio di minuti, e il programma di guida riceve circa 10 posizioni al secondo. Fate la prova del picchetto prima della stagione.</p>
+
+<h3>Lista di controllo del rover</h3>
+<ul class="checklist">
+  <li>Antenna fissata, nuova altezza del mezzo annotata e comunicata agli operatori</li>
+  <li>Misure A, B, C, D prese e scritte in cabina</li>
+  <li>Alimentazione sotto chiave con fusibile; cavi fissati</li>
+  <li>Password cambiate; dati del caster provati</li>
+  <li>Hotspot del telefono senza spegnimento automatico, oppure SIM attiva</li>
+  <li>Porta 9999, 10 posizioni al secondo; AgIO consentito dal <span>firewall</span></li>
+  <li>RTK fisso in campo; prova del picchetto superata (2–3 cm)</li>
+  <li>Autosterzo provato a bassa velocità in un'area sgombra; operatore istruito sulle avvertenze</li>
+</ul>

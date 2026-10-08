@@ -1,0 +1,65 @@
+<svg viewBox="0 0 720 400" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <!-- Disegno originale EVONETRTK: installazione tipica di una base su un edificio -->
+  <rect width="720" height="400" fill="#f3f8fc"/>
+  <!-- terreno -->
+  <rect x="0" y="360" width="720" height="40" fill="#cfe5d6"/>
+  <!-- edificio -->
+  <rect x="120" y="170" width="320" height="190" fill="#e6e1d8" stroke="#8a7a5a" stroke-width="2"/>
+  <path d="M100 172 L280 96 L460 172 Z" fill="#b5560a" stroke="#7a3a06" stroke-width="2"/>
+  <!-- palo sul colmo -->
+  <rect x="276" y="30" width="8" height="70" fill="#8a96a3"/>
+  <rect x="268" y="96" width="24" height="8" fill="#556070"/>
+  <!-- antenna GNSS -->
+  <path d="M252 30 H308 V24 Q308 6 280 4 Q252 6 252 24 Z" fill="#1f6b3f" stroke="#164f2e" stroke-width="2"/>
+  <!-- antenna LTE distanziata -->
+  <rect x="400" y="118" width="6" height="56" fill="#8a96a3"/>
+  <rect x="397" y="92" width="12" height="28" rx="5" fill="#333"/>
+  <!-- distanza tra antenne -->
+  <path d="M290 60 L398 104" stroke="#1f5fa8" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="318" y="66" fill="#1f5fa8" font-weight="700">almeno 1 m</text>
+  <!-- cavo antenna con curva di gocciolamento -->
+  <path d="M284 100 C284 140 300 150 300 170 C300 190 260 196 262 218" fill="none" stroke="#1a1a1a" stroke-width="3"/>
+  <!-- scaricatore -->
+  <rect x="250" y="218" width="24" height="18" rx="3" fill="#f9c400" stroke="#1a1a1a" stroke-width="1.5"/>
+  <path d="M262 236 V258" stroke="#1a1a1a" stroke-width="3"/>
+  <!-- terra -->
+  <path d="M250 226 H210 V352" fill="none" stroke="#1a7f4a" stroke-width="3"/>
+  <path d="M196 352 H224 M200 358 H220 M205 364 H215" stroke="#1a7f4a" stroke-width="3"/>
+  <!-- palo a terra -->
+  <path d="M280 104 C330 112 330 150 326 170" fill="none" stroke="#1a7f4a" stroke-width="2" stroke-dasharray="6 3"/>
+  <!-- custodia -->
+  <rect x="236" y="258" width="74" height="54" rx="6" fill="#fff" stroke="#164f2e" stroke-width="2.5"/>
+  <text x="273" y="282" text-anchor="middle" font-weight="700" fill="#164f2e">EVONETRTK</text>
+  <text x="273" y="298" text-anchor="middle" font-size="11" fill="#334">ricevitore</text>
+  <!-- cavo LTE -->
+  <path d="M403 174 C403 230 330 250 310 270" fill="none" stroke="#555" stroke-width="2.5"/>
+  <!-- alimentatore -->
+  <rect x="160" y="290" width="44" height="28" rx="4" fill="#d8dee4" stroke="#556070" stroke-width="2"/>
+  <path d="M204 304 H236" stroke="#c4161c" stroke-width="2.5"/>
+  <!-- rete -->
+  <path d="M310 300 C360 300 380 330 420 330" fill="none" stroke="#2f6fb0" stroke-width="2.5"/>
+  <rect x="420" y="318" width="40" height="24" rx="4" fill="#d8dee4" stroke="#2f6fb0" stroke-width="2"/>
+
+  <!-- etichette, con linee di richiamo -->
+  <g stroke="#556070" stroke-width="1">
+    <path d="M466 146 L300 170"/>
+    <path d="M466 210 L274 227"/>
+    <path d="M118 250 L210 250"/>
+    <path d="M466 278 L310 284"/>
+    <path d="M150 380 L182 318"/>
+  </g>
+  <g font-size="12.5">
+    <text x="320" y="20" font-weight="700" fill="#164f2e">1 Antenna GNSS: in alto, cielo libero</text>
+    <text x="320" y="36" fill="#334">su palo rigido, ancorato</text>
+    <text x="430" y="104" font-weight="700" fill="#333">2 Antenna LTE</text>
+    <text x="470" y="146" font-weight="700" fill="#1a1a1a">3 Cavo con curva verso il basso,</text>
+    <text x="470" y="162" fill="#334">connettori stretti e protetti</text>
+    <text x="470" y="214" font-weight="700" fill="#7a5a00">4 Scaricatore di sovratensione</text>
+    <text x="20" y="246" font-weight="700" fill="#1a7f4a">5 Collegamento</text>
+    <text x="20" y="262" font-weight="700" fill="#1a7f4a">a terra</text>
+    <text x="470" y="276" font-weight="700" fill="#164f2e">6 Ricevitore nella custodia,</text>
+    <text x="470" y="292" fill="#334">al riparo da sole e acqua</text>
+    <text x="470" y="334" font-weight="700" fill="#2f6fb0">8 Router, cavo o WiFi</text>
+    <text x="20" y="384" font-weight="700" fill="#c4161c">7 Alimentazione 12–24 V con fusibile</text>
+  </g>
+</svg>

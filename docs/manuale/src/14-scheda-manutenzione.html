@@ -1,0 +1,99 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Aggiornare il firmware (online, da file o da microSD) e tornare indietro se serve, salvare e ricaricare la configurazione, clonare un ricevitore, leggere e scaricare i log, e configurare LED e display opzionali. Password, matricola e scheda di accesso sono descritte nel capitolo <a data-cap="Primo avvio e accesso al pannello"></a>.</p>
+
+<h2>Aggiornare il firmware</h2>
+
+<p>Il firmware si aggiorna in tre modi. In tutti e tre il ricevitore scrive la nuova versione in una zona di memoria separata da quella in uso e si riavvia: se la nuova versione non parte o si blocca all'avvio, al riavvio successivo il ricevitore <strong>torna da solo alla versione precedente</strong>. Non serve mai un cavo USB per rimediare.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Non spegnete il ricevitore durante un aggiornamento. Il riavvio finale interrompe le correzioni per qualche decina di secondi: su una base in servizio aggiornate quando nessuno sta lavorando in campo.</div>
+
+<h3>Aggiornamento online</h3>
+
+<div class="box avvertenza" data-pitto="autosterzo"><span class="box-titolo">Aggiornamento di un rover</span>Durante l'aggiornamento e il riavvio il rover non fornisce la posizione. Non aggiornate un rover mentre il mezzo è in movimento o con la guida assistita o l'autosterzo attivi: fermate il mezzo e disattivate l'autosterzo. Per lo stesso motivo, l'aggiornamento automatico è adatto alle basi, non ai rover.</div>
+
+
+<p>Il modo normale. Il ricevitore legge da internet un piccolo file, il <em>manifest</em>, con il numero dell'ultima versione e il collegamento al firmware; l'indirizzo preimpostato è quello delle versioni pubblicate da EVONETRTK.</p>
+
+<ul>
+  <li><strong>Controlla aggiornamenti online</strong>: verifica subito se c'è una versione più recente e, se c'è, la installa.</li>
+  <li><strong>Controlla e applica gli aggiornamenti automaticamente</strong>, <strong>Ogni quante ore</strong>: il ricevitore controlla da solo e, se trova una versione nuova, la scarica e si riavvia. Funziona anche con la sola SIM, perché è il ricevitore a chiamare. È disattivato di fabbrica.</li>
+  <li>Se il controllo automatico è attivo ma non riesce da tempo, il pannello lo segnala: di solito il ricevitore non ha accesso a internet.</li>
+  <li>Lasciando vuoto l'<strong>indirizzo del manifest</strong> l'aggiornamento online è disattivato.</li>
+</ul>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Sulle basi isolate, raggiungibili solo via SIM, l'aggiornamento automatico è l'unico modo per installare le correzioni senza andare sul posto. Ogni nuova versione viene pubblicata insieme alla versione aggiornata di questo manuale.</div>
+
+<h3>Da file</h3>
+
+<p>Nel riquadro <strong>Aggiornamento firmware</strong> scegliete il file <code>.bin</code> del firmware per questa scheda e premete <strong>Carica e aggiorna</strong>. È il modo da usare quando si ha il file sul computer, per esempio una versione di prova.</p>
+
+<h3>Da microSD</h3>
+
+<p>Senza rete: copiate nella cartella principale di una microSD i file <code>firmware.bin</code> e <code>firmware.json</code> (che contiene il numero di versione, per esempio <code>{"version":"1.26.3"}</code>), inseritela e premete <strong>Controlla e aggiorna da SD</strong>. Se la versione sulla scheda non è più recente di quella installata, non succede niente.</p>
+
+<h3>Archivio firmware</h3>
+
+<p>A ogni aggiornamento il ricevitore conserva sulla microSD le <strong>ultime 2 versioni</strong> sostituite. Dal riquadro <strong>Archivio firmware</strong> se ne può ripristinare una a mano, anche più vecchia della precedente: serve quando un problema di una versione nuova si scopre solo dopo qualche aggiornamento. Questo ripristino ignora il controllo del numero di versione e può quindi tornare indietro: usatelo solo se sapete cosa state facendo.</p>
+
+<h2>La scheda microSD</h2>
+
+<p>Il pulsante <strong>Formatta microSD (FAT32)</strong> prepara le schede che il ricevitore non riesce a leggere: quelle oltre i 32 GB, che escono di fabbrica in exFAT, o quelle usate prima su un Raspberry Pi. Cancella tutto il contenuto della scheda e su schede grandi può richiedere qualche minuto.</p>
+
+<h2>Copie della configurazione</h2>
+
+<p>Il ricevitore tiene da solo sulla microSD una copia della configurazione, aggiornata a ogni salvataggio: se la configurazione in memoria si perde, all'avvio viene ripristinata automaticamente. Non dopo un ripristino di fabbrica fatto con il pulsante, che è voluto. Dal pannello si possono inoltre scaricare e caricare tre tipi di copia:</p>
+
+<table class="divisibile">
+  <tr><th>Copia</th><th>Contenuto</th><th>Uso</th></tr>
+  <tr><td><strong>Copia completa</strong> (<code>.bin</code>)<br>Scarica / Carica configurazione</td><td>Tutto, <strong>password comprese</strong>.</td><td>Ripristinare questo ricevitore, o preparare un secondo ricevitore uguale: matricola e rete di setup restano quelle del ricevitore su cui la caricate. Dopo il caricamento il ricevitore si riavvia.</td></tr>
+  <tr><td><strong>Copia leggibile</strong> (<code>.json</code>)</td><td>Tutto <strong>tranne le password</strong>.</td><td>Conservare un riferimento leggibile prima di fare prove. Dopo un'importazione le password vanno reinserite a mano.</td></tr>
+  <tr><td><strong>Copia per clonare</strong> (<code>.json</code>)</td><td>Come la leggibile, ma senza matricola e senza nome della rete di setup.</td><td>Configurare un nuovo ricevitore partendo da uno già pronto, senza che prenda l'identità del primo.</td></tr>
+</table>
+
+<p>I file <code>.json</code> si ricaricano con <strong>Importa e applica</strong>.</p>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>La copia completa contiene tutte le password: rete WiFi, caster, VPN, avvisi. Conservatela come la scheda di accesso, in un posto sicuro e non condiviso.</div>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Scaricate una copia completa a fine installazione e dopo ogni modifica importante, e archiviatela con il nome della base. Se il ricevitore va sostituito, il nuovo è pronto in un minuto.</div>
+
+<h2>Log</h2>
+
+<p>Il <strong>log</strong> è il diario di funzionamento del ricevitore: collegamenti, errori, configurazione del modulo GNSS, riavvii. È lo strumento principale per capire un problema a distanza.</p>
+
+<ul>
+  <li><strong>Log recenti</strong>: le ultime righe conservate in memoria dall'ultimo riavvio, che si perdono al riavvio successivo. <strong>Aggiorna</strong> le ricarica, <strong>Scarica log</strong> le salva in un file di testo.</li>
+  <li><strong>Log salvati sulla microSD</strong>: un file per ogni accensione, gli ultimi 5. Servono a capire cosa è successo <strong>prima</strong> di un riavvio o mentre nessuno guardava. <strong>Mostra file</strong> li elenca per scaricarli.</li>
+</ul>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Quando chiedete assistenza per un problema, allegate il log recente e, se il ricevitore si è riavviato, il file della microSD dell'accensione precedente.</div>
+
+<h2>LED RGB e display OLED</h2>
+
+<p><span class="pubblico tecnico">Avanzate · opzionali</span> Il ricevitore può pilotare un LED colorato e un piccolo display, utili per vedere lo stato senza aprire il pannello. Tutte queste impostazioni valgono dopo il riavvio; un pin a −1 significa "non usato".</p>
+
+<h3>LED RGB</h3>
+
+<ul>
+  <li><strong>Tipo di LED</strong>: nessuno, <strong>WS2812/NeoPixel</strong> (un solo pin dati) o <strong>3 pin separati R/G/B</strong> (PWM), con i rispettivi GPIO.</li>
+  <li><strong>Logica invertita</strong>: per i LED a catodo comune collegati verso i GPIO.</li>
+  <li>Il colore segue lo stato: blu per il WiFi, verde per il cellulare, con un lampo bianco a ogni pacchetto di correzioni.</li>
+</ul>
+
+<h3>Display OLED</h3>
+
+<ul>
+  <li>Display da 128×64 punti in I2C, sugli stessi pin del modulo GNSS in I2C (17/18 sulla T-ETH-Elite).</li>
+  <li><strong>Controller</strong>: SSD1306 (tipico dei moduli da 0,96"), SH1106 (1,3") o SSD1309 (2,42"); se l'immagine esce distorta provate un altro controller.</li>
+  <li><strong>Indirizzo I2C</strong>: di solito 60 (0x3C), alcuni moduli 61 (0x3D).</li>
+  <li><strong>A specchio</strong> e <strong>sottosopra</strong>: dipendono da come è cablato il singolo modulo; provate e guardate il risultato.</li>
+  <li>All'avvio il display mostra la scritta EVONETRTK, poi alterna stato del ricevitore, satelliti per costellazione e segnale WiFi o cellulare.</li>
+</ul>
+
+<div class="in-breve">
+<ul>
+  <li>Aggiornamenti online (anche automatici), da file o da microSD; se una versione non parte, il ricevitore torna da solo alla precedente.</li>
+  <li>L'archivio sulla microSD conserva le ultime 2 versioni per un ripristino manuale.</li>
+  <li>Copia completa con password per ripristinare, copia per clonare senza identità per preparare un nuovo ricevitore.</li>
+  <li>Log recenti in memoria e log sulla microSD delle ultime 5 accensioni: da allegare alle richieste di assistenza.</li>
+  <li>LED RGB e display OLED opzionali, validi dopo il riavvio.</li>
+</ul>
+</div>

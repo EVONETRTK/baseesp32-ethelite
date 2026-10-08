@@ -1,0 +1,114 @@
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Il primo collegamento a un ricevitore nuovo, l'ordine consigliato per configurarlo, la protezione con password, la scheda di accesso da consegnare al cliente e come si usa il pannello: schede, ricerca, impostazioni avanzate, salvataggi e riavvii.</p>
+
+<h2>Il primo collegamento</h2>
+
+<p>Un ricevitore nuovo, o riportato alle impostazioni di fabbrica, si configura interamente dal pannello, con un telefono o un computer. Non serve nessun programma.</p>
+
+<ol>
+  <li>Alimentate il ricevitore e aspettate circa mezzo minuto.</li>
+  <li>Cercate la rete WiFi <strong>EVONETRTK-</strong><em>XXXXXX</em>: le sei cifre finali sono la <strong>matricola</strong> del ricevitore, ricavata dal suo chip; possono contenere anche le lettere da A a F.</li>
+  <li>Collegatevi con la password di fabbrica della rete: <code>baseesp32setup</code>.</li>
+  <li>Aprite il browser e scrivete <code>http://192.168.4.1</code>. Il pannello non si apre da solo: l'indirizzo va scritto a mano.</li>
+  <li>Alla richiesta di accesso inserite utente <code>admin</code> e password di fabbrica <code>1234</code>.</li>
+</ol>
+
+<div class="box avviso"><span class="box-titolo">Pericolo</span>Le password di fabbrica sono uguali per tutti i ricevitori e scritte in questo manuale: <strong>cambiatele entrambe alla prima configurazione</strong>, prima di collegare il ricevitore a qualunque rete. La password del pannello <strong>non</strong> deve essere uguale alla matricola, che compare nel nome della rete WiFi ed è quindi visibile a chiunque sia nelle vicinanze.</div>
+
+<p>La rete <strong>EVONETRTK-…</strong> resta sempre attiva, anche quando il ricevitore è collegato a un'altra rete WiFi, al cavo o alla SIM: è l'accesso di emergenza sul posto. L'unica eccezione è la modalità di connessione <em>Solo Ethernet</em>, che spegne del tutto la radio WiFi (capitolo <a data-cap="Scheda Connessione"></a>).</p>
+
+<h2>Prima configurazione: l'ordine consigliato</h2>
+
+<p>Seguire quest'ordine evita di restare bloccati a metà, per esempio senza accesso al pannello dopo aver cambiato la rete:</p>
+
+<table class="divisibile">
+  <tr><th>Passo</th><th>Dove</th><th>Cosa fare</th></tr>
+  <tr><td>1</td><td><em>Manutenzione</em> → <em>Sicurezza</em></td><td>Cambiate la password del pannello.</td></tr>
+  <tr><td>2</td><td><em>Connessione</em> → <em>Rete di setup</em> (avanzate)</td><td>Cambiate la password della rete WiFi del ricevitore (almeno 8 caratteri).</td></tr>
+  <tr><td>3</td><td><em>Connessione</em></td><td>Scegliete la connettività e configurate WiFi, Ethernet o SIM. Riavviate e controllate che il pallino di rete diventi verde.</td></tr>
+  <tr><td>4</td><td><em>Posizione</em> → <em>Modalità operativa</em></td><td>Scegliete <strong>base</strong> o <strong>rover</strong>.</td></tr>
+  <tr><td>5</td><td><em>Posizione</em> → <em>Ricevitore GNSS e collegamento</em></td><td>Scegliete il modulo GNSS, o <em>Automatico</em>, e il collegamento (I2C o seriale). Riavviate e controllate che arrivino satelliti.</td></tr>
+  <tr><td>6</td><td><em>Posizione</em> → <em>Server/Client NTRIP</em></td><td>Inserite i dati del caster e usate <strong>Prova connessione al caster</strong>.</td></tr>
+  <tr><td>7</td><td><em>Posizione</em> → <em>Posizione base</em> (solo base)</td><td>Survey-in per le prove, coordinate fisse per l'esercizio (capitolo <a data-cap="Coordinate precise della base"></a>).</td></tr>
+  <tr><td>8</td><td><em>SIM e costi</em></td><td>Dati del piano dati e del rinnovo, se c'è la SIM.</td></tr>
+  <tr><td>9</td><td><em>Avvisi</em></td><td>Canali email e WhatsApp, soglie, e una prova.</td></tr>
+  <tr><td>10</td><td><em>Manutenzione</em> → <em>Copie della configurazione</em></td><td>Scaricate una copia della configurazione finita.</td></tr>
+  <tr><td>11</td><td><em>Manutenzione</em> → <em>Scheda di accesso</em></td><td>Stampate la scheda di accesso e consegnatela al cliente.</td></tr>
+</table>
+
+<h2>Password e sicurezza</h2>
+
+<h3>La password del pannello</h3>
+
+<p>Si cambia dalla scheda <em>Manutenzione</em>, riquadro <em>Sicurezza</em>, campo <strong>Codice di accesso a questa pagina</strong>. L'utente resta sempre <code>admin</code>. Il pannello chiede conferma prima di salvare, perché una password sbagliata chiude fuori dal pannello.</p>
+
+<p>Dopo il primo accesso il browser resta autorizzato per <strong>30 giorni</strong>. Cambiando la password, i browser autorizzati con quella vecchia vengono respinti e mostrano una pagina <em>Accesso negato</em> che spiega come rientrare con la password nuova.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Il pannello usa una connessione non cifrata (HTTP). Va bene sulla rete WiFi del ricevitore, sulla rete aziendale e attraverso la VPN; non esponete mai il pannello direttamente su internet aprendo porte sul router.</div>
+
+<h3>Password dimenticata</h3>
+
+<p>Se la password del pannello è stata dimenticata, l'unico modo per rientrare è il <strong>ripristino di fabbrica</strong>: con il ricevitore acceso, tenete premuto il pulsante <strong>BOOT</strong> della scheda per <strong>5 secondi</strong>. Il ricevitore cancella <strong>tutta</strong> la configurazione (reti, caster, coordinate, avvisi, password) e riparte con i valori di fabbrica. Per questo conviene avere sempre una copia della configurazione: si ricarica dalla scheda <em>Manutenzione</em> e il ricevitore torna com'era.</p>
+
+<h3>La matricola</h3>
+
+<p>La matricola è il numero che compare nel nome della rete WiFi e nella scheda di accesso, e identifica il ricevitore negli avvisi e nell'assistenza. Di norma è quella ricavata dal chip; si può sostituire con un codice proprio nella scheda <em>Manutenzione</em>, riquadro <em>Identificazione dispositivo</em>, spuntando <strong>Forza modifica</strong>. Se non corrisponde a quella del chip il pannello lo segnala, per evitare scambi tra ricevitori.</p>
+
+<h2>La scheda di accesso</h2>
+
+<p>La <strong>scheda di accesso</strong> è una pagina che il ricevitore compone da solo con tutti i dati per raggiungerlo: indirizzi in rete locale, rete WiFi di emergenza, accesso remoto, utenti, password e istruzioni per i casi di emergenza, con i QR code da inquadrare con il telefono. Si apre dalla scheda <em>Manutenzione</em>, riquadro <em>Scheda di accesso</em>, pulsante <strong>Apri la scheda di accesso</strong>.</p>
+
+<figure>
+  <img class="schermata" style="max-width:560px" src="img/scheda-accesso.png" alt="Parte alta della scheda di accesso stampabile">
+  <figcaption><b>Figura 12.</b> La parte alta della scheda di accesso, con i dati del ricevitore. Sotto seguono gli indirizzi, la rete di emergenza, l'accesso remoto e i QR code.</figcaption>
+</figure>
+
+<ul>
+  <li>Le password compaiono solo dopo aver reinserito la password del pannello e premuto <strong>Mostra le password</strong>. Senza, la scheda si stampa con le caselle vuote, da compilare a mano.</li>
+  <li><strong>Stampa / salva PDF</strong> la stampa o la salva come file.</li>
+  <li>La scheda contiene i dati del momento: dopo ogni cambio di rete, di indirizzo o di password va <strong>ristampata</strong>, e le copie vecchie distrutte.</li>
+</ul>
+
+<div class="box avviso"><span class="box-titolo">Attenzione</span>La scheda con le password è un documento riservato: consegnatela al titolare dell'azienda, non lasciatela attaccata al ricevitore o in cabina. All'operatore del trattore basta la versione senza password, con gli indirizzi.</div>
+
+<h2>Come si usa il pannello</h2>
+
+<figure>
+  <img src="img/pannello-pc.png" alt="Il pannello visto da un computer" style="border:1px solid var(--border); border-radius:8px">
+  <figcaption><b>Figura 13.</b> Il pannello su un computer: le schede di riepilogo e i riquadri si dispongono su più colonne.</figcaption>
+</figure>
+
+<h3>Schede e riquadri</h3>
+
+<p>Il pannello è diviso in sei schede: <strong>Stato</strong>, <strong>Posizione e correzioni</strong>, <strong>Connessione</strong>, <strong>SIM e costi</strong>, <strong>Avvisi</strong> e <strong>Manutenzione</strong>, descritte nei capitoli seguenti. Ogni scheda è fatta di <strong>riquadri</strong>; il titolo di ogni riquadro si può toccare per chiuderlo o riaprirlo. Sul telefono le schede si dispongono su una colonna, sul computer su più colonne. I riquadri che valgono solo per la base o solo per il rover compaiono solo nella modalità giusta.</p>
+
+<h3>Cerca e Avanzate</h3>
+
+<ul>
+  <li><strong>Cerca</strong>: scrivendo una parola (per esempio "APN", "porta", "survey") il pannello elenca le impostazioni che la contengono, in qualunque scheda, e porta direttamente al campo.</li>
+  <li><strong>Avanzate</strong>: spuntando la casella compaiono anche le impostazioni che si toccano raramente, come la rete di setup, il monitoraggio remoto, i messaggi RTCM, il caster locale, i dati per le coordinate precise. Senza la spunta il pannello resta più semplice per l'uso di tutti i giorni.</li>
+</ul>
+
+<h3>Salvare le modifiche</h3>
+
+<ul>
+  <li>Ogni riquadro ha il suo pulsante <strong>💾 Salva</strong>, che salva <strong>solo i campi di quel riquadro</strong>. Le modifiche lasciate in altri riquadri senza salvare non vengono applicate.</li>
+  <li>Accanto al pulsante compare l'esito ("Salvato") e da quanto tempo il riquadro è stato salvato l'ultima volta da quel browser.</li>
+  <li>Prima di salvare il pannello controlla i valori: indirizzi scritti male, numeri fuori dai limiti o campi delicati (password, rete di setup, matricola) vengono segnalati o chiedono conferma.</li>
+  <li>I campi password vuoti non cancellano la password salvata: per lasciarla com'è basta non scrivere niente.</li>
+</ul>
+
+<h3>Modifiche che richiedono il riavvio</h3>
+
+<p>Molte impostazioni valgono subito; altre, come la modalità base/rover, il modulo GNSS e il suo collegamento, la connessione, il modem o la posizione della base, valgono solo dopo un riavvio. In quel caso, dopo il salvataggio, in cima al pannello compare la barra gialla <strong>Modifiche salvate ma non ancora attive</strong> con l'elenco di cosa cambierà e il pulsante <strong>🔄 Riavvia ora</strong>. Il riavvio dura circa mezzo minuto e la pagina si ricarica da sola.</p>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>La barra gialla resta visibile a tutti finché il ricevitore non viene riavviato. Se la trovate su un ricevitore che non avete toccato, qualcuno ha salvato una modifica non ancora applicata: controllate cosa indica prima di riavviare.</div>
+
+<div class="in-breve">
+<ul>
+  <li>Primo accesso: rete <strong>EVONETRTK-</strong><em>matricola</em>, password <code>baseesp32setup</code>, <code>http://192.168.4.1</code>, utente <code>admin</code>, password <code>1234</code>; cambiare subito entrambe le password.</li>
+  <li>Configurazione nell'ordine: password, rete, modalità, modulo GNSS, caster, posizione, SIM, avvisi, copia della configurazione, scheda di accesso.</li>
+  <li>Password dimenticata: pulsante BOOT per 5 secondi, poi ricaricare la copia della configurazione.</li>
+  <li>La scheda di accesso è riservata e va ristampata a ogni cambio.</li>
+  <li>Ogni riquadro ha il suo Salva; la barra gialla indica le modifiche che aspettano il riavvio.</li>
+</ul>
+</div>

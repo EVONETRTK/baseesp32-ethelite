@@ -1,0 +1,293 @@
+/* Manuale della base EVONETRTK: stile unico per la versione web e per il
+   PDF stampabile (impaginato da Paged.js, vedi build.js). */
+
+:root {
+  --brand: #1f6b3f;
+  --brand-dark: #164f2e;
+  --brand-light: #a8d5ba;
+  --brand-bg: #eef6f1;
+  --text: #1c1f1d;
+  --muted: #5d645f;
+  --border: #d9ded9;
+  --bg: #ffffff;
+  --surface: #f6f7f5;
+  --info: #2f6fb0;   --info-bg: #e9f1fa;
+  --warn: #9a5a06;   --warn-bg: #fdf3e2;
+  --danger: #a82e2e; --danger-bg: #fbe9e9;
+  --ok: #1a7f4a;     --ok-bg: #e4f4ea;
+  --font: "Segoe UI", -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --mono: Consolas, "Cascadia Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* ---------- elementi di testo ---------- */
+
+h1, h2, h3, h4 { color: var(--brand-dark); line-height: 1.25; }
+h1 { font-size: 2rem; margin: 0 0 .4em; }
+h2 { font-size: 1.4rem; margin: 1.8em 0 .5em; padding-bottom: .2em; border-bottom: 2px solid var(--brand-light); }
+h3 { font-size: 1.12rem; margin: 1.4em 0 .4em; }
+h4 { font-size: 1rem; margin: 1.2em 0 .3em; color: var(--text); }
+p { margin: 0 0 .8em; }
+ul, ol { margin: 0 0 .9em; padding-left: 1.4em; }
+li { margin: .2em 0; }
+a { color: var(--brand); }
+code, kbd { font-family: var(--mono); font-size: .9em; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 0 .3em; }
+strong { color: #111; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
+
+.capitolo-numero {
+  display: block;
+  font-size: .85rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin-bottom: .3em;
+}
+
+.sommario-capitolo {
+  font-size: 1.05rem;
+  color: var(--muted);
+  border-left: 4px solid var(--brand-light);
+  padding: .2em 0 .2em 1em;
+  margin: 0 0 1.6em;
+}
+
+/* ---------- riquadri ---------- */
+
+.box {
+  border-radius: 8px;
+  padding: .8em 1em .8em 1em;
+  margin: 1.1em 0;
+  border-left: 5px solid;
+  break-inside: avoid;
+}
+.box > :last-child { margin-bottom: 0; }
+.box-titolo { display: block; font-weight: 700; margin-bottom: .25em; }
+.box.nota       { background: var(--info-bg);   border-color: var(--info); }
+.box.consiglio  { background: var(--ok-bg);     border-color: var(--ok); }
+.box.attenzione { background: var(--warn-bg);   border-color: var(--warn); }
+.box.pericolo   { background: var(--danger-bg); border-color: var(--danger); }
+.box.nota .box-titolo       { color: var(--info); }
+.box.consiglio .box-titolo  { color: var(--ok); }
+.box.attenzione .box-titolo { color: var(--warn); }
+.box.pericolo .box-titolo   { color: var(--danger); }
+
+/* "In breve": riassunto per chi non vuole i dettagli */
+.in-breve {
+  background: var(--brand-bg);
+  border: 1px solid var(--brand-light);
+  border-radius: 10px;
+  padding: .9em 1.1em;
+  margin: 1.2em 0;
+  break-inside: avoid;
+}
+.in-breve::before {
+  content: "In breve";
+  display: block;
+  font-weight: 700;
+  color: var(--brand);
+  font-size: .8rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: .3em;
+}
+.in-breve > :last-child { margin-bottom: 0; }
+
+/* Etichette di pubblico: chi deve leggere questa parte */
+.pubblico {
+  display: inline-block;
+  font-size: .75rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: .1em .7em;
+  margin-right: .3em;
+  vertical-align: middle;
+}
+.pubblico.agricoltore { background: #fbf0d0; color: #6b4e00; }
+.pubblico.tecnico     { background: #e3e8f0; color: #33415c; }
+
+/* ---------- tabelle e figure ---------- */
+
+table { width: 100%; border-collapse: collapse; margin: 1em 0 1.2em; font-size: .93rem; }
+table:not(.divisibile) { break-inside: avoid; }
+tr { break-inside: avoid; }
+/* NON aggiungere "tr:first-child { break-after: avoid }" sulle tabelle divisibili:
+   manda Paged.js in un ciclo infinito (08/10/2026). Un'intestazione rimasta
+   sola in fondo pagina si evita con una frase prima della tabella. */
+th, td { text-align: left; vertical-align: top; padding: .45em .6em; border-bottom: 1px solid var(--border); }
+th { background: var(--brand-bg); color: var(--brand-dark); font-weight: 700; }
+tr:last-child td { border-bottom: 0; }
+
+figure { margin: 1.4em 0; text-align: center; break-inside: avoid; }
+figure svg, figure img { max-width: 100%; height: auto; }
+figcaption { font-size: .88rem; color: var(--muted); margin-top: .4em; }
+figcaption b { color: var(--text); }
+
+/* ---------- frontespizio ---------- */
+
+.frontespizio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 3rem 1rem;
+}
+.frontespizio .logo { width: 300px; height: auto; margin: 1rem 0 1.4rem; }
+.frontespizio .marchio { font-size: 1rem; font-weight: 800; letter-spacing: .32em; color: var(--brand); margin: 0; }
+.frontespizio .titolo { font-family: var(--font-serif); font-size: 2.6rem; font-weight: 700; color: var(--brand-dark); margin: 1.6rem 0 .3rem; line-height: 1.15; border: 0; }
+.frontespizio .sottotitolo { font-size: 1.2rem; color: var(--muted); margin: 0 0 2.4rem; }
+.frontespizio .parti { display: flex; gap: .8rem; flex-wrap: wrap; justify-content: center; margin-bottom: 2.4rem; }
+.frontespizio .parti span { border: 1px solid var(--brand-light); background: var(--brand-bg); color: var(--brand-dark); border-radius: 999px; padding: .35em 1em; font-size: .95rem; }
+.frontespizio .dati { font-size: .95rem; color: var(--muted); line-height: 1.8; }
+.frontespizio .dati b { color: var(--text); }
+.frontespizio .fascia { width: 100%; height: 10px; background: linear-gradient(90deg, var(--brand-dark), var(--brand), var(--brand-light)); border-radius: 5px; margin-top: 2.6rem; }
+
+/* ---------- indice ---------- */
+
+.indice ol { list-style: none; padding: 0; margin: 0; }
+.indice > ol > li { margin: .7em 0 0; }
+.indice .parte { font-weight: 800; color: var(--brand); text-transform: uppercase; letter-spacing: .08em; font-size: .85rem; margin-top: 1.4em; padding-top: .6em; border-top: 1px solid var(--border); }
+.indice a { display: flex; gap: .5em; text-decoration: none; color: var(--text); }
+.indice a .n { min-width: 2.2em; color: var(--brand); font-weight: 700; }
+.indice a .t { flex: 1; }
+.indice > ol > li > a { font-weight: 700; }
+.indice ol ol { padding-left: 2.7em; }
+.indice ol ol a { font-size: .93rem; color: var(--muted); }
+.indice .da-scrivere { color: #9aa29c; font-style: italic; font-weight: 400; font-size: .85em; }
+
+/* ---------- versione web ---------- */
+
+@media screen {
+  .layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 100vh; }
+  .barra {
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 1.2rem 1rem 2rem; font-size: .9rem;
+  }
+  .barra .barra-testa { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; text-decoration: none; }
+  .barra .barra-testa img { width: 52px; height: auto; }
+  .barra .barra-testa span { font-weight: 800; letter-spacing: .12em; color: var(--brand); font-size: .9rem; }
+  .barra input[type=search] { width: 100%; padding: .5em .7em; border: 1px solid var(--border); border-radius: 6px; font: inherit; margin-bottom: .8rem; background: #fff; color: var(--text); }
+  .barra .indice > ol > li { margin-top: .35em; }
+  .barra .indice ol ol { padding-left: 1.6em; }
+  .barra .indice a .n { min-width: 1.8em; }
+  .barra .indice .parte { font-size: .72rem; margin-top: 1em; }
+  .contenuto { padding: 2rem 3rem 5rem; max-width: 860px; }
+  section.capitolo { padding-top: 1rem; margin-bottom: 4rem; }
+  .solo-stampa { display: none !important; }
+  .scarica-pdf { display: inline-block; margin: .2rem 0 1rem; padding: .45em .9em; background: var(--brand); color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: .9rem; }
+  mark { background: #ffe58a; color: inherit; }
+  .menu-btn { display: none; }
+
+  @media (max-width: 860px) {
+    .layout { display: block; }
+    .barra { position: fixed; inset: 0 auto 0 0; width: 86%; max-width: 330px; z-index: 20; transform: translateX(-105%); transition: transform .2s; box-shadow: 0 0 30px rgba(0,0,0,.25); }
+    body.menu-aperto .barra { transform: none; }
+    .contenuto { padding: 4rem 16px 4rem; }
+    .menu-btn { display: block; position: fixed; top: 10px; left: 10px; z-index: 21; background: var(--brand); color: #fff; border: 0; border-radius: 8px; padding: .5em .8em; font: inherit; font-weight: 600; }
+    .frontespizio .titolo { font-size: 2rem; }
+    table { display: block; overflow-x: auto; }
+  }
+}
+
+/* ---------- stampa (Paged.js, A4) ---------- */
+
+@media print {
+  body { font-size: 10.5pt; line-height: 1.5; }
+  .solo-web, .barra, .menu-btn { display: none !important; }
+  .layout, .contenuto { display: block; padding: 0; max-width: none; }
+  h1 { font-size: 22pt; }
+  h2 { font-size: 14pt; break-after: avoid; }
+  h3, h4 { break-after: avoid; }
+  a { color: inherit; text-decoration: none; }
+  section.capitolo { break-before: right; string-set: capitolo attr(data-titolo); }
+  .frontespizio { page: copertina; height: 247mm; justify-content: center; padding: 0; }
+  .frontespizio .logo { width: 90mm; height: auto; }
+  .pagina-retro { page: copertina; break-before: page; height: 247mm; display: flex; flex-direction: column; justify-content: flex-end; font-size: 8.5pt; color: var(--muted); }
+  .prefazione, .indice-pagina { break-before: right; }
+  .indice-pagina { page: indice; }
+  .indice a::after { content: target-counter(attr(href), page); min-width: 2em; text-align: right; color: var(--muted); font-weight: 400; }
+  .indice > ol > li > a::after { color: var(--text); font-weight: 700; }
+  .indice .da-scrivere { display: none; }
+}
+
+@page {
+  size: A4;
+  margin: 22mm 20mm 24mm 22mm;
+  @top-right { content: string(capitolo); font-size: 8pt; color: #5d645f; font-family: "Segoe UI", Arial, sans-serif; }
+  @top-left { content: "EVONETRTK · Manuale del ricevitore"; font-size: 8pt; color: #5d645f; font-family: "Segoe UI", Arial, sans-serif; }
+  @bottom-center { content: counter(page); font-size: 9pt; color: #1f6b3f; font-weight: 700; font-family: "Segoe UI", Arial, sans-serif; }
+}
+@page :left  { margin-left: 20mm; margin-right: 22mm; }
+@page copertina { @top-left { content: none; } @top-right { content: none; } @bottom-center { content: none; } }
+@page indice { @top-right { content: "Indice"; } }
+@page :blank { @top-left { content: none; } @top-right { content: none; } @bottom-center { content: none; } }
+
+/* schermate del pannello (catturate dal telefono, a doppia risoluzione) */
+figure img.schermata { width: 100%; max-width: 380px; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+@media print { figure img.schermata { max-width: 80mm; } }
+
+/* "firewall": sempre evidenziato (build.js), perche' e' la causa piu'
+   frequente degli intoppi nelle installazioni. NIENTE white-space: nowrap:
+   fa fallire la stampa del PDF ("Printing failed", 08/10/2026). */
+.firewall { background: #fde2e2; color: #8f1d1d; border: 1px solid #f3a5a5; border-radius: 4px; padding: 0 .3em; font-weight: 700; }
+
+/* glossario (appendice A) */
+dl.glossario { margin: 0; }
+dl.glossario dt { font-weight: 700; color: var(--brand-dark); margin-top: .7em; break-after: avoid; }
+dl.glossario dd { margin: .1em 0 0 1.2em; }
+@media print { dl.glossario { columns: 2; column-gap: 8mm; font-size: 9.5pt; } dl.glossario dt { break-inside: avoid; } }
+
+/* ---------- riquadri di sicurezza (ISO 3864-2 / ANSI Z535.6) ----------
+   Colori della fascia: PERICOLO rosso, AVVERTENZA arancione, ATTENZIONE
+   giallo, AVVISO blu. Il triangolo d'allerta usa --sic-fondo per il "!". */
+.box.sic { padding: 0; border: 2px solid; border-left-width: 2px; overflow: hidden; background: #fff; }
+.box.sic .sic-testa { display: flex; align-items: center; gap: .45em; padding: .3em .8em; font-weight: 800; letter-spacing: .12em; font-size: .92rem; }
+.box.sic .sic-testa .allerta { width: 1.25em; height: 1.15em; flex: none; }
+.box.sic .sic-corpo { display: flex; gap: .9em; align-items: flex-start; padding: .7em 1em .8em; }
+.box.sic .sic-pitto { flex: none; width: 3.4em; }
+.box.sic .sic-pitto .pitto { width: 100%; height: auto; display: block; }
+.box.sic .sic-testo { flex: 1; min-width: 0; }
+.box.sic .sic-testo > :last-child { margin-bottom: 0; }
+.box.sic .box-titolo { color: var(--text); }
+.box.sic.pericolo   { border-color: #c4161c; --sic-fondo: #c4161c; }
+.box.sic.pericolo   .sic-testa { background: #c4161c; color: #fff; }
+.box.sic.avvertenza { border-color: #e8710a; --sic-fondo: #e8710a; }
+.box.sic.avvertenza .sic-testa { background: #e8710a; color: #fff; }
+.box.sic.attenzione { border-color: #e0a800; --sic-fondo: #f9c400; }
+.box.sic.attenzione .sic-testa { background: #f9c400; color: #1a1a1a; }
+.box.sic.attenzione .sic-testa .allerta { color: #1a1a1a; }
+.box.sic.avviso     { border-color: #1f5fa8; }
+.box.sic.avviso     .sic-testa { background: #1f5fa8; color: #fff; font-style: italic; }
+@media print { .box.sic .sic-testa { font-size: 8.5pt; } .box.sic .sic-pitto { width: 13mm; } }
+
+/* pittogrammi nelle tabelle dei simboli */
+.pitto-solo { display: inline-block; width: 3.2em; vertical-align: middle; }
+.pitto-solo .pitto { width: 100%; height: auto; display: block; }
+
+/* spazi da completare con i dati dell'azienda */
+.da-completare { background: #fff3a6; border: 1px dashed #b38f00; border-radius: 3px; padding: 0 .3em; font-style: italic; color: #5c4a00; }
+.retro-sicurezza { display: flex; gap: .8em; align-items: center; color: var(--text); font-size: 9.5pt; border: 1px solid var(--border); border-radius: 6px; padding: .6em .8em; }
+
+/* guide rapide: passi numerati e liste di controllo da spuntare */
+ol.passi { list-style: none; counter-reset: passo; padding-left: 0; }
+ol.passi[start="4"] { counter-reset: passo 3; } ol.passi[start="7"] { counter-reset: passo 6; } ol.passi[start="8"] { counter-reset: passo 7; }
+ol.passi > li { counter-increment: passo; position: relative; padding-left: 2.4em; margin: .55em 0; break-inside: avoid; }
+ol.passi > li::before { content: counter(passo); position: absolute; left: 0; top: -.05em; width: 1.7em; height: 1.7em; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 800; font-size: .9em; display: flex; align-items: center; justify-content: center; }
+ul.checklist { list-style: none; padding-left: 0; border: 1px solid var(--border); border-radius: 8px; padding: .4em .9em; break-inside: avoid; }
+ul.checklist > li { position: relative; padding-left: 1.9em; margin: .45em 0; }
+ul.checklist > li::before { content: ""; position: absolute; left: 0; top: .2em; width: 1.05em; height: 1.05em; border: 2px solid var(--brand-dark); border-radius: 3px; background: #fff; }
