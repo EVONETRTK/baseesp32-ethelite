@@ -1,4 +1,5 @@
 #include "alerts.h"
+#include "license.h"
 #include "settings.h"
 #include "status.h"
 #include "base_monitor.h"
@@ -299,8 +300,11 @@ static void alerts_task(void *arg)
         app_settings_t s = settings_get();
         sim_plan_tick(&s);  // rinnovo della SIM: promemoria anche con gli altri avvisi spenti
         sim_tools_tick(&s); // credito, SMS (anche con gli altri avvisi spenti)
-        remote_status_tick(&s); // monitoraggio remoto, se impostato
-        if (!s.alert_enable) {
+        license_tick();         // rinnovo della licenza quando e' il momento
+        if (license_has(LIC_BASE_PRO)) {
+            remote_status_tick(&s); // monitoraggio remoto, se impostato
+        }
+        if (!s.alert_enable || !license_has(LIC_BASE_PRO)) {
             already_alerted = false;
             already_alerted_drift = false;
             already_alerted_temp = false;

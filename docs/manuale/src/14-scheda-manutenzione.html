@@ -1,4 +1,27 @@
-<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Aggiornare il firmware (online, da file o da microSD) e tornare indietro se serve, salvare e ricaricare la configurazione, clonare un ricevitore, leggere e scaricare i log, e configurare LED e display opzionali. Password, matricola e scheda di accesso sono descritte nel capitolo <a data-cap="Primo avvio e accesso al pannello"></a>.</p>
+<p class="sommario-capitolo"><span class="pubblico tecnico">Tecnico</span> Attivazione e licenza, aggiornare il firmware (online, da file o da microSD) e tornare indietro se serve, salvare e ricaricare la configurazione, clonare un ricevitore, leggere e scaricare i log, e configurare LED e display opzionali. Password, matricola e scheda di accesso sono descritte nel capitolo <a data-cap="Primo avvio e accesso al pannello"></a>.</p>
+
+<h2>Licenza e attivazione</h2>
+
+<p>Il riquadro <strong>🔑 Licenza</strong>, in cima alla scheda, mostra lo stato del ricevitore, il cliente a cui è intestato, la data dell'ultimo controllo con il server EVONETRTK e l'elenco delle funzioni con la loro scadenza:</p>
+
+<table>
+  <tr><th>Funzione</th><th>Cosa comprende</th></tr>
+  <tr><td>Correzioni RTK</td><td>Base: invio delle correzioni al caster. Rover: correzioni dal caster e una posizione al secondo verso il software di guida. Compresa nel prezzo del ricevitore.</td></tr>
+  <tr><td>Autosterzo</td><td>5 o 10 posizioni al secondo per AgOpenGPS (capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>).</td></tr>
+  <tr><td>Galileo HAS</td><td>Misura della posizione della base con HAS e riserva HAS del rover.</td></tr>
+  <tr><td>IMU e doppia antenna</td><td>Funzioni inerziali e prua del ComNav K922.</td></tr>
+  <tr><td>Servizi avanzati</td><td>Caster locale, VPN, monitoraggio remoto, registrazione dei dati grezzi, avvisi via email e WhatsApp.</td></tr>
+</table>
+
+<p><strong>Attivazione.</strong> Un ricevitore nuovo è «da attivare». Collegatelo a internet, aprite il riquadro Licenza, leggete le avvertenze di sicurezza, le note legali e la garanzia (capitolo <a data-cap="Avvertenze di sicurezza"></a> e appendice <a data-cap="Note legali e garanzia"></a>), mettete le <strong>due spunte</strong> di accettazione, scrivete nome e cognome e il <strong>codice di attivazione</strong> che trovate in fattura o nel portale EVONETRTK, poi premete <strong>Attiva</strong>. Dopo il messaggio «Ricevitore attivato» riavviate il ricevitore.</p>
+
+<p><strong>Rinnovo.</strong> Il ricevitore controlla la licenza da solo una volta al giorno quando ha internet; il pulsante <strong>Aggiorna licenza</strong> fa il controllo subito, per esempio dopo aver acquistato una funzione. La licenza è firmata dal server e il ricevitore la verifica da sé: funziona anche senza internet.</p>
+
+<div class="box nota"><span class="box-titolo">Le funzioni cambiano solo al riavvio</span>Una funzione acquistata, una scadenza o una revoca arrivano con il controllo giornaliero ma valgono <strong>dal riavvio successivo</strong>: nessuna funzione si spegne mentre il ricevitore lavora. Prima della scadenza di una funzione il riquadro lo segnala con 30 giorni di anticipo. Le correzioni RTK non scadono.</div>
+
+<div class="box nota"><span class="box-titolo">Versione di prova</span>In questa versione del firmware il sistema delle licenze è in prova: il riquadro mostra lo stato, ma nessuna funzione viene bloccata, nemmeno su un ricevitore non attivato.</div>
+
+<div class="box avviso"><span class="box-titolo">Firewall</span>L'attivazione e il controllo giornaliero sono collegamenti in uscita verso il server EVONETRTK (HTTPS, porta 443). Se la rete dell'azienda li blocca compare «server non raggiungibile (rete o firewall)»: chiedete di lasciare uscire il ricevitore verso <code>rtk.evo-net.it</code>.</div>
 
 <h2>Aggiornare il firmware</h2>
 
@@ -95,5 +118,6 @@
   <li>Copia completa con password per ripristinare, copia per clonare senza identità per preparare un nuovo ricevitore.</li>
   <li>Log recenti in memoria e log sulla microSD delle ultime 5 accensioni: da allegare alle richieste di assistenza.</li>
   <li>LED RGB e display OLED opzionali, validi dopo il riavvio.</li>
+  <li>Licenza: attivazione con codice e due spunte, controllo giornaliero automatico, funzioni nuove o scadute valide dal riavvio.</li>
 </ul>
 </div>

@@ -1,4 +1,5 @@
 #include "gnss_unicore.h"
+#include "license.h"
 #include "gnss_io.h"
 #include "settings.h"
 #include "base_measure.h"
@@ -291,7 +292,7 @@ static esp_err_t configure_has(uart_port_t uart_num)
 
 static void peek_rover_has(const app_settings_t *s, void *ctx)
 {
-    *(bool *) ctx = s->rover_has_fallback;
+    *(bool *) ctx = s->rover_has_fallback && license_has(LIC_HAS);
 }
 
 esp_err_t gnss_unicore_configure_rover(uart_port_t uart_num)

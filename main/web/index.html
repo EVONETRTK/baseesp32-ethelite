@@ -1411,6 +1411,50 @@
   </div>
 
 <div id="page-firmware" class="page">
+  <fieldset id="license-box">
+    <legend>🔑 Licenza</legend>
+    <div id="lic-test-note" class="hint" style="display:none; border:1px dashed #d97706; border-radius:8px; padding:.4rem .6rem; margin-bottom:.5rem">
+      🧪 Modalita' di prova: la licenza viene verificata e mostrata, ma nessuna funzione viene bloccata.
+    </div>
+    <dl class="kv">
+      <dt>Stato</dt><dd id="lic-state">-</dd>
+      <dt>Cliente</dt><dd id="lic-customer">-</dd>
+      <dt>Ultimo controllo con il server</dt><dd id="lic-contact">-</dd>
+    </dl>
+    <table id="lic-features" style="width:100%; border-collapse:collapse; margin:.4rem 0; font-size:.9rem"></table>
+    <div id="lic-msg" class="hint" style="margin:.3rem 0"></div>
+    <div id="lic-activate" style="display:none; border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; padding:.6rem .8rem; margin:.6rem 0">
+      <b>Attivazione del ricevitore</b>
+      <small class="hint" style="display:block; margin:.3rem 0">
+        Il ricevitore deve essere collegato a internet. Il codice di attivazione e' nella fattura o nel portale EVONETRTK.
+        Prima di attivare leggi le avvertenze di sicurezza, le note legali e la garanzia nel
+        <a href="https://github.com/EVONETRTK/baseesp32-ethelite/releases/latest/download/manuale.pdf" target="_blank" rel="noopener">manuale</a>
+        (capitolo «Sicurezza» e appendice «Note legali»).
+      </small>
+      <label style="flex-direction:row; align-items:flex-start; gap:.5rem">
+        <input type="checkbox" id="lic-terms" style="width:auto; margin:.2rem 0 0">
+        <span>Ho letto e accetto le avvertenze di sicurezza, le note legali, le condizioni di licenza e la garanzia.</span>
+      </label>
+      <label style="flex-direction:row; align-items:flex-start; gap:.5rem">
+        <input type="checkbox" id="lic-clauses" style="width:auto; margin:.2rem 0 0">
+        <span>Ai sensi degli artt. 1341 e 1342 del codice civile approvo specificamente le clausole delle condizioni di licenza
+        relative a: limitazioni di responsabilita', sospensione e revoca della licenza, durata e rinnovo delle funzioni a pagamento.
+        <i>[testo ed elenco da rivedere con il legale]</i></span>
+      </label>
+      <label>Nome e cognome di chi accetta<input type="text" id="lic-who" autocomplete="name" maxlength="60"></label>
+      <label>Codice di attivazione<input type="text" id="lic-code" autocomplete="off" maxlength="30" placeholder="es. EVO-XXXX-XXXX-XXXX" style="text-transform:uppercase"></label>
+      <button type="button" class="action" id="lic-activate-btn">🔑 Attiva</button>
+    </div>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.4rem">
+      <button type="button" class="action secondary" id="lic-renew-btn">🔄 Aggiorna licenza</button>
+    </div>
+    <div data-adv style="margin-top:.6rem">
+      <label>Server delle licenze (vuoto = predefinito)<input type="text" id="lic-server" autocomplete="off" placeholder="https://rtk.evo-net.it/api/device/v1/"></label>
+      <button type="button" class="action secondary" id="lic-server-btn">💾 Salva indirizzo</button>
+      <small class="hint">Solo per l'assistenza e le prove. Codice del chip: <span id="lic-chip">-</span></small>
+    </div>
+  </fieldset>
+
   <fieldset>
     <legend>⬆️ Aggiornamento firmware</legend>
     <dl class="kv">
@@ -2375,6 +2419,7 @@ async function loadStatus() {
     lastStatus = s;
     renderBasePosCurrent(s);
     renderDriftStatus(s);
+    renderLicense(s);
     renderQuickStatusFromStatus(s);
     renderPppLog(s);
     const casterClientsEl = document.getElementById('caster-srv-clients');
@@ -2855,6 +2900,75 @@ document.getElementById('ppp-log-stop-btn').addEventListener('click', async () =
 
 document.getElementById('ppp-log-download-btn').addEventListener('click', () => {
   window.location.href = '/api/ppp-log/download';
+});
+
+const LIC_NAMES = {
+  rtk: 'Correzioni RTK (base: invio al caster; rover: 1 posizione al secondo)',
+  nmea_fast: 'Autosterzo: 5-10 posizioni al secondo',
+  has: 'Galileo HAS (misura della base, riserva del rover)',
+  ins: 'IMU e doppia antenna (ComNav K922)',
+  base_pro: 'Servizi avanzati: caster locale, VPN, monitoraggio, dati grezzi, avvisi',
+};
+const LIC_STATES = {
+  da_attivare: ['⚪', 'Da attivare'],
+  attivo: ['✅', 'Attivo'],
+  in_scadenza: ['⚠️', 'Attivo, funzioni extra in scadenza'],
+  extra_scaduti: ['⚠️', 'Funzioni extra scadute (si spengono al prossimo riavvio)'],
+  revocato: ['⛔', 'Revocato dal server (vale dal riavvio)'],
+};
+let licServerFilled = false;
+function renderLicense(s) {
+  const l = s.license;
+  if (!l) return;
+  document.getElementById('lic-test-note').style.display = l.enforce ? 'none' : '';
+  const st = LIC_STATES[l.state] || LIC_STATES.da_attivare;
+  document.getElementById('lic-state').textContent = st[0] + ' ' + st[1];
+  document.getElementById('lic-customer').textContent = l.customer || '-';
+  document.getElementById('lic-contact').textContent = l.last_contact > 0 ? new Date(l.last_contact * 1000).toLocaleString('it-IT') : 'mai';
+  document.getElementById('lic-chip').textContent = l.chip || '-';
+  document.getElementById('lic-msg').textContent = (l.busy ? '⏳ ' : '') + (l.msg || '');
+  document.getElementById('lic-activate').style.display = (l.state === 'da_attivare' || l.state === 'revocato') ? '' : 'none';
+  document.getElementById('lic-renew-btn').disabled = l.busy || l.state === 'da_attivare';
+  document.getElementById('lic-activate-btn').disabled = l.busy;
+  if (!licServerFilled) { document.getElementById('lic-server').value = l.server || ''; licServerFilled = true; }
+  const now = Date.now() / 1000;
+  const cell = 'padding:.25rem .4rem; border-bottom:1px solid #e5e7eb';
+  const rows = Object.entries(LIC_NAMES).map(([code, name]) => {
+    const f = (l.features || {})[code] || { expiry: -1 };
+    let txt;
+    if (f.expiry < 0) txt = '🔒 non compresa';
+    else if (f.expiry === 0) txt = '✅ compresa';
+    else txt = (f.expiry < now ? '⛔ scaduta il ' : (f.expiry - now < 30 * 86400 ? '⚠️ fino al ' : '✅ fino al ')) + new Date(f.expiry * 1000).toLocaleDateString('it-IT');
+    if (f.expiry >= 0 && !f.granted) txt += ' (dal prossimo riavvio)';
+    return '<tr><td style="' + cell + '">' + name + '</td><td style="' + cell + '; white-space:nowrap">' + txt + '</td></tr>';
+  });
+  document.getElementById('lic-features').innerHTML = rows.join('');
+}
+async function licensePost(body) {
+  const msg = document.getElementById('lic-msg');
+  try {
+    const r = await fetch('/api/license', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!j.ok) { msg.textContent = '❌ ' + (j.error || 'errore'); return false; }
+    return true;
+  } catch (e) { msg.textContent = '❌ ' + e.message; return false; }
+}
+document.getElementById('lic-activate-btn').addEventListener('click', async () => {
+  const body = {
+    action: 'activate',
+    code: document.getElementById('lic-code').value.trim().toUpperCase(),
+    who: document.getElementById('lic-who').value.trim(),
+    terms: document.getElementById('lic-terms').checked,
+    clauses_1341: document.getElementById('lic-clauses').checked,
+  };
+  if (!body.terms || !body.clauses_1341) { document.getElementById('lic-msg').textContent = '❌ Servono entrambe le spunte.'; return; }
+  if (await licensePost(body)) document.getElementById('lic-msg').textContent = '⏳ Attivazione in corso...';
+});
+document.getElementById('lic-renew-btn').addEventListener('click', async () => {
+  if (await licensePost({ action: 'renew' })) document.getElementById('lic-msg').textContent = '⏳ Controllo in corso...';
+});
+document.getElementById('lic-server-btn').addEventListener('click', async () => {
+  if (await licensePost({ action: 'server', url: document.getElementById('lic-server').value.trim() })) document.getElementById('lic-msg').textContent = '✅ Indirizzo salvato';
 });
 
 function renderDriftStatus(s) {

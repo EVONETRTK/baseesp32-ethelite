@@ -1,4 +1,5 @@
 #include "raw_log.h"
+#include "license.h"
 #include "sd_mutex.h"
 #include "time_sync.h"
 
@@ -201,6 +202,10 @@ uint8_t raw_log_wanted_rate(void)
 
 bool raw_log_start(uint32_t hours, uint8_t interval_s, char *err, size_t err_size)
 {
+    if (!license_has(LIC_BASE_PRO)) {
+        snprintf(err, err_size, "funzione non compresa nella licenza");
+        return false;
+    }
     if (!s_ring) {
         snprintf(err, err_size, "PSRAM non disponibile");
         return false;

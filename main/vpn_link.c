@@ -1,4 +1,5 @@
 #include "vpn_link.h"
+#include "license.h"
 #include "settings.h"
 #include "status.h"
 #include "time_sync.h"
@@ -56,7 +57,7 @@ static void set_error(const char *msg)
 static void peek_cfg(const app_settings_t *s, void *ctx)
 {
     vpn_cfg_t *c = (vpn_cfg_t *) ctx;
-    c->enable = s->vpn_enable;
+    c->enable = s->vpn_enable && license_has(LIC_BASE_PRO);
     strlcpy(c->priv, s->vpn_private_key, sizeof(c->priv));
     strlcpy(c->addr, s->vpn_address, sizeof(c->addr));
     strlcpy(c->peer, s->vpn_peer_public_key, sizeof(c->peer));

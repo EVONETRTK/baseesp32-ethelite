@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "license.h"
 #include "config_backup.h"
 
 #include <string.h>
@@ -603,7 +604,8 @@ uint8_t settings_nmea_rate_hz(void)
     xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
     uint8_t hz = s_settings.nmea_rate_hz;
     xSemaphoreGive(s_settings_mutex);
-    return (hz == 5 || hz == 10) ? hz : 1;
+    // 5-10 Hz: funzione della licenza (nmea_fast), altrimenti 1 Hz.
+    return ((hz == 5 || hz == 10) && license_has(LIC_NMEA_FAST)) ? hz : 1;
 }
 
 esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx)

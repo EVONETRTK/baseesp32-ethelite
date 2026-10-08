@@ -8,3 +8,4 @@ release_assets/
 sd_card_files/
 ripristino/
 docs/manuale/out/
+*.pem

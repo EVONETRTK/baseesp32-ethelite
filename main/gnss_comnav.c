@@ -1,4 +1,5 @@
 #include "gnss_comnav.h"
+#include "license.h"
 #include "gnss_io.h"
 #include "settings.h"
 #include "base_measure.h"
@@ -178,8 +179,8 @@ typedef struct {
 static void peek_rover(const app_settings_t *s, void *ctx)
 {
     rover_view_t *v = ctx;
-    v->has = s->rover_has_fallback;
-    v->ins = s->comnav_ins_enable;
+    v->has = s->rover_has_fallback && license_has(LIC_HAS);
+    v->ins = s->comnav_ins_enable && license_has(LIC_INS);
     v->axes = (s->comnav_imu_axes >= 1 && s->comnav_imu_axes <= 8) ? s->comnav_imu_axes : 1;
     v->heading = s->comnav_heading_enable;
 }

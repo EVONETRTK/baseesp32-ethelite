@@ -1,4 +1,5 @@
 #include "ppp_log.h"
+#include "license.h"
 #include "sd_mutex.h"
 
 #include <string.h>
@@ -204,6 +205,9 @@ static void ppp_log_task(void *arg)
 
 bool ppp_log_start(void)
 {
+    if (!license_has(LIC_BASE_PRO)) {
+        return false;
+    }
     status_mutex_init();
     if (!s_feed_stream) {
         s_feed_stream = xStreamBufferCreate(4096, 1);

@@ -8,6 +8,22 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.29.2
+
+- Licenza: al rinnovo il ricevitore manda l'impronta SHA-256 completa del firmware (prima solo 9 cifre, valore predefinito di ESP-IDF), cosi' il gestionale la confronta con le release ufficiali. Provata con il gestionale vero (snip-licenze) sul PC: attivazione, rinnovo, funzioni aggiunte dal portale.
+
+## 1.29.1
+
+- Prima installazione sulla base dopo la 1.28.2: comprende la correzione del pannello.
+
+## 1.29.0
+
+Attivazione del ricevitore e licenze, in modalita' di prova (08/10/2026). Specifiche: docs/attivazione-licenze.md.
+- Nuovo `license.c`: licenza JSON firmata dal server (ECDSA P-256), legata a matricola, MAC del chip e chiave del ricevitore (P-256 generata alla prima accensione, nella NVS). Verifica all'avvio, funzioni fisse fino al riavvio, rinnovo giornaliero con la versione e l'impronta del firmware e le funzioni in uso.
+- Manutenzione -> **Licenza**: stato, funzioni con scadenza, attivazione con codice e due spunte (condizioni; clausole artt. 1341-1342 c.c., testo da rivedere con il legale), aggiornamento, indirizzo del server (Avanzate).
+- Controlli della licenza nei punti delle funzioni: correzioni (rtk), 5-10 Hz (nmea_fast), HAS (has), INS (ins), caster locale/VPN/monitoraggio/dati grezzi/avvisi (base_pro).
+- **LICENSE_ENFORCE 0**: per ora nessun blocco (il server vero non c'e' ancora); si accende quando il server e' pronto e i ricevitori esistenti hanno la licenza.
+
 ## 1.28.2
 
 - **Correzione urgente del pannello**: nella 1.28.0-1.28.1 un apostrofo nel testo del banner "antenna spostata" bloccava tutto lo script del pannello (nessun dato, pulsanti e salvataggi fermi). Da ora la sintassi dello script si controlla a ogni versione e il pannello si prova in Chrome con i dati della base.

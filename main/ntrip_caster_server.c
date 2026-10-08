@@ -1,4 +1,5 @@
 #include "ntrip_caster_server.h"
+#include "license.h"
 #include "settings.h"
 
 #include <string.h>
@@ -295,7 +296,7 @@ static void listen_task(void *arg)
 
 static void peek_enable(const app_settings_t *s, void *ctx)
 {
-    *(bool *) ctx = s->ntrip_caster_server_enable;
+    *(bool *) ctx = s->ntrip_caster_server_enable && license_has(LIC_BASE_PRO);
 }
 
 void ntrip_caster_server_start(void)

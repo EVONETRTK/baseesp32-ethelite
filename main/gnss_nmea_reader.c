@@ -1,4 +1,5 @@
 #include "gnss_nmea_reader.h"
+#include "license.h"
 #include "sys_stats.h"
 #include "time_sync.h"
 #include "gnss_io.h"
@@ -143,7 +144,7 @@ static const char *s_has_state = "";
 
 static void peek_has(const app_settings_t *s, void *ctx)
 {
-    *(bool *) ctx = s->rover_has_fallback;
+    *(bool *) ctx = s->rover_has_fallback && license_has(LIC_HAS);
 }
 
 const char *gnss_nmea_reader_has_state(void)

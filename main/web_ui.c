@@ -34,6 +34,7 @@
 #include "alerts.h"
 #include "base_monitor.h"
 #include "base_selfpos.h"
+#include "license.h"
 #include "ntrip_caster_server.h"
 #include "geo_convert.h"
 #include "ppp_log.h"
@@ -918,6 +919,32 @@ static esp_err_t status_get_handler(httpd_req_t *req)
             cJSON_AddNumberToObject(root, "selfpos_horiz_m", sp.horiz_m);
             cJSON_AddNumberToObject(root, "selfpos_result_samples", sp.result_samples);
             cJSON_AddNumberToObject(root, "selfpos_result_age_s", sp.result_age_s);
+        }
+    }
+    {
+        // Licenza (license.c): stato, funzioni e scadenze, per Manutenzione -> Licenza.
+        license_status_t *ls = malloc(sizeof(license_status_t));
+        if (ls) {
+            license_get_status(ls);
+            static const char *const lic_states[] = { "da_attivare", "attivo", "in_scadenza", "extra_scaduti", "revocato" };
+            cJSON *lj = cJSON_AddObjectToObject(root, "license");
+            cJSON_AddStringToObject(lj, "state", ls->state <= LIC_STATE_REVOKED ? lic_states[ls->state] : "da_attivare");
+            cJSON_AddBoolToObject(lj, "enforce", ls->enforce);
+            cJSON_AddStringToObject(lj, "customer", ls->customer);
+            cJSON_AddStringToObject(lj, "chip", ls->chip);
+            cJSON_AddNumberToObject(lj, "issued", (double) ls->issued);
+            cJSON_AddNumberToObject(lj, "last_contact", (double) ls->last_contact);
+            cJSON_AddBoolToObject(lj, "busy", ls->busy);
+            cJSON_AddStringToObject(lj, "msg", ls->last_msg);
+            cJSON_AddStringToObject(lj, "server", ls->server);
+            cJSON_AddStringToObject(lj, "terms_version", LICENSE_TERMS_VERSION);
+            cJSON *fj = cJSON_AddObjectToObject(lj, "features");
+            for (int f = 0; f < LIC_COUNT; f++) {
+                cJSON *one = cJSON_AddObjectToObject(fj, license_feature_code((license_feature_t) f));
+                cJSON_AddNumberToObject(one, "expiry", (double) ls->expiry[f]);
+                cJSON_AddBoolToObject(one, "granted", ls->granted_boot[f]);
+            }
+            free(ls);
         }
     }
 
@@ -2671,6 +2698,64 @@ static esp_err_t wifi_forget_known_post_handler(httpd_req_t *req)
 
 // Misura della posizione base (base_measure.c): {"action":"start"} (RTK),
 // {"action":"start_has","hours":6} (Galileo HAS) o {"action":"cancel"}. In entrambi i casi il dispositivo si riavvia.
+// Licenza: {"action":"activate","code":..,"who":..,"terms":true,"clauses_1341":true}
+// | {"action":"renew"} | {"action":"server","url":".."} (vuoto = predefinito).
+static esp_err_t license_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    char buf[384] = {0};
+    int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
+    int received = 0;
+    while (received < len) {
+        int r = httpd_req_recv(req, buf + received, len - received);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
+            return ESP_FAIL;
+        }
+        received += r;
+    }
+    cJSON *root = cJSON_Parse(buf);
+    const cJSON *action = root ? cJSON_GetObjectItemCaseSensitive(root, "action") : NULL;
+    const char *act = cJSON_IsString(action) ? action->valuestring : "";
+    char err[128] = "";
+    bool ok = false;
+    if (strcmp(act, "activate") == 0) {
+        license_activation_t a = { 0 };
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "code");
+        if (cJSON_IsString(it)) {
+            strlcpy(a.code, it->valuestring, sizeof(a.code));
+        }
+        it = cJSON_GetObjectItemCaseSensitive(root, "who");
+        if (cJSON_IsString(it)) {
+            strlcpy(a.who, it->valuestring, sizeof(a.who));
+        }
+        a.terms = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "terms"));
+        a.clauses_1341 = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "clauses_1341"));
+        ok = license_request_activate(&a, err, sizeof(err));
+    } else if (strcmp(act, "renew") == 0) {
+        ok = license_request_renew(err, sizeof(err));
+    } else if (strcmp(act, "server") == 0) {
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "url");
+        ok = license_set_server(cJSON_IsString(it) ? it->valuestring : "", err, sizeof(err));
+    } else {
+        snprintf(err, sizeof(err), "azione sconosciuta");
+    }
+    cJSON_Delete(root);
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    if (!ok) {
+        cJSON_AddStringToObject(resp, "error", err);
+    }
+    char *json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json ? json : "{\"ok\":false}");
+    free(json);
+    return ESP_OK;
+}
+
 static esp_err_t base_measure_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -3187,6 +3272,8 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &ppp_log_dl_uri);
     httpd_register_uri_handler(server, &fw_archive_list_uri);
     httpd_register_uri_handler(server, &fw_archive_apply_uri);
+    httpd_uri_t license_uri = { .uri = "/api/license", .method = HTTP_POST, .handler = license_post_handler };
+    httpd_register_uri_handler(server, &license_uri);
 
     ESP_LOGI(TAG, "Server web di gestione avviato");
 }

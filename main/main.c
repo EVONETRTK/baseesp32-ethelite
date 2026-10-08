@@ -55,6 +55,7 @@
 #include "config_backup.h"
 #include "raw_log.h"
 #include "base_selfpos.h"
+#include "license.h"
 
 static const char *TAG = "main";
 
@@ -83,7 +84,10 @@ static void base_forward_rtcm_frame(const uint8_t *frame, size_t len)
     rtcm3_stats_feed(frame, len);
     ntrip_caster_server_feed(frame, len);
     ppp_log_feed(frame, len);
-    xStreamBufferSend(rtcm_stream, frame, len, pdMS_TO_TICKS(1000));
+    // Senza attivazione il client NTRIP non parte: niente coda che si riempie.
+    if (license_has(LIC_RTK)) {
+        xStreamBufferSend(rtcm_stream, frame, len, pdMS_TO_TICKS(1000));
+    }
 }
 
 // Modalita' BASE: legge il flusso del GNSS, lo separa (base_stream_demux.c)
@@ -190,6 +194,7 @@ void app_main(void)
         // gia' andato in overflow per questo (vedi sdkconfig.defaults).
         settings_get_into(&s_boot_cfg);
         pending_restart_snapshot(&s_boot_cfg); // prima del riconoscimento del ricevitore
+        license_init(); // funzioni concesse in questo avvio (fisse fino al riavvio)
         status_set_active_rover(s_boot_cfg.device_mode == DEVICE_MODE_ROVER);
         s_gnss_i2c_found = gnss_i2c_probe(s_boot_cfg.oled_sda_pin, s_boot_cfg.oled_scl_pin);
     }
@@ -302,13 +307,19 @@ void app_main(void)
         // gia' incontrato piu' volte in questo progetto per altri task.
         // Misura della posizione con Galileo HAS: le correzioni arrivano dai
         // satelliti, nessun caster da contattare.
-        if (!base_measure_is_has()) {
+        if (!license_has(LIC_RTK)) {
+            ESP_LOGW(TAG, "Ricevitore non attivato: nessuna correzione dal caster (attivalo da Manutenzione -> Licenza)");
+        } else if (!base_measure_is_has()) {
             xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
                         (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
         }
         base_measure_start_if_active(); // misura della posizione base in corso
     } else {
-        xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
+        if (license_has(LIC_RTK)) {
+            xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
+        } else {
+            ESP_LOGW(TAG, "Ricevitore non attivato: nessun invio al caster (attivalo da Manutenzione -> Licenza)");
+        }
         ntrip_caster_server_start(); // non fa nulla se disattivato in settings
     }
 

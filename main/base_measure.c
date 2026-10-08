@@ -1,4 +1,5 @@
 #include "base_measure.h"
+#include "license.h"
 #include "gnss_detect.h"
 #include "settings.h"
 #include "sys_stats.h"
@@ -451,6 +452,10 @@ bool base_measure_request_start(char *err, size_t err_size)
 
 bool base_measure_request_start_has(int hours, char *err, size_t err_size)
 {
+    if (!license_has(LIC_HAS)) {
+        snprintf(err, err_size, "La misura con Galileo HAS non e' compresa nella licenza di questo ricevitore");
+        return false;
+    }
     measure_view_t v;
     settings_peek(peek_view, &v);
     if (v.chip != GNSS_CHIP_UNICORE && v.chip != GNSS_CHIP_COMNAV) {
