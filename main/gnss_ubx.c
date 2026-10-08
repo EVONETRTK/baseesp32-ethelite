@@ -7,6 +7,7 @@
 #include "status.h"
 #include "esp_timer.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include "esp_log.h"
@@ -100,8 +101,12 @@ static size_t ubx_key_value_size(uint32_t key)
     }
 }
 
+// L'ultimo CFG-VALSET e' stato rifiutato (ACK-NAK): vedi ubx_valset_group().
+static bool s_last_nak;
+
 static esp_err_t ubx_valset(uart_port_t uart_num, const char *label, const ubx_cfg_kv32_t *kvs, size_t n)
 {
+    s_last_nak = false;
     if (n > 32) {
         return ESP_ERR_INVALID_SIZE;
     }
@@ -159,6 +164,7 @@ static esp_err_t ubx_valset(uart_port_t uart_num, const char *label, const ubx_c
     } else {
         ESP_LOGI(TAG, "[%s] Configurazione accettata dal ricevitore (UBX-ACK-ACK)", label);
     }
+    s_last_nak = answered && !acked;
 
     return ESP_OK;
 }
@@ -179,6 +185,53 @@ static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
                                    const ubx_cfg_kv32_t *kvs, size_t n);
 static void svin_poll_task(void *arg);
 
+// Modello del ricevitore (UBX-MON-VER, letto in modo asincrono da
+// gnss_ubx_ack.c): serve a sapere se e' uno ZED-X20P prima di configurarlo.
+// Via I2C, con lo ZED rimasto acceso durante il riavvio dell'ESP32, la prima
+// risposta si perde (log del 07/10/2026: arrivava solo 27 s dopo, dal
+// controllo periodico): fino a 4 richieste, ognuna con la finestra di
+// ascolto aperta 1,2 s come in svin_poll_task.
+static void wait_model(uart_port_t uart_num)
+{
+    gnss_ubx_poll_version(uart_num);
+    for (int i = 0; i < 4 && !gnss_ubx_ack_model()[0]; i++) {
+        if (ubx_send(uart_num, 0x0A, 0x04, NULL, 0) == ESP_OK) {
+            gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
+        }
+    }
+    vTaskDelay(pdMS_TO_TICKS(100)); // anche le righe FWVER dopo MOD
+    ESP_LOGI(TAG, "Ricevitore u-blox: %s", gnss_ubx_ack_model()[0] ? gnss_ubx_ack_model() : "modello non letto");
+}
+
+// Segnali dello X20P gia' configurati (all'avvio o, se il modello e' arrivato
+// tardi, da svin_poll_task).
+static bool s_x20p_signals_done;
+
+static bool model_is_x20(void)
+{
+    return strstr(gnss_ubx_ack_model(), "X20") != NULL;
+}
+
+// ZED-X20P: piano dei segnali e costellazioni come nella base Raspberry
+// (ELT_RTKBase, Install/X20P_RTCM3_OUT.txt, configurazione usata sul campo;
+// chiavi da NmeaConf/ubxmgs.cpp dello stesso progetto). Il X20P non riceve
+// tutte le bande insieme: il piano 1 e' quello scelto li'. Solo in RAM come
+// il resto, rimandato a ogni avvio.
+static void configure_x20p_signals(uart_port_t uart_num)
+{
+    const ubx_cfg_kv32_t kvs[] = {
+        { 0x2031003a, 1 }, // CFG-SIGNAL-PLAN = 1
+        { 0x10310020, 0 }, // CFG-SIGNAL-SBAS_ENA: niente SBAS (base e rover RTK)
+        { 0x1031000a, 1 }, // CFG-SIGNAL-GAL_E5B_ENA
+        { 0x1031000e, 1 }, // CFG-SIGNAL-BDS_B2_ENA
+        { 0x20340009, 1 }, // CFG-BDS-D1D2_NAVDATA
+    };
+    ubx_valset_group(uart_num, "SEGNALI X20P", kvs, sizeof(kvs) / sizeof(kvs[0]));
+    // Il cambio dei segnali riavvia il motore GNSS del modulo.
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    s_x20p_signals_done = true;
+}
+
 esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
 {
     bool i2c = gnss_io_is_i2c();
@@ -191,8 +244,10 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
         ESP_LOGW(TAG, "1007/1008/1019/1020 richiesti nelle impostazioni ma non supportati da u-blox in uscita: ignorati");
     }
 
-    gnss_ubx_poll_version(uart_num);
-    vTaskDelay(pdMS_TO_TICKS(300)); // tempo per la risposta, loggata in modo asincrono
+    wait_model(uart_num);
+    if (model_is_x20()) {
+        configure_x20p_signals(uart_num);
+    }
 
     // Ogni chiave CFG-MSGOUT esiste per porta, in ordine I2C, UART1, UART2,
     // USB, SPI: la variante _I2C vale quella _UART1 meno 1.
@@ -287,6 +342,25 @@ static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
     esp_err_t err = ubx_valset(uart_num, group_name, kvs, n);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "[%s] invio fallito verso il ricevitore", group_name);
+        return err;
+    }
+    // Gruppo rifiutato: una chiave che questo modulo non conosce (per
+    // esempio un messaggio RTCM che lo ZED-X20P non ha) farebbe cadere anche
+    // tutte le altre. Si rimandano una per una: passano quelle valide e il
+    // log dice quali sono rifiutate.
+    if (s_last_nak && n > 1) {
+        ESP_LOGW(TAG, "[%s] rifiutato in blocco: riprovo chiave per chiave", group_name);
+        int rejected = 0;
+        for (size_t i = 0; i < n; i++) {
+            char label[48];
+            snprintf(label, sizeof(label), "%s 0x%08lx", group_name, (unsigned long) kvs[i].key);
+            ubx_valset(uart_num, label, &kvs[i], 1);
+            if (s_last_nak) {
+                rejected++;
+            }
+        }
+        ESP_LOGW(TAG, "[%s] %d chiavi su %u rifiutate da questo modulo, le altre applicate",
+                 group_name, rejected, (unsigned) n);
     }
     return err;
 }
@@ -323,6 +397,11 @@ static void svin_poll_task(void *arg)
         if (loop_count % 6 == 3 && gnss_ubx_ack_model()[0] == 0 &&
             ubx_send(uart_num, 0x0A, 0x04, NULL, 0) == ESP_OK) {
             gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
+        }
+        // Modello arrivato solo ora ed e' uno X20P: segnali da configurare.
+        if (!s_x20p_signals_done && model_is_x20()) {
+            ESP_LOGW(TAG, "ZED-X20P riconosciuto in ritardo: configuro ora i segnali");
+            configure_x20p_signals(uart_num);
         }
         // Ora dai satelliti finche' l'NTP non risponde (time_sync.c):
         // UBX-NAV-TIMEUTC (0x01 0x21), letto da gnss_ubx_ack.c.
@@ -415,8 +494,10 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
     bool i2c = gnss_io_is_i2c();
     ESP_LOGI(TAG, "Configuro ricevitore u-blox come rover (riceve RTCM3, emette NMEA/GGA su %s)", i2c ? "I2C" : "UART1");
 
-    gnss_ubx_poll_version(uart_num);
-    vTaskDelay(pdMS_TO_TICKS(300)); // tempo per la risposta, loggata in modo asincrono
+    wait_model(uart_num);
+    if (model_is_x20()) {
+        configure_x20p_signals(uart_num);
+    }
 
     const ubx_cfg_kv32_t kvs_mode[] = {
         { 0x20030001, 0 },    // CFG-TMODE-MODE = 0 (disabilitato: non e' una base fissa)

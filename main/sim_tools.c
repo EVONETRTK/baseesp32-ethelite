@@ -311,6 +311,160 @@ static void do_credit(bool automatic)
     }
 }
 
+// --- ICCID, IMEI e numero ---------------------------------------------------
+
+// ICCID per i confronti: solo cifre, senza la F finale di alcune SIM.
+static void iccid_norm(const char *in, char *out, size_t out_size)
+{
+    size_t n = 0;
+    for (; *in && n < out_size - 1; in++) {
+        char c = (char) toupper((unsigned char) *in);
+        if ((c >= '0' && c <= '9') || c == 'F') {
+            out[n++] = c;
+        }
+    }
+    while (n > 0 && out[n - 1] == 'F') n--;
+    out[n] = '\0';
+}
+
+// Numero compatto per il modem: + iniziale e cifre.
+static void number_compact(const char *in, char *out, size_t out_size)
+{
+    size_t n = 0;
+    for (; *in && n < out_size - 1; in++) {
+        if ((*in >= '0' && *in <= '9') || (*in == '+' && n == 0)) {
+            out[n++] = *in;
+        }
+    }
+    out[n] = '\0';
+}
+
+// Stesso numero con o senza prefisso internazionale: ultime 9 cifre.
+static bool same_number(const char *a, const char *b)
+{
+    char da[20], db[20];
+    size_t la = 0, lb = 0;
+    for (; *a && la < sizeof(da) - 1; a++) if (*a >= '0' && *a <= '9') da[la++] = *a;
+    for (; *b && lb < sizeof(db) - 1; b++) if (*b >= '0' && *b <= '9') db[lb++] = *b;
+    if (la < 6 || lb < 6) {
+        return false;
+    }
+    size_t k = la < lb ? la : lb;
+    if (k > 9) k = 9;
+    return memcmp(da + la - k, db + lb - k, k) == 0;
+}
+
+// Ultimi ICCID e IMEI letti, per mostrarli anche con il modem spento e per
+// accorgersi all'avvio di una SIM o di un modem sostituiti.
+static void save_ids(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "iccid", s_st.iccid);
+        nvs_set_str(h, "imei", s_st.imei);
+        nvs_set_u32(h, "ids_at", (uint32_t) s_st.ids_at);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+// Lettura di IMEI, ICCID e numero una volta per avvio, quando il modem
+// risponde (l'ICCID solo con la SIM inserita; il numero puo' mancare nella
+// SIM: risposta vuota = finito). Poi, se la SIM non contiene il numero, ci
+// copia quello scritto a mano nel pannello.
+static void read_ids(void)
+{
+    static bool s_imei_done, s_iccid_done, s_number_done;
+    static char s_write_tried[20]; // numero gia' provato a scrivere nella SIM
+    static char a[24], b[24];      // statici: lo stack del task e' condiviso
+
+    if ((!s_imei_done || !s_iccid_done || !s_number_done) && cellular_link_modem_present()) {
+        char val[24];
+        bool got = false;
+        if (!s_imei_done && cellular_link_get_imei(val, sizeof(val))) {
+            s_imei_done = got = true;
+            bool changed = s_st.imei[0] && strcmp(s_st.imei, val) != 0;
+            if (changed) {
+                ESP_LOGW(TAG, "Modem sostituito: IMEI %s, prima %s", val, s_st.imei);
+                snprintf(s_resp, sizeof(s_resp), "EVONETRTK %s: modem sostituito. IMEI nuovo %s, prima %s.",
+                         s_cfg->device_serial, val, s_st.imei);
+            }
+            lock();
+            if (changed) {
+                strlcpy(s_st.imei_prev, s_st.imei, sizeof(s_st.imei_prev));
+            }
+            strlcpy(s_st.imei, val, sizeof(s_st.imei));
+            s_st.imei_live = true;
+            unlock();
+            if (changed) {
+                alerts_send_now(s_cfg, "EVONETRTK - modem sostituito", s_resp);
+            }
+        }
+        if (!s_iccid_done && cellular_link_get_iccid(val, sizeof(val))) {
+            s_iccid_done = got = true;
+            // Riferimento: l'ultimo letto; se mai letto, quello scritto a mano.
+            const char *ref = s_st.iccid[0] ? s_st.iccid : s_cfg->sim_iccid_cfg;
+            iccid_norm(val, a, sizeof(a));
+            iccid_norm(ref, b, sizeof(b));
+            bool changed = b[0] && strcmp(a, b) != 0;
+            if (changed) {
+                ESP_LOGW(TAG, "SIM cambiata: ICCID %s, prima %s", val, ref);
+                snprintf(s_resp, sizeof(s_resp), "EVONETRTK %s: SIM dati cambiata. ICCID nuovo %s, prima %s. Aggiorna il numero di telefono nel pannello.",
+                         s_cfg->device_serial, val, ref);
+            }
+            lock();
+            if (changed) {
+                strlcpy(s_st.iccid_prev, ref, sizeof(s_st.iccid_prev));
+            }
+            strlcpy(s_st.iccid, val, sizeof(s_st.iccid));
+            s_st.iccid_live = true;
+            unlock();
+            if (changed) {
+                alerts_send_now(s_cfg, "EVONETRTK - SIM cambiata", s_resp);
+            }
+        }
+        if (got) {
+            time_t now = time(NULL);
+            if (now > 1700000000) { // ora gia' valida (NTP o satelliti)
+                lock();
+                s_st.ids_at = now;
+                unlock();
+            }
+            save_ids();
+        }
+        char phone[20];
+        if (!s_number_done && cellular_link_get_number(phone, sizeof(phone))) {
+            s_number_done = true;
+            lock();
+            strlcpy(s_st.phone, phone, sizeof(s_st.phone));
+            unlock();
+        }
+    }
+
+    // Numero scritto a mano copiato nella SIM se la SIM non ne contiene
+    // uno: una volta per numero e per avvio. Mai con una SIM appena cambiata
+    // (il numero a mano sarebbe quello della SIM di prima), mai sopra un
+    // numero che la SIM ha gia'.
+    if (s_number_done && s_iccid_done && !s_st.phone[0] && !s_st.iccid_prev[0] && s_cfg->sim_phone[0]) {
+        number_compact(s_cfg->sim_phone, a, sizeof(a));
+        if (strlen(a) >= 6 && strcmp(a, s_write_tried) != 0) {
+            strlcpy(s_write_tried, a, sizeof(s_write_tried));
+            char phone[20];
+            if (cellular_link_write_number(a) && cellular_link_get_number(phone, sizeof(phone)) && same_number(phone, a)) {
+                lock();
+                strlcpy(s_st.phone, phone, sizeof(s_st.phone));
+                s_st.number_written = true;
+                unlock();
+                ESP_LOGI(TAG, "Numero %s scritto nella SIM", a);
+                set_msg("Numero %s scritto nella SIM: ora la SIM lo conosce anche in un'altra base", a);
+            } else {
+                ESP_LOGW(TAG, "La SIM non accetta la scrittura del numero %s", a);
+                set_msg("La SIM non accetta la scrittura del numero %s: resta salvato solo nella base", a);
+            }
+        }
+    }
+}
+
 // --- richieste --------------------------------------------------------------
 
 bool sim_tools_request(sim_action_t action, const char *a, const char *b, char *err, size_t err_size)
@@ -375,6 +529,14 @@ static void run_action(sim_action_t act)
                 s_sms[0] = '\0';
             }
             break;
+        case SIM_ACT_FIND_NUMBER:
+            // Testo senza accenti (alfabeto GSM) e sotto i 160 caratteri.
+            snprintf(s_resp, sizeof(s_resp), "EVONETRTK %s: SMS di prova dalla SIM dati. Il mittente "
+                     "di questo SMS e' il numero della SIM: scrivilo nel pannello, scheda SIM.", s_cfg->device_serial);
+            set_msg(cellular_link_send_sms(s_arg_a, s_resp)
+                        ? "SMS di prova inviato a %s: il mittente che vedi sul telefono e' il numero della SIM"
+                        : "Invio dell'SMS di prova a %s fallito (SIM, credito o segnale)", s_arg_a);
+            break;
         default:
             break;
         }
@@ -412,15 +574,7 @@ void sim_tools_tick(const app_settings_t *cfg)
         s_sms = NULL;
     }
 
-    // ICCID una volta, quando il modem risponde.
-    if (!s_st.iccid[0] && cellular_link_modem_present()) {
-        char iccid[24];
-        if (cellular_link_get_iccid(iccid, sizeof(iccid))) {
-            lock();
-            strncpy(s_st.iccid, iccid, sizeof(s_st.iccid) - 1);
-            unlock();
-        }
-    }
+    read_ids();
 
     // Controllo automatico: ogni N giorni, dall'ora scelta.
     time_t now = time(NULL);
@@ -491,6 +645,13 @@ void sim_tools_start(void)
             s_st.credit_eur_valid = cents >= 0;
             s_st.credit_eur = cents / 100.0f;
         }
+        len = sizeof(s_st.iccid);
+        nvs_get_str(h, "iccid", s_st.iccid, &len);
+        len = sizeof(s_st.imei);
+        nvs_get_str(h, "imei", s_st.imei, &len);
+        uint32_t ids_at = 0;
+        nvs_get_u32(h, "ids_at", &ids_at);
+        s_st.ids_at = (time_t) ids_at;
         nvs_close(h);
     }
 }

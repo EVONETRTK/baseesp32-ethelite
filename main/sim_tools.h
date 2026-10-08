@@ -18,6 +18,7 @@ typedef enum {
     SIM_ACT_SMS,        // numero (a) e testo (b) scritti al momento
     SIM_ACT_READ_SMS,
     SIM_ACT_DELETE_SMS,
+    SIM_ACT_FIND_NUMBER, // SMS di prova al numero (a): il mittente e' il numero della SIM
 } sim_action_t;
 
 // false (con motivo in err) se un'altra operazione e' in corso.
@@ -38,7 +39,15 @@ typedef struct {
     char credit_text[200];
     bool credit_eur_valid;
     float credit_eur;
-    char iccid[24];
+    char iccid[24];            // dal modem; dopo un riavvio, l'ultimo letto (salvato)
+    char phone[20];            // dal modem (AT+CNUM), spesso vuoto
+    char imei[20];             // dal modem (AT+CGSN); come iccid
+    bool iccid_live;           // iccid letto dal modem dopo l'ultimo avvio
+    bool imei_live;
+    time_t ids_at;             // ultima lettura di ICCID/IMEI (0 = mai)
+    char iccid_prev[24];       // SIM di prima, se all'avvio e' diversa (SIM cambiata)
+    char imei_prev[20];        // modem di prima, se all'avvio e' diverso (modem sostituito)
+    bool number_written;       // numero scritto a mano copiato nella SIM in questo avvio
 } sim_tools_status_t;
 
 void sim_tools_get_status(sim_tools_status_t *out);

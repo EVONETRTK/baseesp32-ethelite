@@ -21,6 +21,11 @@ typedef enum {
     // Quectel L76K: GPS di navigazione degli shield LilyGO, NON RTK - solo
     // per le prove in rover, vedi gnss_l76k.h.
     GNSS_CHIP_L76K = 5,
+    // Riconoscimento all'avvio (gnss_detect.c): u-blox o Unicore, su I2C o
+    // seriale a qualunque velocita' comune. Predefinito per le basi nuove.
+    GNSS_CHIP_AUTO = 6,
+    // ComNav / SinoGNSS K922 e serie K: comandi in stile NovAtel, vedi gnss_comnav.h.
+    GNSS_CHIP_COMNAV = 7,
 } gnss_chip_t;
 
 typedef enum {
@@ -403,6 +408,31 @@ typedef struct {
     char vpn_endpoint[64];        // server: nome o IP
     uint16_t vpn_port;            // 0 = 51820
     uint16_t vpn_keepalive_s;     // 0 = 25 s
+
+    // Dati della SIM dati scritti a mano (1.20.0; dalla 1.21.0 l'ICCID a mano
+    // serve solo finche' il modem non l'ha mai letto): il numero di telefono il
+    // modem spesso non lo conosce (AT+CNUM vuoto con molte SIM italiane) e
+    // l'ICCID serve anche senza modem montato (scheda di accesso stampata).
+    char sim_phone[20];           // es. +39 351 1234567
+    char sim_iccid_cfg[24];       // solo cifre (ed eventuale F finale)
+
+    // Misura della posizione della base (1.24.0): 0 = RTK da un'altra stazione
+    // (come prima), 1 = Galileo HAS (PPP, senza caster; solo Unicore UM98x).
+    // base_measure_has_hours = durata della media HAS (0 = 6 ore).
+    uint8_t base_measure_method;
+    uint8_t base_measure_has_hours;
+
+    // Rover (1.25.0): Galileo HAS come riserva quando mancano le correzioni
+    // RTK (solo Unicore UM98x). Fuori dall'RTK le posizioni NMEA vengono
+    // convertite da ITRF2020 a ETRF2000 (nmea_etrf.c), il sistema delle basi.
+    bool rover_has_fallback;
+
+    // ComNav K922 in rover (1.26.0): INS con l'IMU a bordo e prua a doppia
+    // antenna. comnav_imu_axes = montaggio del modulo, 1-8 (0 = 1), vedi
+    // "K-series OEM Board User Guide" cap. 4.6.
+    bool comnav_ins_enable;
+    uint8_t comnav_imu_axes;
+    bool comnav_heading_enable;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

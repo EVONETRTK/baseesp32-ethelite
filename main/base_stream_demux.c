@@ -1,6 +1,8 @@
 #include "base_stream_demux.h"
 #include "gnss_fix.h"
 #include "gnss_signal.h"
+#include "gnss_unicore.h"
+#include "gnss_comnav.h"
 
 #include <string.h>
 
@@ -9,7 +11,7 @@
 #define RTCM_PREAMBLE       0xD3
 #define RTCM_MAX_PAYLOAD    1023
 #define RTCM_MAX_FRAME      (3 + RTCM_MAX_PAYLOAD + 3)
-#define NMEA_MAX_LINE       128
+#define NMEA_MAX_LINE       256 // anche le righe ASCII Unicore con '#' (#VERSIONA ~200 caratteri)
 
 typedef enum {
     ST_IDLE = 0,
@@ -64,6 +66,11 @@ static void rtcm_frame_done(base_demux_rtcm_cb_t on_rtcm)
 static void nmea_line_done(void)
 {
     s_nmea[s_nmea_pos] = '\0';
+    if (s_nmea[0] == '#') {
+        gnss_unicore_note_line(s_nmea);
+        gnss_comnav_note_line(s_nmea);
+        return;
+    }
     // '$' + talker (2 caratteri) + tipo (3), es. "$GNGGA", "$GPGSV".
     if (s_nmea_pos > 6) {
         if (memcmp(&s_nmea[3], "GGA", 3) == 0) {
@@ -85,8 +92,8 @@ void base_stream_demux_feed(const uint8_t *buf, size_t len, base_demux_rtcm_cb_t
                 s_rtcm_pos = 1;
                 s_rtcm_total = 0;
                 s_state = ST_RTCM;
-            } else if (c == '$') {
-                s_nmea[0] = '$';
+            } else if (c == '$' || c == '#') {
+                s_nmea[0] = (char) c;
                 s_nmea_pos = 1;
                 s_state = ST_NMEA;
             } else if (c == 0xB5) {

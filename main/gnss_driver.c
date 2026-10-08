@@ -4,6 +4,7 @@
 #include "gnss_lc29h.h"
 #include "gnss_bynav.h"
 #include "gnss_l76k.h"
+#include "gnss_comnav.h"
 
 esp_err_t gnss_driver_configure(uart_port_t uart_num, gnss_chip_t chip, device_mode_t mode)
 {
@@ -30,6 +31,10 @@ esp_err_t gnss_driver_configure(uart_port_t uart_num, gnss_chip_t chip, device_m
         // assetto), vedi gnss_bynav_m21d_configure_rover().
         return (mode == DEVICE_MODE_ROVER) ? gnss_bynav_m21d_configure_rover(uart_num)
                                             : gnss_bynav_configure_base(uart_num);
+    }
+    if (chip == GNSS_CHIP_COMNAV) {
+        return (mode == DEVICE_MODE_ROVER) ? gnss_comnav_configure_rover(uart_num)
+                                            : gnss_comnav_configure_base(uart_num);
     }
     if (chip == GNSS_CHIP_L76K) {
         return (mode == DEVICE_MODE_ROVER) ? gnss_l76k_configure_rover(uart_num)

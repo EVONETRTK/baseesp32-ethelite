@@ -6,6 +6,14 @@
 #include "gnss_signal.h"
 #include "gnss_fix.h"
 #include "gnss_ubx_ack.h"
+#include "gnss_unicore.h"
+#include "gnss_comnav.h"
+#include "nmea_etrf.h"
+#include "etrf.h"
+#include "settings.h"
+#include "esp_timer.h"
+#include <time.h>
+#include <math.h>
 #include "ntrip_rover_client.h"
 #include "status.h"
 
@@ -123,12 +131,99 @@ static void nmea_rmc_time(const char *line)
     time_sync_from_gnss(2000 + yy, mo, dd, hh, mi, ss);
 }
 
+// Riserva Galileo HAS (settings.rover_has_fallback, letta all'avvio come
+// la configurazione del ricevitore). Le correzioni RTK valgono se l'ultimo
+// RTCM dal caster e' arrivato da meno di questo tempo.
+#define RTK_FRESH_US (60LL * 1000000)
+
+static bool s_has_fallback;
+static bool s_convert;        // ultima GGA fuori dall'RTK: converti anche RMC
+static double s_h_ell_m;      // ultima quota ellissoidica, per RMC
+static const char *s_has_state = "";
+
+static void peek_has(const app_settings_t *s, void *ctx)
+{
+    *(bool *) ctx = s->rover_has_fallback;
+}
+
+const char *gnss_nmea_reader_has_state(void)
+{
+    return s_has_state;
+}
+
+// In RTK le coordinate sono nel sistema della base (ETRF2000); fuori
+// dall'RTK (HAS o autonome) sono ITRF: riscritte in ETRF2000 prima di
+// andare ad AgOpenGPS, al caster e al pannello. Cosi' passando da RTK a HAS
+// e ritorno la posizione non salta di ~1 m.
+// Soluzione HAS (PPPNAVA dell'UM98x) usabile per il rover: recente e con
+// incertezza e correzioni nei limiti (stessi della misura della base).
+#define HAS_PPP_FRESH_US     (3LL * 1000000)
+#define HAS_PPP_MAX_SIGMA_M  1.5f
+#define HAS_PPP_MAX_AGE_S    30.0f
+#define HAS_PPP_MAX_JUMP_M   10.0 // HAS lontana piu' di cosi' dalla posizione autonoma = salto
+                                 // (07/10: normale 1-3 m, salto 17 m con incertezza dichiarata 1,4 m)
+#define GGA_QUALITY_HAS      2    // "corretta (DGPS)": non e' RTK, ma non e' autonoma
+
+static gnss_unicore_ppp_t s_ppp;  // ultima soluzione HAS usabile, valida per la riga RMC che segue la GGA
+static bool s_use_ppp;
+
+static void has_fallback_line(char *line, size_t *len)
+{
+    bool gga = memcmp(&line[3], "GGA", 3) == 0;
+    if (!gga && memcmp(&line[3], "RMC", 3) != 0) {
+        return;
+    }
+    if (gga) {
+        int q = nmea_gga_quality(line);
+        int64_t now_us = esp_timer_get_time();
+        int64_t last = status_get_last_rtcm_time_us();
+        bool fresh = last > 0 && now_us - last < RTK_FRESH_US;
+        // 6 = soluzione inerziale (INS) che prosegue l'RTK: stesso sistema della base.
+        bool rtk = (q == 4 || q == 5 || q == 6) && fresh;
+        s_convert = q >= 1 && !rtk;
+        // Con l'UM982 la soluzione HAS non e' nella GGA (resta autonoma,
+        // prova del 07/10/2026): si prende dal log PPPNAVA.
+        gnss_unicore_ppp_get(&s_ppp);
+        s_use_ppp = s_convert && s_ppp.valid && now_us - s_ppp.at_us < HAS_PPP_FRESH_US &&
+                    s_ppp.corr_age_s <= HAS_PPP_MAX_AGE_S &&
+                    hypotf(s_ppp.sig_lat_m, s_ppp.sig_lon_m) <= HAS_PPP_MAX_SIGMA_M;
+        double h;
+        if (nmea_gga_ellipsoidal_height(line, &h)) {
+            s_h_ell_m = h;
+        }
+        if (s_use_ppp) {
+            double alat, alon; // posizione autonoma di questa stessa riga GGA, prima di riscriverla
+            if (nmea_gga_latlon(line, &alat, &alon)) {
+                double dn = (s_ppp.lat_deg - alat) * 111320.0;
+                double de = (s_ppp.lon_deg - alon) * 111320.0 * cos(alat * M_PI / 180.0);
+                if (hypot(dn, de) > HAS_PPP_MAX_JUMP_M) {
+                    s_use_ppp = false;
+                }
+            }
+        }
+        s_has_state = q < 1 ? "" : (rtk ? "rtk" : (s_use_ppp ? "has" : "autonoma"));
+    }
+    time_t now = time(NULL);
+    if (!s_convert || now < 1700000000) { // senza ora valida niente epoca: riga com'e'
+        return;
+    }
+    double epoch = etrf_decimal_year(now);
+    bool ok = s_use_ppp
+        ? nmea_etrf_set_position(line, LINE_BUF_SIZE, epoch, s_ppp.lat_deg, s_ppp.lon_deg, s_ppp.h_ell_m,
+                                 GGA_QUALITY_HAS, s_ppp.corr_age_s)
+        : nmea_etrf_convert(line, LINE_BUF_SIZE, epoch, s_h_ell_m);
+    if (ok) {
+        *len = strlen(line);
+    }
+}
+
 void gnss_nmea_reader_task(void *arg)
 {
     (void) arg; // porta verso il ricevitore gestita da gnss_io (seriale o I2C)
     uint8_t read_buf[READ_BUF_SIZE];
     char line[LINE_BUF_SIZE];
     size_t line_len = 0;
+    settings_peek(peek_has, &s_has_fallback);
 
     while (1) {
         sys_stats_heartbeat(HB_GNSS);
@@ -149,6 +244,9 @@ void gnss_nmea_reader_task(void *arg)
             if (c == '\n') {
                 if (line_len > 6 && line[0] == '$') {
                     line[line_len] = '\0';
+                    if (s_has_fallback) {
+                        has_fallback_line(line, &line_len);
+                    }
 
                     nmea_udp_broadcast_send(line, line_len);
 
@@ -166,6 +264,8 @@ void gnss_nmea_reader_task(void *arg)
                 } else if (line_len > 10 && line[0] == '#') {
                     line[line_len] = '\0';
                     handle_bynav_line(line);
+                    gnss_unicore_note_line(line);
+                    gnss_comnav_note_line(line);
                 }
                 line_len = 0;
             } else if (c != '\r') {

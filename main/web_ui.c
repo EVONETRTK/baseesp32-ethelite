@@ -16,6 +16,11 @@
 #include "sys_stats.h"
 #include "config_backup.h"
 #include "gnss_ubx_ack.h"
+#include "gnss_unicore.h"
+#include "gnss_detect.h"
+#include "pending_restart.h"
+#include "gnss_comnav.h"
+#include "gnss_nmea_reader.h"
 #include "vpn_link.h"
 #include "raw_log.h"
 #include "gnss_signal.h"
@@ -237,7 +242,7 @@ static esp_err_t require_auth(httpd_req_t *req)
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_sendstr(req,
         "<!doctype html><html lang=\"it\"><head><meta charset=\"utf-8\">"
-        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Accesso negato</title><link rel=\"icon\" type=\"image/png\" href=\"/icon192.png\"></head>"
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Accesso negato</title><link rel=\"icon\" type=\"image/png\" href=\"/icon192.png\"><link rel=\"apple-touch-icon\" href=\"/icon192.png\"></head>"
         "<body style=\"font-family:system-ui,Arial,sans-serif;max-width:520px;margin:40px auto;padding:0 16px;line-height:1.5\">"
         "<h2>Accesso negato</h2>"
         "<p>Per entrare nel pannello servono:</p>"
@@ -392,6 +397,8 @@ static const char *gnss_chip_str(gnss_chip_t c)
     case GNSS_CHIP_BYNAV:   return "bynav";
     case GNSS_CHIP_BYNAV_M21D: return "bynav_m21d";
     case GNSS_CHIP_L76K:    return "l76k";
+    case GNSS_CHIP_AUTO:    return "auto";
+    case GNSS_CHIP_COMNAV:  return "comnav";
     default:                return "ublox";
     }
 }
@@ -603,6 +610,15 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "now_us", (double) esp_timer_get_time());
     cJSON_AddNumberToObject(root, "last_online_update_check_us", (double) status_get_last_online_update_check_us());
     cJSON_AddStringToObject(root, "gnss_chip", gnss_chip_str(s.gnss_chip));
+    // Ricevitore in uso (con "automatico", quello trovato all'avvio) ed esito del riconoscimento.
+    cJSON_AddStringToObject(root, "gnss_chip_effective", gnss_chip_str(gnss_detect_effective(s.gnss_chip)));
+    cJSON_AddStringToObject(root, "gnss_detect_note", gnss_detect_note());
+    {
+        // Impostazioni salvate che valgono solo dopo il riavvio (barra nel pannello).
+        char pending[192];
+        pending_restart_describe(&s, pending, sizeof(pending));
+        cJSON_AddStringToObject(root, "pending_restart", pending);
+    }
     cJSON_AddNumberToObject(root, "bynav_ant1_x_m", s.bynav_ant1_x_m);
     cJSON_AddNumberToObject(root, "bynav_ant1_y_m", s.bynav_ant1_y_m);
     cJSON_AddNumberToObject(root, "bynav_ant1_z_m", s.bynav_ant1_z_m);
@@ -612,7 +628,13 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "bynav_rbv_roll_deg", s.bynav_rbv_roll_deg);
     cJSON_AddNumberToObject(root, "bynav_rbv_pitch_deg", s.bynav_rbv_pitch_deg);
     cJSON_AddNumberToObject(root, "bynav_rbv_yaw_deg", s.bynav_rbv_yaw_deg);
-    if (s.gnss_chip == GNSS_CHIP_BYNAV_M21D && s.device_mode == DEVICE_MODE_ROVER) {
+    // ComNav K922 (1.26.0): INS e prua a doppia antenna in rover.
+    cJSON_AddBoolToObject(root, "comnav_ins_enable", s.comnav_ins_enable);
+    cJSON_AddNumberToObject(root, "comnav_imu_axes", s.comnav_imu_axes ? s.comnav_imu_axes : 1);
+    cJSON_AddBoolToObject(root, "comnav_heading_enable", s.comnav_heading_enable);
+    // Prua/assetto da #HEADINGA (Bynav M21D e ComNav, stesso formato NovAtel).
+    if ((s.gnss_chip == GNSS_CHIP_BYNAV_M21D || gnss_detect_effective(s.gnss_chip) == GNSS_CHIP_COMNAV) &&
+        s.device_mode == DEVICE_MODE_ROVER) {
         bynav_ins_status_t ins = status_bynav_ins_get();
         cJSON_AddBoolToObject(root, "bynav_ins_have_attitude", ins.have_attitude);
         if (ins.have_attitude) {
@@ -712,6 +734,8 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddStringToObject(root, "sim_operator", s.sim_operator);
         cJSON_AddStringToObject(root, "remote_url", s.remote_url);
         cJSON_AddBoolToObject(root, "vpn_enable", s.vpn_enable);
+        cJSON_AddBoolToObject(root, "rover_has_fallback", s.rover_has_fallback);
+        cJSON_AddStringToObject(root, "rover_has_state", gnss_nmea_reader_has_state());
         cJSON_AddStringToObject(root, "vpn_address", s.vpn_address);
         cJSON_AddStringToObject(root, "vpn_peer_public_key", s.vpn_peer_public_key);
         cJSON_AddStringToObject(root, "vpn_endpoint", s.vpn_endpoint);
@@ -731,6 +755,22 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddBoolToObject(root, "sim_busy", st.busy);
         cJSON_AddStringToObject(root, "sim_last_msg", st.last_msg);
         cJSON_AddStringToObject(root, "sim_iccid", st.iccid);
+        cJSON_AddStringToObject(root, "sim_phone_read", st.phone);
+        cJSON_AddStringToObject(root, "sim_phone", s.sim_phone);
+        cJSON_AddStringToObject(root, "sim_iccid_cfg", s.sim_iccid_cfg);
+        cJSON_AddStringToObject(root, "sim_imei", st.imei);
+        cJSON_AddBoolToObject(root, "sim_iccid_live", st.iccid_live);
+        cJSON_AddBoolToObject(root, "sim_imei_live", st.imei_live);
+        cJSON_AddStringToObject(root, "sim_iccid_prev", st.iccid_prev);
+        cJSON_AddStringToObject(root, "sim_imei_prev", st.imei_prev);
+        cJSON_AddBoolToObject(root, "sim_number_written", st.number_written);
+        if (st.ids_at > 0) {
+            char when[24];
+            struct tm tm;
+            localtime_r(&st.ids_at, &tm);
+            strftime(when, sizeof(when), "%Y-%m-%d %H:%M", &tm);
+            cJSON_AddStringToObject(root, "sim_ids_at", when);
+        }
         if (st.credit_at > 0) {
             char when[24];
             struct tm tm;
@@ -747,8 +787,12 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "last_crash", sys_stats_last_crash());
     cJSON_AddStringToObject(root, "config_guard_note", config_backup_guard_note());
     cJSON_AddStringToObject(root, "time_source", time_sync_source());
-    cJSON_AddStringToObject(root, "gnss_model", gnss_ubx_ack_model());
-    cJSON_AddStringToObject(root, "gnss_fw", gnss_ubx_ack_fw());
+    // Modello del ricevitore: u-blox (UBX-MON-VER) o Unicore (VERSIONA).
+    bool gnss_uni = gnss_unicore_model()[0] != 0;
+    bool gnss_cn = !gnss_uni && gnss_comnav_model()[0] != 0;
+    cJSON_AddStringToObject(root, "gnss_vendor", gnss_uni ? "Unicore" : (gnss_cn ? "ComNav" : "u-blox"));
+    cJSON_AddStringToObject(root, "gnss_model", gnss_uni ? gnss_unicore_model() : (gnss_cn ? gnss_comnav_model() : gnss_ubx_ack_model()));
+    cJSON_AddStringToObject(root, "gnss_fw", gnss_uni ? gnss_unicore_fw() : (gnss_cn ? gnss_comnav_fw() : gnss_ubx_ack_fw()));
     {
         vpn_status_t vs;
         vpn_link_get_status(&vs);
@@ -891,6 +935,14 @@ static esp_err_t status_get_handler(httpd_req_t *req)
             cJSON_AddNumberToObject(root, "base_measure_target_n", mp.target_n);
             cJSON_AddNumberToObject(root, "base_measure_timeout_s", mp.timeout_s);
             cJSON_AddNumberToObject(root, "base_measure_quality", mp.quality);
+            cJSON_AddStringToObject(root, "base_measure_method", mp.method == BASE_MEASURE_HAS ? "has" : "rtk");
+            if (mp.method == BASE_MEASURE_HAS) {
+                cJSON_AddNumberToObject(root, "base_measure_has_done_s", mp.has_done_s);
+                cJSON_AddNumberToObject(root, "base_measure_has_target_s", mp.has_target_s);
+                cJSON_AddNumberToObject(root, "base_measure_has_warmup_s", mp.has_warmup_left_s);
+                cJSON_AddNumberToObject(root, "base_measure_has_sigma_cm", mp.has_sigma_cm);
+                cJSON_AddNumberToObject(root, "base_measure_has_corr_age_s", mp.has_corr_age_s);
+            }
         }
     }
     // Secondi dall'ultimo 1005/1006 inviato (-1 = mai dall'avvio).
@@ -1221,6 +1273,10 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         if (it && cJSON_IsBool(it)) {
             s.vpn_enable = cJSON_IsTrue(it);
         }
+        it = cJSON_GetObjectItemCaseSensitive(root, "rover_has_fallback");
+        if (it && cJSON_IsBool(it)) {
+            s.rover_has_fallback = cJSON_IsTrue(it);
+        }
         it = cJSON_GetObjectItemCaseSensitive(root, "vpn_port");
         if (it && cJSON_IsNumber(it) && it->valueint > 0 && it->valueint <= 65535) {
             s.vpn_port = (uint16_t) it->valueint;
@@ -1236,6 +1292,36 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         }
     }
     copy_field_allow_empty(root, "sim_credit_code", s.sim_credit_code, sizeof(s.sim_credit_code));
+    {
+        // Numero: cifre, + iniziale e spazi; ICCID: solo cifre (e la F finale
+        // di alcune SIM), spazi e trattini tolti.
+        char tmp[48];
+        cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "sim_phone");
+        if (cJSON_IsString(it)) {
+            size_t n = 0;
+            for (const char *c = it->valuestring; *c && n < sizeof(s.sim_phone) - 1; c++) {
+                if ((*c >= '0' && *c <= '9') || (*c == '+' && n == 0) || (*c == ' ' && n > 0 && tmp[n - 1] != ' ')) {
+                    tmp[n++] = *c;
+                }
+            }
+            while (n > 0 && tmp[n - 1] == ' ') n--;
+            tmp[n] = '\0';
+            strlcpy(s.sim_phone, tmp, sizeof(s.sim_phone));
+        }
+        it = cJSON_GetObjectItemCaseSensitive(root, "sim_iccid_cfg");
+        if (cJSON_IsString(it)) {
+            size_t n = 0;
+            for (const char *c = it->valuestring; *c && n < sizeof(s.sim_iccid_cfg) - 1; c++) {
+                if (*c >= '0' && *c <= '9') {
+                    tmp[n++] = *c;
+                } else if (*c == 'f' || *c == 'F') {
+                    tmp[n++] = 'F';
+                }
+            }
+            tmp[n] = '\0';
+            strlcpy(s.sim_iccid_cfg, tmp, sizeof(s.sim_iccid_cfg));
+        }
+    }
     copy_field_allow_empty(root, "sim_credit_sms_number", s.sim_credit_sms_number, sizeof(s.sim_credit_sms_number));
     copy_field_allow_empty(root, "sim_credit_sms_text", s.sim_credit_sms_text, sizeof(s.sim_credit_sms_text));
     {
@@ -1417,6 +1503,10 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             s.gnss_chip = GNSS_CHIP_BYNAV;
         } else if (strcmp(chip_item->valuestring, "bynav_m21d") == 0) {
             s.gnss_chip = GNSS_CHIP_BYNAV_M21D;
+        } else if (strcmp(chip_item->valuestring, "comnav") == 0) {
+            s.gnss_chip = GNSS_CHIP_COMNAV;
+        } else if (strcmp(chip_item->valuestring, "auto") == 0) {
+            s.gnss_chip = GNSS_CHIP_AUTO;
         } else if (strcmp(chip_item->valuestring, "l76k") == 0) {
             s.gnss_chip = GNSS_CHIP_L76K;
         } else {
@@ -1433,6 +1523,18 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         // Braccio di leva antenne + orientamento RBV (solo GNSS_CHIP_
         // BYNAV_M21D rover, vedi gnss_bynav_m21d_configure_rover()) - stesso
         // pattern dei campi RTCM booleani sopra, qui puntatori a float.
+        cJSON *cn = cJSON_GetObjectItemCaseSensitive(root, "comnav_ins_enable");
+        if (cn && cJSON_IsBool(cn)) {
+            s.comnav_ins_enable = cJSON_IsTrue(cn);
+        }
+        cn = cJSON_GetObjectItemCaseSensitive(root, "comnav_heading_enable");
+        if (cn && cJSON_IsBool(cn)) {
+            s.comnav_heading_enable = cJSON_IsTrue(cn);
+        }
+        cn = cJSON_GetObjectItemCaseSensitive(root, "comnav_imu_axes");
+        if (cn && cJSON_IsNumber(cn) && cn->valueint >= 1 && cn->valueint <= 8) {
+            s.comnav_imu_axes = (uint8_t) cn->valueint;
+        }
         struct { const char *json_key; float *field; } bynav_float_fields[] = {
             { "bynav_ant1_x_m", &s.bynav_ant1_x_m },
             { "bynav_ant1_y_m", &s.bynav_ant1_y_m },
@@ -2540,8 +2642,8 @@ static esp_err_t wifi_forget_known_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-// Misura della posizione base con RTK (base_measure.c): {"action":"start"}
-// o {"action":"cancel"}. In entrambi i casi il dispositivo si riavvia.
+// Misura della posizione base (base_measure.c): {"action":"start"} (RTK),
+// {"action":"start_has","hours":6} (Galileo HAS) o {"action":"cancel"}. In entrambi i casi il dispositivo si riavvia.
 static esp_err_t base_measure_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -2561,12 +2663,17 @@ static esp_err_t base_measure_post_handler(httpd_req_t *req)
     cJSON *root = cJSON_Parse(buf);
     cJSON *action = root ? cJSON_GetObjectItemCaseSensitive(root, "action") : NULL;
     bool start = action && cJSON_IsString(action) && strcmp(action->valuestring, "start") == 0;
+    bool start_has = action && cJSON_IsString(action) && strcmp(action->valuestring, "start_has") == 0;
+    cJSON *hours_item = root ? cJSON_GetObjectItemCaseSensitive(root, "hours") : NULL;
+    int hours = hours_item && cJSON_IsNumber(hours_item) ? hours_item->valueint : 0;
     bool cancel = action && cJSON_IsString(action) && strcmp(action->valuestring, "cancel") == 0;
     cJSON_Delete(root);
 
     char err[160] = {0};
-    if (start) {
-        if (!base_measure_request_start(err, sizeof(err))) {
+    if (start || start_has) {
+        bool ok = start_has ? base_measure_request_start_has(hours, err, sizeof(err))
+                            : base_measure_request_start(err, sizeof(err));
+        if (!ok) {
             httpd_resp_set_type(req, "application/json");
             cJSON *resp = cJSON_CreateObject();
             cJSON_AddBoolToObject(resp, "ok", false);
@@ -2578,9 +2685,15 @@ static esp_err_t base_measure_post_handler(httpd_req_t *req)
             return ESP_OK;
         }
     } else if (cancel) {
+        // Nessuna misura in corso: niente da annullare, niente riavvio.
+        if (!base_measure_get_progress().active) {
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"Nessuna misura in corso\"}");
+            return ESP_OK;
+        }
         base_measure_request_cancel();
     } else {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "action deve essere start o cancel");
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "action deve essere start, start_has o cancel");
         return ESP_FAIL;
     }
     sys_stats_note_restart_reason("misura della posizione base (avvio o annullamento)");
@@ -2651,7 +2764,7 @@ static esp_err_t config_import_post_handler(httpd_req_t *req)
 }
 
 // Gestione della SIM (sim_tools.c). {"action": "credit" | "ussd" (code) |
-// "sms" (number, text) | "read_sms" | "delete_sms" | "parse" (text)}.
+// "sms" (number, text) | "find_number" (number) | "read_sms" | "delete_sms" | "parse" (text)}.
 // Le operazioni sul modem le esegue il task degli avvisi: la risposta arriva
 // subito, l'esito poi in /api/status (sim_last_msg, sim_credit_*).
 // "parse" prova soltanto la lettura dell'importo su un testo, senza modem.
@@ -2812,6 +2925,22 @@ static esp_err_t sim_action_post_handler(httpd_req_t *req)
         ok = sim_tools_request(SIM_ACT_USSD, code, NULL, err, sizeof(err));
     } else if (strcmp(a, "sms") == 0 && num[0] && txt[0]) {
         ok = sim_tools_request(SIM_ACT_SMS, num, txt, err, sizeof(err));
+    } else if (strcmp(a, "find_number") == 0) {
+        // Solo + iniziale, cifre e spazi; almeno 6 cifre.
+        int digits = 0;
+        bool valid = num[0] != '\0';
+        for (const char *p = num; *p; p++) {
+            if (*p >= '0' && *p <= '9') {
+                digits++;
+            } else if (!(*p == ' ' || (*p == '+' && p == num))) {
+                valid = false;
+            }
+        }
+        if (valid && digits >= 6 && strlen(num) < 32) {
+            ok = sim_tools_request(SIM_ACT_FIND_NUMBER, num, NULL, err, sizeof(err));
+        } else {
+            snprintf(err, sizeof(err), "Numero non valido: solo cifre, + iniziale e spazi");
+        }
     } else if (strcmp(a, "read_sms") == 0) {
         ok = sim_tools_request(SIM_ACT_READ_SMS, NULL, NULL, err, sizeof(err));
     } else if (strcmp(a, "delete_sms") == 0) {
@@ -2916,7 +3045,7 @@ void web_ui_start(void)
     // silenzio (nessun log, nessun crash, solo un 404 inspiegabile su
     // quell'endpoint) - trovato rivedendo il codice, non ancora capitato
     // in pratica.
-    config.max_uri_handlers = 48; // 41 in uso con la registrazione dei dati grezzi (1.19.124)
+    config.max_uri_handlers = 48; // 43 in uso con le icone per iPhone (1.19.137)
     // Con il default (7 socket, nessuna chiusura automatica) bastavano un
     // paio di browser/schede aperte, che tengono le connessioni in
     // keep-alive e interrogano /api/status e /api/signals ogni pochi
@@ -2944,6 +3073,11 @@ void web_ui_start(void)
     // I browser chiedono /favicon.ico per le pagine che non dichiarano l'icona:
     // stessa immagine (PNG, accettato da tutti i browser) invece di un 404 nel log.
     httpd_uri_t favicon_uri    = { .uri = "/favicon.ico",   .method = HTTP_GET,  .handler = icon_get_handler };
+    // Safari su iPhone/iPad cerca queste due icone a indirizzo fisso (per la
+    // schermata Home) anche sulle pagine che non le dichiarano, per esempio
+    // "Accesso negato": stessa immagine invece di due 404 nel registro.
+    httpd_uri_t apple_icon_uri = { .uri = "/apple-touch-icon.png", .method = HTTP_GET, .handler = icon_get_handler };
+    httpd_uri_t apple_icon2_uri = { .uri = "/apple-touch-icon-precomposed.png", .method = HTTP_GET, .handler = icon_get_handler };
     httpd_uri_t manifest_uri   = { .uri = "/manifest.json", .method = HTTP_GET,  .handler = manifest_get_handler };
     httpd_uri_t status_uri     = { .uri = "/api/status",     .method = HTTP_GET,  .handler = status_get_handler };
     httpd_uri_t signals_uri    = { .uri = "/api/signals",    .method = HTTP_GET,  .handler = signals_get_handler };
@@ -2986,6 +3120,8 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &icon_uri);
     httpd_register_uri_handler(server, &favicon_uri);
+    httpd_register_uri_handler(server, &apple_icon_uri);
+    httpd_register_uri_handler(server, &apple_icon2_uri);
     httpd_register_uri_handler(server, &manifest_uri);
     httpd_register_uri_handler(server, &wifi_scan_uri);
     httpd_register_uri_handler(server, &test_fault_uri);

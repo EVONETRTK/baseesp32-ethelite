@@ -28,6 +28,8 @@
 #include "gnss_signal.h"
 #include "gnss_ubx_ack.h"
 #include "gnss_i2c.h"
+#include "gnss_detect.h"
+#include "pending_restart.h"
 #include "gnss_io.h"
 #include "base_stream_demux.h"
 #include "gnss_fix.h"
@@ -122,6 +124,7 @@ static void fw_archive_save_current_task(void *arg)
 // task main (2,4 KB; con le copie annidate dell'avvio lo stack di main si
 // riempiva: crash della 1.19.113 al primo avvio, annullato dal bootloader).
 static app_settings_t s_boot_cfg;
+static bool s_gnss_i2c_found; // u-blox a 0x42 sul bus I2C (gnss_i2c_probe all'avvio)
 
 // cJSON alloca moltissimi pezzi piccoli (ogni campo dello stato, delle
 // impostazioni...): con la soglia della PSRAM a 4 KB finivano tutti nella
@@ -184,8 +187,9 @@ void app_main(void)
         // app_settings_t in piu' qui pesa ~1.7 KB sullo stack del task main,
         // gia' andato in overflow per questo (vedi sdkconfig.defaults).
         settings_get_into(&s_boot_cfg);
+        pending_restart_snapshot(&s_boot_cfg); // prima del riconoscimento del ricevitore
         status_set_active_rover(s_boot_cfg.device_mode == DEVICE_MODE_ROVER);
-        gnss_i2c_probe(s_boot_cfg.oled_sda_pin, s_boot_cfg.oled_scl_pin);
+        s_gnss_i2c_found = gnss_i2c_probe(s_boot_cfg.oled_sda_pin, s_boot_cfg.oled_scl_pin);
     }
 
     // Porta su l'AP di setup + tenta WiFi/cellulare/Ethernet in background
@@ -246,6 +250,9 @@ void app_main(void)
 
     app_settings_t *const settings_p = &s_boot_cfg;
     settings_get_into(settings_p);
+    if (settings_p->gnss_chip == GNSS_CHIP_AUTO) {
+        gnss_detect_run(settings_p, s_gnss_i2c_found); // aggiorna chip, velocita' e I2C di questo avvio
+    }
     gnss_uart_init(settings_p);
 
     // Il task che legge la UART va avviato PRIMA di gnss_driver_configure():
@@ -288,8 +295,12 @@ void app_main(void)
         // aggiunto le chiamate a status_ntrip_note_disconnected() (v1.6.3),
         // che hanno fatto traboccare un margine gia' stretto. Stesso motivo
         // gia' incontrato piu' volte in questo progetto per altri task.
-        xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
-                    (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
+        // Misura della posizione con Galileo HAS: le correzioni arrivano dai
+        // satelliti, nessun caster da contattare.
+        if (!base_measure_is_has()) {
+            xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
+                        (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
+        }
         base_measure_start_if_active(); // misura della posizione base in corso
     } else {
         xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);

@@ -2,6 +2,124 @@
 
 Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versione corrente.
 
+- **MAJOR**: modifiche incompatibili (impostazioni salvate non piu' leggibili, tabella delle partizioni che richiede il caricamento via cavo).
+- **MINOR**: funzioni nuove; il PATCH riparte da 0.
+- **PATCH**: correzioni e ritocchi. Sale a ogni compilazione installata sulla base, anche se non pubblicata: per questo tra una release e l'altra mancano dei numeri.
+
+Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
+
+## 1.26.3
+
+Correzioni dal controllo qualita' dell'08/10/2026.
+- **Barra fissa "Modifiche salvate ma non ancora attive"** con il pulsante "Riavvia ora": la base tiene la copia delle impostazioni che valgono solo dopo un riavvio (funzione base/rover, ricevitore e collegamento, posizione della base, caster locale, modem e APN, IMU/doppia antenna K922, riserva HAS, display, LED) e segnala quelle salvate diverse (`pending_restart` nello stato; nuovo modulo `pending_restart.c`). Prima l'avviso durava un attimo e la base continuava a usare i valori vecchi senza che si vedesse.
+- Ricerca: le voci che con il ricevitore in uso non ci sono (es. HAS con lo ZED-F9P) compaiono come "non disponibile con questo ricevitore" invece di non dare risultati.
+- "Annulla misura" senza una misura in corso risponde "Nessuna misura in corso" invece di riavviare la base.
+
+## 1.26.2
+
+Pannello piu' semplice, seconda fase (solo aspetto: impostazioni e funzioni invariate; copia del pannello della 1.26.0 in `ripristino/`).
+- **6 schede invece di 9**: Stato, Posizione e correzioni (con la scelta del ricevitore e il collegamento, prima in Hardware), Connessione, SIM e costi, Avvisi (prima mescolati con Sicurezza), Manutenzione (firmware, copie della configurazione, scheda di accesso, password, log, LED e display). Segnali si apre dai riquadri Fix e Satelliti dello Stato.
+- **Interruttore "Avanzate"** accanto alla ricerca, spento di serie e ricordato nel browser: nasconde messaggi RTCM singoli, dati PPP, caster locale, rete di setup, monitoraggio remoto, archivio firmware, aggiornamento da microSD, log sulla microSD, identificazione, LED e display. La ricerca le trova comunque (segnate "avanzate") e al clic accende l'interruttore.
+- Testi di aiuto e scheda di accesso stampabile aggiornati con i nomi nuovi delle schede.
+
+## 1.26.1
+
+Pannello piu' semplice, prima fase (solo aspetto: impostazioni e funzioni invariate; copia del pannello precedente in `ripristino/1.26.0_prima_del_nuovo_pannello`).
+- Doppioni uniti: un solo riquadro "Dati per le coordinate precise (PPP)" (metodo u-blox, e osservazioni RTCM3 come "altro metodo") e un solo riquadro "Copie della configurazione" in Firmware (copia completa .bin con password, copia leggibile .json senza).
+- Monitoraggio remoto e VPN spostati da SIM a Rete (valgono anche senza modem).
+- Voci nascoste quando non servono: riquadri Galileo HAS solo con ricevitori che lo supportano (Unicore, ComNav), metodo PPP u-blox solo con u-blox (con gli altri si apre l'altro metodo), scheda SIM nascosta con rete "solo WiFi" o "solo Ethernet".
+
+## 1.26.0
+
+- **Nuovo ricevitore: ComNav / SinoGNSS K922** (scelta "ComNav / SinoGNSS (K922)" nella scheda Hardware; riconosciuto anche da "Automatico" se la risposta a VERSIONA lo identifica). Comandi in stile NovAtel dai manuali ufficiali ComNav, riassunti in `docs/comnav-k922.md`. **Non ancora provato su un modulo vero.**
+  - base: posizione fissa (`FIX POSITION`) o automatica (`FIX AUTO`), quote ellissoidiche, RTCM3 scelti nel pannello (`LOG RTCMxxxxB ONTIME`), GGA/GSV per lo stato;
+  - rover: GGA/GSV; **direzione dalla doppia antenna** (`HEADINGA` nella scheda Stato, `GPHDT` 5 Hz per AgOpenGPS); **INS con l'IMU del modulo** (`INSCONTROL`, montaggio 1-8, 5 Hz; il modulo si riavvia una volta quando cambia la configurazione INS). Nuovo riquadro "ComNav K922: IMU e doppia antenna" (solo rover);
+  - modello e firmware del ricevitore nel pannello e nella scheda di accesso;
+  - misura della posizione della base (RTK e Galileo HAS) e riserva HAS del rover ammesse anche con il K922: la soluzione HAS si legge da `BESTPOSA`, stessi campi del `PPPNAVA` Unicore. Il comando che attiva HAS sul K922 non e' nei manuali disponibili: da aggiungere quando il modulo arriva.
+- **Riserva HAS del rover: la qualita' GGA 6 (soluzione inerziale che prosegue l'RTK) conta come RTK**: prima veniva convertita come una posizione autonoma, con un salto di ~1 m.
+- Tre campi in coda alle impostazioni (`comnav_ins_enable`, `comnav_imu_axes`, `comnav_heading_enable`).
+
+## 1.25.1
+
+Correzione dopo la prova HAS del 07/10/2026 sull'UM982 della base ALTAMURA (firmware R4.10Build13495, antenna sul balcone, 24 minuti; log in `Desktop\prove_HAS`).
+
+- **HAS si legge dal log PPPNAVA, non dalla GGA**: con l'UM982 la GGA resta sempre la soluzione autonoma (qualita' 1 per tutta la prova, 1-3 m e ~10 m in quota diversa dalla soluzione HAS). Il driver Unicore attiva `PPPNAVA 1` con HAS e ne legge stato, posizione, incertezza dichiarata, eta' delle correzioni e satelliti (campi verificati sulle righe vere).
+- **Misura della posizione della base con HAS**: media pesata (1/incertezza^2) delle sole soluzioni HAS buone: tipo PPP, incertezza orizzontale dichiarata fino a 1,5 m, correzioni non piu' vecchie di 30 s; dopo 5 minuti di soluzioni buone scarta anche i salti lontani dalla media (oltre 3 volte l'incertezza, minimo 2 m orizzontali / 3 m in quota). Il 07/10 un salto di 15 m aveva incertezza dichiarata 1,4 m e correzioni fresche: i soli filtri sull'incertezza non bastavano. Avanzamento nel pannello con incertezza attuale ed eta' delle correzioni; nel log i motivi degli scarti. Avanzamento salvato con un formato nuovo: una misura HAS iniziata con la 1.25.0 riparte da zero.
+- **Rover con riserva HAS**: fuori dall'RTK manda ad AgOpenGPS la soluzione HAS (PPPNAVA, convertita in ETRF2000) nelle frasi GGA e RMC, con qualita' GGA 2 ed eta' delle correzioni; se la soluzione HAS non e' buona o dista piu' di 10 m dalla posizione autonoma della stessa frase (salto), usa l'autonoma convertita come prima.
+- Provato sul PC rileggendo le righe PPPNAVA vere del 07/10 (lettura dei campi, filtri, salto dei minuti 20-21 scartato sia nella misura sia nel rover). Non ancora provato con l'UM982 collegato all'ESP32.
+
+## 1.25.0
+
+- **Rover: Galileo HAS come riserva** (scheda GNSS & NTRIP, riquadro "Riserva Galileo HAS", solo in rover, con avvertenze): quando non arrivano correzioni dalla base (SIM senza copertura, caster o base spenti) il ricevitore Unicore UM980/UM982 usa il PPP con le correzioni HAS dei satelliti (circa 20 cm invece di 1-2 m) e torna all'RTK da solo appena le correzioni riprendono. Comandi: UM982 `CONFIG SIGNALGROUP 3 6`, `CONFIG PPP ENABLE E6-HAS`, `CONFIG PPP DATUM WGS84`; con la riserva spenta `CONFIG PPP DISABLE` e gruppo di segnali normale (toglie una riserva salvata prima nel ricevitore).
+- **Niente salto di 1 m tra RTK e HAS**: in RTK le coordinate sono nel sistema della base (ETRF2000), fuori dall'RTK sono ITRF. Il rover riscrive latitudine, longitudine e quota delle frasi GGA e RMC in ETRF2000 (nuovo modulo `nmea_etrf.c`, stesso calcolo di `etrf.c`) prima di mandarle ad AgOpenGPS, al caster e al pannello; checksum ricalcolato, stessi decimali. E' RTK solo un fix 4/5 con correzioni arrivate da meno di 60 s. Provato sul PC: frasi valide, spostamento come atteso, riporto a 60 minuti, emisfero ovest.
+- Lo stato del fix nella scheda Stato dice quale soluzione e' in uso: RTK dalla base, Galileo HAS o senza correzioni.
+- Nuovo campo `rover_has_fallback` in coda alle impostazioni (spento di serie).
+- **Non ancora provato con un UM982 vero**: da verificare la qualita' GGA del PPP HAS (il pannello la mostra come "HAS" se e' 2 o piu') e che con il gruppo di segnali 3 6 l'RTK funzioni come prima.
+
+## 1.24.0
+
+- **Misura della posizione della base con Galileo HAS** (scheda GNSS & NTRIP, Posizione base): il ricevitore Unicore UM980/UM982 calcola il PPP con le correzioni HAS ricevute dai satelliti (segnale E6), senza internet ne' caster. Comandi come lo strumento HAS della base Raspberry (`Windows/UM98x_HAS.txt`): UM982 `CONFIG SIGNALGROUP 3 6`, `CONFIG PPP ENABLE E6-HAS`, `CONFIG PPP DATUM WGS84`, `MODE ROVER SURVEY DEFAULT`.
+  - durata della media a scelta (2-24 ore, consigliate 6); la prima mezz'ora dopo ogni avvio (convergenza) si scarta;
+  - avanzamento salvato ogni 10 minuti: dopo una mancanza di corrente la misura riprende;
+  - valgono solo le posizioni con qualita' GGA da 2 in su (corrette); se sono meno della meta' o meno di 30 minuti le coordinate non cambiano e l'esito dice la qualita' piu' vista;
+  - durante la misura il rover non si collega al caster;
+  - riquadro con le avvertenze e conferma prima dell'avvio; avanzamento nella scheda Stato.
+- **Coordinate in ETRF2000 (RDN2008)**, il sistema scelto per tutta la rete: la media HAS (ITRF2020 all'epoca della misura) viene convertita con i parametri EPSG 10586 "ITRF2020 to ETRF2000 (1)" (EUREF Technical Note 1, 2024). In Italia lo spostamento e' di circa 1 m verso sud-ovest. Nuovo modulo `etrf.c`, verificato sul PC (andata e ritorno al millimetro; spostamento coerente con il moto della placca).
+- Misura con RTK: ammessa anche con ricevitori Unicore (ora hanno la posizione fissa); il pannello ricorda che le coordinate sono nel sistema della rete che manda le correzioni.
+- Due campi in coda alle impostazioni (`base_measure_method`, `base_measure_has_hours`): le configurazioni salvate restano valide.
+- **Non ancora provata con un UM982 vero**: in particolare va verificato quale qualita' GGA da' l'UM982 con il PPP HAS (la misura richiede almeno 2).
+
+## 1.23.1
+
+- **Ricevitore riconosciuto da solo**: nuova scelta "Automatico" nel menu del ricevitore (predefinita per le basi nuove; le basi esistenti restano sulla scelta salvata). All'avvio la base prova:
+  1. l'I2C (u-blox all'indirizzo 0x42), se il collegamento I2C e' impostato;
+  2. la seriale, chiedendo la versione in UBX (MON-VER) e in ASCII Unicore (VERSIONA), alla velocita' impostata, poi a quella dell'ultimo ricevitore trovato, poi a 115200, 38400, 230400, 460800, 921600 e 9600 baud;
+  3. l'I2C anche se non impostato, se la seriale non risponde.
+- Il ricevitore trovato vale per quell'avvio: nelle impostazioni resta "Automatico", cosi' un ricevitore cambiato viene riconosciuto al riavvio. L'ultima velocita' trovata e' salvata e provata per prima.
+- Esito sotto il menu ("u-blox su I2C (0x42)", "Unicore UM982 su seriale a 115200 baud", "nessun ricevitore ha risposto: controlla i collegamenti"). Se non risponde nessuno si prova come u-blox, come prima.
+- Messaggi RTCM non disponibili, misura della posizione della base e riavvio del ricevitore muto usano il ricevitore trovato.
+- Bynav e Quectel non si riconoscono: vanno scelti a mano.
+- La scelta del ricevitore e' passata dalla scheda GNSS & NTRIP alla scheda **Hardware**, nel riquadro "Ricevitore GNSS e collegamento", insieme a I2C/seriale, pin e velocita'.
+
+## 1.22.1
+
+Comandi e chiavi presi dalla base Raspberry (ELT_RTKBase: `Install/UM982_RTCM3_OUT.txt`, `UM980_RTCM3_OUT.txt`, `X20P_RTCM3_OUT.txt`, `UnicoreSetBasePos.sh`, tabella chiavi di `NmeaConf/ubxmgs.cpp`), usata sul campo con questi ricevitori. **Non ancora provati su un modulo collegato a questa scheda**: la prima volta controllare il log all'avvio.
+
+- **Unicore UM980/UM982**:
+  - all'avvio la base chiede `VERSIONA` e mostra modello e firmware nel pannello e nella scheda di accesso (prima compariva solo per u-blox);
+  - gruppo di segnali per modello (UM982 `CONFIG SIGNALGROUP 7 0`, UM980 `CONFIG SIGNALGROUP 2`);
+  - **posizione fissa** della base con le coordinate del pannello (`MODE BASE 1 lat lon quota`; prima con Unicore c'era solo il survey-in), survey-in con `MODE BASE 1 TIME`; quote ellissoidiche (`CONFIG UNDULATION 0`);
+  - come sulla Raspberry: SBAS spento, riduzione dei multipercorsi, `RTCMCLOCKOFFSET` spento;
+  - GGA e GSV anche in base, per lo stato del fix e il grafico dei satelliti.
+- **u-blox ZED-X20P**: riconosciuto da UBX-MON-VER (all'avvio fino a 4 richieste: via I2C la prima risposta si perdeva e il modello arrivava solo dopo mezzo minuto; se arriva tardi i segnali si configurano allora); piano dei segnali 1, Galileo E5b e BeiDou B2 accesi, SBAS spento, dati di navigazione BeiDou D1/D2, in base e in rover.
+- **Configurazione u-blox piu' robusta**: se il ricevitore rifiuta un gruppo di chiavi, la base le rimanda una per una e applica quelle valide. Prima una sola chiave sconosciuta (per esempio un messaggio RTCM che un modulo non ha) faceva cadere tutto il gruppo, compresi gli altri messaggi RTCM.
+- Nell'elenco dei ricevitori: "u-blox (ZED-F9P, ZED-X20P)" e "Unicore (UM980, UM982)".
+
+## 1.21.0
+
+- **ICCID e IMEI automatici**: la base legge dal modem l'ICCID della SIM e l'IMEI del modem (AT+CGSN, nuovo) a ogni avvio e li salva: si vedono anche quando il modem non risponde, con la data dell'ultima lettura. Riquadro in evidenza della scheda SIM con l'IMEI accanto a numero e ICCID; IMEI anche in "Stato della SIM" e nella scheda di accesso stampabile.
+- Il campo "ICCID" a mano resta solo finche' il modem non l'ha mai letto (base senza modem), poi sparisce.
+- **SIM cambiata / modem sostituito**: se all'avvio ICCID o IMEI sono diversi da quelli salvati (o, la prima volta, dall'ICCID scritto a mano), avviso nel pannello e sui canali degli avvisi.
+- **Scopri il numero della SIM**: nuovo riquadro con le avvertenze (costo, modem, credito, segnale) e il pulsante "Invia SMS di prova", con conferma: la base manda un SMS al numero scritto e il mittente che compare sul telefono e' il numero della SIM. Il numero di destinazione resta nel browser.
+- **Numero scritto nella SIM**: se la SIM non contiene il proprio numero, la base ci copia quello salvato a mano (rubrica dei numeri propri, AT+CPBW), cosi' lo legge anche in un'altra base. Mai sopra un numero gia' presente o con una SIM appena cambiata; se la SIM rifiuta, il numero resta solo nella base.
+
+## 1.20.5
+
+- **Scheda di accesso stampabile**: come prima riga della pagina, sopra anche la barra delle password, la fascia rossa con scritte bianche "⚠️ DOCUMENTO STRETTAMENTE RISERVATO ⚠️" (stessa grafica della base Raspberry), sempre visibile e stampata; la riga sotto dice "Contiene i dati di accesso alla base ESP32" (o "al rover ESP32"), e "Contiene PASSWORD..." quando le password sono mostrate. Anche il titolo dice "BASE ESP32" / "ROVER ESP32", per distinguerla dalla scheda della base Raspberry. Sostituisce la piccola riga "Documento riservato" che compariva solo con le password.
+
+## 1.20.0
+
+Prima versione con la nuova regola di numerazione: funzione nuova = MINOR.
+
+- **Numero di telefono e ICCID della SIM dati in evidenza**: riquadro in cima alla scheda SIM con il numero (si tocca per chiamare, link per l'SMS), l'ICCID diviso in gruppi di 4 cifre, operatore, APN e data di rinnovo, e la provenienza di ciascun dato ("inserito a mano" o "letto dal modem").
+- Due campi nuovi nelle impostazioni (`sim_phone`, `sim_iccid_cfg`, in fondo alla struttura: le configurazioni salvate prima restano valide). Il numero accetta cifre, + iniziale e spazi; l'ICCID solo cifre (e la F finale di alcune SIM). Inclusi nell'esportazione e nell'importazione della configurazione.
+- Il numero viene letto anche dal modem (AT+CNUM, una volta sola: molte SIM italiane non lo contengono). Se l'ICCID letto dal modem e' diverso da quello inserito a mano compare l'avviso "SIM cambiata?".
+- **Scheda di accesso stampabile**: nuova sezione "4. SIM dati" (numero, ICCID, operatore, APN, rinnovo, traffico incluso); se un dato manca, riga vuota da compilare a penna. Le sezioni successive sono rinumerate.
+
+## 1.19.137
+
+- **Icona per iPhone/iPad**: Safari chiede `/apple-touch-icon.png` e `/apple-touch-icon-precomposed.png` anche sulle pagine che non le dichiarano (per esempio "Accesso negato"), e la base rispondeva 404 con due avvisi nel registro. Ora restituisce l'icona della base, dichiarata anche nella pagina "Accesso negato" e nella scheda di accesso stampabile.
+
 ## 1.19.134 - 1.19.136
 
 Terza tornata di collaudo (06/10/2026), sulle funzioni non ancora provate.

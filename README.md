@@ -229,8 +229,11 @@ scheda, quindi restano impostazioni di build come i pin UART.
   [main/idf_component.yml](main/idf_component.yml) (`esp_modem`, `mdns`,
   `led_strip`).
 - Un modulo GNSS RTK capace di funzionare in modalita' base fissa e di
-  emettere messaggi RTCM3 su UART — u-blox, Unicore, Quectel LC29H o
-  Bynav M20/M20D/M21D, selezionabile dalla UI web.
+  emettere messaggi RTCM3 su UART — u-blox (ZED-F9P, ZED-X20P), Unicore
+  (UM980, UM982), Quectel LC29H o Bynav M20/M20D/M21D, selezionabile dalla
+  UI web, oppure "Automatico" (u-blox e Unicore riconosciuti all'avvio, su
+  I2C o seriale). Unicore solo su UART (115200 di fabbrica); ZED-X20P e UM98x non
+  ancora provati collegati a questa scheda.
 - SIM dati **attiva presso l'operatore** e **con PIN disabilitato** (il
   firmware non gestisce l'inserimento del PIN), se si usa il fallback
   cellulare.

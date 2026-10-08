@@ -14,3 +14,10 @@
 //    (gnss_signal_parse_gsv), per il grafico segnali nella UI.
 // arg = uart_port_t incapsulato come (void *)(intptr_t) uart_num.
 void gnss_nmea_reader_task(void *arg);
+
+// Riserva Galileo HAS del rover (settings.rover_has_fallback): stato della
+// soluzione mandata ad AgOpenGPS. "" = riserva spenta o nessun dato,
+// "rtk" = RTK con correzioni dalla base (passa com'e'), "has" = soluzione
+// corretta fuori dall'RTK (HAS), "autonoma" = senza correzioni; negli
+// ultimi due casi le posizioni sono convertite in ETRF2000.
+const char *gnss_nmea_reader_has_state(void);

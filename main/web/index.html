@@ -73,7 +73,32 @@
      Salva e "Salva e riavvia" allineati sulla stessa riga */
   .fieldset-save-row button.action { margin:0; }
   .fieldset-save-btn { margin-top:0; }
+  .sim-id-box { display:flex; flex-wrap:wrap; gap:.6rem 1.5rem; background:#eff6ff; border:2px solid #2563eb; border-radius:10px; padding:.8rem 1rem; margin-bottom:1rem; }
+  .sim-id-item { flex:1 1 15rem; min-width:0; }
+  .sim-id-label { font-size:.85rem; color:#475569; }
+  .sim-id-value { font-size:1.45rem; font-weight:700; color:#1e3a8a; overflow-wrap:anywhere; }
+  .sim-id-value a { color:inherit; text-decoration:none; }
+  .sim-id-value.mono { font-family:ui-monospace,Consolas,monospace; font-size:1.25rem; }
+  .sim-id-value.empty { font-size:1rem; font-weight:400; color:#64748b; font-style:italic; }
+  .sim-id-src { font-size:.8rem; color:#64748b; }
+  .sim-id-extra { flex-basis:100%; font-size:.9rem; color:#334155; }
+  .sim-id-warn { flex-basis:100%; background:#fef3c7; border:1px solid #f59e0b; border-radius:6px; padding:.4rem .6rem; font-size:.9rem; }
+  .sim-sms-warn { background:#fef3c7; border:1px solid #f59e0b; border-radius:6px; padding:.5rem .7rem; margin-bottom:.7rem; font-size:.9rem; }
+  .sim-sms-warn ul { margin:.3rem 0 0; padding-left:1.2rem; }
+  .sim-sms-warn li { margin:.15rem 0; }
+  @media (prefers-color-scheme: dark) {
+    .sim-sms-warn { background:#451a03; border-color:#b45309; color:#fde68a; }
+    .sim-id-box { background:#172554; border-color:#3b82f6; }
+    .sim-id-label, .sim-id-src, .sim-id-value.empty { color:#94a3b8; }
+    .sim-id-value { color:#bfdbfe; }
+    .sim-id-extra { color:#cbd5e1; }
+    .sim-id-warn { background:#451a03; border-color:#b45309; color:#fde68a; }
+  }
   .fieldset-save-btn.ok { background:#16a34a; }
+  .chip-hidden { display:none !important; }
+  body:not(.show-adv) [data-adv] { display:none !important; } /* impostazioni avanzate nascoste */
+  .adv-toggle { display:inline-flex; align-items:center; gap:.35rem; font-size:.85rem; cursor:pointer; white-space:nowrap; }
+  .adv-toggle input { width:auto; margin:0; } /* voci di un altro ricevitore (data-chip) */
   .fieldset-save-btn.err { background:#dc2626; }
   .fieldset-save-msg { font-size:.85rem; color:#666; }
   .field-dirty { border-color:#d97706 !important; background:#fffbeb !important; }
@@ -214,22 +239,24 @@
     <input type="text" id="settings-search" placeholder="🔍 Cerca..." autocomplete="off">
     <div id="settings-search-results"></div>
   </div>
+  <label class="adv-toggle" title="Mostra anche le impostazioni che si toccano raramente"><input type="checkbox" id="adv-toggle"> ⚙️ Avanzate</label>
 </div>
 </div>
 
 <nav class="tabs">
   <button type="button" data-page="page-status" class="active">📊 Stato</button>
-  <button type="button" data-page="page-network">🌐 Rete</button>
-  <button type="button" data-page="page-gnss">🛰️ GNSS &amp; NTRIP</button>
-  <button type="button" data-page="page-sim">📱 SIM</button>
-  <button type="button" data-page="page-security">🔒 Sicurezza</button>
-  <button type="button" data-page="page-signals">📶 Segnali</button>
-  <button type="button" data-page="page-hardware">🎛️ Hardware</button>
-  <button type="button" data-page="page-firmware">⬆️ Firmware</button>
-  <button type="button" data-page="page-log">📜 Log</button>
+  <button type="button" data-page="page-gnss">🛰️ Posizione e correzioni</button>
+  <button type="button" data-page="page-network">🌐 Connessione</button>
+  <button type="button" data-page="page-sim">📱 SIM e costi</button>
+  <button type="button" data-page="page-security">🔔 Avvisi</button>
+  <button type="button" data-page="page-firmware">🛠️ Manutenzione</button>
 </nav>
 <div id="tabs-home"></div>
 
+<div id="restart-banner" style="display:none; background:#fef3c7; color:#78350f; border:2px solid #f59e0b; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .8rem; align-items:center; gap:.6rem; flex-wrap:wrap">
+  <span>⚠️ <b>Modifiche salvate ma non ancora attive</b>: <span id="restart-banner-what"></span>. La base usa ancora i valori di prima finché non si riavvia.</span>
+  <button type="button" class="action" id="restart-banner-btn" style="margin-left:auto">🔄 Riavvia ora</button>
+</div>
 <form id="cfg-form">
 
 <div id="page-status" class="page active">
@@ -402,7 +429,7 @@
   </fieldset>
 
 
-  <fieldset>
+  <fieldset data-adv>
     <legend>🔌 Rete di setup (AP di questo dispositivo)</legend>
     <label>SSID AP<input name="ap_ssid"></label>
     <label>Password AP<input autocomplete="new-password" name="ap_password" type="password" placeholder="lascia vuoto per non modificare">
@@ -413,7 +440,52 @@
       <button type="button" class="action fieldset-save-btn" data-fields="ap_ssid,ap_password" data-risky="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
-  </fieldset></div>
+  </fieldset>
+
+  <fieldset data-adv>
+    <legend>🌍 Monitoraggio remoto</legend>
+    <small class="hint">
+      Quando la base e' collegata solo via SIM, da fuori il pannello non si raggiunge. Con questa opzione
+      la base manda ogni tot minuti un riassunto del suo stato (caster, posizione, memoria, temperatura,
+      ultimo riavvio, traffico, credito) a un indirizzo web tuo, con un POST JSON: per esempio una pagina
+      sul tuo server. Non contiene impostazioni ne' password.
+    </small>
+    <label>Indirizzo (http:// o https://)<input name="remote_url" placeholder="https://rtk.evo-net.it/api/basi/stato"></label>
+    <label>Ogni quanti minuti (0 = spento)<input name="remote_interval_min" type="number" min="0" max="1440" step="1"></label>
+    <div class="hint" id="remote-last" style="margin-top:.4rem"></div>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="remote_url,remote_interval_min">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>🔐 Accesso remoto (VPN WireGuard)</legend>
+    <small class="hint">
+      La base si collega da sola a un server WireGuard (per esempio il server del caster) e ci resta
+      collegata, anche quando usa la SIM. Dal PC o dal telefono con l'app WireGuard, collegati alla stessa
+      VPN, il pannello si apre all'indirizzo della base nel tunnel. Il tunnel serve solo per raggiungere
+      la base: i dati verso il caster continuano a passare dalla rete normale.
+    </small>
+    <div style="margin:.5rem 0"><b>Stato:</b> <span id="vpn-state">-</span></div>
+    <label>Chiave pubblica di questa base (da mettere sul server)
+      <input id="vpn-pubkey" readonly placeholder="nessuna: premi Genera chiavi" style="font-family:ui-monospace,Consolas,monospace">
+    </label>
+    <button type="button" class="action secondary" id="vpn-keygen-btn">🔑 Genera chiavi</button>
+    <small class="hint">La chiave privata resta sulla base e non si vede mai. Generare chiavi nuove richiede di aggiornare la chiave pubblica anche sul server.</small>
+    <label style="flex-direction:row; align-items:center; gap:.5rem; margin-top:.6rem">
+      <input name="vpn_enable" type="checkbox" style="width:auto; margin:0"> Attiva la VPN
+    </label>
+    <label>Server (nome o IP)<input name="vpn_endpoint" placeholder="rtk.evo-net.it"></label>
+    <label>Porta del server<input name="vpn_port" type="number" min="1" max="65535" placeholder="51820"></label>
+    <label>Chiave pubblica del server<input name="vpn_peer_public_key" placeholder="dal file del server (44 caratteri)" style="font-family:ui-monospace,Consolas,monospace"></label>
+    <label>Indirizzo della base nella VPN<input name="vpn_address" placeholder="10.8.0.2"></label>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="vpn_enable,vpn_endpoint,vpn_port,vpn_peer_public_key,vpn_address">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+</div>
 
 <div id="page-gnss" class="page">
   <fieldset>
@@ -424,19 +496,58 @@
         <option value="rover">Rover (riceve correzioni RTCM3 dal caster)</option>
       </select>
     </label>
-    <label>Chip GNSS collegato
+
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="device_mode" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>🎛️ Ricevitore GNSS e collegamento</legend>
+    <label>Ricevitore GNSS collegato
       <select name="gnss_chip">
-        <option value="ublox">u-blox (es. ZED-F9P)</option>
-        <option value="unicore">Unicore (es. UM980/UM982)</option>
+        <option value="auto">Automatico (riconosce u-blox, Unicore e ComNav)</option>
+        <option value="ublox">u-blox (ZED-F9P, ZED-X20P)</option>
+        <option value="unicore">Unicore (UM980, UM982)</option>
+        <option value="comnav">ComNav / SinoGNSS (K922) - non ancora provato</option>
         <option value="lc29h">Quectel LC29H (BA/CA/DA/EA)</option>
         <option value="bynav">Bynav M20/M20D (non verificato su hardware)</option>
         <option value="bynav_m21d">Bynav M21D con IMU/INS (non verificato su hardware)</option>
         <option value="l76k" data-mode="rover">Quectel L76K dello shield (solo prove rover, niente RTK)</option>
       </select>
+      <small class="hint" id="gnss-detect-note"></small>
     </label>
+    <label>Collegamento
+      <select name="gnss_link">
+        <option value="uart">Seriale (UART)</option>
+        <option value="i2c">I2C - solo u-blox, es. HAT ZED-F9P sul connettore (pin 3/5, stesso bus dell'OLED)</option>
+      </select>
+    </label>
+    <label data-link="uart">UART ESP32
+      <select name="gnss_uart_num">
+        <option value="0">UART0</option>
+        <option value="1">UART1</option>
+        <option value="2">UART2</option>
+      </select>
+    </label>
+    <label data-link="uart">GPIO TX (ESP32 &rarr; GNSS)<input name="gnss_uart_tx_pin" type="number" min="-1" max="48"></label>
+    <label data-link="uart">GPIO RX (GNSS &rarr; ESP32, riceve RTCM3)<input name="gnss_uart_rx_pin" type="number" min="-1" max="48"></label>
+    <label data-link="uart">Baud rate<input name="gnss_uart_baud" type="number" min="4800"></label>
+    <small class="hint" data-link="uart">
+      Pin verso il modulo GNSS esterno - variano per installazione. Richiede un riavvio per applicarsi.
+      HAT per Raspberry con seriale sul connettore: TX 43 / RX 44 (pin 8/10). L76K degli shield
+      LilyGO: TX 42 / RX 39. Il modulo Quectel LC29H di fabbrica usa 460800 (non 115200).
+      Con il ricevitore "Automatico" la velocita' qui e' solo la prima provata: quella giusta la trova la base.
+    </small>
+    <small class="hint" data-link="i2c">
+      Ricevitore u-blox all'indirizzo I2C 0x42, sugli stessi pin SDA/SCL del display OLED (scheda
+      Manutenzione, riquadro Display OLED tra le avanzate - sulla T-ETH-Elite 17/18). Nessuna velocita' da impostare.
+      Richiede un riavvio per applicarsi.
+    </small>
 
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="device_mode,gnss_chip" data-reboot="1">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="gnss_chip,gnss_link,gnss_uart_num,gnss_uart_tx_pin,gnss_uart_rx_pin,gnss_uart_baud" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -469,7 +580,36 @@
     </div>
   </fieldset>
 
-  <fieldset data-mode="base">
+  <fieldset id="comnav-fieldset" hidden>
+    <legend>🧭 ComNav K922: IMU e doppia antenna (rover)</legend>
+    <label style="display:flex; align-items:center; gap:.5rem">
+      <input name="comnav_heading_enable" type="checkbox" style="width:auto; margin:0"> Direzione di marcia dalla doppia antenna
+    </label>
+    <small class="hint">Il K922 calcola la direzione con le due antenne: la base la manda ad AgOpenGPS (frase GPHDT, 5 al secondo) e la mostra nella scheda Stato.</small>
+    <label style="display:flex; align-items:center; gap:.5rem; margin-top:.6rem">
+      <input name="comnav_ins_enable" type="checkbox" style="width:auto; margin:0"> Navigazione inerziale con l'IMU del modulo (INS)
+    </label>
+    <small class="hint">Con l'INS la posizione continua per qualche istante anche quando il segnale manca (sotto alberi o capannoni) e diventa piu' regolare: nella scheda Stato compare come fix "stimato" (qualita' 6). Posizione a 5 al secondo.</small>
+    <label>Come e' montato il modulo
+      <select name="comnav_imu_axes">
+        <option value="1">1 - lato superiore in alto, asse Y verso la marcia</option>
+        <option value="2">2 - come 1, ruotato di 90° in senso antiorario</option>
+        <option value="3">3 - come 1, ruotato di 180°</option>
+        <option value="4">4 - come 1, ruotato di 270° in senso antiorario</option>
+        <option value="5">5 - lato superiore in basso, asse Y verso la marcia</option>
+        <option value="6">6 - come 5, ruotato di 90° in senso antiorario</option>
+        <option value="7">7 - come 5, ruotato di 180°</option>
+        <option value="8">8 - come 5, ruotato di 270° in senso antiorario</option>
+      </select>
+    </label>
+    <small class="hint">Gli assi sono disegnati sul modulo (manuale ComNav). Quando cambi il montaggio, all'avvio la base riavvia il modulo una volta: e' necessario perche' valga. Non ancora provato su un K922 vero.</small>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="comnav_heading_enable,comnav_ins_enable,comnav_imu_axes" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset data-adv data-mode="base">
     <legend>📡 Messaggi RTCM inviati</legend>
     <small class="hint">
       Ogni messaggio si spunta singolarmente, come nella maggior parte degli altri software NTRIP -
@@ -587,9 +727,38 @@
         (<span id="measure-mp">-</span>), aspetta il fix RTK e fa la media delle posizioni per 3 minuti.
         Poi salva le coordinate come posizione fissa e torna base da sola. Precisione di centimetri,
         invece dei metri del survey-in. Massimo 20 minuti (3 se il caster non manda correzioni, es. password del rover sbagliata); se non arriva il fix, le coordinate non cambiano.
+        Le coordinate sono nel sistema della rete che manda le correzioni: per la rete EVONETRTK deve essere ETRF2000 (RDN2008).
       </small>
       <button type="button" class="action" id="measure-start-btn">📡 Avvia misura</button>
       <div id="measure-last" class="hint" style="margin-top:.4rem"></div>
+    </div>
+    <div data-chip="unicore,comnav" style="border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; padding:.6rem .8rem; margin:.6rem 0">
+      <b>🛰️ Misura la posizione con Galileo HAS (senza caster)</b>
+      <small class="hint" style="display:block; margin:.3rem 0">
+        Il ricevitore calcola la posizione con le correzioni gratuite di Galileo (HAS), che arrivano dai satelliti:
+        non servono internet ne' un'altra stazione. La base fa la media per le ore scelte, converte le coordinate
+        da ITRF2020 a ETRF2000 (il sistema della rete) e le salva come posizione fissa. Precisione attesa: circa un decimetro.
+      </small>
+      <div class="sim-sms-warn">
+        <b>⚠️ Prima di avviare</b>
+        <ul>
+          <li>Serve un ricevitore <b>Unicore UM980/UM982</b> o <b>ComNav K922</b> (per il K922 il comando che attiva HAS va ancora verificato sul modulo): lo ZED-F9P non riceve il segnale Galileo E6.</li>
+          <li>Per tutta la misura la base <b>non manda correzioni ai rover</b>.</li>
+          <li>Antenna nella <b>posizione definitiva</b>, con cielo libero: se si sposta, la misura non vale.</li>
+          <li>La prima mezz'ora dopo ogni avvio serve alla convergenza e si scarta. Se manca la corrente la misura riprende da dove era.</li>
+          <li>Se il ricevitore non riceve HAS (soluzioni solo autonome) le coordinate <b>non cambiano</b> e il motivo compare qui sotto.</li>
+        </ul>
+      </div>
+      <label>Durata della media
+        <select id="measure-has-hours">
+          <option value="2">2 ore</option>
+          <option value="4">4 ore</option>
+          <option value="6" selected>6 ore (consigliato)</option>
+          <option value="12">12 ore</option>
+          <option value="24">24 ore</option>
+        </select>
+      </label>
+      <button type="button" class="action" id="measure-has-btn">🛰️ Avvia misura HAS</button>
     </div>
     <div id="base-pos-manual-fields" style="display:none">
       <label>Latitudine (gradi decimali)<input name="base_fixed_lat_deg" type="number" step="0.0000001"></label>
@@ -611,7 +780,7 @@
       ricevitore (dal messaggio RTCM 1005/1006 gia' inviato al caster) cosi', nella maggior parte dei casi,
       basta verificarla e confermare invece di doverla scrivere a mano. Attenzione: e' la posizione del
       survey-in, quindi con la sua stessa imprecisione (metri). Funziona con u-blox (ZED-F9P), applicata
-      al riavvio, e con Quectel LC29H (qui serve spegnere e riaccendere il modulo GNSS, vedi pagina Hardware).
+      al riavvio, e con Quectel LC29H (qui serve spegnere e riaccendere il modulo GNSS, vedi Ricevitore GNSS e collegamento).
       La quota e' ellissoidica: in Italia circa 40-50 m piu' alta di quella sul livello del mare.
     </small>
   
@@ -621,8 +790,9 @@
     </div>
   </fieldset>
 
-  <fieldset data-mode="base">
-    <legend>📼 Dati grezzi per le coordinate precise (PPP)</legend>
+  <fieldset data-adv data-mode="base">
+    <legend>📼 Dati per le coordinate precise (PPP)</legend>
+    <div data-chip="ublox">
     <small class="hint">
       Registra sulla microSD le misure grezze del ricevitore u-blox (UBX RXM-RAWX e RXM-SFRBX). Con
       un file di almeno 6–24 ore si ottengono le coordinate della base al centimetro con un servizio
@@ -654,10 +824,8 @@
       </ol>
       <small class="hint">Per la precisione migliore usa il risultato "final", disponibile circa 2 settimane dopo la registrazione; quello "rapid" (dopo 1–2 giorni) è già al livello di pochi centimetri.</small>
     </details>
-  </fieldset>
-
-  <fieldset data-mode="base">
-    <legend>🎥 Registrazione dati per PPP (posizione base di alta precisione)</legend>
+  </div>
+    <details id="ppp-rtcm-details" style="margin-top:.8rem"><summary>Altro metodo: osservazioni RTCM3 (qualsiasi ricevitore)</summary>
     <small class="hint">
       Registra le osservazioni RTCM3 grezze su SD per diverse ore da un punto fisso - poi converti il file in
       RINEX (gratis, sul tuo PC) e caricalo su un servizio di post-processing PPP (CSRS-PPP, OPUS, ...) per
@@ -682,7 +850,9 @@
       <br><code>convbin ppp_log.rtcm3 -r rtcm3 -v 2.11 -n ppp_log.obs</code> (RINEX 2.11, es. per OPUS/altri)
       <br>Un'unica registrazione basta per generare il formato richiesto da ciascun ente.
     </small>
+  </details>
   </fieldset>
+  
 
   <fieldset>
     <legend><span data-mode="base">📡 Server NTRIP (invio correzioni al caster EVONETRTK)</span><span data-mode="rover">📡 Client NTRIP (correzioni dal caster EVONETRTK)</span></legend>
@@ -713,7 +883,33 @@
     </div>
   </fieldset>
 
-  <fieldset data-mode="base">
+  <fieldset data-mode="rover" data-chip="unicore,comnav">
+    <legend>🛰️ Riserva Galileo HAS (quando manca l'RTK)</legend>
+    <label style="display:flex; align-items:center; gap:.5rem">
+      <input name="rover_has_fallback" type="checkbox" style="width:auto; margin:0"> Usa Galileo HAS quando non arrivano correzioni dalla base
+    </label>
+    <small class="hint">
+      Senza correzioni (niente copertura della SIM, caster o base spenti) il rover scende a 1-2 metri. Con la riserva
+      il ricevitore usa le correzioni gratuite di Galileo, che arrivano dai satelliti, e resta intorno ai 20 cm.
+      Appena tornano le correzioni della base riprende l'RTK da solo. Le posizioni fuori dall'RTK vengono convertite
+      in ETRF2000, il sistema delle basi: passando da RTK a HAS e ritorno la posizione non salta di un metro.
+    </small>
+    <div class="sim-sms-warn">
+      <b>⚠️ Da sapere</b>
+      <ul>
+        <li>Serve un ricevitore <b>Unicore UM980/UM982</b> o <b>ComNav K922</b> (per il K922 l'attivazione di HAS va ancora verificata sul modulo; lo ZED-F9P non riceve il segnale Galileo E6).</li>
+        <li>HAS <b>non basta per semina di precisione, strip-till e sarchiatura</b> (servono 2-3 cm): va bene per concimazione, irrorazione, trinciatura e mappe.</li>
+        <li>Dopo l'avvio o dopo una perdita del segnale (alberi, capannoni) servono <b>da alcuni minuti a decine di minuti</b> prima che HAS sia preciso.</li>
+        <li>Lo stato del fix nella scheda Stato dice sempre quale soluzione e' in uso: RTK, HAS o autonoma.</li>
+      </ul>
+    </div>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="rover_has_fallback" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset data-adv data-mode="base">
     <legend>📡 Caster NTRIP locale (rover sulla stessa rete)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="ntrip_caster_server_enable" type="checkbox" style="width:auto; margin:0">
@@ -778,15 +974,66 @@
   </fieldset></div>
 
 <div id="page-sim" class="page">
+  <div id="sim-id-box" class="sim-id-box">
+    <div class="sim-id-item">
+      <div class="sim-id-label">📞 Numero di telefono della SIM dati</div>
+      <div class="sim-id-value" id="sim-id-phone">-</div>
+      <div class="sim-id-src" id="sim-id-phone-src"></div>
+    </div>
+    <div class="sim-id-item">
+      <div class="sim-id-label">💳 ICCID (numero stampato sulla SIM)</div>
+      <div class="sim-id-value mono" id="sim-id-iccid">-</div>
+      <div class="sim-id-src" id="sim-id-iccid-src"></div>
+    </div>
+    <div class="sim-id-item">
+      <div class="sim-id-label">📟 IMEI del modem</div>
+      <div class="sim-id-value mono" id="sim-id-imei">-</div>
+      <div class="sim-id-src" id="sim-id-imei-src"></div>
+    </div>
+    <div class="sim-id-extra" id="sim-id-extra"></div>
+    <div class="sim-id-warn" id="sim-id-warn" style="display:none"></div>
+  </div>
+
+  <fieldset>
+    <legend>📇 Dati della SIM dati</legend>
+    <label>Numero di telefono<input name="sim_phone" type="tel" inputmode="tel" maxlength="19" autocomplete="off" placeholder="es. +39 351 1234567"></label>
+    <label id="sim-iccid-cfg-wrap">ICCID (solo finché il modem non è montato)<input name="sim_iccid_cfg" inputmode="numeric" maxlength="28" autocomplete="off" placeholder="19-20 cifre, stampate sulla tessera della SIM"></label>
+    <small class="hint" id="sim-data-hint">ICCID e IMEI li legge la base dal modem. Il numero spesso non è scritto nella SIM:
+      scoprilo con l'SMS di prova qui sotto e scrivilo qui. Dopo il salvataggio la base prova a scriverlo anche nella SIM.</small>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="sim_phone,sim_iccid_cfg">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
   <fieldset>
     <legend>📱 Stato della SIM</legend>
     <dl class="kv">
       <dt>Modulo</dt><dd id="sim-module">-</dd>
       <dt>Operatore di rete</dt><dd id="sim-op">-</dd>
       <dt>Segnale</dt><dd id="sim-rssi">-</dd>
-      <dt>Numero della SIM (ICCID)</dt><dd id="sim-iccid">-</dd>
+      <dt>ICCID letto dal modem</dt><dd id="sim-iccid">-</dd>
+      <dt>IMEI letto dal modem</dt><dd id="sim-imei">-</dd>
+      <dt>Numero letto dal modem</dt><dd id="sim-phone-read">-</dd>
       <dt>Rete usata dalla base</dt><dd id="sim-net">-</dd>
     </dl>
+  </fieldset>
+
+  <fieldset>
+    <legend>🔎 Scopri il numero della SIM</legend>
+    <div class="sim-sms-warn">
+      <b>⚠️ Prima di inviare</b>
+      <ul>
+        <li>La base manda <b>un SMS</b> dalla SIM dati al numero che scrivi qui: <b>può costare</b> secondo l'offerta della SIM (con le offerte solo dati di solito sì) e scala il credito.</li>
+        <li>Servono il <b>modem montato</b>, la <b>SIM inserita</b>, <b>credito</b> e <b>segnale</b>. Se manca qualcosa l'invio fallisce e compare il motivo qui sotto.</li>
+        <li>Scrivi un numero <b>tuo</b> (o di chi ti aiuta): riceverà un SMS con il nome della base.</li>
+        <li>Il numero della SIM è il <b>mittente</b> dell'SMS che arriva sul telefono. Scrivilo nel riquadro "Dati della SIM dati" qui sopra e salva.</li>
+        <li>Non serve rispondere all'SMS. Se non arriva entro qualche minuto, controlla il credito e riprova una volta sola.</li>
+      </ul>
+    </div>
+    <label>Tuo numero di cellulare<input id="sim-find-to" type="tel" inputmode="tel" maxlength="20" autocomplete="off" placeholder="es. +39 333 1234567"></label>
+    <button type="button" class="action" id="sim-find-btn">📨 Invia SMS di prova</button>
+    <div class="hint" id="sim-find-msg"></div>
   </fieldset>
 
   <fieldset>
@@ -830,7 +1077,7 @@
       <label>Primo promemoria: giorni prima<input name="sim_notice1_days" type="number" min="0" max="60" step="1"></label>
       <label>Secondo promemoria: giorni prima<input name="sim_notice2_days" type="number" min="0" max="60" step="1"></label>
       <small class="hint">
-        I promemoria arrivano via email/WhatsApp (configurali nella scheda GNSS &amp; NTRIP, riquadro avvisi)
+        I promemoria arrivano via email/WhatsApp (configurali nella scheda Avvisi)
         dalle 9:00 del giorno scelto; 0 = il giorno stesso del rinnovo. Nei rinnovi periodici la data passa
         da sola al ciclo successivo; con la scadenza unica, una volta scaduta, arriva un promemoria al giorno
         finche' non inserisci la nuova data. Il traffico si conta da un rinnovo all'altro, come l'operatore.
@@ -897,7 +1144,7 @@
       <label>Dalle ore<input name="sim_credit_hour" type="number" min="0" max="23" step="1"></label>
       <label>Avvisami se il credito scende sotto (euro, 0 = mai)<input name="sim_credit_min_eur" type="number" min="0" max="1000" step="0.5"></label>
       <small class="hint">
-        L'avviso arriva via email/WhatsApp (riquadro avvisi nella scheda GNSS &amp; NTRIP). Se nel controllo
+        L'avviso arriva via email/WhatsApp (scheda Avvisi). Se nel controllo
         automatico la base non riesce a leggere l'importo, ti manda il testo della risposta.
       </small>
     </div>
@@ -926,85 +1173,15 @@
     <button type="button" class="action secondary" id="sim-sms-del-btn">Cancella tutti</button>
     <div id="sim-sms-list" style="margin-top:.6rem"></div>
   </fieldset>
-  <fieldset>
-    <legend>🌍 Monitoraggio remoto</legend>
-    <small class="hint">
-      Quando la base e' collegata solo via SIM, da fuori il pannello non si raggiunge. Con questa opzione
-      la base manda ogni tot minuti un riassunto del suo stato (caster, posizione, memoria, temperatura,
-      ultimo riavvio, traffico, credito) a un indirizzo web tuo, con un POST JSON: per esempio una pagina
-      sul tuo server. Non contiene impostazioni ne' password.
-    </small>
-    <label>Indirizzo (http:// o https://)<input name="remote_url" placeholder="https://rtk.evo-net.it/api/basi/stato"></label>
-    <label>Ogni quanti minuti (0 = spento)<input name="remote_interval_min" type="number" min="0" max="1440" step="1"></label>
-    <div class="hint" id="remote-last" style="margin-top:.4rem"></div>
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="remote_url,remote_interval_min">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>
-  <fieldset>
-    <legend>🔐 Accesso remoto (VPN WireGuard)</legend>
-    <small class="hint">
-      La base si collega da sola a un server WireGuard (per esempio il server del caster) e ci resta
-      collegata, anche quando usa la SIM. Dal PC o dal telefono con l'app WireGuard, collegati alla stessa
-      VPN, il pannello si apre all'indirizzo della base nel tunnel. Il tunnel serve solo per raggiungere
-      la base: i dati verso il caster continuano a passare dalla rete normale.
-    </small>
-    <div style="margin:.5rem 0"><b>Stato:</b> <span id="vpn-state">-</span></div>
-    <label>Chiave pubblica di questa base (da mettere sul server)
-      <input id="vpn-pubkey" readonly placeholder="nessuna: premi Genera chiavi" style="font-family:ui-monospace,Consolas,monospace">
-    </label>
-    <button type="button" class="action secondary" id="vpn-keygen-btn">🔑 Genera chiavi</button>
-    <small class="hint">La chiave privata resta sulla base e non si vede mai. Generare chiavi nuove richiede di aggiornare la chiave pubblica anche sul server.</small>
-    <label style="flex-direction:row; align-items:center; gap:.5rem; margin-top:.6rem">
-      <input name="vpn_enable" type="checkbox" style="width:auto; margin:0"> Attiva la VPN
-    </label>
-    <label>Server (nome o IP)<input name="vpn_endpoint" placeholder="rtk.evo-net.it"></label>
-    <label>Porta del server<input name="vpn_port" type="number" min="1" max="65535" placeholder="51820"></label>
-    <label>Chiave pubblica del server<input name="vpn_peer_public_key" placeholder="dal file del server (44 caratteri)" style="font-family:ui-monospace,Consolas,monospace"></label>
-    <label>Indirizzo della base nella VPN<input name="vpn_address" placeholder="10.8.0.2"></label>
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="vpn_enable,vpn_endpoint,vpn_port,vpn_peer_public_key,vpn_address">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>
+  
+  
 </div>
 
 <div id="page-security" class="page">
-  <fieldset>
-    <legend>🖨️ Scheda di accesso</legend>
-    <p class="hint" style="margin-top:0">Pagina da stampare (o salvare in PDF) con gli indirizzi per collegarsi alla base, in locale e da remoto, gli utenti, le password e le istruzioni per i casi di emergenza. La compone la base con i dati del momento: dopo ogni cambio di rete o di password va ristampata. Le password compaiono solo reinserendo la password del pannello.</p>
-    <a class="action" href="/access" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;text-align:center">🖨️ Apri la scheda di accesso</a>
-  </fieldset>
-  <fieldset>
-    <legend>🔒 Sicurezza</legend>
-    <label>Codice di accesso a questa pagina<input autocomplete="new-password" name="admin_code" type="password" placeholder="lascia vuoto per non modificare">
-      <small class="hint">Utente "admin", protegge tutta questa interfaccia. Default di fabbrica: 1234 - cambialo alla prima configurazione.</small>
-    </label>
   
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="admin_code" data-risky="1">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>
+  
 
-  <fieldset>
-    <legend>🆔 Identificazione dispositivo</legend>
-    <label>Matricola<input name="device_serial" placeholder="es. EVONETRTK-0001" readonly></label>
-    <label style="flex-direction:row; align-items:center; gap:.5rem; margin-top:.4rem">
-      <input type="checkbox" id="device-serial-unlock" style="width:auto; margin:0">
-      Forza modifica (di norma la matricola resta quella ricavata dal chip - cambiarla e' una scelta deliberata)
-    </label>
-    <small class="hint">Per default e' lo stesso numero del nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428") - puoi sostituirlo con un tuo codice se preferisci un altro sistema di tracciamento.</small>
-    <small class="hint" id="device-serial-mismatch" style="display:none; color:#d97706; font-weight:600">
-      ⚠️ Non corrisponde alla matricola ricavata dal chip di questo dispositivo (<span id="device-serial-mac-expected"></span>) - verifica che sia voluto.
-    </small>
-
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="device_serial" data-risky="1" data-risky-msg="Stai forzando la matricola a un valore diverso da quello ricavato dal chip - assicurati che sia una scelta deliberata. Salvare comunque?">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>
+  
 
   <fieldset>
     <legend>🔌 Avvisi: caster disconnesso e temperatura</legend>
@@ -1180,104 +1357,11 @@
 </div>
 
 <div id="page-hardware" class="page">
-  <fieldset>
-    <legend>🎛️ Collegamento ricevitore GNSS</legend>
-    <label>Collegamento
-      <select name="gnss_link">
-        <option value="uart">Seriale (UART)</option>
-        <option value="i2c">I2C - solo u-blox, es. HAT ZED-F9P sul connettore (pin 3/5, stesso bus dell'OLED)</option>
-      </select>
-    </label>
-    <label data-link="uart">UART ESP32
-      <select name="gnss_uart_num">
-        <option value="0">UART0</option>
-        <option value="1">UART1</option>
-        <option value="2">UART2</option>
-      </select>
-    </label>
-    <label data-link="uart">GPIO TX (ESP32 &rarr; GNSS)<input name="gnss_uart_tx_pin" type="number" min="-1" max="48"></label>
-    <label data-link="uart">GPIO RX (GNSS &rarr; ESP32, riceve RTCM3)<input name="gnss_uart_rx_pin" type="number" min="-1" max="48"></label>
-    <label data-link="uart">Baud rate<input name="gnss_uart_baud" type="number" min="4800"></label>
-    <small class="hint" data-link="uart">
-      Pin verso il modulo GNSS esterno - variano per installazione. Richiede un riavvio per applicarsi.
-      HAT per Raspberry con seriale sul connettore: TX 43 / RX 44 (pin 8/10). L76K degli shield
-      LilyGO: TX 42 / RX 39. Il modulo Quectel LC29H di fabbrica usa 460800 (non 115200).
-    </small>
-    <small class="hint" data-link="i2c">
-      Ricevitore u-blox all'indirizzo I2C 0x42, sugli stessi pin SDA/SCL del display OLED (scheda
-      Hardware, riquadro OLED - sulla T-ETH-Elite 17/18). Nessuna velocita' da impostare.
-      Richiede un riavvio per applicarsi.
-    </small>
-
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="gnss_link,gnss_uart_num,gnss_uart_tx_pin,gnss_uart_rx_pin,gnss_uart_baud" data-reboot="1">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>
-
-  <fieldset>
-    <legend>💡 LED RGB (opzionale)</legend>
-    <label>Tipo di LED
-      <select name="rgb_led_mode">
-        <option value="none">Nessuno</option>
-        <option value="ws2812">WS2812 / NeoPixel (1 pin dati)</option>
-        <option value="pwm3">3 pin separati R/G/B (PWM)</option>
-      </select>
-    </label>
-    <label>GPIO dati WS2812<input name="rgb_led_ws2812_pin" type="number" min="-1" max="48"></label>
-    <label>GPIO Rosso (PWM)<input name="rgb_led_pwm_r_pin" type="number" min="-1" max="48"></label>
-    <label>GPIO Verde (PWM)<input name="rgb_led_pwm_g_pin" type="number" min="-1" max="48"></label>
-    <label>GPIO Blu (PWM)<input name="rgb_led_pwm_b_pin" type="number" min="-1" max="48"></label>
-    <label style="display:flex; align-items:center; gap:.4rem">
-      <input name="rgb_led_pwm_active_low" type="checkbox" style="width:auto; margin:0">
-      Logica invertita (catodo comune verso i GPIO)
-    </label>
-    <small class="hint">-1 su un pin = non usato/non applicabile al tipo scelto. Richiede un riavvio.</small>
   
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="rgb_led_mode,rgb_led_ws2812_pin,rgb_led_pwm_r_pin,rgb_led_pwm_g_pin,rgb_led_pwm_b_pin,rgb_led_pwm_active_low" data-reboot="1">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>
 
-  <fieldset>
-    <legend>🖥️ Display OLED (opzionale, 128x64 I2C)</legend>
-    <label>Controller
-      <select name="oled_controller">
-        <option value="ssd1306">SSD1306 (tipico nei moduli da 0,96")</option>
-        <option value="sh1106">SH1106 (tipico nei moduli da 1,3")</option>
-        <option value="ssd1309">SSD1309 (tipico nei moduli da 2,42" - stessi comandi di SSD1306)</option>
-      </select>
-      <small class="hint">Se l'immagine esce distorta o scorretta, prova a cambiare questa scelta.</small>
-    </label>
-    <label>GPIO SDA<input name="oled_sda_pin" type="number" min="-1" max="48"></label>
-    <label>GPIO SCL<input name="oled_scl_pin" type="number" min="-1" max="48"></label>
-    <label>Indirizzo I2C (decimale)<input name="oled_i2c_addr" type="number" min="1" max="255"></label>
-    <small class="hint" id="oled-addr-hex"></small>
-    <small class="hint">
-      Indirizzo tipico 60 (0x3C, esadecimale); alcuni cloni rispondono su 61 (0x3D). -1 su SDA/SCL
-      = display non presente. All'avvio mostra "EVONET RTK" per qualche secondo, poi alterna stato
-      dispositivo, satelliti per costellazione e segnale cellulare/WiFi. Richiede un riavvio.
-    </small>
-    <label style="display:flex; align-items:center; gap:.4rem; margin-top:.8rem">
-      <input name="oled_flip_h" type="checkbox" style="width:auto; margin:0">
-      Testo/immagine a specchio (inverti orizzontale)
-    </label>
-    <label style="display:flex; align-items:center; gap:.4rem">
-      <input name="oled_flip_v" type="checkbox" style="width:auto; margin:0">
-      Display sottosopra (inverti verticale)
-    </label>
-    <small class="hint">
-      L'orientamento dipende da come il singolo modulo e' cablato internamente - non c'e' un
-      valore giusto universale, prova e guarda il risultato. Richiede un riavvio.
-    </small>
   
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="oled_controller,oled_sda_pin,oled_scl_pin,oled_i2c_addr,oled_flip_h,oled_flip_v" data-reboot="1">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>  <small class="hint">Pin GNSS/OLED/RGB richiedono un riavvio manuale (scheda Rete) dopo il salvataggio per applicarsi.</small>
-</div>
+
+  </div>
 
 <div id="page-firmware" class="page">
   <fieldset>
@@ -1298,7 +1382,7 @@
     </small>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-adv>
     <legend>💾 Aggiornamento da microSD</legend>
     <p style="font-size:.9rem; margin-top:0">
       Copia <code>firmware.bin</code> e <code>firmware.json</code> (contenente <code>{"version":"x.y.z"}</code>)
@@ -1318,7 +1402,8 @@
   </fieldset>
 
   <fieldset>
-    <legend>💾 Configurazione: copia di sicurezza</legend>
+    <legend>💾 Copie della configurazione</legend>
+    <h4 style="margin:.2rem 0 .3rem">Copia completa (file .bin, con le password)</h4>
     <small class="hint">
       La base tiene da sola una copia della configurazione sulla microSD, aggiornata a ogni salvataggio:
       se la configurazione in memoria si perde, all'avvio viene ripristinata automaticamente (non dopo un
@@ -1333,9 +1418,26 @@
       <input type="file" id="cfg-import-file" accept=".bin" style="display:none">
     </div>
     <div id="cfg-import-msg" class="hint" style="margin-top:.4rem"></div>
+  
+    <h4 style="margin:1.2rem 0 .3rem">Copia leggibile (file .json, senza password)</h4>
+    <button type="button" class="action secondary" id="cfgjson-export-btn">Scarica configurazione (JSON)</button>
+    <small class="hint">
+      Utile prima di sperimentare. Le password non sono incluse (il dispositivo non le restituisce
+      mai in lettura, solo in scrittura): vanno reinserite a mano dopo un'importazione.
+    </small>
+    <button type="button" class="action secondary" id="cfgjson-export-clone-btn" style="margin-top:.6rem">Scarica per clonare su un nuovo dispositivo</button>
+    <small class="hint">
+      Come sopra, ma senza matricola e SSID dell'AP di setup - campi che devono restare unici per
+      ogni base fisica: importarli per sbaglio su un secondo dispositivo gli farebbe assumere
+      l'identita' del primo.
+    </small>
+    <label style="margin-top:.8rem">File configurazione (.json)<input type="file" id="cfgjson-import-file" accept=".json"></label>
+    <button type="button" class="action" id="cfgjson-import-btn" style="margin-top:.6rem">Importa e applica</button>
+    <div id="cfgjson-import-msg" class="hint" style="margin-top:.6rem"></div>
+  
   </fieldset>
 
-  <fieldset>
+  <fieldset data-adv>
     <legend>🗄️ Archivio firmware (ripristino manuale)</legend>
     <small class="hint">
       Ad ogni aggiornamento applicato, il dispositivo salva da solo su SD una copia della versione
@@ -1385,33 +1487,43 @@
     </div>
   </fieldset>
 
+  
   <fieldset>
-    <legend>💾 Backup configurazione</legend>
-    <button type="button" class="action secondary" id="cfgjson-export-btn">Scarica configurazione (JSON)</button>
-    <small class="hint">
-      Utile prima di sperimentare. Le password non sono incluse (il dispositivo non le restituisce
-      mai in lettura, solo in scrittura): vanno reinserite a mano dopo un'importazione.
-    </small>
-    <button type="button" class="action secondary" id="cfgjson-export-clone-btn" style="margin-top:.6rem">Scarica per clonare su un nuovo dispositivo</button>
-    <small class="hint">
-      Come sopra, ma senza matricola e SSID dell'AP di setup - campi che devono restare unici per
-      ogni base fisica: importarli per sbaglio su un secondo dispositivo gli farebbe assumere
-      l'identita' del primo.
-    </small>
-    <label style="margin-top:.8rem">File configurazione (.json)<input type="file" id="cfgjson-import-file" accept=".json"></label>
-    <button type="button" class="action" id="cfgjson-import-btn" style="margin-top:.6rem">Importa e applica</button>
-    <div id="cfgjson-import-msg" class="hint" style="margin-top:.6rem"></div>
+    <legend>🖨️ Scheda di accesso</legend>
+    <p class="hint" style="margin-top:0">Pagina da stampare (o salvare in PDF) con gli indirizzi per collegarsi alla base, in locale e da remoto, gli utenti, le password e le istruzioni per i casi di emergenza. La compone la base con i dati del momento: dopo ogni cambio di rete o di password va ristampata. Le password compaiono solo reinserendo la password del pannello.</p>
+    <a class="action" href="/access" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;text-align:center">🖨️ Apri la scheda di accesso</a>
   </fieldset>
-</div>
-<small class="hint">
-  Ogni campo si salva da solo con il pulsante 💾 accanto, senza riavviare il dispositivo - molte
-  impostazioni (es. WiFi, NTRIP) si applicano subito. Alcune (pin GNSS/OLED/RGB nella scheda
-  Hardware) richiedono comunque un riavvio manuale per applicarsi: usa il pulsante "Riavvia
-  dispositivo" nella scheda Rete quando serve.
-</small>
-</form>
 
-<div id="page-log" class="page">
+  <fieldset>
+    <legend>🔒 Sicurezza</legend>
+    <label>Codice di accesso a questa pagina<input autocomplete="new-password" name="admin_code" type="password" placeholder="lascia vuoto per non modificare">
+      <small class="hint">Utente "admin", protegge tutta questa interfaccia. Default di fabbrica: 1234 - cambialo alla prima configurazione.</small>
+    </label>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="admin_code" data-risky="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset data-adv>
+    <legend>🆔 Identificazione dispositivo</legend>
+    <label>Matricola<input name="device_serial" placeholder="es. EVONETRTK-0001" readonly></label>
+    <label style="flex-direction:row; align-items:center; gap:.5rem; margin-top:.4rem">
+      <input type="checkbox" id="device-serial-unlock" style="width:auto; margin:0">
+      Forza modifica (di norma la matricola resta quella ricavata dal chip - cambiarla e' una scelta deliberata)
+    </label>
+    <small class="hint">Per default e' lo stesso numero del nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428") - puoi sostituirlo con un tuo codice se preferisci un altro sistema di tracciamento.</small>
+    <small class="hint" id="device-serial-mismatch" style="display:none; color:#d97706; font-weight:600">
+      ⚠️ Non corrisponde alla matricola ricavata dal chip di questo dispositivo (<span id="device-serial-mac-expected"></span>) - verifica che sia voluto.
+    </small>
+
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="device_serial" data-risky="1" data-risky-msg="Stai forzando la matricola a un valore diverso da quello ricavato dal chip - assicurati che sia una scelta deliberata. Salvare comunque?">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
   <fieldset>
     <legend>📜 Log recenti</legend>
     <small class="hint">
@@ -1423,7 +1535,7 @@
     <pre id="log-view" style="margin-top:.6rem; max-height:60vh; overflow:auto; background:#111827; color:#e5e7eb; padding:.6rem; border-radius:6px; font-size:.78rem; white-space:pre-wrap; word-break:break-all;">-</pre>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-adv>
     <legend>💾 Log salvati sulla microSD</legend>
     <small class="hint">
       Un file per ogni accensione, gli ultimi 5: servono per capire cosa e' successo prima di un
@@ -1432,6 +1544,82 @@
     <button type="button" class="action secondary" id="diag-list-btn" style="margin-top:.6rem">Mostra file</button>
     <ul id="diag-list" style="margin:.6rem 0 0; padding-left:1.2rem"></ul>
   </fieldset>
+
+  <fieldset data-adv>
+    <legend>💡 LED RGB (opzionale)</legend>
+    <label>Tipo di LED
+      <select name="rgb_led_mode">
+        <option value="none">Nessuno</option>
+        <option value="ws2812">WS2812 / NeoPixel (1 pin dati)</option>
+        <option value="pwm3">3 pin separati R/G/B (PWM)</option>
+      </select>
+    </label>
+    <label>GPIO dati WS2812<input name="rgb_led_ws2812_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Rosso (PWM)<input name="rgb_led_pwm_r_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Verde (PWM)<input name="rgb_led_pwm_g_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO Blu (PWM)<input name="rgb_led_pwm_b_pin" type="number" min="-1" max="48"></label>
+    <label style="display:flex; align-items:center; gap:.4rem">
+      <input name="rgb_led_pwm_active_low" type="checkbox" style="width:auto; margin:0">
+      Logica invertita (catodo comune verso i GPIO)
+    </label>
+    <small class="hint">-1 su un pin = non usato/non applicabile al tipo scelto. Richiede un riavvio.</small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="rgb_led_mode,rgb_led_ws2812_pin,rgb_led_pwm_r_pin,rgb_led_pwm_g_pin,rgb_led_pwm_b_pin,rgb_led_pwm_active_low" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+  <fieldset data-adv>
+    <legend>🖥️ Display OLED (opzionale, 128x64 I2C)</legend>
+    <label>Controller
+      <select name="oled_controller">
+        <option value="ssd1306">SSD1306 (tipico nei moduli da 0,96")</option>
+        <option value="sh1106">SH1106 (tipico nei moduli da 1,3")</option>
+        <option value="ssd1309">SSD1309 (tipico nei moduli da 2,42" - stessi comandi di SSD1306)</option>
+      </select>
+      <small class="hint">Se l'immagine esce distorta o scorretta, prova a cambiare questa scelta.</small>
+    </label>
+    <label>GPIO SDA<input name="oled_sda_pin" type="number" min="-1" max="48"></label>
+    <label>GPIO SCL<input name="oled_scl_pin" type="number" min="-1" max="48"></label>
+    <label>Indirizzo I2C (decimale)<input name="oled_i2c_addr" type="number" min="1" max="255"></label>
+    <small class="hint" id="oled-addr-hex"></small>
+    <small class="hint">
+      Indirizzo tipico 60 (0x3C, esadecimale); alcuni cloni rispondono su 61 (0x3D). -1 su SDA/SCL
+      = display non presente. All'avvio mostra "EVONET RTK" per qualche secondo, poi alterna stato
+      dispositivo, satelliti per costellazione e segnale cellulare/WiFi. Richiede un riavvio.
+    </small>
+    <label style="display:flex; align-items:center; gap:.4rem; margin-top:.8rem">
+      <input name="oled_flip_h" type="checkbox" style="width:auto; margin:0">
+      Testo/immagine a specchio (inverti orizzontale)
+    </label>
+    <label style="display:flex; align-items:center; gap:.4rem">
+      <input name="oled_flip_v" type="checkbox" style="width:auto; margin:0">
+      Display sottosopra (inverti verticale)
+    </label>
+    <small class="hint">
+      L'orientamento dipende da come il singolo modulo e' cablato internamente - non c'e' un
+      valore giusto universale, prova e guarda il risultato. Richiede un riavvio.
+    </small>
+  
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="oled_controller,oled_sda_pin,oled_scl_pin,oled_i2c_addr,oled_flip_h,oled_flip_v" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+  </fieldset>
+
+</div>
+<small class="hint">
+  Ogni campo si salva da solo con il pulsante 💾 accanto, senza riavviare il dispositivo - molte
+  impostazioni (es. WiFi, NTRIP) si applicano subito. Alcune (pin del ricevitore, LED e display) richiedono comunque un riavvio manuale per applicarsi: usa il pulsante "Riavvia
+  dispositivo" nella scheda Connessione quando serve.
+</small>
+</form>
+
+<div id="page-log" class="page">
+  
+
+  
 </div>
 
 <div id="save-msg"></div>
@@ -1448,7 +1636,7 @@ function goToPage(pageId) {
     drawSatChart(lastSignals.satellites || []);
   }
   window.scrollTo(0, 0);
-  if (pageId === 'page-log') {
+  if (pageId === 'page-log' || pageId === 'page-firmware') {
     loadLog();
   }
 }
@@ -1462,7 +1650,7 @@ document.querySelectorAll('nav.tabs button[data-page]').forEach((btn) => {
 // fissa (sotto gli indicatori), cosi' resta sempre visibile; su schermi larghi
 // torna al suo posto, come prima. Icona e nome in due elementi separati.
 // Nomi brevi per la griglia delle schede su telefono.
-const TAB_SHORT = { 'page-gnss': 'GNSS' };
+const TAB_SHORT = { 'page-gnss': 'Posizione', 'page-sim': 'SIM', 'page-firmware': 'Manutenz.' };
 
 (function setupTabs() {
   const nav = document.querySelector('nav.tabs');
@@ -1496,6 +1684,37 @@ function markMoreTab(pageId) {
     nav.scrollLeft = b.offsetLeft - nav.offsetLeft - (nav.clientWidth - b.offsetWidth) / 2;
   }
 }
+
+// --- Modifiche in attesa di riavvio -----------------------------------------------
+// La base confronta le impostazioni "da riavvio" salvate con quelle in uso
+// (pending_restart nello stato): finche' differiscono, barra fissa con il
+// pulsante Riavvia (08/10/2026: ricevitore cambiato senza riavvio).
+function updateRestartBanner(s) {
+  const bar = document.getElementById('restart-banner');
+  bar.style.display = s.pending_restart ? 'flex' : 'none';
+  document.getElementById('restart-banner-what').textContent = s.pending_restart || '';
+}
+document.getElementById('restart-banner-btn').addEventListener('click', async () => {
+  if (!confirm('Riavviare la base adesso? Per circa mezzo minuto non manda correzioni.')) return;
+  document.getElementById('restart-banner-what').textContent = 'riavvio in corso, la pagina si ricarica da sola tra circa 25 secondi';
+  try { await fetch('/api/reboot', { method: 'POST' }); } catch (e) {}
+  setTimeout(() => location.reload(), 25000);
+});
+
+// --- Impostazioni avanzate ----------------------------------------------------------
+// Le voci che si toccano raramente (attributo data-adv) restano nascoste
+// finche' non si accende "Avanzate"; la scelta resta in questo browser.
+function setAdvanced(on) {
+  document.body.classList.toggle('show-adv', on);
+  document.getElementById('adv-toggle').checked = on;
+  try { localStorage.setItem('show-adv', on ? '1' : '0'); } catch (e) {}
+}
+(() => {
+  let on = false;
+  try { on = localStorage.getItem('show-adv') === '1'; } catch (e) {}
+  setAdvanced(on);
+  document.getElementById('adv-toggle').addEventListener('change', (ev) => setAdvanced(ev.target.checked));
+})();
 
 // --- Riquadri richiudibili ----------------------------------------------------------
 // Toccando il titolo il riquadro si chiude o si apre; lo stato resta
@@ -1597,9 +1816,21 @@ document.getElementById('settings-search').addEventListener('input', (ev) => {
     return;
   }
   // Niente risultati per i riquadri nascosti (modalita' base/rover, chip).
-  const matches = settingsSearchIndex.filter((item) => !item.el.hidden && item.haystack.includes(q)).slice(0, 8);
+  const matches = settingsSearchIndex.filter((item) => !item.el.hidden && !item.el.closest('.chip-hidden') && item.haystack.includes(q)).slice(0, 8);
   results.style.display = 'block';
   results.innerHTML = '';
+  // Voci che con questo ricevitore non ci sono (data-chip): spiegate invece
+  // di sparire senza motivo (es. "HAS" con lo ZED-F9P).
+  const absent = settingsSearchIndex.filter((item) => item.el.closest('.chip-hidden') && item.haystack.includes(q)).slice(0, 3);
+  absent.forEach((m) => {
+    const note = document.createElement('div');
+    note.className = 'search-result-empty';
+    note.textContent = '⛔ ' + visibleLegendText(m.el) + ' — non disponibile con questo ricevitore';
+    results.appendChild(note);
+  });
+  if (!matches.length && absent.length) {
+    return;
+  }
   if (!matches.length) {
     const empty = document.createElement('div');
     empty.className = 'search-result-empty';
@@ -1610,8 +1841,10 @@ document.getElementById('settings-search').addEventListener('input', (ev) => {
   matches.forEach((m) => {
     const item = document.createElement('div');
     item.className = 'search-result-item';
-    item.innerHTML = visibleLegendText(m.el) + ' <span class="search-result-page">— ' + m.pageName + '</span>';
+    const isAdv = !!m.el.closest('[data-adv]');
+    item.innerHTML = visibleLegendText(m.el) + ' <span class="search-result-page">— ' + (m.pageName || 'Segnali') + (isAdv ? ' · avanzate' : '') + '</span>';
     item.addEventListener('click', () => {
+      if (isAdv) setAdvanced(true);
       goToPage(m.pageId);
       expandFieldsetOf(m.el);
       if (m.el.classList) m.el.classList.remove('collapsed');
@@ -1784,7 +2017,7 @@ async function loadStatus() {
     document.getElementById('st-serial').textContent =
       (s.device_serial || '(non impostata)') + (serialMismatch ? ' ⚠️' : '');
     document.getElementById('st-serial').title = serialMismatch
-      ? 'Diversa da quella ricavata dal chip (' + s.device_serial_from_mac + ') - vedi scheda Sicurezza'
+      ? 'Diversa da quella ricavata dal chip (' + s.device_serial_from_mac + ') - vedi scheda Manutenzione'
       : '';
     const serialMismatchEl = document.getElementById('device-serial-mismatch');
     if (serialMismatchEl) {
@@ -1874,10 +2107,11 @@ async function loadStatus() {
     updateModeVisibility();
     update1005Banner(s);
     updateSummaryCards(s);
+    updateRestartBanner(s);
     {
       // Ricevitore (UBX-MON-SYS): temperatura, carico, memoria, avvisi.
       const el = document.getElementById('st-gnss-sys');
-      const model = s.gnss_model ? 'u-blox ' + s.gnss_model + (s.gnss_fw ? ' (' + s.gnss_fw + ')' : '') + ' · ' : '';
+      const model = s.gnss_model ? (s.gnss_vendor || 'u-blox') + ' ' + s.gnss_model + (s.gnss_fw ? ' (' + s.gnss_fw + ')' : '') + ' · ' : '';
       if (s.gnss_temp_c === undefined) {
         el.textContent = model + 'stato non disponibile (solo ricevitori u-blox in base)';
         el.style.color = '';
@@ -1922,7 +2156,7 @@ async function loadStatus() {
     updateMeasureUi(s);
     {
       const insFieldset = document.getElementById('bynav-ins-fieldset');
-      if (s.gnss_chip === 'bynav_m21d' && s.device_mode === 'rover') {
+      if ((s.gnss_chip === 'bynav_m21d' || s.gnss_chip_effective === 'comnav') && s.device_mode === 'rover') {
         insFieldset.hidden = false;
         if (s.bynav_ins_have_attitude) {
           document.getElementById('st-ins-status').textContent = s.bynav_ins_status || '-';
@@ -1976,6 +2210,7 @@ async function loadStatus() {
       f.sim_operator.value = s.sim_operator || '';
       f.remote_url.value = s.remote_url || '';
       f.vpn_enable.checked = !!s.vpn_enable;
+      f.rover_has_fallback.checked = !!s.rover_has_fallback;
       f.vpn_endpoint.value = s.vpn_endpoint || '';
       f.vpn_port.value = s.vpn_port || 51820;
       f.vpn_peer_public_key.value = s.vpn_peer_public_key || '';
@@ -1984,6 +2219,8 @@ async function loadStatus() {
       f.sim_credit_mode.value = s.sim_credit_mode || 'ussd';
       f.sim_credit_code.value = s.sim_credit_code || '';
       f.sim_credit_sms_number.value = s.sim_credit_sms_number || '';
+      f.sim_phone.value = s.sim_phone || '';
+      f.sim_iccid_cfg.value = s.sim_iccid_cfg || '';
       f.sim_credit_sms_text.value = s.sim_credit_sms_text || '';
       f.sim_credit_every_days.value = s.sim_credit_every_days || 0;
       f.sim_credit_hour.value = s.sim_credit_hour || 0;
@@ -2005,6 +2242,8 @@ async function loadStatus() {
       f.nmea_udp_port.value = s.nmea_udp_port || '';
       f.gnss_chip.value = s.gnss_chip || 'ublox';
       f.device_mode.value = s.device_mode || 'base';
+      gnssChipEffective = s.gnss_chip_effective || '';
+      gnssDetectNote = s.gnss_detect_note || '';
       updateRtcmUnsupported();
       f.bynav_ant1_x_m.value = s.bynav_ant1_x_m ?? '';
       f.bynav_ant1_y_m.value = s.bynav_ant1_y_m ?? '';
@@ -2016,6 +2255,13 @@ async function loadStatus() {
       f.bynav_rbv_pitch_deg.value = s.bynav_rbv_pitch_deg ?? '';
       f.bynav_rbv_yaw_deg.value = s.bynav_rbv_yaw_deg ?? '';
       updateBynavM21dFieldsetVisibility();
+      f.comnav_heading_enable.checked = !!s.comnav_heading_enable;
+      f.comnav_ins_enable.checked = !!s.comnav_ins_enable;
+      f.comnav_imu_axes.value = String(s.comnav_imu_axes || 1);
+      updateComnavFieldsetVisibility();
+      updateChipVisibility();
+      // Scheda SIM solo se il modem si usa (non con "solo WiFi" o "solo Ethernet").
+      document.querySelector('.tabs [data-page="page-sim"]').classList.toggle('chip-hidden', s.network_mode === 'wifi' || s.network_mode === 'ethernet_only');
       f.rtcm_1005_enable.checked = !!s.rtcm_1005_enable;
       f.rtcm_1007_enable.checked = !!s.rtcm_1007_enable;
       f.rtcm_1008_enable.checked = !!s.rtcm_1008_enable;
@@ -2512,7 +2758,9 @@ function renderFixStatus(s) {
 
   const color = FIX_QUALITY_COLOR[s.gnss_fix_quality] || '#dc2626';
   const icon = FIX_QUALITY_ICON[s.gnss_fix_quality] || '❌';
-  const label = icon + ' ' + (s.gnss_fix_quality_str || '-').toUpperCase();
+  // Rover con riserva Galileo HAS: quale soluzione va ad AgOpenGPS.
+  const hasNote = { has: ' · GALILEO HAS (convertita in ETRF2000)', autonoma: ' · SENZA CORREZIONI (convertita in ETRF2000)', rtk: ' · RTK DALLA BASE' }[s.rover_has_state] || '';
+  const label = icon + ' ' + (s.gnss_fix_quality_str || '-').toUpperCase() + hasNote;
   [qualityEl, stFixEl].forEach((el) => { el.textContent = label; el.style.color = color; el.style.fontWeight = '600'; });
 
   satsEl.textContent = s.gnss_satellites_used;
@@ -2877,7 +3125,7 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
   try {
     const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
     if (!r.ok) throw new Error('errore server');
-    msg.textContent = 'Salvato. Se hai modificato pin GNSS/OLED/RGB serve un riavvio manuale (scheda Rete) per applicarli - il resto e\' gia\' attivo.';
+    msg.textContent = 'Salvato. Se hai modificato pin GNSS/OLED/RGB serve un riavvio manuale (scheda Connessione) per applicarli - il resto e\' gia\' attivo.';
     loadStatus();
   } catch (e) {
     msg.textContent = 'Errore nel salvataggio';
@@ -3124,13 +3372,24 @@ const RTCM_UNSUPPORTED_BY_CHIP = {
   ublox: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
   lc29h: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable', 'rtcm_1230_enable'],
   unicore: [],
+  comnav: [],
   bynav: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
   bynav_m21d: ['rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1019_enable', 'rtcm_1020_enable'],
   l76k: RTCM_ALL_MESSAGE_FIELDS, // non produce RTCM (e non puo' fare da base)
 };
+// Con "automatico": ricevitore trovato all'avvio ed esito, da /api/status.
+var gnssChipEffective = '';
+var gnssDetectNote = '';
 function updateRtcmUnsupported() {
   const f = document.getElementById('cfg-form');
-  const unsupported = new Set(RTCM_UNSUPPORTED_BY_CHIP[f.gnss_chip.value] || []);
+  const auto = f.gnss_chip.value === 'auto';
+  const chip = auto ? (gnssChipEffective || 'ublox') : f.gnss_chip.value;
+  const note = document.getElementById('gnss-detect-note');
+  note.textContent = auto
+    ? (gnssDetectNote ? 'All’ultimo avvio: ' + gnssDetectNote + '. ' : '') +
+      'Prova I2C e seriale a ogni avvio. Bynav e Quectel vanno scelti a mano.'
+    : '';
+  const unsupported = new Set(RTCM_UNSUPPORTED_BY_CHIP[chip] || []);
   RTCM_ALL_MESSAGE_FIELDS.forEach((name) => {
     const el = f.elements[name];
     const label = el.closest('label');
@@ -3152,6 +3411,28 @@ function updateBynavM21dFieldsetVisibility() {
   updateModeVisibility();
 }
 document.getElementById('cfg-form').gnss_chip.addEventListener('change', updateBynavM21dFieldsetVisibility);
+// ComNav K922: IMU e doppia antenna solo in rover, con ComNav scelto o trovato.
+function updateComnavFieldsetVisibility() {
+  const f = document.getElementById('cfg-form');
+  const chip = f.gnss_chip.value === 'auto' ? gnssChipEffective : f.gnss_chip.value;
+  document.getElementById('comnav-fieldset').hidden = !(chip === 'comnav' && f.device_mode.value === 'rover');
+}
+document.getElementById('cfg-form').gnss_chip.addEventListener('change', updateComnavFieldsetVisibility);
+// Voci che valgono solo per alcuni ricevitori (attributo data-chip="ublox"
+// o "unicore,comnav"): nascoste con gli altri. Con "Automatico" vale il
+// ricevitore trovato all'avvio. Il PPP con osservazioni RTCM e' l'unico
+// metodo senza u-blox: aperto in quel caso.
+function updateChipVisibility() {
+  const f = document.getElementById('cfg-form');
+  const chip = f.gnss_chip.value === 'auto' ? (gnssChipEffective || 'ublox') : f.gnss_chip.value;
+  document.querySelectorAll('[data-chip]').forEach((el) => {
+    el.classList.toggle('chip-hidden', !el.dataset.chip.split(',').includes(chip));
+  });
+  const rtcmPpp = document.getElementById('ppp-rtcm-details');
+  if (rtcmPpp && chip !== 'ublox') rtcmPpp.open = true;
+}
+document.getElementById('cfg-form').gnss_chip.addEventListener('change', updateChipVisibility);
+document.getElementById('cfg-form').device_mode.addEventListener('change', updateComnavFieldsetVisibility);
 document.getElementById('cfg-form').device_mode.addEventListener('change', updateBynavM21dFieldsetVisibility);
 
 // Campi seriale (pin, baud) nascosti quando il ricevitore e' collegato via
@@ -3184,10 +3465,22 @@ function fmtMinSec(sec) { sec = Math.max(0, Math.round(sec || 0)); return Math.f
 function updateMeasureUi(s) {
   const box = document.getElementById('measure-banner');
   box.style.display = s.base_measure_active ? '' : 'none';
-  document.getElementById('measure-mp').textContent = s.rover_mountpoint ? '/' + s.rover_mountpoint : 'non impostato: scheda GNSS & NTRIP';
+  document.getElementById('measure-mp').textContent = s.rover_mountpoint ? '/' + s.rover_mountpoint : 'non impostato: scheda Posizione e correzioni';
   document.getElementById('measure-last').textContent = (!s.base_measure_active && s.base_measure_msg) ? 'Ultima misura: ' + s.base_measure_msg : '';
   if (!s.base_measure_active) return;
   const q = s.base_measure_quality;
+  if (s.base_measure_method === 'has') {
+    const done = s.base_measure_has_done_s || 0, target = s.base_measure_has_target_s || 21600;
+    document.getElementById('measure-bar').style.width = Math.min(100, 100 * done / target) + '%';
+    const ppp = s.base_measure_fixed_n || 0, all = s.base_measure_float_n || 0;
+    const sig = s.base_measure_has_sigma_cm || 0;
+    document.getElementById('measure-progress').textContent =
+      'Galileo HAS · ' + (sig ? 'incertezza attuale ' + sig + ' cm, correzioni di ' + (s.base_measure_has_corr_age_s || 0) + ' s fa' : 'soluzione HAS non ancora disponibile') +
+      (s.base_measure_has_warmup_s > 0 ? ' · convergenza: ancora ' + fmtMinSec(s.base_measure_has_warmup_s) : '') +
+      ' · misura ' + fmtMinSec(done) + ' di ' + fmtMinSec(target) +
+      ' · soluzioni buone ' + ppp + ' su ' + all + (all ? ' (' + Math.round(100 * ppp / all) + '%)' : '');
+    return;
+  }
   const pct = Math.min(100, 100 * (s.base_measure_fixed_n || 0) / (s.base_measure_target_n || 180));
   document.getElementById('measure-bar').style.width = pct + '%';
   document.getElementById('measure-progress').textContent =
@@ -3196,12 +3489,12 @@ function updateMeasureUi(s) {
     ' (float ' + (s.base_measure_float_n || 0) + ') · tempo ' + fmtMinSec(s.base_measure_elapsed_s) + ' di ' + fmtMinSec(s.base_measure_timeout_s);
 }
 
-async function postMeasure(action) {
+async function postMeasure(action, extra) {
   try {
-    const r = await fetch('/api/base/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+    const r = await fetch('/api/base/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action }, extra || {})) });
     const j = await r.json().catch(() => ({}));
     if (j.ok === false) { alert(j.error || 'Operazione non riuscita'); return; }
-    alert(action === 'start'
+    alert(action !== 'cancel'
       ? 'La base si riavvia come rover per la misura. Riapri il pannello tra circa un minuto: lo stato è in cima alla scheda Stato.'
       : 'Misura annullata: la base si riavvia come base.');
   } catch (e) {
@@ -3211,6 +3504,15 @@ async function postMeasure(action) {
 
 document.getElementById('measure-start-btn').addEventListener('click', () => {
   if (confirm('Avviare la misura della posizione? La base si riavvia come rover e per qualche minuto non invia correzioni.')) postMeasure('start');
+});
+document.getElementById('measure-has-btn').addEventListener('click', () => {
+  const hours = parseInt(document.getElementById('measure-has-hours').value, 10) || 6;
+  if (confirm('Avviare la misura con Galileo HAS per ' + hours + ' ore?\n\n' +
+    '• Per tutta la misura (piu’ mezz’ora di convergenza) la base non manda correzioni ai rover.\n' +
+    '• Serve un ricevitore Unicore UM980/UM982 con l’antenna nella posizione definitiva.\n' +
+    '• Alla fine le coordinate (convertite in ETRF2000) diventano la posizione fissa e la base torna base da sola.')) {
+    postMeasure('start_has', { hours });
+  }
 });
 document.getElementById('measure-cancel-btn').addEventListener('click', () => {
   if (confirm('Annullare la misura e tornare base senza cambiare le coordinate?')) postMeasure('cancel');
@@ -3268,7 +3570,7 @@ function renderDataBar(el, s) {
     }
   } else {
     html = '<div style="background:#e5e7eb; border-radius:6px; padding:.3rem .6rem; font-size:.85rem">' +
-      'Cellulare questo mese: <b>' + fmtGB(used) + '</b> — imposta il piano dati nella scheda Rete per vedere la percentuale</div>';
+      'Cellulare questo mese: <b>' + fmtGB(used) + '</b> — imposta il piano dati nella scheda SIM e costi per vedere la percentuale</div>';
   }
   html += '<div style="font-size:.82rem; color:#6b7280; margin-top:.25rem">Oggi: cellulare ' + fmtGB(s.data_cell_day_bytes || 0) +
     ', WiFi ' + fmtGB(s.data_wifi_day_bytes || 0) +
@@ -3327,7 +3629,7 @@ function drawDataChart(canvas, s) {
   }
 }
 
-// Ultimo riavvio, traffico dati e cadute del caster (scheda Stato e Rete).
+// Ultimo riavvio, traffico dati e cadute del caster (schede Stato e Connessione).
 // Promemoria del rinnovo della SIM in cima allo Stato: giallo nei giorni
 // del primo promemoria, rosso se scaduto.
 function updateSimRenewBanner(s) {
@@ -3412,10 +3714,71 @@ function updateSimCreditForm(fromUser) {
 document.getElementById('cfg-form').elements['sim_operator'].addEventListener('change', () => updateSimCreditForm(true));
 document.getElementById('cfg-form').elements['sim_credit_mode'].addEventListener('change', () => updateSimCreditForm(false));
 
+// Riquadro in evidenza: ICCID e IMEI letti dal modem (l'ICCID a mano solo
+// finche' il modem non l'ha mai letto); numero scritto a mano, altrimenti
+// quello letto dalla SIM.
+const simEsc = t => String(t == null ? '' : t).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+const iccidNorm = t => String(t || '').toUpperCase().replace(/[^0-9F]/g, '').replace(/F$/, '');
+const iccidGroups = t => String(t || '').replace(/(.{4})(?=.)/g, '$1 ');
+const simWhen = t => t ? t.slice(8, 10) + '/' + t.slice(5, 7) + '/' + t.slice(0, 4) + ' alle ' + t.slice(11, 16) : '';
+// Provenienza di un valore del modem: letto ora, o ultima lettura salvata.
+const simModemSrc = (live, s) => live ? 'letto dal modem' : 'ultima lettura del modem' + (s.sim_ids_at ? ' (' + simWhen(s.sim_ids_at) + ')' : '') + ': ora il modem non risponde';
+function updateSimIdBox(s) {
+  const phone = s.sim_phone || s.sim_phone_read || '';
+  const iccid = s.sim_iccid || s.sim_iccid_cfg || '';
+  const ph = document.getElementById('sim-id-phone');
+  const ic = document.getElementById('sim-id-iccid');
+  const im = document.getElementById('sim-id-imei');
+  ph.className = 'sim-id-value' + (phone ? '' : ' empty');
+  ic.className = 'sim-id-value mono' + (iccid ? '' : ' empty');
+  im.className = 'sim-id-value mono' + (s.sim_imei ? '' : ' empty');
+  if (phone) {
+    const tel = phone.replace(/[^0-9+]/g, '');
+    ph.innerHTML = '<a href="tel:' + tel + '" title="Chiama">' + simEsc(phone) + '</a>';
+  } else {
+    ph.textContent = 'non ancora noto';
+  }
+  ic.textContent = iccid ? iccidGroups(iccid) : 'non letto';
+  im.textContent = s.sim_imei || 'non letto';
+  let phSrc = 'non scritto nella SIM: scoprilo con l\'SMS di prova qui sotto';
+  if (phone) {
+    phSrc = s.sim_phone ? (s.sim_phone_read ? (s.sim_number_written ? 'inserito a mano e scritto nella SIM' : 'inserito a mano, presente anche nella SIM') : 'inserito a mano') : 'letto dalla SIM';
+    phSrc = simEsc(phSrc) + ' · <a href="sms:' + phone.replace(/[^0-9+]/g, '') + '">SMS</a>';
+  }
+  document.getElementById('sim-id-phone-src').innerHTML = phSrc;
+  document.getElementById('sim-id-iccid-src').textContent = s.sim_iccid ? simModemSrc(s.sim_iccid_live, s)
+    : (s.sim_iccid_cfg ? 'inserito a mano: il modem non è ancora montato' : 'lo legge la base dal modem, con la SIM inserita');
+  document.getElementById('sim-id-imei-src').textContent = s.sim_imei ? simModemSrc(s.sim_imei_live, s) : 'lo legge la base dal modem, quando è montato';
+  const extra = [];
+  if (s.sim_operator) {
+    const opt = document.querySelector('#cfg-form select[name="sim_operator"] option[value="' + s.sim_operator + '"]');
+    extra.push('Operatore: <b>' + simEsc(opt ? opt.textContent : s.sim_operator) + '</b>');
+  }
+  if (s.cellular_apn) extra.push('APN: <b>' + simEsc(s.cellular_apn) + '</b>');
+  if (s.sim_renew_date) extra.push('Rinnovo: <b>' + simEsc(s.sim_renew_date.slice(8, 10) + '/' + s.sim_renew_date.slice(5, 7) + '/' + s.sim_renew_date.slice(0, 4)) + '</b>');
+  document.getElementById('sim-id-extra').innerHTML = extra.join(' · ');
+  const warns = [];
+  if (s.sim_iccid_prev) {
+    warns.push('⚠️ <b>SIM cambiata.</b> All\'avvio il modem ha letto l\'ICCID <b>' + simEsc(iccidGroups(s.sim_iccid)) + '</b>, prima c\'era <b>' +
+      simEsc(iccidGroups(s.sim_iccid_prev)) + '</b>. Se è voluto, aggiorna il numero di telefono qui sotto (con l\'SMS di prova).');
+  }
+  if (s.sim_imei_prev) {
+    warns.push('⚠️ <b>Modem sostituito.</b> IMEI nuovo <b>' + simEsc(s.sim_imei) + '</b>, prima <b>' + simEsc(s.sim_imei_prev) + '</b>.');
+  }
+  const warn = document.getElementById('sim-id-warn');
+  warn.style.display = warns.length ? '' : 'none';
+  warn.innerHTML = warns.join('<br>');
+  // ICCID a mano solo finche' il modem non l'ha mai letto.
+  document.getElementById('sim-iccid-cfg-wrap').style.display = s.sim_iccid ? 'none' : '';
+}
+
 function updateSimUi(s) {
   const mod = { sim7600_lilygo: 'SIM7600 (LilyGO)', sim7600_simcom: 'SIM7600 (SIMCom originale)', sim868: 'SIM868' };
   document.getElementById('sim-module').textContent = mod[s.cellular_module] || '-';
-  document.getElementById('sim-iccid').textContent = s.sim_iccid || 'non letto (modem assente o SIM non inserita)';
+  document.getElementById('sim-iccid').textContent = s.sim_iccid_live ? s.sim_iccid : 'non letto (modem assente o SIM non inserita)';
+  document.getElementById('sim-imei').textContent = s.sim_imei_live ? s.sim_imei : 'non letto (modem assente)';
+  document.getElementById('sim-phone-read').textContent = s.sim_phone_read || (s.sim_iccid_live ? 'non scritto nella SIM: scoprilo con l\'SMS di prova' : 'non letto (modem assente o SIM non inserita)');
+  updateSimIdBox(s);
   document.getElementById('sim-net').textContent = s.net === 'cellulare' ? 'cellulare (questa SIM)' : (s.net === 'wifi' ? 'WiFi (SIM non usata ora)' : (s.net || '-'));
   const eur = document.getElementById('sim-credit-eur');
   if (s.sim_credit_at) {
@@ -3430,7 +3793,8 @@ function updateSimUi(s) {
     document.getElementById('sim-credit-text').textContent = '';
   }
   document.getElementById('sim-last-msg').textContent = s.sim_busy ? 'Operazione in corso...' : (s.sim_last_msg || '');
-  ['sim-credit-btn', 'sim-free-code-btn', 'sim-free-sms-btn', 'sim-sms-read-btn', 'sim-sms-del-btn'].forEach(id => { document.getElementById(id).disabled = !!s.sim_busy; });
+  if (simFindSent) document.getElementById('sim-find-msg').textContent = s.sim_busy ? 'Invio in corso...' : (s.sim_last_msg || '');
+  ['sim-find-btn', 'sim-credit-btn', 'sim-free-code-btn', 'sim-free-sms-btn', 'sim-sms-read-btn', 'sim-sms-del-btn'].forEach(id => { document.getElementById(id).disabled = !!s.sim_busy; });
 }
 
 async function simAction(body, after) {
@@ -3459,6 +3823,30 @@ document.getElementById('sim-free-sms-btn').addEventListener('click', () => {
   const text = document.getElementById('sim-free-text').value.trim();
   if (number && text && confirm('Inviare l\u2019SMS a ' + number + '? Puo\u2019 avere un costo.')) simAction({ action: 'sms', number, text });
 });
+
+// SMS di prova per scoprire il numero della SIM: il numero di destinazione
+// resta nel browser per la volta dopo.
+var simFindSent = false; // var: letta anche da updateSimUi, che puo' girare prima
+(() => {
+  const to = document.getElementById('sim-find-to');
+  try { to.value = localStorage.getItem('simFindTo') || ''; } catch (e) {}
+  document.getElementById('sim-find-btn').addEventListener('click', () => {
+    const msg = document.getElementById('sim-find-msg');
+    const number = to.value.trim();
+    if (!/^\+?[0-9 ]+$/.test(number) || number.replace(/\D/g, '').length < 6) {
+      msg.textContent = 'Scrivi il tuo numero di cellulare: solo cifre, + iniziale e spazi.';
+      return;
+    }
+    if (!confirm('Inviare un SMS di prova dalla SIM dati a ' + number + '?\n\n' +
+      '\u2022 Puo\u2019 costare secondo l\u2019offerta della SIM e scala il credito.\n' +
+      '\u2022 Servono modem montato, SIM inserita, credito e segnale.\n' +
+      '\u2022 Il mittente dell\u2019SMS che ricevi e\u2019 il numero della SIM: scrivilo poi in \u201cDati della SIM dati\u201d e salva.')) return;
+    try { localStorage.setItem('simFindTo', number); } catch (e) {}
+    simFindSent = true;
+    msg.textContent = 'Richiesta inviata, attendi...';
+    simAction({ action: 'find_number', number }).then(j => { if (!j) msg.textContent = 'Errore di comunicazione con la base'; else if (!j.ok) msg.textContent = 'Errore: ' + (j.error || 'operazione non accettata'); });
+  });
+})();
 document.getElementById('sim-parse-btn').addEventListener('click', async () => {
   const text = document.getElementById('sim-parse-text').value;
   const j = await simAction({ action: 'parse', text });
@@ -3625,16 +4013,16 @@ function update1005Banner(s) {
   if (!show) return;
   let why;
   if (!s.rtcm_1005_enable) {
-    why = 'Il messaggio 1005 è disattivato: GNSS &amp; NTRIP → Messaggi RTCM.';
+    why = 'Il messaggio 1005 è disattivato: Posizione e correzioni → Messaggi RTCM (tra le avanzate).';
   } else if (!s.last_rtcm_us || (s.now_us - s.last_rtcm_us) > 10e6) {
-    why = 'Dal ricevitore non arrivano dati RTCM: controlla il collegamento (scheda Hardware) e il log.';
+    why = 'Dal ricevitore non arrivano dati RTCM: controlla il collegamento (scheda Posizione e correzioni) e il log (Manutenzione).';
   } else if (s.base_position_mode === 'manual') {
     why = 'Posizione fissa impostata ma il ricevitore non manda il 1005: controlla il log di avvio (configurazione TMODE).';
   } else if (s.svin_active) {
     why = 'Survey-in in corso da ' + Math.round(s.svin_duration_s / 60) + ' min: precisione attuale ' +
       s.svin_mean_acc_m.toFixed(1) + ' m, richiesta ' + (s.base_svin_acc_m || 0.25) + ' m. ' +
       'Con cielo coperto può non completarsi mai: sposta l’antenna, alza la soglia o inserisci le coordinate ' +
-      '(GNSS &amp; NTRIP → Posizione base).';
+      '(Posizione e correzioni → Posizione base).';
   } else if (age > 30) {
     why = 'Il ricevitore ha smesso di mandarlo da ' + Math.round(age) + ' s.';
   } else {

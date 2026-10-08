@@ -1,4 +1,5 @@
 #include "sys_stats.h"
+#include "gnss_detect.h"
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
 #include "settings.h"
@@ -506,7 +507,7 @@ const char *sys_stats_last_reset(void)
 
 static void peek_chip(const app_settings_t *s, void *ctx)
 {
-    *(gnss_chip_t *) ctx = s->gnss_chip;
+    *(gnss_chip_t *) ctx = gnss_detect_effective(s->gnss_chip);
 }
 
 // Ricevitore muto: se e' un u-blox lo si riavvia insieme alla base (ha

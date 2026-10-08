@@ -44,6 +44,18 @@ bool cellular_link_modem_present(void);
 // (fino a ~30 s), solo dal task della rete con il collegamento dati chiuso.
 bool cellular_link_reset_modem(void);
 bool cellular_link_get_iccid(char *out, size_t out_size);
+
+// Numero di telefono scritto nella SIM (AT+CNUM). false se il modem non
+// risponde; true con stringa vuota se la SIM non lo contiene (frequente).
+bool cellular_link_get_number(char *out, size_t out_size);
+
+// IMEI del modem (AT+CGSN), anche senza SIM inserita.
+bool cellular_link_get_imei(char *out, size_t out_size);
+
+// Scrive il numero nella SIM (rubrica dei numeri propri, AT+CPBW), cosi'
+// AT+CNUM lo restituisce anche in un'altra base. number: solo cifre e +
+// iniziale. false se la SIM non lo accetta.
+bool cellular_link_write_number(const char *number);
 bool cellular_link_ussd(const char *code, char *out, size_t out_size);
 bool cellular_link_send_sms(const char *number, const char *text);
 bool cellular_link_read_sms(char *out, size_t out_size);

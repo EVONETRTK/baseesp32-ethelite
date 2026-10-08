@@ -435,6 +435,82 @@ bool cellular_link_get_iccid(char *out, size_t out_size)
     return n > 0;
 }
 
+bool cellular_link_get_number(char *out, size_t out_size)
+{
+    // Risposta: +CNUM: "","+393511234567",145 - il numero e' la prima
+    // stringa tra virgolette che inizia con + o una cifra (la prima,
+    // l'etichetta, di solito e' vuota). Solo "OK" = numero non scritto nella SIM.
+    char buf[128];
+    out[0] = '\0';
+    if (!modem_cmd("AT+CNUM\r", "OK", buf, sizeof(buf), 3000)) {
+        return false;
+    }
+    const char *p = strstr(buf, "+CNUM:");
+    if (!p) {
+        return true;
+    }
+    p += 6;
+    while ((p = strchr(p, '"')) != NULL) {
+        const char *e = strchr(p + 1, '"');
+        if (!e) {
+            break;
+        }
+        if (e > p + 1 && (p[1] == '+' || (p[1] >= '0' && p[1] <= '9'))) {
+            size_t n = (size_t) (e - p - 1);
+            if (n > out_size - 1) {
+                n = out_size - 1;
+            }
+            memcpy(out, p + 1, n);
+            out[n] = '\0';
+            return true;
+        }
+        p = e + 1;
+    }
+    return true;
+}
+
+bool cellular_link_get_imei(char *out, size_t out_size)
+{
+    // Risposta: "AT+CGSN\r\r\n861234567890123\r\n\r\nOK" (con o senza eco):
+    // l'IMEI e' la prima sequenza di 14-17 cifre (15 di solito).
+    char buf[96];
+    out[0] = '\0';
+    if (!modem_cmd("AT+CGSN\r", "OK", buf, sizeof(buf), 3000)) {
+        return false;
+    }
+    for (const char *p = buf; *p; ) {
+        if (*p < '0' || *p > '9') {
+            p++;
+            continue;
+        }
+        size_t n = 0;
+        while (p[n] >= '0' && p[n] <= '9') n++;
+        if (n >= 14 && n <= 17 && n < out_size) {
+            memcpy(out, p, n);
+            out[n] = '\0';
+            return true;
+        }
+        p += n;
+    }
+    return false;
+}
+
+bool cellular_link_write_number(const char *number)
+{
+    // Rubrica "ON" (own numbers) della SIM: la stessa che legge AT+CNUM.
+    // Molte SIM la accettano senza PIN2; se la rifiutano, ERROR e false.
+    char cmd[80];
+    char tmp[48];
+    if (!modem_cmd("AT+CSCS=\"GSM\"\r", "OK", tmp, sizeof(tmp), 2000) ||
+        !modem_cmd("AT+CPBS=\"ON\"\r", "OK", tmp, sizeof(tmp), 3000)) {
+        return false;
+    }
+    snprintf(cmd, sizeof(cmd), "AT+CPBW=1,\"%s\",%d,\"Numero\"\r", number, number[0] == '+' ? 145 : 129);
+    bool ok = modem_cmd(cmd, "OK", tmp, sizeof(tmp), 5000);
+    modem_cmd("AT+CPBS=\"SM\"\r", "OK", tmp, sizeof(tmp), 3000); // rubrica normale, come prima
+    return ok;
+}
+
 bool cellular_link_ussd(const char *code, char *out, size_t out_size)
 {
     char cmd[64];
@@ -485,6 +561,9 @@ bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_siz
 bool cellular_link_modem_present(void) { return false; }
 bool cellular_link_reset_modem(void) { return false; }
 bool cellular_link_get_iccid(char *out, size_t out_size) { return false; }
+bool cellular_link_get_number(char *out, size_t out_size) { return false; }
+bool cellular_link_get_imei(char *out, size_t out_size) { return false; }
+bool cellular_link_write_number(const char *number) { return false; }
 bool cellular_link_ussd(const char *code, char *out, size_t out_size) { return false; }
 bool cellular_link_send_sms(const char *number, const char *text) { return false; }
 bool cellular_link_read_sms(char *out, size_t out_size) { return false; }

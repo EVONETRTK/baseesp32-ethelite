@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scheda di accesso</title>
 <link rel="icon" type="image/png" href="/icon192.png">
+<link rel="apple-touch-icon" href="/icon192.png">
 <style>
   :root { --fg:#111; --muted:#555; --line:#bbb; --accent:#0b5cad; --warn:#b42318; --bg:#fff; --soft:#f3f5f8; }
   * { box-sizing:border-box; }
@@ -31,7 +32,11 @@
   ol { margin:4px 0; padding-left:22px; } li { margin:3px 0; }
   .note { background:var(--soft); border-left:4px solid var(--accent); padding:8px 10px; margin:8px 0; font-size:13px; }
   .warn { border-left-color:var(--warn); }
-  .conf { color:var(--warn); font-weight:700; font-size:12px; letter-spacing:.5px; margin-top:6px; }
+  .conf { display:block; text-align:center; color:#fff; background:var(--warn); font-weight:900; font-size:24px;
+          letter-spacing:1.5px; padding:10px 12px; margin:0 0 14px; border:4px solid #7a1209; border-radius:6px;
+          -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .conf small { display:block; font-weight:600; font-size:13px; letter-spacing:0; margin-top:4px; }
+  @media print { .conf { font-size:20px; padding:6px 10px; margin-bottom:8px; } .conf small { font-size:10.5px; } }
   .bar { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:12px; margin:0 0 16px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .bar input { padding:7px 9px; font-size:15px; border:1px solid var(--line); border-radius:6px; min-width:0; flex:1 1 160px; }
   .bar button { padding:8px 12px; font-size:14px; border:0; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; }
@@ -56,10 +61,13 @@
     section { break-inside:avoid; }
     @page { size:A4; margin:10mm; }
   }
+  .v.big { font-size: 1.2em; font-weight: 700; letter-spacing: .02em; }
 </style>
 </head>
 <body>
 <div class="page">
+  <div class="conf" id="conf">&#9888;&#65039; DOCUMENTO STRETTAMENTE RISERVATO &#9888;&#65039;<small id="conf-sub">Contiene i dati di accesso al dispositivo ESP32: custodire, non divulgare, distruggere le copie vecchie.</small></div>
+
   <div class="bar noprint">
     <input id="pw" type="password" placeholder="Password del pannello (admin)" autocomplete="current-password">
     <button id="show">Mostra le password</button>
@@ -72,7 +80,6 @@
     <div>
       <h1>Scheda di accesso &mdash; <span id="h-kind">-</span> <span id="h-name">-</span></h1>
       <div class="sub">Generata dal dispositivo il <span id="h-date">-</span></div>
-      <div class="conf" id="conf">DOCUMENTO RISERVATO &mdash; CONTIENE PASSWORD: CUSTODIRE</div>
     </div>
     <table class="ident" id="t-ident"></table>
   </div>
@@ -97,39 +104,44 @@
   </section>
 
   <section>
-    <h2>4. Utenti e password</h2>
+    <h2>4. SIM dati</h2>
+    <table id="t-sim"></table>
+  </section>
+
+  <section>
+    <h2>5. Utenti e password</h2>
     <table id="t-cred"></table>
   </section>
 
   <section>
-    <h2>5. Cosa fare se&hellip;</h2>
+    <h2>6. Cosa fare se&hellip;</h2>
     <ol>
       <li><b>Il pannello non si apre in locale:</b> controllare di essere sulla stessa rete. Provare l'indirizzo <span class="v" id="i-mdns">-</span> (su alcuni Android non funziona). Se l'indirizzo IP e' cambiato, si legge nel router, tra i dispositivi collegati, con il nome <span class="v" id="i-host">-</span>.</li>
       <li><b>Il dispositivo non risponde affatto:</b> attendere 10 minuti. Si riavvia da solo se il firmware si blocca (watchdog) o se il ricevitore tace per 10 minuti<span id="i-caster-guard">, e la base anche se il caster resta scollegato per 30 minuti</span>.</li>
       <li><b>Ancora niente:</b> collegarsi alla rete di emergenza (sezione 2) e aprire <span class="v">http://192.168.4.1</span>. La riga "Ultimo riavvio" della scheda Stato riporta il motivo dell'ultimo riavvio.</li>
       <li><b>Neanche la rete di emergenza compare:</b> togliere e ridare l'alimentazione. Configurazione e firmware restano.</li>
       <li><b>Crash ripetuti dopo una modifica:</b> dopo 3 guasti di fila il dispositivo rimette da solo l'ultima configurazione buona salvata sulla microSD. Se la configurazione si perde, la ripristina dalla copia sulla microSD.</li>
-      <li><b>Reset di fabbrica</b> (ultima risorsa): tenere premuto il pulsante BOOT per 5 secondi. Si cancella TUTTA la configurazione e la copia sulla microSD NON viene ripristinata. Poi: rete di emergenza &rarr; pannello (password <span class="v">1234</span>) &rarr; scheda Firmware &rarr; "Backup configurazione" &rarr; "Importa e applica" con il file salvato sul PC.</li>
+      <li><b>Reset di fabbrica</b> (ultima risorsa): tenere premuto il pulsante BOOT per 5 secondi. Si cancella TUTTA la configurazione e la copia sulla microSD NON viene ripristinata. Poi: rete di emergenza &rarr; pannello (password <span class="v">1234</span>) &rarr; scheda Manutenzione &rarr; "Copie della configurazione" &rarr; "Importa e applica" con il file salvato sul PC.</li>
     </ol>
   </section>
 
   <section>
-    <h2>6. Operazioni utili</h2>
+    <h2>7. Operazioni utili</h2>
     <ol>
-      <li><b>Aggiornare il firmware:</b> scheda Firmware &rarr; "Controlla aggiornamenti online", oppure carica un file .bin dal PC. Il firmware nuovo resta in prova per 5 minuti: se crasha, il dispositivo torna da solo alla versione precedente. Le versioni precedenti restano nell'archivio sulla microSD.</li>
-      <li><b>Salvare la configurazione sul PC:</b> scheda Firmware &rarr; "Backup configurazione" &rarr; "Scarica configurazione (JSON)". Va fatto dopo ogni modifica importante.</li>
-      <li><b>Cambiare le password:</b> scheda Sicurezza ("Codice di accesso", per il pannello), scheda Rete ("Password AP", per la rete di emergenza), scheda GNSS &amp; NTRIP (caster). Poi ristampare questa scheda.</li>
+      <li><b>Aggiornare il firmware:</b> scheda Manutenzione &rarr; "Controlla aggiornamenti online", oppure carica un file .bin dal PC. Il firmware nuovo resta in prova per 5 minuti: se crasha, il dispositivo torna da solo alla versione precedente. Le versioni precedenti restano nell'archivio sulla microSD.</li>
+      <li><b>Salvare la configurazione sul PC:</b> scheda Manutenzione &rarr; "Copie della configurazione" &rarr; "Scarica configurazione (JSON)". Va fatto dopo ogni modifica importante.</li>
+      <li><b>Cambiare le password:</b> scheda Manutenzione ("Codice di accesso", per il pannello), scheda Connessione ("Password AP", per la rete di emergenza), scheda Posizione e correzioni (caster). Poi ristampare questa scheda.</li>
       <li><b>Riavviare a distanza:</b> scheda Stato &rarr; "Riavvia dispositivo".</li>
     </ol>
   </section>
 
   <section>
-    <h2>7. Firmware e GitHub</h2>
+    <h2>8. Firmware e GitHub</h2>
     <table id="t-gh"></table>
     <div class="qrs" id="qr-gh"></div>
     <ol>
-      <li><b>Online</b> (serve internet): scheda Firmware &rarr; "Controlla aggiornamenti online". Con l'aggiornamento automatico attivo la base lo fa da sola ogni N ore.</li>
-      <li><b>Dal PC</b>: scarica <span class="v">firmware.bin</span> dalla pagina delle release e caricalo nella scheda Firmware.</li>
+      <li><b>Online</b> (serve internet): scheda Manutenzione &rarr; "Controlla aggiornamenti online". Con l'aggiornamento automatico attivo la base lo fa da sola ogni N ore.</li>
+      <li><b>Dal PC</b>: scarica <span class="v">firmware.bin</span> dalla pagina delle release e caricalo nella scheda Manutenzione.</li>
       <li><b>Da microSD</b>, senza internet: copia nella cartella principale della scheda <span class="v">firmware.bin</span> e un file <span class="v">firmware.json</span> con dentro <span class="v">{"version":"x.y.z"}</span> (la versione del file), poi "Aggiorna da microSD" o riavvia.</li>
     </ol>
   </section>
@@ -165,11 +177,14 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     const rover = (s.active_device_mode || s.device_mode) === 'rover';
     const name = s.ap_ssid || '-';
     const serial = s.device_serial || s.device_serial_from_mac || '-';
-    document.title = 'Scheda di accesso ' + (rover ? 'rover ' : 'base ') + serial;
-    $('h-kind').textContent = rover ? 'ROVER' : 'BASE';
+    document.title = 'Scheda di accesso ' + (rover ? 'rover ESP32 ' : 'base ESP32 ') + serial;
+    $('h-kind').textContent = rover ? 'ROVER ESP32' : 'BASE ESP32';
     $('h-name').textContent = name;
     $('h-date').textContent = new Date().toLocaleString('it-IT');
-    $('conf').style.visibility = sec ? 'visible' : 'hidden';
+    const dev = rover ? 'al rover ESP32' : 'alla base ESP32';
+    $('conf-sub').textContent = sec
+      ? 'Contiene PASSWORD e dati di accesso ' + dev + ': custodire, non divulgare, distruggere le copie vecchie.'
+      : 'Contiene i dati di accesso ' + dev + ': custodire, non divulgare, distruggere le copie vecchie.';
     const mdns = 'http://' + name.toLowerCase() + '.local';
     $('i-mdns').textContent = mdns;
     $('i-host').textContent = name;
@@ -179,7 +194,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     const caster = (s.ntrip_host || '-') + ':' + (s.ntrip_port || 2101);
 
     const chipNames = { ublox: 'u-blox', unicore: 'Unicore', lc29h: 'Quectel LC29H', bynav: 'Bynav M20', bynav_m21d: 'Bynav M21D', l76k: 'Quectel L76K' };
-    const recv = s.gnss_model ? 'u-blox ' + s.gnss_model + (s.gnss_fw ? ' (firmware ' + s.gnss_fw + ')' : '')
+    const recv = s.gnss_model ? (s.gnss_vendor || 'u-blox') + ' ' + s.gnss_model + (s.gnss_fw ? ' (firmware ' + s.gnss_fw + ')' : '')
                               : (chipNames[s.gnss_chip] || s.gnss_chip || '-');
     rows('t-ident', [
       ['Tipo', '<b>' + (rover ? 'ROVER' : 'BASE') + '</b>'],
@@ -252,9 +267,24 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       sec.wifi_networks.filter(n => n.ssid !== s.wifi_ssid)
         .forEach(n => cred.push(['Rete WiFi ' + n.ssid + ' (alternativa)', pw(n.password)]));
     }
-    cred.push(['SIM: APN', sec ? v(sec.cellular_apn || '-') : blank]);
-    if (s.sim_iccid) cred.push(['SIM: ICCID', v(s.sim_iccid)]);
     rows('t-cred', cred);
+
+    // SIM dati: numero scritto a mano, altrimenti letto dalla SIM; ICCID e IMEI
+    // letti dal modem (ICCID a mano solo senza modem). Se mancano, riga vuota
+    // da compilare a penna.
+    const phone = s.sim_phone || s.sim_phone_read || '';
+    const iccid = s.sim_iccid || s.sim_iccid_cfg || '';
+    const rd = s.sim_renew_date;
+    const renewMode = { monthly: 'ogni mese', days: 'ogni ' + (s.sim_renew_every_days || '?') + ' giorni', single: 'una volta' }[s.sim_renew_mode] || '';
+    rows('t-sim', [
+      ['Numero di telefono', phone ? '<span class="v big">' + esc(phone) + '</span>' : blank],
+      ['ICCID (stampato sulla SIM)', iccid ? '<span class="v big">' + esc(iccid.replace(/(.{4})(?=.)/g, '$1 ')) + '</span>' : blank],
+      ['IMEI del modem', s.sim_imei ? v(s.sim_imei) : blank],
+      ['Operatore', s.sim_operator ? v({ tim: 'TIM', vodafone: 'Vodafone', ho: 'ho. Mobile', windtre: 'WindTre', postemobile: 'PosteMobile', iliad: 'Iliad', kena: 'Kena Mobile', very: 'Very Mobile', fastweb: 'Fastweb', coopvoce: 'CoopVoce', altro: 'Altro / IoT' }[s.sim_operator] || s.sim_operator) : blank],
+      ['APN', s.cellular_apn ? v(s.cellular_apn) : blank],
+      ['Prossimo rinnovo', rd ? v(rd.slice(8, 10) + '/' + rd.slice(5, 7) + '/' + rd.slice(0, 4)) + (renewMode ? ' (' + esc(renewMode) + ')' : '') : blank],
+      ['Traffico incluso', s.data_plan_mb ? v((s.data_plan_mb / 1000).toLocaleString('it-IT') + ' GB') : blank],
+    ]);
 
     const repo = 'https://github.com/EVONETRTK/baseesp32-ethelite';
     rows('t-gh', [
