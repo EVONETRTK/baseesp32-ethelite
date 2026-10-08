@@ -58,9 +58,11 @@
 
 <h2>Sicurezza elettrica</h2>
 
-<div class="box avvertenza" data-pitto="incendio"><span class="box-titolo">Cortocircuito e incendio</span>Alimentate il ricevitore solo con tensione continua da 12 a 24 V, da un alimentatore conforme o dall'impianto del mezzo, <strong>con un fusibile</strong> sulla linea vicino al punto di prelievo. Rispettate la polarità. Non collegate mai il ricevitore direttamente alla rete a 230 V. Cavi danneggiati, schiacciati o vicino a fonti di calore vanno sostituiti prima dell'uso.</div>
+<div class="box avvertenza" data-pitto="incendio"><span class="box-titolo">Cortocircuito e incendio</span>Alimentate il ricevitore solo con tensione continua da 12 a 24 V, da un alimentatore conforme o dall'impianto del mezzo, <strong>con un fusibile</strong> sulla linea vicino al punto di prelievo, oppure, per la base, con il <strong>PoE</strong> da uno switch o un iniettore conforme allo standard IEEE 802.3af/at (mai con iniettori PoE «passivi»). Usate una sola alimentazione alla volta. Rispettate la polarità. Non collegate mai il ricevitore direttamente alla rete a 230 V. Cavi danneggiati, schiacciati o vicino a fonti di calore vanno sostituiti prima dell'uso.</div>
 
-<div class="box attenzione" data-pitto="elettricita">Fate i collegamenti elettrici con l'alimentazione staccata e, sul mezzo, con il motore spento e la chiave tolta.</div>
+<div class="box avvertenza" data-pitto="incendio"><span class="box-titolo">Batteria</span>Il ricevitore contiene una batteria tampone. Usate solo la batteria prevista da [[ragione sociale]]; non cortocircuitatela, non foratela, non schiacciatela e non esponetela al fuoco o a temperature elevate. Scollegate e sostituite subito una batteria gonfia, danneggiata o che perde liquido.</div>
+
+<div class="box attenzione" data-pitto="elettricita">Fate i collegamenti elettrici con l'alimentazione staccata, la batteria scollegata e, sul mezzo, con il motore spento e la chiave tolta.</div>
 
 <h2>Installazione dell'antenna e della base</h2>
 
@@ -68,7 +70,7 @@
 
 <div class="box avvertenza" data-pitto="caduta"><span class="box-titolo">Caduta dall'alto</span>L'installazione su tetti, coperture, pali e torrette espone al rischio di caduta. Va eseguita da personale formato, con le attrezzature e i dispositivi di protezione previsti dalle norme sul lavoro in quota, mai da soli e mai con vento forte, pioggia o ghiaccio. Non salite su coperture non portanti, come lastre in fibrocemento o pannelli traslucidi.</div>
 
-<div class="box avvertenza" data-pitto="fulmine"><span class="box-titolo">Fulmini</span>Un'antenna installata in alto può attirare i fulmini e portare sovratensioni nell'edificio. Collegate il supporto all'impianto di terra e montate uno scaricatore di sovratensione sul cavo dell'antenna. Non lavorate sull'antenna durante un temporale.</div>
+<div class="box avvertenza" data-pitto="fulmine"><span class="box-titolo">Fulmini</span>Un'antenna installata in alto può attirare i fulmini e portare sovratensioni nell'edificio. Collegate il supporto all'impianto di terra e montate uno scaricatore di sovratensione sul cavo dell'antenna e, se la base è collegata con il cavo di rete o alimentata in PoE, un protettore per la linea Ethernet all'ingresso nell'edificio. Non lavorate sull'antenna durante un temporale.</div>
 
 <div class="box attenzione">Fissate antenna e supporto in modo che non possano cadere, nemmeno con vento forte: un oggetto che cade dall'alto può ferire chi si trova sotto.</div>
 
@@ -102,12 +104,12 @@
 
 <h2>Smaltimento</h2>
 
-<div class="box avviso" data-pitto="raee">Il simbolo del contenitore barrato indica che il ricevitore, a fine vita, non va gettato con i rifiuti urbani ma consegnato a un centro di raccolta dei rifiuti elettrici ed elettronici (RAEE) o al rivenditore, secondo il D.Lgs. 49/2014. Lo smaltimento abusivo è sanzionato dalla legge.</div>
+<div class="box avviso" data-pitto="raee">Il simbolo del contenitore barrato indica che il ricevitore, a fine vita, non va gettato con i rifiuti urbani ma consegnato a un centro di raccolta dei rifiuti elettrici ed elettronici (RAEE) o al rivenditore, secondo il D.Lgs. 49/2014. La batteria va tolta e consegnata separatamente ai centri di raccolta di pile e accumulatori, secondo il Regolamento (UE) 2023/1542. Lo smaltimento abusivo è sanzionato dalla legge.</div>
 
 <div class="in-breve">
 <ul>
   <li>PERICOLO, AVVERTENZA e ATTENZIONE riguardano la sicurezza delle persone; AVVISO i danni alle cose e ai dati.</li>
-  <li>Alimentazione 12–24 V con fusibile; mai a 230 V.</li>
+  <li>Alimentazione 12–24 V con fusibile, oppure PoE conforme 802.3af/at per la base, oppure pannello fotovoltaico; mai a 230 V. Batteria tampone: solo quella prevista, mai danneggiata.</li>
   <li>Antenne: distanza dalle linee elettriche, lavoro in quota con le protezioni, messa a terra e scaricatore.</li>
   <li>Autosterzo: l'operatore resta sempre responsabile, al posto di guida, mai su strada.</li>
   <li>La posizione dipende da satelliti, correzioni e reti di terzi: verificatela prima dei lavori di precisione.</li>

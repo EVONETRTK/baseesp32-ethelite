@@ -54,6 +54,7 @@
 #include "sim_tools.h"
 #include "config_backup.h"
 #include "raw_log.h"
+#include "base_selfpos.h"
 
 static const char *TAG = "main";
 
@@ -104,6 +105,7 @@ static void gnss_uart_task(void *arg)
         if (len > 0) {
             base_stream_demux_feed(buf, (size_t) len, base_forward_rtcm_frame);
             raw_log_feed(buf, (size_t) len); // dati grezzi per il PPP, se la registrazione e' attiva
+            base_selfpos_feed(buf, (size_t) len); // controllo dello spostamento dell'antenna
         }
     }
 }
@@ -282,6 +284,9 @@ void app_main(void)
                     (void *)(intptr_t) s_gnss_uart_num, 6, NULL);
     } else {
         rtcm3_1005_init();
+        // Prima del task di lettura, che le passa il flusso grezzo.
+        base_selfpos_start(gnss_detect_effective(settings_p->gnss_chip) == GNSS_CHIP_UBLOX,
+                           settings_p->base_position_mode == BASE_POSITION_MANUAL);
         rtcm_stream = xStreamBufferCreate(4096, 1);
         xTaskCreate(gnss_uart_task, "gnss_uart", 5120, NULL, 10, NULL); // 5 KB: con 4 ne restavano ~600 (misurato)
     }

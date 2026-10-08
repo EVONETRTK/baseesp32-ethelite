@@ -6,11 +6,13 @@
   <tr><th>Voce</th><th>Caratteristica</th></tr>
   <tr><td>Scheda di controllo</td><td>LilyGO T-ETH-Elite, processore Espressif ESP32-S3 a due core</td></tr>
   <tr><td>Memoria</td><td>16 MB flash, 8 MB PSRAM</td></tr>
-  <tr><td>Alimentazione</td><td>12–24 V in corrente continua, con la scheda di alimentazione del ricevitore</td></tr>
+  <tr><td>Alimentazione</td><td>12–24 V in corrente continua, con la scheda di alimentazione del ricevitore; oppure PoE (Power over Ethernet), consigliato per la base [[da completare: standard PoE, es. IEEE 802.3af, e potenza assorbita]]; oppure pannello fotovoltaico</td></tr>
+  <tr><td>Batteria tampone (UPS)</td><td>Integrata nella scheda di alimentazione [[da completare: tipo, capacità, autonomia]]</td></tr>
+  <tr><td>Ingresso fotovoltaico</td><td>Gestito dalla scheda di alimentazione [[da completare: potenza del pannello e tensione massima]]</td></tr>
   <tr><td>Modulo GNSS</td><td>Intercambiabile: vedi l'appendice <a data-cap="Ricevitori e chip supportati"></a></td></tr>
   <tr><td>Collegamento al modulo GNSS</td><td>I2C (u-blox, indirizzo 0x42) o seriale UART (fino a 460800 baud)</td></tr>
   <tr><td>WiFi</td><td>2,4 GHz, rete propria di configurazione sempre attiva e collegamento a una rete esterna contemporaneamente</td></tr>
-  <tr><td>Ethernet</td><td>10/100 Mbit/s (chip W5500), indirizzo da DHCP</td></tr>
+  <tr><td>Ethernet</td><td>10/100 Mbit/s (chip W5500), indirizzo da DHCP; alimentazione PoE sullo stesso cavo</td></tr>
   <tr><td>Rete mobile</td><td>Opzionale: modem SIM7600 Mini PCIe nello shield LTE; SIM attiva senza PIN</td></tr>
   <tr><td>Memoria esterna</td><td>microSD fino a 32 GB, FAT32</td></tr>
   <tr><td>Accessori opzionali</td><td>LED RGB (WS2812 o 3 canali PWM), display OLED 128×64 I2C (SSD1306, SH1106, SSD1309)</td></tr>

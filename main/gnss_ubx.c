@@ -3,6 +3,7 @@
 #include "settings.h"
 #include "gnss_ubx_ack.h"
 #include "raw_log.h"
+#include "base_selfpos.h"
 #include "time_sync.h"
 #include "status.h"
 #include "esp_timer.h"
@@ -430,7 +431,13 @@ static void svin_poll_task(void *arg)
         // task, l'unico che manda comandi al ricevitore (una sola attesa di ACK).
         {
             static uint8_t applied = 0xFF;
+            // Anche il controllo dello spostamento (base_selfpos.c) vuole RAWX e
+            // SFRBX: vale la richiesta piu' frequente delle due.
             uint8_t want = raw_log_wanted_rate();
+            uint8_t want_sp = base_selfpos_wanted_rate();
+            if (want_sp && (!want || want_sp < want)) {
+                want = want_sp;
+            }
             if (want != applied) {
                 const uint32_t port_off = gnss_io_is_i2c() ? 1 : 0;
                 const ubx_cfg_kv32_t kv[2] = {

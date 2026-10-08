@@ -63,11 +63,23 @@
   <li>Il risultato dipende da quanto tempo è passato dalla registrazione: subito si ottiene una soluzione preliminare; quella <strong>rapida</strong>, dopo 1–2 giorni, è già al livello di pochi centimetri; quella <strong>finale</strong>, dopo circa due settimane, è la migliore. Per una base, se possibile, aspettate la finale.</li>
 </ol>
 
-<div class="box avviso"><span class="box-titolo">il sistema di riferimento</span>CSRS-PPP restituisce le coordinate in <strong>ITRF2020</strong> (IGS20) all'epoca della registrazione, <strong>non</strong> nel sistema della rete. In Italia, nel 2026, la differenza tra ITRF2020 ed ETRF2000 è di circa <strong>1 metro</strong>. Inserite così come sono, quelle coordinate sposterebbero tutti i rover di un metro rispetto alle altre basi e alle mappe. <strong>Vanno sempre convertite in ETRF2000</strong> prima di inserirle nel ricevitore.</div>
+<div class="box avviso"><span class="box-titolo">il sistema di riferimento</span>CSRS-PPP restituisce le coordinate in <strong>ITRF2020</strong> (IGS20) all'epoca della registrazione, <strong>non</strong> nel sistema della rete. In Italia, nel 2026, la differenza tra ITRF2020 ed ETRF2000 è di circa <strong>1 metro</strong>. Inserite così come sono, quelle coordinate sposterebbero tutti i rover di un metro rispetto alle altre basi e alle mappe. <strong>Vanno sempre convertite in ETRF2000</strong> prima di inserirle nel ricevitore: il pannello lo fa da solo (paragrafo seguente).</div>
 
 <h2>Conversione in ETRF2000</h2>
 
-<p>La conversione ufficiale si fa con lo strumento gratuito di <strong>EUREF</strong>, l'organismo che gestisce i sistemi di riferimento europei: la pagina <em>Coordinate transformation</em> del sito della rete permanente EUREF (<code>epncb.oma.be</code>, sezione <em>Products &amp; Services</em>).</p>
+<p>Dal firmware 1.28.0 la conversione si fa direttamente nel pannello:</p>
+
+<ol>
+  <li>Scheda <em>Posizione</em>, riquadro <strong>Posizione base</strong>: scegliete <strong>Manuale (coordinate fisse)</strong>.</li>
+  <li>Aprite <strong>Ho le coordinate da un servizio PPP (CSRS-PPP, OPUS...)</strong>.</li>
+  <li>Scrivete latitudine, longitudine e quota ellissoidica <strong>così come le dà CSRS-PPP</strong> (ITRF2020), in gradi decimali oppure in gradi, primi e secondi (<code>40 50 02.84412</code> o <code>40°50'02.84412"</code>), e la <strong>data della registrazione</strong>.</li>
+  <li>Premete <strong>Converti in ETRF2000 e compila</strong>: i campi di latitudine, longitudine e quota si riempiono con le coordinate ETRF2000 e sotto compare di quanto sono cambiate (in Italia circa 1 m).</li>
+  <li>Controllate e salvate.</li>
+</ol>
+
+<p>È la stessa trasformazione ufficiale (EUREF, EPSG 10586) che il ricevitore usa per le misure con Galileo HAS. Le coordinate ITRF2014 (per esempio quelle di OPUS) differiscono da ITRF2020 di pochi millimetri e si convertono allo stesso modo.</p>
+
+<p>In alternativa, o per un controllo, la conversione ufficiale si fa con lo strumento gratuito di <strong>EUREF</strong>, l'organismo che gestisce i sistemi di riferimento europei: la pagina <em>Coordinate transformation</em> del sito della rete permanente EUREF (<code>epncb.oma.be</code>, sezione <em>Products &amp; Services</em>).</p>
 
 <ol>
   <li>Inserite le coordinate di CSRS-PPP (latitudine, longitudine, quota ellissoidica, oppure le coordinate cartesiane X, Y, Z).</li>
@@ -82,13 +94,13 @@
 
 <ol>
   <li>Nel pannello, scheda <em>Posizione</em>, riquadro <strong>Posizione base</strong>, scegliete <strong>Manuale (coordinate fisse)</strong>.</li>
-  <li>Inserite <strong>Latitudine</strong> e <strong>Longitudine</strong> in gradi decimali con 7 decimali (il settimo decimale vale circa 1 cm), e la <strong>Quota ellissoidica ETRF2000</strong> in metri, con il millimetro.</li>
+  <li>Inserite <strong>Latitudine</strong> e <strong>Longitudine</strong> ETRF2000 in gradi decimali, con almeno 7 decimali (il settimo decimale vale circa 1 cm; i campi ne accettano quanti servono), e la <strong>Quota ellissoidica ETRF2000</strong> in metri, con il millimetro. Se partite dalle coordinate PPP, usate il convertitore del paragrafo precedente, che compila questi campi.</li>
   <li>Salvate e riavviate il ricevitore.</li>
   <li>Controllate nella scheda <em>Stato</em> che il riquadro <strong>Posizione base</strong> diventi verde con la scritta <em>coordinate fisse</em>.</li>
   <li>Scaricate una <strong>copia completa della configurazione</strong> e annotate le coordinate, con la data e il metodo usato, nel registro della base.</li>
 </ol>
 
-<div class="box avviso"><span class="box-titolo">Attenzione</span>Gradi decimali, non gradi-primi-secondi: <code>40.8341234</code>, non <code>40°50'02.8"</code>. La quota è quella <strong>ellissoidica</strong>, circa 40–50 m più alta di quella sul livello del mare: un servizio che restituisce la quota "ortometrica" o "sul livello del mare" non va usato così com'è.</div>
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Nei campi delle coordinate fisse vanno i gradi decimali, non gradi-primi-secondi: <code>40.8341234</code>, non <code>40°50'02.8"</code> (i gradi-primi-secondi si possono scrivere solo nel convertitore PPP). La quota è quella <strong>ellissoidica</strong>, circa 40–50 m più alta di quella sul livello del mare: un servizio che restituisce la quota "ortometrica" o "sul livello del mare" non va usato così com'è.</div>
 
 <h2>Verificare il risultato</h2>
 
@@ -106,7 +118,7 @@
   <li>Una base in servizio va in coordinate fisse ETRF2000: il survey-in è impreciso e cambia a ogni avvio.</li>
   <li>Prima base di una zona: 24 ore di dati grezzi e PPP; basi vicine: misura con RTK; in giornata senza stazioni vicine: Galileo HAS.</li>
   <li>RINEX con RTKLIB, con il tipo di antenna e altezza 0; calcolo con CSRS-PPP in modalità statica.</li>
-  <li>CSRS-PPP risponde in ITRF2020: convertire sempre in ETRF2000 con lo strumento EUREF, all'epoca della registrazione.</li>
+  <li>CSRS-PPP risponde in ITRF2020: convertire sempre in ETRF2000 all'epoca della registrazione, con il convertitore del pannello («Ho le coordinate da un servizio PPP») o con lo strumento EUREF.</li>
   <li>Gradi decimali, quota ellissoidica, verifica con un rover su un punto noto.</li>
 </ul>
 </div>

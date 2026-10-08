@@ -17,11 +17,17 @@
 
 <p>Sugli stessi canali arrivano anche i <strong>promemoria della SIM</strong>: rinnovo del piano e credito sotto la soglia; con questo gruppo di avvisi attivo, anche il traffico oltre l'80% del piano (capitolo <a data-cap="Scheda SIM e costi"></a>).</p>
 
-<h2>Avviso di cambio posizione della base</h2>
+<h2>Avviso di spostamento dell'antenna</h2>
 
-<p><span class="pubblico tecnico">Solo base</span> La casella <strong>Avvisami se l'antenna della base si sposta</strong> confronta la posizione che la base trasmette ai rover (messaggio 1005) con quella trasmessa la prima volta dopo l'avvio, e avvisa se la differenza supera la <strong>distanza minima</strong> impostata, in metri. Il riquadro mostra la posizione di riferimento e lo spostamento attuale. Questo avviso richiede anche l'avviso di disconnessione attivo, di cui usa i canali.</p>
+<p><span class="pubblico tecnico">Solo base · ricevitori u-blox</span> In modalità base il modulo GNSS non ricalcola la propria posizione: trasmette ai rover sempre quella fissata (survey-in o coordinate inserite), anche se l'antenna viene urtata da un mezzo, piegata dal vento o spostata. I rover riceverebbero correzioni sbagliate senza nessun segnale sul posto.</p>
 
-<div class="box avviso"><span class="box-titolo">Attenzione</span>In questa versione del firmware l'avviso controlla la posizione <strong>trasmessa</strong> dalla base, non quella fisica dell'antenna. Una base trasmette la stessa posizione fino al riavvio, sia con le coordinate fisse sia dopo il survey-in: per questo <strong>uno spostamento fisico dell'antenna, per esempio un urto, non viene rilevato</strong>. Dopo ogni urto, lavoro o maltempo vicino alla base, controllate a vista che l'antenna sia al suo posto.</div>
+<p>Per accorgersene, la base ricalcola da sola la posizione dell'antenna dai dati grezzi dei satelliti GPS e Galileo, ogni 5 secondi, e ogni <strong>30 minuti</strong> confronta la mediana di queste posizioni con quella che trasmette. Con la casella <strong>Avvisami se l'antenna della base si sposta</strong> spuntata, la base manda un avviso quando la differenza supera la <strong>distanza minima</strong> impostata (in verticale il doppio) per <strong>due controlli di fila</strong>, cioè dopo circa un'ora; quando la posizione torna coerente arriva il messaggio di rientro. Nella scheda <em>Stato</em> compare anche un riquadro rosso «L'antenna della base sembra spostata».</p>
+
+<p>Il riquadro mostra lo stato del controllo (satelliti usati, posizioni raccolte, minuti al prossimo confronto) e il risultato dell'ultimo confronto, in orizzontale e in verticale. L'avviso usa i canali (email, WhatsApp) degli altri avvisi, che devono essere attivi.</p>
+
+<div class="box nota"><span class="box-titolo">Precisione del controllo</span>Il ricalcolo usa una sola frequenza, senza correzioni: la mediana di 30 minuti è precisa a circa 1 metro a cielo libero, 2–3 metri con il cielo in parte coperto. Per questo la distanza minima consigliata è <strong>5 metri</strong> (valore di fabbrica) e non conviene scendere sotto i 3: il controllo serve a scoprire un'antenna spostata, caduta o rubata, non gli spostamenti di pochi centimetri. Dopo ogni lavoro vicino alla base conviene comunque controllare a vista.</div>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Con un ricevitore Unicore o ComNav il controllo non è disponibile e il riquadro lo indica. Nei primi minuti dopo l'avvio il controllo aspetta i dati di navigazione dei satelliti; senza antenna resta «in attesa dei satelliti».</div>
 
 <h2>Il canale email</h2>
 
@@ -56,7 +62,7 @@
 <ul>
   <li>Servono un avviso attivo e almeno un canale, email o WhatsApp; ogni avviso ha anche il messaggio di rientro.</li>
   <li>Avvisi principali: caster disconnesso oltre i minuti scelti, 1005 non inviato da 30 minuti (base), chip oltre 70 °C; in più i promemoria della SIM.</li>
-  <li>L'avviso di cambio posizione non rileva gli spostamenti fisici dell'antenna: controllatela a vista.</li>
+  <li>Spostamento dell'antenna (u-blox): posizione ricalcolata dai satelliti e confrontata ogni 30 minuti con quella trasmessa; avviso dopo due controlli oltre la soglia (5 m consigliati).</li>
   <li>Email: password per le app. WhatsApp: autorizzazione una tantum con CallMeBot.</li>
   <li>A fine installazione: Invia avviso di prova.</li>
 </ul>

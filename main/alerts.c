@@ -2,6 +2,7 @@
 #include "settings.h"
 #include "status.h"
 #include "base_monitor.h"
+#include "base_selfpos.h"
 #include "sys_stats.h"
 #include "data_usage.h"
 #include "sim_plan.h"
@@ -329,25 +330,31 @@ static void alerts_task(void *arg)
             already_alerted = false;
         }
 
-        // Spostamento della base (vedi base_monitor.c): stesso schema di
-        // "un avviso quando succede, uno quando rientra" di sopra, con un
-        // latch separato per non interferire col controllo NTRIP.
+        // Spostamento dell'antenna (vedi base_selfpos.c: posizione ricalcolata
+        // dai dati grezzi contro quella trasmessa, confermato su due finestre
+        // di 30 minuti): stesso schema di "un avviso quando succede, uno
+        // quando rientra" di sopra, con un latch separato.
         if (s.base_drift_alert_enable) {
-            base_monitor_status_t drift = base_monitor_get_status();
-            if (drift.baseline_set) {
-                if (drift.drift_m >= s.base_drift_threshold_m) {
-                    if (!already_alerted_drift) {
-                        char body[192];
-                        snprintf(body, sizeof(body),
-                                 "EVONETRTK %s: la base si e' spostata di circa %.1f m dalla posizione registrata "
-                                 "all'avvio - verifica l'antenna.",
-                                 s.device_serial, drift.drift_m);
-                        send_on_configured_channels(&s, "EVONETRTK - base spostata", body, NULL, 0);
-                        already_alerted_drift = true;
-                    }
-                } else {
-                    already_alerted_drift = false;
+            base_selfpos_status_t sp;
+            base_selfpos_get_status(&sp);
+            if (sp.alarm) {
+                if (!already_alerted_drift) {
+                    char body[320];
+                    snprintf(body, sizeof(body),
+                             "EVONETRTK %s: l'antenna della base sembra spostata di circa %.1f m in orizzontale "
+                             "e %.1f m in verticale rispetto alla posizione che trasmette ai rover (controllo di 1 ora). "
+                             "Le correzioni potrebbero essere sbagliate: verifica l'antenna.",
+                             s.device_serial, sp.horiz_m, sp.d_up_m);
+                    send_on_configured_channels(&s, "EVONETRTK - antenna della base spostata", body, NULL, 0);
+                    already_alerted_drift = true;
                 }
+            } else if (already_alerted_drift && sp.have_result) {
+                char body[160];
+                snprintf(body, sizeof(body),
+                         "EVONETRTK %s: la posizione dell'antenna della base e' di nuovo coerente (%.1f m).",
+                         s.device_serial, sp.horiz_m);
+                send_on_configured_channels(&s, "EVONETRTK - antenna della base a posto", body, NULL, 0);
+                already_alerted_drift = false;
             }
         } else {
             already_alerted_drift = false;

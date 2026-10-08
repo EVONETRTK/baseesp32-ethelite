@@ -33,6 +33,7 @@
 #include "cellular_link.h"
 #include "alerts.h"
 #include "base_monitor.h"
+#include "base_selfpos.h"
 #include "ntrip_caster_server.h"
 #include "geo_convert.h"
 #include "ppp_log.h"
@@ -894,9 +895,30 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "base_drift_alert_enable", s.base_drift_alert_enable);
     cJSON_AddNumberToObject(root, "base_drift_threshold_m", s.base_drift_threshold_m);
     base_monitor_status_t drift = base_monitor_get_status();
-    cJSON_AddBoolToObject(root, "base_drift_baseline_set", drift.baseline_set);
-    if (drift.baseline_set) {
-        cJSON_AddNumberToObject(root, "base_drift_m", drift.drift_m);
+    {
+        // Spostamento dell'antenna: posizione ricalcolata dai dati grezzi
+        // contro quella trasmessa (base_selfpos.c).
+        base_selfpos_status_t sp;
+        base_selfpos_get_status(&sp);
+        static const char *const sp_states[] = { "off", "wait_sats", "wait_1005", "running" };
+        cJSON_AddStringToObject(root, "selfpos_state", sp.state < 4 ? sp_states[sp.state] : "off");
+        cJSON_AddNumberToObject(root, "selfpos_sats", sp.sats);
+        cJSON_AddNumberToObject(root, "selfpos_eph_gps", sp.eph_gps);
+        cJSON_AddNumberToObject(root, "selfpos_eph_gal", sp.eph_gal);
+        cJSON_AddNumberToObject(root, "selfpos_samples", sp.samples);
+        cJSON_AddNumberToObject(root, "selfpos_window_elapsed_s", sp.window_elapsed_s);
+        cJSON_AddNumberToObject(root, "selfpos_window_len_s", sp.window_len_s);
+        cJSON_AddNumberToObject(root, "selfpos_windows", sp.windows);
+        cJSON_AddNumberToObject(root, "selfpos_exceed", sp.exceed);
+        cJSON_AddBoolToObject(root, "selfpos_alarm", sp.alarm);
+        if (sp.have_result) {
+            cJSON_AddNumberToObject(root, "selfpos_de_m", sp.d_east_m);
+            cJSON_AddNumberToObject(root, "selfpos_dn_m", sp.d_north_m);
+            cJSON_AddNumberToObject(root, "selfpos_du_m", sp.d_up_m);
+            cJSON_AddNumberToObject(root, "selfpos_horiz_m", sp.horiz_m);
+            cJSON_AddNumberToObject(root, "selfpos_result_samples", sp.result_samples);
+            cJSON_AddNumberToObject(root, "selfpos_result_age_s", sp.result_age_s);
+        }
     }
 
     cJSON_AddStringToObject(root, "base_position_mode", base_position_mode_str(s.base_position_mode));

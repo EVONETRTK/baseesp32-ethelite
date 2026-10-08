@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.27.2"
+#define FIRMWARE_VERSION "1.28.1"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Rover per l'autosterzo: 1, 5 o 10 posizioni al secondo verso AgOpenGPS, con velocita' e direzione (RMC, VTG), per u-blox e Unicore."
+#define FIRMWARE_RELEASE_NOTES "La base si accorge se l'antenna viene spostata (posizione ricalcolata dai satelliti ogni 30 minuti), convertitore delle coordinate PPP in ETRF2000, pulsante Manuale."

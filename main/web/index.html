@@ -98,6 +98,8 @@
   .chip-hidden { display:none !important; }
   body:not(.show-adv) [data-adv] { display:none !important; } /* impostazioni avanzate nascoste */
   .adv-toggle { display:inline-flex; align-items:center; gap:.35rem; font-size:.85rem; cursor:pointer; white-space:nowrap; }
+  .manual-link { color:inherit; text-decoration:none; }
+  .manual-link:hover { text-decoration:underline; }
   .adv-toggle input { width:auto; margin:0; } /* voci di un altro ricevitore (data-chip) */
   .fieldset-save-btn.err { background:#dc2626; }
   .fieldset-save-msg { font-size:.85rem; color:#666; }
@@ -240,6 +242,7 @@
     <div id="settings-search-results"></div>
   </div>
   <label class="adv-toggle" title="Mostra anche le impostazioni che si toccano raramente"><input type="checkbox" id="adv-toggle"> ⚙️ Avanzate</label>
+  <a class="adv-toggle manual-link" href="https://github.com/EVONETRTK/baseesp32-ethelite/releases/latest/download/manuale.pdf" target="_blank" rel="noopener" title="Manuale d'uso in PDF, ultima versione (serve internet sul telefono o sul PC)">📖 Manuale</a>
 </div>
 </div>
 
@@ -268,6 +271,10 @@
     <button type="button" class="action secondary" id="measure-cancel-btn">Annulla misura (torna base senza cambiare le coordinate)</button>
   </div>
   <div id="sim-renew-banner" style="display:none; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem"></div>
+  <div id="moved-banner" style="display:none; background:#fee2e2; color:#7f1d1d; border:2px solid #f87171; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
+    <b>🚨 L'antenna della base sembra spostata: le correzioni ai rover potrebbero essere sbagliate.</b>
+    <div id="moved-reason" style="margin-top:.3rem; font-size:.9rem"></div>
+  </div>
   <div id="no-1005-banner" style="display:none; background:#fee2e2; color:#7f1d1d; border:2px solid #f87171; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
     <b>⚠️ La base NON sta inviando la sua posizione (RTCM 1005): i rover non possono fare RTK.</b>
     <div id="no-1005-reason" style="margin-top:.3rem; font-size:.9rem"></div>
@@ -761,9 +768,25 @@
       <button type="button" class="action" id="measure-has-btn">🛰️ Avvia misura HAS</button>
     </div>
     <div id="base-pos-manual-fields" style="display:none">
-      <label>Latitudine (gradi decimali)<input name="base_fixed_lat_deg" type="number" step="0.0000001"></label>
-      <label>Longitudine (gradi decimali)<input name="base_fixed_lon_deg" type="number" step="0.0000001"></label>
-      <label>Quota ellissoidica ETRF2000 (metri)<input name="base_fixed_height_m" type="number" step="0.001"></label>
+      <label>Latitudine ETRF2000 (gradi decimali)<input name="base_fixed_lat_deg" type="number" step="any"></label>
+      <label>Longitudine ETRF2000 (gradi decimali)<input name="base_fixed_lon_deg" type="number" step="any"></label>
+      <label>Quota ellissoidica ETRF2000 (metri)<input name="base_fixed_height_m" type="number" step="any"></label>
+      <details id="itrf-conv" style="border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; padding:.5rem .8rem; margin:.6rem 0">
+        <summary><b>🌍 Ho le coordinate da un servizio PPP (CSRS-PPP, OPUS...)</b></summary>
+        <small class="hint" style="display:block; margin:.4rem 0">
+          I servizi PPP danno le coordinate in <b>ITRF2020</b> (o ITRF2014, che differisce di pochi millimetri),
+          alla data della registrazione. La rete EVONETRTK usa <b>ETRF2000</b>: in Italia la differenza e' di
+          circa <b>1 metro</b>, quindi le coordinate PPP non vanno copiate cosi' come sono. Scrivile qui,
+          la base le converte e compila i campi qui sopra; poi controlla e premi Salva.
+          Accetta gradi decimali (41.8123456) oppure gradi, primi e secondi (41 48 44.44412 o 41°48'44.44412").
+        </small>
+        <label>Latitudine ITRF2020<input id="itrf-lat" type="text" inputmode="decimal" autocomplete="off" placeholder="es. 41.8123456 oppure 41 48 44.44412"></label>
+        <label>Longitudine ITRF2020 (est positiva)<input id="itrf-lon" type="text" inputmode="decimal" autocomplete="off" placeholder="es. 16.5543210 oppure 16 33 15.55560"></label>
+        <label>Quota ellissoidica ITRF2020 (metri)<input id="itrf-h" type="text" inputmode="decimal" autocomplete="off" placeholder="es. 512.345"></label>
+        <label>Data della registrazione (epoca delle coordinate)<input id="itrf-date" type="date"></label>
+        <button type="button" class="action secondary" id="itrf-conv-btn">🔄 Converti in ETRF2000 e compila</button>
+        <div id="itrf-conv-msg" class="hint" style="margin-top:.4rem"></div>
+      </details>
       <button type="button" class="action secondary" id="base-pos-use-current-btn">Usa posizione attuale rilevata</button>
       <div id="base-pos-current-hint" class="hint" style="margin-top:.4rem">Nessuna posizione ancora rilevata dal ricevitore.</div>
       <small class="hint" id="base-pos-maps-wrap" style="display:none">
@@ -776,10 +799,12 @@
       ad esempio ottenuta con un servizio gratuito di post-processing PPP (cerca "CSRS-PPP" o "OPUS"
       online): si registrano le osservazioni grezze del ricevitore per molte ore e si caricano sul sito,
       che restituisce una posizione accurata a livello di centimetri, molto migliore del solo survey-in.
+      Il risultato PPP e' in ITRF2020: inseriscilo nel riquadro "Ho le coordinate da un servizio PPP",
+      che lo converte in ETRF2000 (in Italia circa 1 m di differenza).
       Il pulsante "Usa posizione attuale rilevata" precompila i campi con l'ultima posizione vista dal
       ricevitore (dal messaggio RTCM 1005/1006 gia' inviato al caster) cosi', nella maggior parte dei casi,
       basta verificarla e confermare invece di doverla scrivere a mano. Attenzione: e' la posizione del
-      survey-in, quindi con la sua stessa imprecisione (metri). Funziona con u-blox (ZED-F9P), applicata
+      survey-in, quindi con la sua stessa imprecisione (metri). Funziona con u-blox, Unicore e ComNav, applicata
       al riavvio, e con Quectel LC29H (qui serve spegnere e riaccendere il modulo GNSS, vedi Ricevitore GNSS e collegamento).
       La quota e' ellissoidica: in Italia circa 40-50 m piu' alta di quella sul livello del mare.
     </small>
@@ -820,7 +845,7 @@
         <li>Scarica il file .ubx (oppure togli la microSD: cartella <code>raw</code>).</li>
         <li>Convertilo in RINEX con RTKLIB (programma <b>RTKCONV</b> o <code>convbin file.ubx -r ubx -v 3.04</code>): escono un file di osservazioni (.obs) e uno di navigazione (.nav).</li>
         <li>Carica il file .obs su un servizio PPP gratuito, per esempio <b>CSRS-PPP</b> (Natural Resources Canada), in modalità <b>Static</b>. Dopo qualche minuto arriva per email il risultato con latitudine, longitudine e quota ellissoidica.</li>
-        <li>Inserisci le coordinate qui sopra in "Posizione della base" → coordinate fisse e salva: la base manda subito la sua posizione (1005).</li>
+        <li>Le coordinate del risultato sono in <b>ITRF2020</b>, non nel sistema della rete (ETRF2000): in Italia differiscono di circa 1 m. <b>Non copiarle cosi' come sono</b>: in "Posizione base" scegli Manuale, apri "Ho le coordinate da un servizio PPP", scrivile con la data della registrazione e premi "Converti". Poi salva: la base manda la sua posizione (1005) dal riavvio.</li>
       </ol>
       <small class="hint">Per la precisione migliore usa il risultato "final", disponibile circa 2 settimane dopo la registrazione; quello "rapid" (dopo 1–2 giorni) è già al livello di pochi centimetri.</small>
     </details>
@@ -829,7 +854,8 @@
     <small class="hint">
       Registra le osservazioni RTCM3 grezze su SD per diverse ore da un punto fisso - poi converti il file in
       RINEX (gratis, sul tuo PC) e caricalo su un servizio di post-processing PPP (CSRS-PPP, OPUS, ...) per
-      ottenere una posizione centimetrica da usare qui sopra in "Posizione base" &rarr; Manuale.
+      ottenere una posizione centimetrica da usare qui sopra in "Posizione base" &rarr; Manuale
+      (risultato in ITRF2020: convertilo con "Ho le coordinate da un servizio PPP").
     </small>
     <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.7rem">
       <button type="button" class="action" id="ppp-log-start-btn">▶️ Avvia registrazione</button>
@@ -1224,22 +1250,26 @@
   </fieldset>
 
   <fieldset data-mode="base">
-    <legend>📍 Avviso spostamento base (drift)</legend>
+    <legend>📍 Avviso spostamento dell'antenna</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="base_drift_alert_enable" type="checkbox" style="width:auto; margin:0">
       Avvisami se l'antenna della base si sposta
     </label>
-    <label>Distanza minima considerata uno spostamento reale (metri)<input name="base_drift_threshold_m" type="number" min="0.1" step="0.1"></label>
+    <label>Distanza minima considerata uno spostamento reale (metri)<input name="base_drift_threshold_m" type="number" min="2" step="0.5"></label>
     <small class="hint">
-      Confronta la posizione dell'antenna (dai messaggi RTCM 1005/1006 gia' inviati al caster) con
-      quella registrata al primo avvio dopo il boot - utile per accorgersi se la base viene urtata
-      da un mezzo agricolo o spostata dal vento, cosa che altrimenti manderebbe correzioni sbagliate
-      a tutti i rover collegati senza nessun segnale visibile sul posto. Richiede anche l'avviso di
-      disconnessione attivo qui sopra (usa la stessa configurazione email/WhatsApp).
+      In modalita' base il ricevitore non ricalcola la sua posizione: trasmette sempre quella fissata
+      (survey-in o coordinate inserite), anche se l'antenna viene urtata da un mezzo, piegata dal vento
+      o spostata. I rover riceverebbero correzioni sbagliate senza nessun segnale.
+      Per accorgersene la base ricalcola da sola la posizione dell'antenna dai dati grezzi dei satelliti
+      GPS e Galileo, ogni 5 secondi, e ogni <b>30 minuti</b> confronta la mediana con la posizione che trasmette.
+      L'avviso parte se la differenza supera la soglia (in verticale il doppio) per <b>due controlli di fila</b>,
+      cioe' dopo circa un'ora. Precisione del controllo: circa 1 m a cielo libero, 2-3 m con il cielo
+      in parte coperto: non scendere sotto i 3 m. Solo con ricevitori u-blox.
+      Usa la stessa configurazione email/WhatsApp degli altri avvisi (vanno attivati qui sopra).
     </small>
     <dl class="kv" style="margin-top:.4rem">
-      <dt>Posizione di riferimento</dt><dd id="drift-baseline">-</dd>
-      <dt>Spostamento attuale</dt><dd id="drift-current">-</dd>
+      <dt>Controllo</dt><dd id="drift-baseline">-</dd>
+      <dt>Ultimo confronto</dt><dd id="drift-current">-</dd>
     </dl>
   
     <div class="fieldset-save-row">
@@ -2674,11 +2704,101 @@ document.getElementById('base-pos-use-current-btn').addEventListener('click', ()
     return;
   }
   const f = document.getElementById('cfg-form');
-  f.base_fixed_lat_deg.value = lastStatus.base_current_lat_deg.toFixed(7);
-  f.base_fixed_lon_deg.value = lastStatus.base_current_lon_deg.toFixed(7);
+  f.base_fixed_lat_deg.value = lastStatus.base_current_lat_deg.toFixed(9);
+  f.base_fixed_lon_deg.value = lastStatus.base_current_lon_deg.toFixed(9);
   f.base_fixed_height_m.value = lastStatus.base_current_height_m.toFixed(3);
   f.dataset.touched = '1';
 });
+
+// Conversione ITRF2020 -> ETRF2000 delle coordinate di un servizio PPP: stessa
+// trasformazione di etrf.c (EPSG 10586, convenzione position vector, epoca di
+// riferimento 2015.0), cosi' pannello e firmware danno lo stesso risultato.
+const GRS80_A = 6378137.0, GRS80_F = 1 / 298.257222101, GRS80_E2 = GRS80_F * (2 - GRS80_F);
+function geoToEcef(latDeg, lonDeg, h) {
+  const la = latDeg * Math.PI / 180, lo = lonDeg * Math.PI / 180;
+  const s = Math.sin(la), c = Math.cos(la);
+  const n = GRS80_A / Math.sqrt(1 - GRS80_E2 * s * s);
+  return [(n + h) * c * Math.cos(lo), (n + h) * c * Math.sin(lo), (n * (1 - GRS80_E2) + h) * s];
+}
+function ecefToGeo(x) {
+  const p = Math.hypot(x[0], x[1]);
+  let lat = Math.atan2(x[2], p * (1 - GRS80_E2)), h = 0;
+  for (let i = 0; i < 10; i++) {
+    const s = Math.sin(lat);
+    const n = GRS80_A / Math.sqrt(1 - GRS80_E2 * s * s);
+    h = p / Math.cos(lat) - n;
+    lat = Math.atan2(x[2], p * (1 - GRS80_E2 * n / (n + h)));
+  }
+  return [lat * 180 / Math.PI, Math.atan2(x[1], x[0]) * 180 / Math.PI, h];
+}
+function itrf2020ToEtrf2000(latDeg, lonDeg, h, epoch) {
+  const dt = epoch - 2015.0, mas = Math.PI / 180 / 3600 / 1000;
+  const P_T = [0.0538, 0.0518, -0.0822], P_R = [2.106, 12.74, -20.592];
+  const DP_T = [0.0001, 0.0, -0.0017], DP_R = [0.081, 0.49, -0.792];
+  const t = [0, 1, 2].map((i) => P_T[i] + DP_T[i] * dt);
+  const r = [0, 1, 2].map((i) => (P_R[i] + DP_R[i] * dt) * mas);
+  const d = (2.25 + 0.11 * dt) * 1e-9;
+  const x = geoToEcef(latDeg, lonDeg, h);
+  return ecefToGeo([
+    t[0] + (1 + d) * x[0] - r[2] * x[1] + r[1] * x[2],
+    t[1] + r[2] * x[0] + (1 + d) * x[1] - r[0] * x[2],
+    t[2] - r[1] * x[0] + r[0] * x[1] + (1 + d) * x[2],
+  ]);
+}
+// "41.8123456", "41,8123456", "41 48 44.44412", "41°48'44.44412\"N",
+// "16° 33' 15.5556\" W" -> gradi decimali (S e W negativi); NaN se non valido.
+function parseAngle(text) {
+  let t = String(text || '').trim().toUpperCase();
+  if (!t) return NaN;
+  let sign = 1;
+  if (/[SWO]$/.test(t)) sign = -1;
+  t = t.replace(/[NSEWO]$/, '').trim();
+  if (t.startsWith('-')) { sign = -sign; t = t.slice(1); }
+  const parts = t.replace(/,/g, '.').split(/[^0-9.]+/).filter((x) => x !== '');
+  if (parts.length < 1 || parts.length > 3) return NaN;
+  const nums = parts.map(Number);
+  if (nums.some((n) => !isFinite(n))) return NaN;
+  if (nums.length > 1 && (nums[1] >= 60 || (nums[2] ?? 0) >= 60)) return NaN;
+  return sign * (nums[0] + (nums[1] || 0) / 60 + (nums[2] || 0) / 3600);
+}
+function decimalYear(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  if (isNaN(d)) return NaN;
+  const y = d.getUTCFullYear();
+  const start = Date.UTC(y, 0, 1), end = Date.UTC(y + 1, 0, 1);
+  return y + (d.getTime() - start) / (end - start);
+}
+(function initItrfConv() {
+  const dateEl = document.getElementById('itrf-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+  document.getElementById('itrf-conv-btn').addEventListener('click', () => {
+    const msg = document.getElementById('itrf-conv-msg');
+    const lat = parseAngle(document.getElementById('itrf-lat').value);
+    const lon = parseAngle(document.getElementById('itrf-lon').value);
+    const h = Number(String(document.getElementById('itrf-h').value).replace(',', '.').trim());
+    const epoch = decimalYear(dateEl.value);
+    msg.style.color = '#dc2626';
+    if (!(Math.abs(lat) <= 90)) { msg.textContent = 'Latitudine non valida.'; return; }
+    if (!(Math.abs(lon) <= 180)) { msg.textContent = 'Longitudine non valida.'; return; }
+    if (document.getElementById('itrf-h').value.trim() === '' || !isFinite(h) || h < -500 || h > 9000) {
+      msg.textContent = 'Quota non valida (metri, ellissoidica).'; return;
+    }
+    if (!(epoch > 1990 && epoch < 2100)) { msg.textContent = 'Data della registrazione non valida.'; return; }
+    const [eLat, eLon, eH] = itrf2020ToEtrf2000(lat, lon, h, epoch);
+    const f = document.getElementById('cfg-form');
+    f.base_fixed_lat_deg.value = eLat.toFixed(9);
+    f.base_fixed_lon_deg.value = eLon.toFixed(9);
+    f.base_fixed_height_m.value = eH.toFixed(3);
+    ['base_fixed_lat_deg', 'base_fixed_lon_deg', 'base_fixed_height_m'].forEach((n) =>
+      f.elements[n].dispatchEvent(new Event('input', { bubbles: true })));
+    f.dataset.touched = '1';
+    const [x1, y1, z1] = geoToEcef(lat, lon, h), [x2, y2, z2] = geoToEcef(eLat, eLon, eH);
+    const shift = Math.hypot(x2 - x1, y2 - y1, z2 - z1);
+    msg.style.color = '#16a34a';
+    msg.textContent = '✅ Convertite (spostamento ' + shift.toFixed(2) + ' m): ETRF2000 lat ' + eLat.toFixed(9) +
+      ', lon ' + eLon.toFixed(9) + ', quota ' + eH.toFixed(3) + ' m. Controlla i campi qui sopra e premi Salva.';
+  });
+})();
 
 function renderPppLog(s) {
   const statusEl = document.getElementById('ppp-log-status');
@@ -2738,24 +2858,49 @@ document.getElementById('ppp-log-download-btn').addEventListener('click', () => 
 });
 
 function renderDriftStatus(s) {
+  const mb = document.getElementById('moved-banner');
+  if (mb) {
+    mb.style.display = s.selfpos_alarm ? '' : 'none';
+    if (s.selfpos_alarm) {
+      document.getElementById('moved-reason').textContent = 'La posizione ricalcolata dai satelliti differisce di ' +
+        (s.selfpos_horiz_m || 0).toFixed(1) + ' m in orizzontale e ' + (s.selfpos_du_m || 0).toFixed(1) +
+        ' m in verticale da quella trasmessa, in due controlli di fila (circa un'ora). Controlla che l'antenna ' +
+        'sia al suo posto e ben fissata; se e' stata spostata apposta, rimisura la posizione (Posizione e correzioni → Posizione base).';
+    }
+  }
   const baselineEl = document.getElementById('drift-baseline');
   const currentEl = document.getElementById('drift-current');
   if (!baselineEl || !currentEl) {
     return; // pagina non ancora pronta (script gira anche prima del DOM completo)
   }
-  if (!s.base_drift_baseline_set) {
-    baselineEl.textContent = 'non ancora registrata (serve un frame RTCM 1005/1006 dal GNSS)';
-    currentEl.textContent = '-';
+  const st = s.selfpos_state || 'off';
+  const mins = (sec) => Math.floor((sec || 0) / 60);
+  if (st === 'off') {
+    baselineEl.textContent = 'non disponibile (solo base con ricevitore u-blox)';
+  } else if (st === 'wait_sats') {
+    baselineEl.textContent = '⏳ in attesa dei satelliti (effemeridi GPS ' + (s.selfpos_eph_gps || 0) +
+      ', Galileo ' + (s.selfpos_eph_gal || 0) + '; servono almeno 5 satelliti visibili)';
+  } else if (st === 'wait_1005') {
+    baselineEl.textContent = '⏳ in attesa che la base trasmetta la sua posizione (1005)';
+  } else {
+    baselineEl.textContent = '✅ attivo: ' + (s.selfpos_sats || 0) + ' satelliti, ' + (s.selfpos_samples || 0) +
+      ' posizioni raccolte, prossimo confronto tra ' +
+      Math.max(0, mins((s.selfpos_window_len_s || 1800) - (s.selfpos_window_elapsed_s || 0))) + ' min';
+  }
+  if (s.selfpos_horiz_m === undefined) {
+    currentEl.textContent = st === 'running' ? 'il primo dopo 30 minuti' : '-';
     currentEl.style.color = '';
     currentEl.style.fontWeight = '';
     return;
   }
-  baselineEl.textContent = '✅ registrata';
-  const drift = s.base_drift_m ?? 0;
-  const driftOk = drift < (s.base_drift_threshold_m || 5);
-  currentEl.textContent = (driftOk ? '✅ ' : '⚠️ ') + drift.toFixed(2) + ' m';
+  const thr = s.base_drift_threshold_m || 5;
+  const over = s.selfpos_horiz_m >= thr || Math.abs(s.selfpos_du_m) >= 2 * thr;
+  const icon = s.selfpos_alarm ? '🚨 ' : (over ? '⚠️ ' : '✅ ');
+  currentEl.textContent = icon + 'differenza ' + s.selfpos_horiz_m.toFixed(1) + ' m in orizzontale, ' +
+    s.selfpos_du_m.toFixed(1) + ' m in verticale (' + mins(s.selfpos_result_age_s) + ' min fa)' +
+    (s.selfpos_alarm ? ' - ANTENNA SPOSTATA: controllala' : (over ? ' - da confermare al prossimo controllo' : ''));
   currentEl.style.fontWeight = '600';
-  currentEl.style.color = driftOk ? '#16a34a' : '#dc2626';
+  currentEl.style.color = s.selfpos_alarm || over ? '#dc2626' : '#16a34a';
 }
 
 function renderFixStatus(s) {

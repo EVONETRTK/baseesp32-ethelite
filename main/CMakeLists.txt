@@ -26,6 +26,7 @@ idf_component_register(
         "gnss_detect.c"
         "gnss_comnav.c"
         "etrf.c"
+        "base_selfpos.c"
         "pending_restart.c"
         "nmea_etrf.c"
         "gnss_lc29h.c"

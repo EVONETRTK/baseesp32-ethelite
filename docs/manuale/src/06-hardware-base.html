@@ -2,7 +2,7 @@
 
 <h2>Com'è fatto il ricevitore</h2>
 
-<p>Il ricevitore EVONETRTK è composto da una scheda di controllo con processore ESP32-S3, che esegue il firmware EVONETRTK, da un <strong>modulo GNSS</strong> RTK, da una scheda di alimentazione da 12–24 V e da un'antenna GNSS esterna. Un modem LTE opzionale fornisce la connessione quando mancano WiFi e cavo di rete.</p>
+<p>Il ricevitore EVONETRTK è composto da una scheda di controllo con processore ESP32-S3, che esegue il firmware EVONETRTK, da un <strong>modulo GNSS</strong> RTK, da una scheda di alimentazione da 12–24 V, dall'alimentazione <strong>PoE</strong> sul cavo di rete, consigliata per la base, e da un'antenna GNSS esterna. La scheda di alimentazione gestisce anche una <strong>batteria tampone</strong> (UPS) e, per le basi isolate, un <strong>pannello fotovoltaico</strong>. Un modem LTE opzionale fornisce la connessione quando mancano WiFi e cavo di rete.</p>
 
 <figure>
 <svg viewBox="0 0 680 250" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="13">
@@ -35,7 +35,7 @@
   <path d="M402 135 L496 60" stroke="#556070" stroke-width="2" marker-end="url(#f6)"/>
   <path d="M402 150 L496 150" stroke="#556070" stroke-width="2" marker-end="url(#f6)"/>
   <path d="M402 165 L496 216" stroke="#556070" stroke-width="2" marker-end="url(#f6)"/>
-  <text x="315" y="230" text-anchor="middle" fill="#556070">alimentazione 12–24 V</text>
+  <text x="315" y="230" text-anchor="middle" fill="#556070">alimentazione 12–24 V o PoE</text>
   <path d="M315 214 L315 194" stroke="#b5560a" stroke-width="2.5" marker-end="url(#f6)"/>
 </svg>
 <figcaption><b>Figura 10.</b> Schema a blocchi del ricevitore EVONETRTK.</figcaption>
@@ -150,7 +150,45 @@
 
 <h2>Alimentazione</h2>
 
-<div class="box avvertenza" data-pitto="incendio"><span class="box-titolo">Cortocircuito e incendio</span>Usate un alimentatore conforme da 12–24 V in corrente continua, con un fusibile sulla linea; rispettate la polarità e non collegate mai il ricevitore direttamente alla rete a 230 V. Fate i collegamenti con l'alimentazione staccata.</div>
+<div class="box avvertenza" data-pitto="incendio"><span class="box-titolo">Cortocircuito e incendio</span>Usate un alimentatore conforme da 12–24 V in corrente continua, con un fusibile sulla linea, oppure uno switch o un iniettore PoE conforme allo standard; rispettate la polarità e non collegate mai il ricevitore direttamente alla rete a 230 V. Fate i collegamenti con l'alimentazione staccata.</div>
+
+<p>La <strong>scheda di alimentazione</strong> del ricevitore accetta più sorgenti e gestisce una <strong>batteria tampone</strong> interna, che fa da gruppo di continuità (UPS). Il ricevitore si può alimentare in tre modi:</p>
+
+<table>
+  <tr><th>Alimentazione</th><th>Quando usarla</th></tr>
+  <tr><td><strong>PoE</strong> (Power over Ethernet): corrente e rete sullo stesso cavo di rete</td><td><strong>Consigliata per la base</strong>, quando la base è collegata con il cavo di rete.</td></tr>
+  <tr><td><strong>12–24 V</strong> in corrente continua, dalla scheda di alimentazione</td><td>Base senza cavo di rete (WiFi o modem LTE) e sempre per il rover sul trattore.</td></tr>
+  <tr><td><strong>Pannello fotovoltaico</strong> con la batteria, gestiti dalla scheda di alimentazione</td><td>Base isolata, dove non arriva la corrente: in genere con il modem LTE.</td></tr>
+</table>
+
+<p>Con qualunque sorgente, la <strong>batteria tampone</strong> tiene acceso il ricevitore quando la corrente manca e si ricarica da sola quando torna (vedi <em>Batteria tampone (UPS)</em> più avanti).</p>
+
+<h3>Alimentazione PoE, consigliata per la base</h3>
+
+<p>Con il PoE un solo cavo di rete porta al ricevitore sia la connessione Ethernet sia la corrente. La corrente la fornisce uno <strong>switch PoE</strong> o un <strong>iniettore PoE</strong> che si trova in casa o in ufficio, al riparo, accanto al router. È la soluzione consigliata per una base perché:</p>
+
+<ul>
+  <li>serve <strong>un solo cavo</strong> e un solo pressacavo nella custodia: niente alimentatore all'aperto e niente linea a 12–24 V da portare fino al palo;</li>
+  <li>l'alimentatore resta al chiuso, dove è protetto da acqua, caldo e gelo;</li>
+  <li>un solo gruppo di continuità sotto router e switch PoE tiene accesa tutta la catena, base compresa, quando la corrente salta;</li>
+  <li>la connessione via cavo è la più stabile per inviare le correzioni (vedi più avanti <em>Rete: WiFi, Ethernet, modem LTE e SIM</em>);</li>
+  <li>il ricevitore si può <strong>riavviare a distanza</strong> togliendo e ridando corrente alla porta dello switch, se lo switch lo permette.</li>
+</ul>
+
+<p>Cosa serve:</p>
+
+<ul class="checklist">
+  <li>il ricevitore EVONETRTK nella versione con <strong>PoE</strong> [[da completare: standard PoE supportato, es. IEEE 802.3af, e potenza assorbita]];</li>
+  <li>uno switch PoE o un iniettore PoE <strong>conforme allo standard IEEE 802.3af o 802.3at</strong>: gli apparati conformi danno corrente solo dopo aver riconosciuto un dispositivo PoE, quindi non danneggiano un computer collegato per errore;</li>
+  <li>cavo di rete per esterni, almeno categoria 5e, schermato e resistente ai raggi UV; lunghezza massima <strong>100 metri</strong> tra lo switch e il ricevitore;</li>
+  <li>un <strong>protettore contro le sovratensioni</strong> per linea Ethernet PoE, collegato a terra, nel punto in cui il cavo entra nell'edificio.</li>
+</ul>
+
+<div class="box attenzione" data-pitto="elettricita"><span class="box-titolo">Usate una sola alimentazione</span>Non usate gli <strong>iniettori PoE «passivi»</strong>, che danno sempre tensione sul cavo senza riconoscere il dispositivo: possono danneggiare il ricevitore e gli altri apparati di rete. Non collegate contemporaneamente il PoE e l'alimentazione a 12–24 V, salvo diversa indicazione del costruttore.</div>
+
+<div class="box avvertenza" data-pitto="fulmine"><span class="box-titolo">Fulmini lungo il cavo di rete</span>Un cavo di rete che scende da un palo o da un tetto può portare dentro l'edificio le sovratensioni dei fulmini, fino al router e allo switch. Installate il protettore contro le sovratensioni all'ingresso del cavo nell'edificio e collegatelo all'impianto di terra (capitolo <a data-cap="Avvertenze di sicurezza"></a>).</div>
+
+<h3>Alimentazione a 12–24 V</h3>
 
 
 <p>La maggior parte dei problemi delle basi in campo nasce dall'alimentazione: cali di tensione e interruzioni causano riavvii e, nel tempo, possono danneggiare la scheda di memoria.</p>
@@ -158,9 +196,50 @@
 <ul>
   <li>Il ricevitore si alimenta con una tensione continua da <strong>12 a 24 V</strong>: la sua scheda di alimentazione la porta ai 5 V dell'elettronica. Per una base usate un alimentatore da 12 o 24 V di <strong>buona qualità</strong>, con corrente sufficiente per i picchi del modem LTE, che assorbe forti picchi quando si aggancia alla rete.</li>
   <li>Usate cavi di sezione adeguata e connessioni ben serrate: la tensione cala proprio durante i picchi.</li>
-  <li>Dove la corrente salta spesso, un piccolo gruppo di continuità o una batteria tampone evitano riavvii e buchi nelle correzioni.</li>
+  <li>Dove la corrente salta spesso, la batteria tampone della scheda di alimentazione evita riavvii e buchi nelle correzioni.</li>
   <li>Il ricevitore riparte da solo dopo ogni interruzione e ha un controllo interno che lo riavvia se si blocca. Per le basi più isolate si può aggiungere un <strong>watchdog hardware esterno</strong> che toglie e ridà corrente se il ricevitore non dà più segni di vita.</li>
 </ul>
+
+<h3>Batteria tampone (UPS)</h3>
+
+<p>La scheda di alimentazione contiene un sistema di continuità con batteria: quando la sorgente principale (PoE, 12–24 V o pannello fotovoltaico) manca, il ricevitore passa alla batteria senza spegnersi e continua a inviare le correzioni; quando la sorgente torna, la scheda ricarica la batteria.</p>
+
+<table>
+  <tr><th>Voce</th><th>Valore</th></tr>
+  <tr><td>Tipo di batteria</td><td>[[da completare: tipo e chimica, es. litio o piombo]]</td></tr>
+  <tr><td>Capacità</td><td>[[da completare]]</td></tr>
+  <tr><td>Autonomia indicativa della base</td><td>[[da completare: ore con WiFi o Ethernet, ore con modem LTE]]</td></tr>
+  <tr><td>Tempo di ricarica</td><td>[[da completare]]</td></tr>
+  <tr><td>Temperature di carica e di uso</td><td>[[da completare]]</td></tr>
+</table>
+
+<ul>
+  <li>L'autonomia dipende soprattutto dal modem LTE, che consuma più del resto del ricevitore, e dalla temperatura: con il freddo la batteria rende meno.</li>
+  <li>Le batterie invecchiano: controllate l'autonomia almeno una volta l'anno, staccando la sorgente principale con la base in funzione, e sostituite la batteria quando l'autonomia cala in modo evidente [[da completare: intervallo consigliato di sostituzione]].</li>
+  <li>Il gruppo di continuità integrato protegge il ricevitore, non il router: se la base usa la rete aziendale, mettete anche router e switch sotto un gruppo di continuità, altrimenti la base resta accesa ma senza internet.</li>
+</ul>
+
+<div class="box avvertenza" data-pitto="incendio"><span class="box-titolo">Batteria</span>Usate solo la batteria prevista da [[ragione sociale]]. Non cortocircuitate i contatti, non forate, non schiacciate e non scaldate la batteria; non caricatela fuori dalle temperature indicate. Una batteria gonfia, danneggiata o che perde liquido va scollegata e sostituita subito. Fate i collegamenti con la sorgente principale staccata e la batteria scollegata.</div>
+
+<h3>Pannello fotovoltaico</h3>
+
+<p>Per le basi isolate, dove non arriva la corrente, la scheda di alimentazione gestisce direttamente un <strong>pannello fotovoltaico</strong>: di giorno il pannello alimenta il ricevitore e ricarica la batteria, di notte e con il cielo coperto il ricevitore va a batteria. Così una base può funzionare tutto l'anno senza linea elettrica, collegata a internet con il modem LTE.</p>
+
+<table>
+  <tr><th>Voce</th><th>Valore</th></tr>
+  <tr><td>Pannello consigliato</td><td>[[da completare: potenza in W e tensione]]</td></tr>
+  <tr><td>Tensione massima in ingresso dal pannello</td><td>[[da completare]]</td></tr>
+  <tr><td>Batteria consigliata per l'uso solare</td><td>[[da completare: capacità per garantire i giorni di autonomia senza sole]]</td></tr>
+</table>
+
+<ul>
+  <li>Orientate il pannello verso <strong>sud</strong>, inclinato di circa 50–60° in modo da rendere al meglio d'inverno, quando le giornate sono corte; nessuna ombra dalle 9 alle 15.</li>
+  <li>Il pannello non deve fare ombra all'antenna GNSS e non deve stare sopra di essa: montatelo più in basso dell'antenna, ad almeno 1 m.</li>
+  <li>Il dimensionamento si fa sul mese peggiore, dicembre: in Italia il sole utile d'inverno è di poche ore al giorno, e la batteria deve coprire diversi giorni di cielo coperto.</li>
+  <li>Fissate il pannello in modo che resista al vento e collegate la struttura all'impianto di terra insieme al supporto dell'antenna.</li>
+</ul>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Il collegamento dettagliato del pannello fotovoltaico, la scelta del pannello e della batteria e le indicazioni nel pannello del ricevitore saranno descritti in una prossima edizione di questo manuale.</div>
 
 <div class="box consiglio"><span class="box-titolo">Consiglio</span>Nel pannello, scheda <em>Stato</em>, riquadro <em>Sistema</em>, la riga <em>Ultimo riavvio</em> ne indica il motivo. Se compare spesso «calo di tensione dell'alimentazione», oppure «accensione (alimentazione collegata)» senza che nessuno abbia staccato la corrente, controllate alimentatore e cavo prima di cercare altre cause.</div>
 
@@ -170,7 +249,7 @@
 
 <table>
   <tr><th>Connessione</th><th>Quando usarla</th></tr>
-  <tr><td><strong>Ethernet</strong> (chip W5500 della scheda)</td><td>La più stabile, quando c'è un cavo di rete vicino alla base.</td></tr>
+  <tr><td><strong>Ethernet</strong> (chip W5500 della scheda)</td><td>La più stabile, quando c'è un cavo di rete vicino alla base; con il PoE lo stesso cavo porta anche la corrente.</td></tr>
   <tr><td><strong>WiFi</strong></td><td>Quando la base è nel raggio della rete aziendale con un segnale buono e stabile.</td></tr>
   <tr><td><strong>Modem LTE</strong> con SIM</td><td>Dove non c'è altro, oppure come riserva automatica di WiFi e cavo: la modalità consigliata è "WiFi con riserva cellulare".</td></tr>
 </table>
@@ -212,7 +291,7 @@
   <li>Configurazione di riferimento: T-ETH-Elite (ESP32-S3) + shield LTE + HAT ZED-F9P in I2C; DIP GPS dello shield su OFF.</li>
   <li>Con "Automatico" il firmware riconosce u-blox, Unicore e ComNav; i moduli non ancora provati vanno collaudati al banco.</li>
   <li>Antenna multibanda a cielo libero su supporto rigido, lontana dall'antenna LTE, connettori stretti e protetti dall'acqua; dopo la misura delle coordinate non va più mossa.</li>
-  <li>Alimentazione da 12 a 24 V con un alimentatore di qualità; dove serve, continuità o watchdog esterno.</li>
+  <li>Alimentazione consigliata per la base: <strong>PoE</strong> conforme 802.3af/at, con un solo cavo di rete, protettore contro le sovratensioni e continuità sotto router e switch. In alternativa 12–24 V con un alimentatore di qualità; per le basi isolate pannello fotovoltaico. La batteria tampone della scheda di alimentazione copre le interruzioni: controllatene l'autonomia ogni anno.</li>
   <li>Rete: Ethernet o WiFi con riserva LTE; SIM attiva e senza PIN, APN nel pannello. microSD consigliata per log, dati grezzi e aggiornamenti.</li>
 </ul>
 </div>

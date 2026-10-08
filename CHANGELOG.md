@@ -8,6 +8,18 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.28.1
+
+- Tabelle del controllo dello spostamento (effemeridi, sottoframe, ~20 KB) spostate nella PSRAM: nella 1.28.0 erano nella RAM interna e la memoria interna libera era scesa a 16 KB (minima 10 KB).
+
+## 1.28.0
+
+Controllo vero dello spostamento dell'antenna, coordinate PPP convertite, manuale dal pannello (08/10/2026).
+- **Spostamento dell'antenna** (nuovo `base_selfpos.c`, solo base u-blox): prima l'avviso confrontava il 1005 trasmesso con il primo 1005 dopo l'avvio, ma il 1005 resta uguale fino al riavvio, quindi non vedeva mai uno spostamento fisico. Ora l'ESP32 ricalcola la posizione dell'antenna dai dati grezzi dello ZED (RXM-RAWX ogni 5 s e RXM-SFRBX: effemeridi GPS LNAV e Galileo I/NAV con CRC, ionosfera Klobuchar, troposfera Saastamoinen, posizione singola L1/E1 ai minimi quadrati con un orologio per sistema) e ogni 30 minuti confronta la mediana con la posizione trasmessa (in ETRF2000 con le coordinate fisse: riportata in ITRF2020 prima del confronto). Avviso (email/WhatsApp e banner rosso nella scheda Stato) se la differenza supera la soglia, in verticale il doppio, per due controlli di fila; secondo messaggio quando rientra. Provato sul PC con la registrazione reale del 04/10 (balcone, cielo in parte coperto): stesso risultato del prototipo al decimo di millimetro, controlli a 2,75 e 1,01 m senza spostamento, 7,6 e 10,9 m simulando 10 m. Senza antenna nel pannello resta "in attesa dei satelliti". La soglia minima nel pannello sale a 2 m.
+- **Coordinate da un servizio PPP** (Posizione base, Manuale): nuovo riquadro "Ho le coordinate da un servizio PPP" che converte da ITRF2020 (CSRS-PPP, OPUS...) a ETRF2000 alla data della registrazione e compila i campi, con gradi decimali o gradi-primi-secondi. Stessa trasformazione di `etrf.c` (EPSG 10586). In Italia la differenza e' di circa 1 m: prima il pannello diceva di copiare il risultato PPP cosi' com'era. Corretti i testi del riquadro PPP.
+- Campi latitudine, longitudine e quota senza limite di decimali (step "any"); "Usa posizione attuale rilevata" scrive 9 decimali.
+- Pulsante **📖 Manuale** in alto nel pannello: apre il PDF dell'ultima release su GitHub (serve internet sul telefono o sul PC; il manuale non sta nella memoria della scheda).
+
 ## 1.27.2
 
 - Porta UDP preimpostata per il software di guida: **9999** (era 5005), la porta su cui AgIO di AgOpenGPS 6.8.6 riceve la posizione (verificato nel codice di AgIO: ascolta su tutte le reti, accetta le frasi $G..., legge GGA, VTG e HDT; la RMC e' disattivata). Vale per i ricevitori nuovi o ripristinati: chi ha gia' salvato una porta la tiene.
