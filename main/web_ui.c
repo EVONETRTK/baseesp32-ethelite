@@ -1709,6 +1709,12 @@ static bool only_chars(const char *v, const char *allowed)
     return strspn(v, allowed) == strlen(v);
 }
 
+// Numero per SMS: solo cifre, con + ammesso solo come primo carattere.
+static bool sms_number_ok(const char *v)
+{
+    return only_chars(v, "+0123456789") && strchr(v[0] ? v + 1 : v, '+') == NULL;
+}
+
 static esp_err_t settings_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -1858,7 +1864,7 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         }
     }
     if (copy_field_allow_empty(root, "sim_credit_sms_number", s.sim_credit_sms_number, sizeof(s.sim_credit_sms_number), verr) &&
-        !only_chars(s.sim_credit_sms_number, "+0123456789")) {
+        !sms_number_ok(s.sim_credit_sms_number)) {
         verr_set(verr, "Campo \"%s\": solo cifre e + iniziale, senza spazi.%.0d", "sim_credit_sms_number", 0);
     }
     copy_field_allow_empty(root, "sim_credit_sms_text", s.sim_credit_sms_text, sizeof(s.sim_credit_sms_text), verr);
@@ -3745,7 +3751,7 @@ static esp_err_t sim_action_post_handler(httpd_req_t *req)
         for (const unsigned char *c = (const unsigned char *) txt; *c && txt_ok; c++) {
             txt_ok = *c >= 0x20 && *c != 0x7F;
         }
-        if (strlen(num) < 32 && only_chars(num, "+0123456789") && strchr(num + 1, '+') == NULL && txt_ok) {
+        if (strlen(num) < 32 && sms_number_ok(num) && txt_ok) {
             ok = sim_tools_request(SIM_ACT_SMS, num, txt, err, sizeof(err));
         } else {
             snprintf(err, sizeof(err), "Numero (solo cifre e + iniziale) o testo (senza a capo, max 95) non validi");
