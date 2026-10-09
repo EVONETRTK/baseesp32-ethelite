@@ -8,6 +8,10 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.30.4
+
+- **Scheda Stato**: le spie in alto (rete, caster, posizione o fix, SD) non compaiono piu' nella scheda Stato, dove ripetevano giudizio e riquadri; restano in tutte le altre schede.
+
 ## 1.30.3
 
 Revisione del 09/10/2026 (affidabilita' e licenze).

@@ -31,6 +31,8 @@
   .qs-chip.qs-ok { background:#dcfce7; color:#15803d; border-color:#86efac; }
   .qs-chip.qs-warn { background:#fef3c7; color:#b45309; border-color:#fcd34d; }
   .qs-chip.qs-bad { background:#fee2e2; color:#b91c1c; border-color:#fca5a5; }
+  /* Nella scheda Stato i pallini ripeterebbero giudizio e riquadri: compaiono nelle altre schede. */
+  body.on-status .quick-status > .qs-chip { display:none; }
   nav.tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom: 1rem; }
   nav.tabs button { padding:.55rem 1rem; border:1px solid #c5c9d0; background:#fff; border-radius:8px; cursor:pointer; font-size:.9rem; transition: background .15s, color .15s, border-color .15s; }
   nav.tabs button.active { background:var(--mode-accent); color:#fff; border-color:var(--mode-accent); }
@@ -1768,6 +1770,7 @@ function goToPage(pageId) {
   if (navBtn) navBtn.classList.add('active');
   document.getElementById(pageId).classList.add('active');
   if (typeof markMoreTab === 'function') markMoreTab(pageId);
+  document.body.classList.toggle('on-status', pageId === 'page-status');
   if (pageId === 'page-status' && typeof lastSignals !== 'undefined' && lastSignals) {
     drawSatChart(lastSignals.satellites || []);
   }
@@ -1780,6 +1783,7 @@ function goToPage(pageId) {
 document.querySelectorAll('nav.tabs button[data-page]').forEach((btn) => {
   btn.addEventListener('click', () => goToPage(btn.dataset.page));
 });
+document.body.classList.toggle('on-status', !!document.querySelector('#page-status.active'));
 
 // --- Telefono: schede in alto, in una riga scorrevole --------------------------
 // Su schermi stretti la barra delle schede viene spostata dentro l'intestazione
