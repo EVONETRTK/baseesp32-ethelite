@@ -1,4 +1,5 @@
 #include "reset_button.h"
+#include "sys_stats.h"
 #include "sdkconfig.h"
 
 #include "driver/gpio.h"
@@ -19,6 +20,9 @@ static const char *TAG = "reset_button";
 static void erase_settings_and_reboot(void)
 {
     ESP_LOGW(TAG, "Reset configurazione richiesto dal pulsante: cancello NVS e riavvio");
+    // Motivo del riavvio e avvio segnato come completato (memoria RTC): un
+    // reset di fabbrica durante l'avvio non e' un "avvio fermo".
+    sys_stats_note_restart_reason("reset di fabbrica dal pulsante");
     nvs_flash_erase();
     // Segno per config_backup.c: e' un reset voluto, la copia della
     // configurazione sulla microSD non va ripristinata.

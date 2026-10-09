@@ -43,13 +43,13 @@
 <p>Sotto il nome ci sono quattro <strong>pallini di stato</strong>: verde vuol dire che va bene, rosso che c'è un problema.</p>
 
 <ul>
-  <li><strong>WiFi</strong> o <strong>Cellulare</strong>: la connessione a internet in uso. "Assente" in rosso: il ricevitore non è collegato a internet.</li>
+  <li><strong>WiFi</strong>, <strong>Cellulare</strong> o <strong>Ethernet</strong>: la connessione a internet in uso (Ethernet in giallo: cavo collegato ma senza indirizzo). "Assente" in rosso: il ricevitore non è collegato a internet.</li>
   <li><strong>NTRIP OK</strong>: il ricevitore è collegato al caster; una base gli manda le correzioni, un rover le riceve. "NTRIP giù" in rosso: il collegamento è interrotto.</li>
-  <li><strong>Fix</strong>: la qualità della posizione. Sul rover deve indicare <strong>RTK fisso</strong> (verde); <em>RTK float</em> (arancione) vuol dire che il calcolo non è ancora risolto, <em>No RTK</em> (rosso) che le correzioni non vengono usate. Su una base invece <em>No RTK</em> è normale: la base non riceve correzioni, le produce.</li>
+  <li><strong>Fix</strong>: la qualità della posizione. Sul rover deve indicare <strong>RTK fisso</strong> (verde); <em>RTK float</em> e le correzioni approssimate DGPS o HAS (arancione) vogliono dire precisione di decimetri, <em>No RTK</em> (rosso) che le correzioni non vengono usate. Lo stesso colore compare nel riquadro Fix e nel giudizio della scheda Stato. Su una base invece <em>No RTK</em> è normale: la base non riceve correzioni, le produce.</li>
   <li><strong>SD</strong>: la scheda di memoria dove il ricevitore salva il suo diario di funzionamento.</li>
 </ul>
 
-<p>Il campo <strong>Cerca</strong> trova un'impostazione scrivendone il nome. Il collegamento <strong>📖 Manuale</strong>, accanto, apre questo manuale in PDF, nell'ultima versione (serve internet sul telefono o sul PC). I pulsanti in basso aprono le <strong>sei schede</strong> del pannello: Stato, Posizione, Connessione, SIM, Avvisi e Manutenzione. All'agricoltore interessa soprattutto la prima, <strong>Stato</strong>.</p>
+<p>A destra, sempre insieme, ci sono tre strumenti: <strong>Avanzate</strong> (arancione) mostra le impostazioni per i tecnici; il pulsante blu <strong>📥 Download manuale</strong> scarica questo manuale in PDF, sempre nell'ultima versione (serve internet sul telefono o sul PC); il campo <strong>Cerca</strong> trova un'impostazione scrivendone il nome. Sul telefono stanno in due righe sotto i pallini. I pulsanti in basso aprono le <strong>sei schede</strong> del pannello: Stato, Posizione, Connessione, SIM, Avvisi e Manutenzione. All'agricoltore interessa soprattutto la prima, <strong>Stato</strong>.</p>
 
 <h2>Le schede di riepilogo e i colori</h2>
 
@@ -67,8 +67,8 @@
 <h3>I riquadri della base</h3>
 
 <figure>
-  <img class="schermata" src="img/pannello-riepilogo.png" alt="Riquadri di riepilogo di una base: caster, posizione base, satelliti, sistema e SIM">
-  <figcaption><b>Figura 4.</b> I riquadri di una base durante una prova al chiuso: il caster è collegato (verde), ma l'antenna non vede satelliti (rosso) e quindi la base non riesce a calcolare la sua posizione (arancione).</figcaption>
+  <img class="schermata" src="img/pannello-riepilogo.png" alt="Scheda Stato di una base: riquadro Funziona tutto e riquadri di riepilogo">
+  <figcaption><b>Figura 4.</b> La scheda Stato di una base che funziona: in cima il riquadro verde «Funziona tutto», sotto i riquadri con caster, posizione, satelliti, temperature, WiFi e LTE con le tacche, SIM.</figcaption>
 </figure>
 
 <table class="divisibile">
@@ -76,7 +76,8 @@
   <tr><td><strong>Caster</strong></td><td>Collegato: le correzioni partono.</td><td>—</td><td>Scollegato: i trattori non ricevono correzioni da questa base.</td></tr>
   <tr><td><strong>Posizione base</strong></td><td>Inviata: i trattori possono lavorare in RTK.</td><td>Survey-in: la base sta ancora calcolando la sua posizione.</td><td>Non inviata: i trattori non possono arrivare al fix.</td></tr>
   <tr><td><strong>Satelliti</strong></td><td>8 o più con segnale buono.</td><td>Da 4 a 7: pochi.</td><td>Meno di 4: l'antenna non riceve.</td></tr>
-  <tr><td><strong>Sistema</strong></td><td>Il ricevitore sta bene.</td><td>Memoria scarsa o temperatura sopra i 60 °C.</td><td>Memoria quasi finita o temperatura oltre i 70 °C.</td></tr>
+  <tr><td><strong>Temperature</strong></td><td>Ricevitore sotto i 60 °C.</td><td>Tra 60 e 70 °C.</td><td>Oltre 70 °C: riparatelo dal sole.</td></tr>
+  <tr><td><strong>WiFi</strong> e <strong>LTE</strong></td><td>3 o 4 tacche (Buono, Ottimo).</td><td>2 tacche (Discreto).</td><td>1 tacca (Debole) sulla connessione in uso.</td></tr>
   <tr><td><strong>SIM</strong></td><td>Pronta o in uso, credito sufficiente.</td><td>Non in uso, piano dati oltre il 70%, rinnovo vicino.</td><td>Credito basso, piano dati oltre il 90%, rinnovo scaduto.</td></tr>
 </table>
 
@@ -100,24 +101,24 @@
 
 <figure>
   <img class="schermata" src="img/rover-riepilogo.png" alt="Riquadri di riepilogo di un rover: caster scollegato e nessun fix">
-  <figcaption><b>Figura 6.</b> I riquadri di un rover durante una prova al chiuso: il caster ha rifiutato utente e password (rosso) e l'antenna non vede satelliti, quindi non c'è nessun fix.</figcaption>
+  <figcaption><b>Figura 6.</b> Un rover durante una prova al chiuso: il riquadro in cima dice subito il problema principale (caster scollegato, con il motivo) e sotto gli altri; i riquadri rossi confermano che non c'è nessun fix.</figcaption>
 </figure>
 
 <p>Il riquadro <strong>Caster</strong>, quando è rosso, riporta anche il motivo, come "utente o password non accettati" nella figura: è l'informazione da comunicare all'assistenza. Per un rover i due riquadri che contano di più sono <strong>Caster</strong> e <strong>Fix</strong>: verdi tutti e due vogliono dire che il trattore lavora in RTK.</p>
 
 <h2>I segnali da tenere d'occhio</h2>
 
-<p>Quando c'è qualcosa che richiede attenzione, sotto i riquadri compare un <strong>avviso colorato</strong> con la spiegazione del problema e, quando possibile, il suggerimento per risolverlo.</p>
+<p>Il riquadro in cima alla scheda <em>Stato</em> riassume tutto: <strong>verde «Funziona tutto»</strong> quando non c'è nulla da segnalare, altrimenti <strong>rosso</strong> o <strong>arancione</strong> con il problema più importante, la sua spiegazione e, sotto, l'elenco degli altri. Gli altri avvisi colorati compaiono sotto i riquadri.</p>
 
 <figure>
   <img class="schermata" src="img/pannello-avviso-1005.png" alt="Avviso rosso: la base non sta inviando la sua posizione">
-  <figcaption><b>Figura 7.</b> L'avviso più importante di una base: non invia la propria posizione e i trattori non possono lavorare in RTK.</figcaption>
+  <figcaption><b>Figura 7.</b> Il problema più importante di una base: non invia la propria posizione e i trattori non possono lavorare in RTK. Sotto, il motivo e cosa fare.</figcaption>
 </figure>
 
 <p>Gli avvisi che si possono incontrare sono:</p>
 
 <ul>
-  <li><strong>La base NON sta inviando la sua posizione</strong> (rosso, solo base): è l'avviso più importante, perché senza posizione della base nessun trattore arriva al fix. Spesso dipende dall'antenna che vede pochi satelliti. Va chiamato il tecnico.</li>
+  <li><strong>La base non manda la sua posizione (1005)</strong> (rosso, solo base, nel riquadro in cima): è l'avviso più importante, perché senza posizione della base nessun trattore arriva al fix. Spesso dipende dall'antenna che vede pochi satelliti. Va chiamato il tecnico.</li>
   <li><strong>Misura della posizione base in corso</strong> (azzurro, solo base): il tecnico ha avviato la misura precisa della posizione della base. Dura qualche minuto; al termine la base torna a lavorare da sola.</li>
   <li><strong>Rinnovo della SIM</strong> (giallo): il piano dati della SIM sta per scadere. Ricordate di controllare il credito o di rinnovare il piano entro la data indicata, altrimenti il ricevitore resta senza internet quando il WiFi non c'è.</li>
   <li><strong>Modifiche salvate ma non ancora attive</strong> (giallo): qualcuno ha cambiato un'impostazione che vale solo dopo un riavvio. Se non siete stati voi o il tecnico, non toccate niente e avvisate il tecnico.</li>

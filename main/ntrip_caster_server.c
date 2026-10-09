@@ -296,7 +296,7 @@ static void listen_task(void *arg)
 
 static void peek_enable(const app_settings_t *s, void *ctx)
 {
-    *(bool *) ctx = s->ntrip_caster_server_enable && license_has(LIC_BASE_PRO);
+    *(bool *) ctx = s->ntrip_caster_server_enable && license_has(LIC_BASE);
 }
 
 void ntrip_caster_server_start(void)

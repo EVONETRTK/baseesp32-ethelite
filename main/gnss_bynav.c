@@ -1,6 +1,7 @@
 #include "gnss_bynav.h"
 #include "gnss_io.h"
 #include "settings.h"
+#include "license.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -150,6 +151,12 @@ static esp_err_t send_lever_arm(uart_port_t uart_num, const char *antenna, float
 
 esp_err_t gnss_bynav_m21d_configure_rover(uart_port_t uart_num)
 {
+    // IMU / doppia antenna: extra del rover (licenza "ins"). Senza, l'M21D
+    // lavora come un rover Bynav qualunque (solo RTK e $GPGGA).
+    if (!license_has(LIC_INS)) {
+        ESP_LOGW(TAG, "Bynav M21D: IMU/doppia antenna non comprese nella licenza, configuro come rover semplice");
+        return gnss_bynav_configure_rover(uart_num);
+    }
     ESP_LOGI(TAG, "Configuro ricevitore Bynav M21D come rover INS (lever arm, RBV, log #INSPVAXA/#HEADINGA + $GPGGA)");
 
     app_settings_t s = settings_get();

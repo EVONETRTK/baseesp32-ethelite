@@ -46,6 +46,10 @@ void base_measure_request_cancel(void);
 // Misura HAS in corso (letta all'avvio da main.c e dal driver Unicore).
 bool base_measure_is_has(void);
 
+// Misura della posizione in corso (salvata nelle impostazioni): vale gia' all'avvio,
+// prima di base_measure_start_if_active().
+bool base_measure_is_active(void);
+
 // Da chiamare all'avvio: se una misura e' in corso parte il task che la fa.
 void base_measure_start_if_active(void);
 

@@ -35,6 +35,7 @@
 #include "base_monitor.h"
 #include "base_selfpos.h"
 #include "license.h"
+#include "boot_guard.h"
 #include "ntrip_caster_server.h"
 #include "geo_convert.h"
 #include "ppp_log.h"
@@ -190,8 +191,35 @@ static bool check_auth_cookie(httpd_req_t *req, const char *admin_code)
     return strstr(cookie_hdr, expected) != NULL;
 }
 
+// Comandi (POST) mandati da un'altra pagina web aperta nello stesso browser
+// (CSRF): il browser allega da solo la password Basic Auth gia' inserita.
+// Le richieste dei browser portano l'intestazione Origin ("http://host[:porta]"):
+// deve corrispondere all'Host a cui la richiesta e' arrivata. Senza Origin
+// (curl, script, browser molto vecchi) decide solo l'autenticazione; Origin
+// "null" (file locale, riquadro isolato) e' rifiutata.
+static bool origin_ok(httpd_req_t *req)
+{
+    char origin[96];
+    esp_err_t e = httpd_req_get_hdr_value_str(req, "Origin", origin, sizeof(origin));
+    if (e == ESP_ERR_NOT_FOUND) {
+        return true;
+    }
+    char host[96];
+    if (e != ESP_OK || httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
+        return false;
+    }
+    const char *o = strstr(origin, "://");
+    return o && strcasecmp(o + 3, host) == 0;
+}
+
 static esp_err_t require_auth(httpd_req_t *req)
 {
+    if (req->method == HTTP_POST && !origin_ok(req)) {
+        ESP_LOGW(TAG, "Comando %s rifiutato: inviato da un'altra pagina web (Origin diverso dall'indirizzo della base)", req->uri);
+        httpd_resp_send_err(req, HTTPD_403_FORBIDDEN,
+                            "Comando rifiutato: arriva da un'altra pagina web. Usa il pannello della base.");
+        return ESP_FAIL;
+    }
     // Copre in un colpo solo tutte le richieste protette (ogni handler
     // eccetto index_get_handler chiama questa funzione per prima cosa):
     // conferma se una richiesta arriva davvero al dispositivo, cosa non
@@ -540,7 +568,12 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     bool first = true;
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "net", net_status_str(status_get_net()));
+    {
+        // net_manager non ha uno stato per il cavo: senza WiFi ne' cellulare,
+        // con il cavo collegato la rete in uso e' l'Ethernet.
+        net_status_t ns = status_get_net();
+        cJSON_AddStringToObject(root, "net", (ns == NET_STATUS_NONE && eth_link_is_connected()) ? "ethernet" : net_status_str(ns));
+    }
     {
         // Nome REALE della rete a cui si e' effettivamente associati ora
         // (dal driver, non dalle impostazioni salvate) - puo' differire
@@ -718,6 +751,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "alert_enable", s.alert_enable);
     cJSON_AddNumberToObject(root, "alert_threshold_min", s.alert_threshold_min);
     cJSON_AddStringToObject(root, "last_reset", sys_stats_last_reset());
+    cJSON_AddStringToObject(root, "boot_prev_note", boot_guard_prev_note()); // avvio precedente non finito
     {
         // Ricevitore GNSS (UBX-MON-SYS): temperatura e stato interno.
         gnss_sys_status_t gs = status_gnss_sys_get();
@@ -938,6 +972,10 @@ static esp_err_t status_get_handler(httpd_req_t *req)
             cJSON_AddStringToObject(lj, "msg", ls->last_msg);
             cJSON_AddStringToObject(lj, "server", ls->server);
             cJSON_AddStringToObject(lj, "terms_version", LICENSE_TERMS_VERSION);
+            cJSON_AddBoolToObject(lj, "stored", ls->stored); // matricola non piu' modificabile
+            cJSON_AddBoolToObject(lj, "extras_suspended", ls->extras_suspended);
+            cJSON_AddNumberToObject(lj, "no_contact_days", ls->no_contact_days);
+            cJSON_AddStringToObject(lj, "note", ls->note);
             cJSON *fj = cJSON_AddObjectToObject(lj, "features");
             for (int f = 0; f < LIC_COUNT; f++) {
                 cJSON *one = cJSON_AddObjectToObject(fj, license_feature_code((license_feature_t) f));
@@ -1118,7 +1156,7 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
     {
         // Byte totali visti dal boot per ciascun numero di messaggio RTCM3
         // (solo base - vedi rtcm3_stats.c) - permette alla UI di mostrare
-        // quanto pesa davvero ciascun messaggio scelto in GNSS & NTRIP,
+        // quanto pesa davvero ciascun messaggio scelto in Posizione e correzioni,
         // invece di doverlo indovinare.
         rtcm3_stat_entry_t entries[24];
         size_t n_stats = rtcm3_stats_get(entries, sizeof(entries) / sizeof(entries[0]));
@@ -1405,7 +1443,22 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_field(root, "ap_ssid", s.ap_ssid, sizeof(s.ap_ssid));
     copy_field(root, "ap_password", s.ap_password, sizeof(s.ap_password));
     copy_field(root, "admin_code", s.admin_code, sizeof(s.admin_code));
-    copy_field(root, "device_serial", s.device_serial, sizeof(s.device_serial));
+    {
+        // La licenza e' legata alla matricola: cambiata dopo l'attivazione,
+        // la licenza non varrebbe piu' ("licenza di un'altra matricola").
+        char old_serial[sizeof(s.device_serial)];
+        strlcpy(old_serial, s.device_serial, sizeof(old_serial));
+        copy_field(root, "device_serial", s.device_serial, sizeof(s.device_serial));
+        if (strcmp(old_serial, s.device_serial) != 0 && license_is_stored()) {
+            xSemaphoreGive(s_settings_edit_mutex);
+            cJSON_Delete(root);
+            ESP_LOGW(TAG, "Cambio di matricola rifiutato: ricevitore gia' attivato");
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                                "Matricola non modificabile: il ricevitore e' gia' attivato e la licenza e' legata a questa matricola. "
+                                "Nessuna impostazione salvata.");
+            return ESP_FAIL;
+        }
+    }
     copy_field(root, "ota_update_url", s.ota_update_url, sizeof(s.ota_update_url));
     // Host SMTP, destinatario email e numero WhatsApp: vuoto = canale spento
     // (vedi alerts.c), quindi si puo' salvare anche vuoto.
@@ -2637,10 +2690,10 @@ static esp_err_t ppp_log_stop_post_handler(httpd_req_t *req)
     if (require_auth(req) != ESP_OK) {
         return ESP_FAIL;
     }
-    ppp_log_stop();
+    bool stopped = ppp_log_stop();
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
-    httpd_resp_sendstr(req, "{\"ok\":true}");
+    httpd_resp_sendstr(req, stopped ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"nessuna registrazione in corso\"}");
     return ESP_OK;
 }
 
@@ -2705,6 +2758,16 @@ static esp_err_t license_post_handler(httpd_req_t *req)
     if (require_auth(req) != ESP_OK) {
         return ESP_FAIL;
     }
+    // Solo JSON (il pannello lo dichiara sempre): un modulo HTML di un altro
+    // sito non puo' mandare application/json senza il permesso della base.
+    char ctype[48];
+    if (httpd_req_get_hdr_value_str(req, "Content-Type", ctype, sizeof(ctype)) != ESP_OK ||
+        strncasecmp(ctype, "application/json", 16) != 0) {
+        httpd_resp_set_status(req, "415 Unsupported Media Type");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"richiesta non valida (serve Content-Type: application/json)\"}");
+        return ESP_FAIL;
+    }
     char buf[384] = {0};
     int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
     int received = 0;
@@ -2736,6 +2799,8 @@ static esp_err_t license_post_handler(httpd_req_t *req)
         ok = license_request_activate(&a, err, sizeof(err));
     } else if (strcmp(act, "renew") == 0) {
         ok = license_request_renew(err, sizeof(err));
+    } else if (strcmp(act, "forget") == 0) {
+        ok = license_forget(err, sizeof(err));
     } else if (strcmp(act, "server") == 0) {
         const cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "url");
         ok = license_set_server(cJSON_IsString(it) ? it->valuestring : "", err, sizeof(err));
@@ -2864,6 +2929,10 @@ static esp_err_t config_import_post_handler(httpd_req_t *req)
     }
     esp_err_t err = settings_import_blob(buf, (size_t) got, true);
     free(buf);
+    if (err == ESP_ERR_INVALID_STATE) {
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"Questa copia completa e' di un altro ricevitore (matricola diversa): contiene chiavi VPN, mountpoint e password di quello. Per preparare un altro ricevitore usa la copia per un altro ricevitore.\"}");
+    }
     if (err != ESP_OK) {
         httpd_resp_set_type(req, "application/json");
         return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"Il file non e' una configurazione EVONETRTK valida\"}");

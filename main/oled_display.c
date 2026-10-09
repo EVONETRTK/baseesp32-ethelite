@@ -1,4 +1,5 @@
 #include "oled_display.h"
+#include "sd_mutex.h"
 #include "settings.h"
 #include "status.h"
 #include "gnss_signal.h"
@@ -279,10 +280,26 @@ static void format_uptime(char *out, size_t out_size)
     snprintf(out, out_size, "UP %02d:%02d:%02d", h, m, sec);
 }
 
+// Solo i campi che servono, letti senza copiare tutta la configurazione:
+// una copia di app_settings_t (oltre 2 KB) sullo stack del task del display
+// (4 KB) lasciava poco margine (revisione del 09/10/2026).
+typedef struct {
+    bool rover;
+    char ap_ssid[33];
+} oled_cfg_t;
+
+static void peek_oled_cfg(const app_settings_t *s, void *ctx)
+{
+    oled_cfg_t *c = ctx;
+    c->rover = s->device_mode == DEVICE_MODE_ROVER;
+    strlcpy(c->ap_ssid, s->ap_ssid, sizeof(c->ap_ssid));
+}
+
 static void screen_status(void)
 {
-    app_settings_t s = settings_get();
-    fb_draw_text(0, 0, s.device_mode == DEVICE_MODE_ROVER ? "ROVER" : "BASE");
+    oled_cfg_t c;
+    settings_peek(peek_oled_cfg, &c);
+    fb_draw_text(0, 0, c.rover ? "ROVER" : "BASE");
     fb_draw_text(0, 16, net_label(status_get_net()));
 
     char line[24];
@@ -393,9 +410,10 @@ static void screen_splash(void)
 // qui leggibili direttamente dallo schermo del dispositivo stesso.
 static void screen_address(void)
 {
-    app_settings_t s = settings_get();
+    oled_cfg_t c;
+    settings_peek(peek_oled_cfg, &c);
     fb_draw_text(0, 0, "RETE WIFI:");
-    fb_draw_text(0, 14, s.ap_ssid);
+    fb_draw_text(0, 14, c.ap_ssid);
     fb_draw_text(0, 34, "POI APRI:");
     fb_draw_text(0, 48, "192.168.4.1");
 }
@@ -416,8 +434,14 @@ static void oled_task(void *arg)
         case 2: screen_signals(); break;
         default: screen_address(); break;
         }
-        if (oled_flush() != ESP_OK) {
-            ESP_LOGW(TAG, "Scrittura I2C verso OLED fallita (display scollegato?)");
+        // Come gnss_io.c: niente I2C mentre la microSD e' montata (sulla base di
+        // prova il clock della SD e' collegato a una linea I2C). Si salta un giro.
+        if (sd_mutex_try_take(0)) {
+            esp_err_t fe = oled_flush();
+            sd_mutex_give();
+            if (fe != ESP_OK) {
+                ESP_LOGW(TAG, "Scrittura I2C verso OLED fallita (display scollegato?)");
+            }
         }
         screen = (screen + 1) % 4;
         vTaskDelay(pdMS_TO_TICKS(2500));

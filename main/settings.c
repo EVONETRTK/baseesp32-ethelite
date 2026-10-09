@@ -562,9 +562,17 @@ esp_err_t settings_import_blob(const void *blob, size_t len, bool keep_identity)
     memset(&s_save_buf, 0, sizeof(s_save_buf));
     memcpy(&s_save_buf, blob, len);
     if (keep_identity) {
-        // Configurazione presa da un'altra base: matricola e rete di setup
-        // restano quelle di questo dispositivo.
+        // Copia completa dal pannello: solo dello stesso ricevitore. Quella di
+        // un altro porterebbe chiavi VPN, mountpoint e password dell'altro
+        // (per clonare c'e' la copia per un altro ricevitore, senza identita').
         xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
+        if (len - header >= offsetof(app_settings_t, device_serial) + sizeof(s_settings.device_serial) &&
+            strncmp(s_save_buf.s.device_serial, s_settings.device_serial, sizeof(s_settings.device_serial)) != 0) {
+            xSemaphoreGive(s_settings_mutex);
+            xSemaphoreGive(s_save_mutex);
+            ESP_LOGW(TAG, "Configurazione rifiutata: copia di un altro ricevitore");
+            return ESP_ERR_INVALID_STATE;
+        }
         if (len - header >= offsetof(app_settings_t, device_serial) + sizeof(s_settings.device_serial)) {
             memcpy(s_save_buf.s.device_serial, s_settings.device_serial, sizeof(s_settings.device_serial));
         }

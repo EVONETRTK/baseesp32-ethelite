@@ -414,6 +414,7 @@ void sys_stats_monitor_start(void)
 #include "esp_attr.h"
 #include "status.h"
 #include "gnss_fix.h"
+#include "boot_guard.h"
 
 #define RESTART_MAGIC 0x52535452u
 
@@ -455,6 +456,7 @@ void sys_stats_note_restart_reason(const char *reason)
     // ancora in prova va confermato, altrimenti il bootloader lo annullerebbe.
     ota_update_mark_valid();
     s_fault_restart = 0;
+    boot_guard_restarting(); // anche a meta' avvio: non e' un avvio "fermo"
     ESP_LOGW(MON_TAG, "Riavvio: %s", reason);
     diag_log_flush_now(2000); // il log fino a qui sulla microSD (il chiamante poi riavvia)
     s_restart_note.magic = RESTART_MAGIC;
@@ -466,14 +468,16 @@ void sys_stats_boot_report(void)
 {
     const char *hw;
     switch (esp_reset_reason()) {
-    case ESP_RST_POWERON:  hw = "accensione (alimentazione collegata)"; break;
+    case ESP_RST_POWERON:  hw = "accensione (alimentazione collegata, o tasto RST)"; break;
+    case ESP_RST_USB:      hw = "reset dalla porta USB"; break;
+    case ESP_RST_PWR_GLITCH: hw = "disturbo sull'alimentazione"; break;
     case ESP_RST_SW:       hw = "riavvio software"; break;
     case ESP_RST_PANIC:    hw = "errore del firmware (crash)"; break;
     case ESP_RST_INT_WDT:
     case ESP_RST_TASK_WDT:
     case ESP_RST_WDT:      hw = "blocco del firmware (watchdog)"; break;
     case ESP_RST_BROWNOUT: hw = "calo di tensione dell'alimentazione (alimentatore debole?)"; break;
-    case ESP_RST_EXT:      hw = "pulsante di reset"; break;
+    case ESP_RST_EXT:      hw = "reset esterno"; break;
     default:               hw = "motivo sconosciuto"; break;
     }
     bool have_note = (esp_reset_reason() == ESP_RST_SW && s_restart_note.magic == RESTART_MAGIC);

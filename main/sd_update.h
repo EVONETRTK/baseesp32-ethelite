@@ -13,7 +13,13 @@
 // solo se un aggiornamento e' stato applicato con successo. out_msg (se
 // non NULL) riceve una breve descrizione dell'esito in ogni caso, utile
 // per la UI web - non richiede connettivita' di rete.
+// Attesa massima 15 s (pannello). Eccezione: se l'attesa scade e il
+// controllo, rimasto in corso, poi installa davvero un aggiornamento, la
+// base si riavvia da sola (motivo registrato).
 bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size);
+
+// Come sopra con un'attesa a scelta (avvio: fino a ~90 s).
+bool sd_update_check_and_apply_timeout(char *out_msg, size_t out_msg_size, uint32_t timeout_ms);
 
 typedef struct {
     bool checked;         // true dal primo sd_update_check_and_apply() in poi (boot o pulsante manuale)

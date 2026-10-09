@@ -157,3 +157,7 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # Task IPC (cache, flash, PSRAM): con la PSRAM attiva lo stack libero di ipc0
 # calava (444, 412, 372 byte in tre giorni, 05/10/2026). Era 1280 (predefinito).
 CONFIG_ESP_IPC_TASK_STACK_SIZE=2048
+
+# Salvavita dell'avvio (boot_guard.c): il watchdog RTC del bootloader resta acceso nel firmware
+# finche' l'avvio non e' completato.
+CONFIG_BOOTLOADER_WDT_DISABLE_IN_USER_CODE=y

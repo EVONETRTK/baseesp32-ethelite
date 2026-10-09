@@ -432,6 +432,10 @@ static void apply_cancel(app_settings_t *s, void *ctx)
 
 bool base_measure_request_start(char *err, size_t err_size)
 {
+    if (!license_has(LIC_BASE)) {
+        snprintf(err, err_size, "La misura della posizione fa parte del Pacchetto Base, non compreso nella licenza");
+        return false;
+    }
     measure_view_t v;
     settings_peek(peek_view, &v);
     if (v.chip != GNSS_CHIP_UBLOX && v.chip != GNSS_CHIP_LC29H && v.chip != GNSS_CHIP_UNICORE && v.chip != GNSS_CHIP_COMNAV) {
@@ -439,7 +443,7 @@ bool base_measure_request_start(char *err, size_t err_size)
         return false;
     }
     if (!v.mountpoint[0]) {
-        snprintf(err, err_size, "Manca il mountpoint del rover (GNSS & NTRIP): serve una stazione da cui ricevere le correzioni");
+        snprintf(err, err_size, "Manca il mountpoint del rover (scheda Posizione e correzioni, Client NTRIP): serve una stazione da cui ricevere le correzioni");
         return false;
     }
     if (settings_update(apply_start, NULL) != ESP_OK) {
@@ -452,8 +456,8 @@ bool base_measure_request_start(char *err, size_t err_size)
 
 bool base_measure_request_start_has(int hours, char *err, size_t err_size)
 {
-    if (!license_has(LIC_HAS)) {
-        snprintf(err, err_size, "La misura con Galileo HAS non e' compresa nella licenza di questo ricevitore");
+    if (!license_has(LIC_BASE)) {
+        snprintf(err, err_size, "La misura con Galileo HAS fa parte del Pacchetto Base, non compreso nella licenza");
         return false;
     }
     measure_view_t v;
@@ -485,6 +489,13 @@ void base_measure_request_cancel(void)
     ESP_LOGI(TAG, "Misura della posizione base annullata");
 }
 
+bool base_measure_is_active(void)
+{
+    measure_view_t v;
+    settings_peek(peek_view, &v);
+    return v.active;
+}
+
 bool base_measure_is_has(void)
 {
     measure_view_t v;
@@ -497,6 +508,14 @@ void base_measure_start_if_active(void)
     measure_view_t v;
     settings_peek(peek_view, &v);
     if (!v.active) {
+        return;
+    }
+    // Misura avviata prima (licenza poi scaduta, revocata o dimenticata): al
+    // riavvio si ricontrolla il Pacchetto Base. Senza, si annulla e si torna
+    // base con le coordinate di prima (finish_at riavvia).
+    if (!license_has(LIC_BASE)) {
+        has_clear();
+        finish_at(false, NULL, "Misura annullata: il Pacchetto Base non e' compreso nella licenza, coordinate non modificate");
         return;
     }
     s_prog.active = true;

@@ -205,7 +205,7 @@ static void ppp_log_task(void *arg)
 
 bool ppp_log_start(void)
 {
-    if (!license_has(LIC_BASE_PRO)) {
+    if (!license_has(LIC_BASE)) {
         return false;
     }
     status_mutex_init();
@@ -217,9 +217,11 @@ bool ppp_log_start(void)
     return true;
 }
 
-void ppp_log_stop(void)
+bool ppp_log_stop(void)
 {
+    bool was = s_should_record;
     s_should_record = false;
+    return was;
 }
 
 ppp_log_status_t ppp_log_get_status(void)

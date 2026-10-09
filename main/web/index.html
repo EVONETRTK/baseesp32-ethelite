@@ -97,9 +97,18 @@
   .fieldset-save-btn.ok { background:#16a34a; }
   .chip-hidden { display:none !important; }
   body:not(.show-adv) [data-adv] { display:none !important; } /* impostazioni avanzate nascoste */
-  .adv-toggle { display:inline-flex; align-items:center; gap:.35rem; font-size:.85rem; cursor:pointer; white-space:nowrap; }
-  .manual-link { color:inherit; text-decoration:none; }
-  .manual-link:hover { text-decoration:underline; }
+  .adv-toggle { display:inline-flex; align-items:center; gap:.35rem; font-size:.85rem; cursor:pointer; white-space:nowrap;
+    padding:.25rem .7rem; border-radius:999px; border:2px solid #d97706; background:#fffbeb; color:#92400e; font-weight:600; }
+  .adv-toggle:has(input:checked) { background:#d97706; color:#fff; }
+  .manual-link { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .7rem; border-radius:999px;
+    background:#2563eb; color:#fff; font-weight:600; font-size:.85rem; text-decoration:none; white-space:nowrap; }
+  .manual-link:hover { background:#1d4ed8; }
+  .lic-locked { opacity:.5; filter:grayscale(1); }
+  .lic-field-err { outline:2px solid #dc2626; outline-offset:2px; border-radius:6px; background:#fef2f2; color:#111827; }
+  #sat-fieldset, #fix-quality, #st-reset { scroll-margin-top:9rem; }
+  .lic-locked.lic-hard, .lic-locked.lic-hard * { cursor:not-allowed; }
+  .lic-badge { display:inline-block; margin:.2rem 0 .4rem; padding:.15rem .55rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:.8rem; font-weight:600; filter:none; }
+  button.lic-locked { opacity:.45; }
   .adv-toggle input { width:auto; margin:0; } /* voci di un altro ricevitore (data-chip) */
   .fieldset-save-btn.err { background:#dc2626; }
   .fieldset-save-msg { font-size:.85rem; color:#666; }
@@ -130,9 +139,27 @@
   /* Stessa altezza degli indicatori: la riga allinea tutti gli elementi in
      altezza e la casella riempie la sua cella (richiesta dell'utente). */
   .quick-status { align-items:stretch; }
-  .quick-status .search-box { position:relative; display:flex; flex:0 1 200px; margin:0; }
+  /* A sinistra lo stato (WiFi, NTRIP, Fix, SD), a destra gli strumenti
+     (Cerca, Avanzate, Download manuale): margin-left:auto spinge a destra. */
+  .quick-status .search-box { position:relative; display:flex; flex:0 1 220px; margin:0; }
+  /* Strumenti (Avanzate, Download manuale, Cerca) in un solo gruppo: se la
+     riga non basta va a capo tutto insieme, sempre allineato a destra. */
+  .qs-tools { display:flex; align-items:center; gap:.5rem; margin-left:auto; min-width:0; align-self:center; }
   .quick-status #settings-search { height:auto; min-height:0; margin:0; padding:0 .8rem; border-radius:20px; font-size:.82rem; border:1px solid #c5c9d0; box-sizing:border-box; }
-  .quick-status #settings-search-results { position:absolute; top:calc(100% + .3rem); left:0; width:min(420px, 92vw); z-index:30; margin:0; }
+  .quick-status #settings-search-results { position:absolute; top:calc(100% + .3rem); left:auto; right:0; width:min(420px, 92vw); z-index:30; margin:0; }
+  /* Stessa altezza, forma e testo per tutti gli elementi della barra in alto. */
+  .quick-status > .qs-chip, .qs-tools > .adv-toggle, .qs-tools > .manual-link, .qs-tools > .search-box {
+    height:2.3rem; box-sizing:border-box; align-self:center; }
+  .quick-status > .qs-chip, .qs-tools > .adv-toggle, .qs-tools > .manual-link {
+    padding:0 .8rem; border-radius:20px; font-size:.82rem; font-weight:600; border-width:1px; border-style:solid; }
+  .quick-status > .qs-chip { border-color:transparent; }
+  .quick-status > .qs-chip.qs-ok { border-color:#86efac; }
+  .quick-status > .qs-chip.qs-warn { border-color:#fcd34d; }
+  .quick-status > .qs-chip.qs-bad { border-color:#fca5a5; }
+  .qs-tools > .manual-link { border-color:#2563eb; }
+  .quick-status #settings-search { height:100%; min-height:0; }
+  .qs-tools > .adv-toggle { margin:0; }
+  .qs-tools > .adv-toggle input { width:1rem; height:1rem; min-height:0; margin:0; }
 
   /* --- Riquadri richiudibili (titolo cliccabile, stato ricordato) --------- */
   fieldset > legend { cursor:pointer; user-select:none; }
@@ -148,9 +175,12 @@
     /* Indicatori sempre tutti a vista: 4 colonne fisse, niente scorrimento */
     .quick-status { display:grid; grid-template-columns:repeat(4, 1fr); gap:.3rem; }
     .qs-chip { min-width:0; justify-content:center; padding:.35rem .3rem; font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .quick-status .search-box { grid-column:1 / -1; flex:none; }
+    .qs-tools { grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:.3rem; margin-left:0; }
+    .quick-status .search-box { grid-column:1 / -1; flex:none; margin:0; }
     .quick-status #settings-search { padding:0 .7rem; font-size:16px; min-height:0; height:2.2rem; }
-    .quick-status #settings-search-results { width:100%; }
+    .quick-status > .qs-chip { padding:0 .3rem; font-size:.78rem; }
+    .qs-tools > .adv-toggle, .qs-tools > .manual-link { justify-content:center; padding:0 .4rem; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    .quick-status #settings-search-results { width:100%; left:0; right:auto; }
 
     /* Schede: riga scorrevole sotto gli indicatori, dentro l'intestazione
        fissa (spostate li' da moveTabsForScreen()). Su telefono la scheda
@@ -174,7 +204,9 @@
     fieldset { padding:.8rem; margin-bottom:.9rem; }
     /* Titolo dentro il riquadro: quelli lunghi andavano su due righe sopra il bordo */
     fieldset > legend { float:left; width:100%; padding:0 0 .3rem; font-size:.98rem; }
-    fieldset > legend + * { clear:both; }
+    /* ~ e non +: se l'elemento subito dopo il titolo e' nascosto (es. nota
+       "modalita' di prova" della licenza) il resto finiva accanto al titolo */
+    fieldset > legend ~ * { clear:both; }
     fieldset.collapsed > legend { padding-bottom:0; }
 
     /* Righe "etichetta: valore": impilate invece che affiancate */
@@ -192,6 +224,15 @@
   .sum-card.ok { border-left-color:#16a34a; } .sum-card.ok .sc-value { color:#15803d; }
   .sum-card.warn { border-left-color:#f59e0b; } .sum-card.warn .sc-value { color:#b45309; }
   .sum-card.bad { border-left-color:#dc2626; } .sum-card.bad .sc-value { color:#b91c1c; }
+  .sum-card .sc-bars { font-size:1.05rem; letter-spacing:1px; }
+  .status-verdict { border-radius:12px; padding:.8rem 1rem; margin-bottom:.8rem; border:2px solid #d0d3d8; background:#fff; }
+  .status-verdict .sv-head { font-size:1.25rem; font-weight:800; }
+  .status-verdict .sv-sub { font-size:.88rem; margin-top:.2rem; }
+  .status-verdict ul { margin:.35rem 0 0; padding-left:1.2rem; font-size:.88rem; }
+  .status-verdict.ok { background:#f0fdf4; border-color:#86efac; color:#14532d; }
+  .status-verdict.warn { background:#fffbeb; border-color:#fcd34d; color:#78350f; }
+  .status-verdict.bad { background:#fef2f2; border-color:#fca5a5; color:#7f1d1d; }
+  .status-verdict:empty { display:none; }
 
   /* Grafico dei satelliti: scorre in orizzontale quando i satelliti sono tanti */
   /* I fieldset di default non si stringono sotto la larghezza del contenuto:
@@ -205,7 +246,7 @@
     body { max-width:1160px; }
     .page.active { column-count:2; column-gap:1.2rem; }
     .page.active > fieldset, .page.active > details { break-inside:avoid; display:block; }
-    .page.active > div, .page.active > .summary-cards { column-span:all; }
+    .page.active > div, .page.active > .summary-cards, .page.active > fieldset.wide { column-span:all; }
   }
 
   /* --- Tema scuro automatico (telefono o computer in modalita' scura) ----- */
@@ -237,12 +278,14 @@
   <div class="qs-chip" id="qs-ntrip"><span class="qs-icon">📡</span><span class="qs-label">NTRIP</span></div>
   <div class="qs-chip" id="qs-fix"><span class="qs-icon">🎯</span><span class="qs-label">Fix</span></div>
   <div class="qs-chip" id="qs-sd"><span class="qs-icon">💾</span><span class="qs-label">SD</span></div>
+  <div class="qs-tools">
+  <label class="adv-toggle" title="Mostra anche le impostazioni che si toccano raramente"><input type="checkbox" id="adv-toggle"> ⚙️ Avanzate</label>
+  <a class="manual-link" href="https://github.com/EVONETRTK/baseesp32-ethelite/releases/latest/download/manuale.pdf" target="_blank" rel="noopener" title="Scarica il manuale d'uso in PDF, ultima versione (serve internet sul telefono o sul PC)">📥 Download manuale</a>
   <div class="search-box">
     <input type="text" id="settings-search" placeholder="🔍 Cerca..." autocomplete="off">
     <div id="settings-search-results"></div>
   </div>
-  <label class="adv-toggle" title="Mostra anche le impostazioni che si toccano raramente"><input type="checkbox" id="adv-toggle"> ⚙️ Avanzate</label>
-  <a class="adv-toggle manual-link" href="https://github.com/EVONETRTK/baseesp32-ethelite/releases/latest/download/manuale.pdf" target="_blank" rel="noopener" title="Manuale d'uso in PDF, ultima versione (serve internet sul telefono o sul PC)">📖 Manuale</a>
+  </div>
 </div>
 </div>
 
@@ -257,12 +300,13 @@
 <div id="tabs-home"></div>
 
 <div id="restart-banner" style="display:none; background:#fef3c7; color:#78350f; border:2px solid #f59e0b; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .8rem; align-items:center; gap:.6rem; flex-wrap:wrap">
-  <span>⚠️ <b>Modifiche salvate ma non ancora attive</b>: <span id="restart-banner-what"></span>. La base usa ancora i valori di prima finché non si riavvia.</span>
+  <span>⚠️ <b>Modifiche salvate ma non ancora attive</b>: <span id="restart-banner-what"></span>. Il ricevitore usa ancora i valori di prima finché non si riavvia.</span>
   <button type="button" class="action" id="restart-banner-btn" style="margin-left:auto">🔄 Riavvia ora</button>
 </div>
 <form id="cfg-form">
 
 <div id="page-status" class="page active">
+  <div id="status-verdict" class="status-verdict"></div>
   <div id="summary-cards" class="summary-cards"></div>
   <div id="measure-banner" style="display:none; background:#dbeafe; color:#1e3a8a; border:2px solid #60a5fa; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
     <b>📡 Misura della posizione base in corso</b> (la base lavora come rover, poi torna base da sola)
@@ -279,6 +323,58 @@
     <b>⚠️ La base NON sta inviando la sua posizione (RTCM 1005): i rover non possono fare RTK.</b>
     <div id="no-1005-reason" style="margin-top:.3rem; font-size:.9rem"></div>
   </div>
+  <fieldset class="wide" id="sat-fieldset">
+    <legend>🛰️ Satelliti: intensità del segnale</legend>
+    <div class="sat-scroll"><canvas id="sat-chart" width="620" height="180"></canvas></div>
+    <div class="hint" id="sat-scroll-hint" style="display:none">⇆ Scorri il grafico per vedere tutti i satelliti</div>
+    <div class="legend-row">
+      <span class="legend-dot" style="background:#2563eb"></span>GPS
+      <span class="legend-dot" style="background:#dc2626; margin-left:.8rem"></span>GLONASS
+      <span class="legend-dot" style="background:#16a34a; margin-left:.8rem"></span>Galileo
+      <span class="legend-dot" style="background:#d97706; margin-left:.8rem"></span>BeiDou
+      <span class="legend-dot" style="background:#6b7280; margin-left:.8rem"></span>altro
+    </div>
+    <div id="sat-count" class="legend-row"><b>In vista:</b> -</div>
+    <small class="hint">Ogni barra è un satellite: più è alta, più il segnale è forte. Sopra la linea tratteggiata (35 dB-Hz) il segnale è buono. Per lavorare in RTK servono almeno 8 satelliti buoni; se sono pochi, controlla che l'antenna veda il cielo libero.</small>
+  </fieldset>
+
+  <fieldset>
+    <legend>🎯 Fix GNSS (RTK)</legend>
+    <dl class="kv">
+      <dt>Stato fix</dt><dd id="fix-quality">-</dd>
+      <dt>Satelliti usati nel fix</dt><dd id="fix-sats">-</dd>
+      <dt>HDOP</dt><dd id="fix-hdop">-</dd>
+      <dt>Eta' correzioni RTCM</dt><dd id="fix-diffage">-</dd>
+      <dt>Altitudine</dt><dd id="fix-alt">-</dd>
+      <dt>Ultimo fix</dt><dd id="fix-age">-</dd>
+    </dl>
+    <small class="hint">Dati letti dalle sentenze $xxGGA emesse dal GNSS - in base, durante il survey-in, conferma che l'antenna riceve bene.</small>
+  </fieldset>
+
+  <fieldset data-mode="rover">
+    <legend>🔗 Collegamento NTRIP (rover)</legend>
+    <div class="ntrip-flow-row">
+      <div class="ntrip-pipe-col">
+        <div class="ntrip-pipe-track"><div class="ntrip-pipe-fill" id="ntrip-pipe-in"></div></div>
+        📥 RTCM
+      </div>
+      <div class="ntrip-pipe-col">
+        <div class="ntrip-tank-track"><div class="ntrip-tank-fill" id="ntrip-tank"></div></div>
+        Collegamento
+      </div>
+      <div class="ntrip-pipe-col">
+        <div class="ntrip-pipe-track"><div class="ntrip-pipe-fill" id="ntrip-pipe-out"></div></div>
+        📤 GGA
+      </div>
+    </div>
+    <small class="hint" id="ntrip-flow-text">-</small>
+    <small class="hint">
+      Il contenitore si riempie quando arrivano correzioni RTCM dal caster E il rover invia
+      la propria posizione (GGA) - un collegamento NTRIP e' bidirezionale, non basta una sola
+      direzione attiva. Popolato solo in modalita' rover.
+    </small>
+  </fieldset>
+
   <fieldset>
     <legend><span data-mode="base">📡 Server NTRIP (invio correzioni al caster)</span><span data-mode="rover">📡 Client NTRIP (correzioni dal caster)</span></legend>
     <dl class="kv">
@@ -299,12 +395,10 @@
     <legend>📊 Stato</legend>
     <dl class="kv">
       <dt>Matricola</dt><dd id="st-serial">-</dd>
-      <dt>Versione firmware</dt><dd id="st-version">-</dd>
       <dt>Modalita'</dt><dd id="st-mode">-</dd>
       <dt>Rete attiva</dt><dd id="st-net">-</dd>
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
       <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
-      <dt>Fix GNSS</dt><dd id="st-fix">-</dd>
       <dt data-mode="base">Survey-in (posizione base)</dt><dd id="st-svin" data-mode="base">-</dd>
       <dt>Scheda microSD</dt><dd id="st-sd">-</dd>
       <dt id="st-sd-space-label" style="display:none">Spazio SD</dt>
@@ -329,10 +423,12 @@
     <label style="margin-top:.8rem">📶 Segnale WiFi</label>
     <div class="sig-bar-track"><div class="sig-bar-fill" id="st-wifi-sig-bar" style="width:0%"></div></div>
     <small class="hint" id="st-wifi-sig-text">-</small>
+    <div id="st-cell-wrap">
     <label style="margin-top:.8rem">📱 Segnale cellulare</label>
     <div class="sig-bar-track"><div class="sig-bar-fill" id="st-cell-sig-bar" style="width:0%"></div></div>
     <small class="hint" id="st-cell-sig-text">-</small>
     <small class="hint" id="st-cell-operator">-</small>
+    </div>
     <small class="hint" data-mode="rover">
       Questa scheda (ESP32-S3) non ha Bluetooth Classic (solo BLE, non
       implementata): l'uscita dati per AgOpenGPS/AgIO in modalita' rover
@@ -384,7 +480,16 @@
       riavvio - se scende vicino a zero nel tempo e' indice di una perdita di memoria (memory leak).
     </small>
   </fieldset>
+  <fieldset id="rtcm-bytes-fieldset" style="display:none" data-mode="base" data-adv>
+    <legend>📊 Byte RTCM per messaggio</legend>
+    <small class="hint">
+      Quanto pesa davvero ciascun messaggio scelto in Posizione e correzioni, dal boot - utile per capire
+      l'impatto reale delle selezioni sul volume dati verso il rover.
+    </small>
+    <dl class="kv" id="rtcm-bytes-list" style="margin-top:.6rem">-</dl>
+  </fieldset>
   <button type="button" class="action secondary" id="reboot-btn">Riavvia dispositivo</button>
+  <div id="reboot-msg" class="hint" style="margin-top:.4rem"></div>
 </div>
 
 <div id="page-network" class="page">
@@ -449,7 +554,7 @@
     </div>
   </fieldset>
 
-  <fieldset data-adv>
+  <fieldset data-lic="base" data-adv>
     <legend>🌍 Monitoraggio remoto</legend>
     <small class="hint">
       Quando la base e' collegata solo via SIM, da fuori il pannello non si raggiunge. Con questa opzione
@@ -466,7 +571,7 @@
     </div>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-lic="base">
     <legend>🔐 Accesso remoto (VPN WireGuard)</legend>
     <small class="hint">
       La base si collega da sola a un server WireGuard (per esempio il server del caster) e ci resta
@@ -587,7 +692,7 @@
     </div>
   </fieldset>
 
-  <fieldset id="comnav-fieldset" hidden>
+  <fieldset data-lic="ins" id="comnav-fieldset" hidden>
     <legend>🧭 ComNav K922: IMU e doppia antenna (rover)</legend>
     <label style="display:flex; align-items:center; gap:.5rem">
       <input name="comnav_heading_enable" type="checkbox" style="width:auto; margin:0"> Direzione di marcia dalla doppia antenna
@@ -739,7 +844,7 @@
       <button type="button" class="action" id="measure-start-btn">📡 Avvia misura</button>
       <div id="measure-last" class="hint" style="margin-top:.4rem"></div>
     </div>
-    <div data-chip="unicore,comnav" style="border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; padding:.6rem .8rem; margin:.6rem 0">
+    <div data-chip="unicore,comnav" data-lic="base" style="border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; padding:.6rem .8rem; margin:.6rem 0">
       <b>🛰️ Misura la posizione con Galileo HAS (senza caster)</b>
       <small class="hint" style="display:block; margin:.3rem 0">
         Il ricevitore calcola la posizione con le correzioni gratuite di Galileo (HAS), che arrivano dai satelliti:
@@ -815,7 +920,7 @@
     </div>
   </fieldset>
 
-  <fieldset data-adv data-mode="base">
+  <fieldset data-lic="base" data-adv data-mode="base">
     <legend>📼 Dati per le coordinate precise (PPP)</legend>
     <div data-chip="ublox">
     <small class="hint">
@@ -909,7 +1014,7 @@
     </div>
   </fieldset>
 
-  <fieldset data-mode="rover" data-chip="unicore,comnav">
+  <fieldset data-lic="has" data-mode="rover" data-chip="unicore,comnav">
     <legend>🛰️ Riserva Galileo HAS (quando manca l'RTK)</legend>
     <label style="display:flex; align-items:center; gap:.5rem">
       <input name="rover_has_fallback" type="checkbox" style="width:auto; margin:0"> Usa Galileo HAS quando non arrivano correzioni dalla base
@@ -935,7 +1040,7 @@
     </div>
   </fieldset>
 
-  <fieldset data-adv data-mode="base">
+  <fieldset data-lic="base" data-adv data-mode="base">
     <legend>📡 Caster NTRIP locale (rover sulla stessa rete)</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="ntrip_caster_server_enable" type="checkbox" style="width:auto; margin:0">
@@ -997,7 +1102,7 @@
       <button type="button" class="action fieldset-save-btn" data-fields="nmea_udp_port">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
-    <label style="margin-top:.8rem">Posizioni al secondo
+    <label style="margin-top:.8rem" data-lic="nmea_fast">Posizioni al secondo
       <select name="nmea_rate_hz">
         <option value="1">1 (solo per vedere la posizione)</option>
         <option value="5">5</option>
@@ -1055,9 +1160,6 @@
       <dt>Modulo</dt><dd id="sim-module">-</dd>
       <dt>Operatore di rete</dt><dd id="sim-op">-</dd>
       <dt>Segnale</dt><dd id="sim-rssi">-</dd>
-      <dt>ICCID letto dal modem</dt><dd id="sim-iccid">-</dd>
-      <dt>IMEI letto dal modem</dt><dd id="sim-imei">-</dd>
-      <dt>Numero letto dal modem</dt><dd id="sim-phone-read">-</dd>
       <dt>Rete usata dalla base</dt><dd id="sim-net">-</dd>
     </dl>
   </fieldset>
@@ -1214,19 +1316,12 @@
     <legend>✉️ SMS ricevuti</legend>
     <button type="button" class="action secondary" id="sim-sms-read-btn">Leggi SMS</button>
     <button type="button" class="action secondary" id="sim-sms-del-btn">Cancella tutti</button>
-    <div id="sim-sms-list" style="margin-top:.6rem"></div>
+        <div id="sim-sms-list" style="margin-top:.6rem"></div>
   </fieldset>
-  
-  
 </div>
 
 <div id="page-security" class="page">
-  
-  
-
-  
-
-  <fieldset>
+  <fieldset data-lic="base">
     <legend>🔌 Avvisi: caster disconnesso e temperatura</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="alert_enable" type="checkbox" style="width:auto; margin:0">
@@ -1249,7 +1344,7 @@
     </div>
   </fieldset>
 
-  <fieldset data-mode="base">
+  <fieldset data-lic="base" data-mode="base">
     <legend>📍 Avviso spostamento dell'antenna</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="base_drift_alert_enable" type="checkbox" style="width:auto; margin:0">
@@ -1265,7 +1360,7 @@
       L'avviso parte se la differenza supera la soglia (in verticale il doppio) per <b>due controlli di fila</b>,
       cioe' dopo circa un'ora. Precisione del controllo: circa 1 m a cielo libero, 2-3 m con il cielo
       in parte coperto: non scendere sotto i 3 m. Solo con ricevitori u-blox.
-      Usa la stessa configurazione email/WhatsApp degli altri avvisi (vanno attivati qui sopra).
+      Funziona solo con «Avvisami se la connessione al caster resta interrotta…» attivo nel riquadro qui sopra; i canali email/WhatsApp sono qui sotto.
     </small>
     <dl class="kv" style="margin-top:.4rem">
       <dt>Controllo</dt><dd id="drift-baseline">-</dd>
@@ -1280,6 +1375,7 @@
 
   <fieldset>
     <legend>✉️ Canale email (SMTP)</legend>
+    <small class="hint" style="margin-bottom:.3rem">Email e WhatsApp servono a tutti gli avvisi, compresi i promemoria della SIM (rinnovo del piano e credito basso).</small>
     <label>Server SMTP<input name="alert_smtp_host" placeholder="es. smtp.gmail.com"></label>
     <label>Porta SMTP<input name="alert_smtp_port" type="number" min="1" max="65535" placeholder="465"></label>
     <label>Utente/mittente<input autocomplete="off" name="alert_smtp_user" placeholder="es. tuonome@gmail.com"></label>
@@ -1319,97 +1415,6 @@
   </fieldset>
 </div>
 
-<div id="page-signals" class="page">
-  <fieldset>
-    <legend>🎯 Fix GNSS (RTK)</legend>
-    <dl class="kv">
-      <dt>Stato fix</dt><dd id="fix-quality">-</dd>
-      <dt>Satelliti usati nel fix</dt><dd id="fix-sats">-</dd>
-      <dt>Satelliti in vista</dt><dd id="st-sats-view">-</dd>
-      <dt>HDOP</dt><dd id="fix-hdop">-</dd>
-      <dt>Eta' correzioni RTCM</dt><dd id="fix-diffage">-</dd>
-      <dt>Altitudine</dt><dd id="fix-alt">-</dd>
-      <dt>Ultimo fix</dt><dd id="fix-age">-</dd>
-    </dl>
-    <small class="hint">Dati letti dalle sentenze $xxGGA emesse dal GNSS - in base, durante il survey-in, conferma che l'antenna riceve bene.</small>
-  </fieldset>
-
-  <fieldset data-mode="rover">
-    <legend>🔗 Collegamento NTRIP (rover)</legend>
-    <div class="ntrip-flow-row">
-      <div class="ntrip-pipe-col">
-        <div class="ntrip-pipe-track"><div class="ntrip-pipe-fill" id="ntrip-pipe-in"></div></div>
-        📥 RTCM
-      </div>
-      <div class="ntrip-pipe-col">
-        <div class="ntrip-tank-track"><div class="ntrip-tank-fill" id="ntrip-tank"></div></div>
-        Collegamento
-      </div>
-      <div class="ntrip-pipe-col">
-        <div class="ntrip-pipe-track"><div class="ntrip-pipe-fill" id="ntrip-pipe-out"></div></div>
-        📤 GGA
-      </div>
-    </div>
-    <small class="hint" id="ntrip-flow-text">-</small>
-    <small class="hint">
-      Il contenitore si riempie quando arrivano correzioni RTCM dal caster E il rover invia
-      la propria posizione (GGA) - un collegamento NTRIP e' bidirezionale, non basta una sola
-      direzione attiva. Popolato solo in modalita' rover.
-    </small>
-  </fieldset>
-
-  <fieldset>
-    <legend>🛰️ Satelliti GNSS (C/N0 per satellite)</legend>
-    <div class="sat-scroll"><canvas id="sat-chart" width="620" height="180"></canvas></div>
-    <div class="hint" id="sat-scroll-hint" style="display:none">⇆ Scorri il grafico per vedere tutti i satelliti</div>
-    <div class="legend-row">
-      <span class="legend-dot" style="background:#2563eb"></span>GPS
-      <span class="legend-dot" style="background:#dc2626; margin-left:.8rem"></span>GLONASS
-      <span class="legend-dot" style="background:#16a34a; margin-left:.8rem"></span>Galileo
-      <span class="legend-dot" style="background:#d97706; margin-left:.8rem"></span>BeiDou
-      <span class="legend-dot" style="background:#6b7280; margin-left:.8rem"></span>altro
-    </div>
-    <div id="sat-count" class="legend-row"><b>In vista:</b> -</div>
-    <small class="hint">Dati letti dalle sentenze $xxGSV emesse dal GNSS - disponibile in rover e, con i ricevitori u-blox, anche in base.</small>
-  </fieldset>
-
-  <fieldset id="rtcm-bytes-fieldset" style="display:none" data-mode="base">
-    <legend>📊 Byte RTCM per messaggio</legend>
-    <small class="hint">
-      Quanto pesa davvero ciascun messaggio scelto in GNSS & NTRIP, dal boot - utile per capire
-      l'impatto reale delle selezioni sul volume dati verso il rover.
-    </small>
-    <dl class="kv" id="rtcm-bytes-list" style="margin-top:.6rem">-</dl>
-  </fieldset>
-
-  <fieldset>
-    <legend>📶 Qualita' delle connessioni</legend>
-    <label>📶 WiFi (RSSI)</label>
-    <div class="sig-bar-track"><div class="sig-bar-fill" id="wifi-sig-bar" style="width:0%"></div></div>
-    <small class="hint" id="wifi-sig-text">-</small>
-
-    <label style="margin-top:1rem">📱 Cellulare (RSSI)</label>
-    <div class="sig-bar-track"><div class="sig-bar-fill" id="cell-sig-bar" style="width:0%"></div></div>
-    <small class="hint" id="cell-sig-text">-</small>
-    <dl class="kv" style="margin-top:.6rem">
-      <dt>Operatore</dt><dd id="cell-operator">-</dd>
-      <dt>Tecnologia</dt><dd id="cell-tech">-</dd>
-    </dl>
-    <small class="hint">
-      Con il modulo SIM868 selezionato in Rete, il campo "Tecnologia" mostrera' solo 2G
-      (GSM/EDGE) - e' l'hardware del modulo stesso a non avere 3G/4G/5G. Passando a SIM7600
-      comparira' automaticamente la tecnologia reale (fino a 4G), stesso codice di lettura.
-    </small>
-  </fieldset>
-</div>
-
-<div id="page-hardware" class="page">
-  
-
-  
-
-  </div>
-
 <div id="page-firmware" class="page">
   <fieldset id="license-box">
     <legend>🔑 Licenza</legend>
@@ -1422,6 +1427,7 @@
       <dt>Ultimo controllo con il server</dt><dd id="lic-contact">-</dd>
     </dl>
     <table id="lic-features" style="width:100%; border-collapse:collapse; margin:.4rem 0; font-size:.9rem"></table>
+    <div id="lic-note" role="status" style="display:none; border-radius:8px; padding:.5rem .7rem; margin:.4rem 0; font-weight:600"></div>
     <div id="lic-msg" class="hint" style="margin:.3rem 0"></div>
     <div id="lic-activate" style="display:none; border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; padding:.6rem .8rem; margin:.6rem 0">
       <b>Attivazione del ricevitore</b>
@@ -1431,11 +1437,11 @@
         <a href="https://github.com/EVONETRTK/baseesp32-ethelite/releases/latest/download/manuale.pdf" target="_blank" rel="noopener">manuale</a>
         (capitolo «Sicurezza» e appendice «Note legali»).
       </small>
-      <label style="flex-direction:row; align-items:flex-start; gap:.5rem">
+      <label id="lic-terms-row" style="flex-direction:row; align-items:flex-start; gap:.5rem">
         <input type="checkbox" id="lic-terms" style="width:auto; margin:.2rem 0 0">
         <span>Ho letto e accetto le avvertenze di sicurezza, le note legali, le condizioni di licenza e la garanzia.</span>
       </label>
-      <label style="flex-direction:row; align-items:flex-start; gap:.5rem">
+      <label id="lic-clauses-row" style="flex-direction:row; align-items:flex-start; gap:.5rem">
         <input type="checkbox" id="lic-clauses" style="width:auto; margin:.2rem 0 0">
         <span>Ai sensi degli artt. 1341 e 1342 del codice civile approvo specificamente le clausole delle condizioni di licenza
         relative a: limitazioni di responsabilita', sospensione e revoca della licenza, durata e rinnovo delle funzioni a pagamento.
@@ -1443,6 +1449,7 @@
       </label>
       <label>Nome e cognome di chi accetta<input type="text" id="lic-who" autocomplete="name" maxlength="60"></label>
       <label>Codice di attivazione<input type="text" id="lic-code" autocomplete="off" maxlength="30" placeholder="es. EVO-XXXX-XXXX-XXXX" style="text-transform:uppercase"></label>
+      <div id="lic-act-err" role="alert" aria-live="assertive" style="display:none; background:#fef2f2; border:2px solid #f87171; color:#7f1d1d; border-radius:8px; padding:.5rem .7rem; margin:.5rem 0"></div>
       <button type="button" class="action" id="lic-activate-btn">🔑 Attiva</button>
     </div>
     <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.4rem">
@@ -1450,7 +1457,9 @@
     </div>
     <div data-adv style="margin-top:.6rem">
       <label>Server delle licenze (vuoto = predefinito)<input type="text" id="lic-server" autocomplete="off" placeholder="https://rtk.evo-net.it/api/device/v1/"></label>
+      <small class="hint" id="lic-server-https" style="display:none">Con il blocco della licenza attivo l'indirizzo deve iniziare con https://</small>
       <button type="button" class="action secondary" id="lic-server-btn">💾 Salva indirizzo</button>
+      <button type="button" class="action secondary" id="lic-forget-btn">🧹 Dimentica la licenza</button>
       <small class="hint">Solo per l'assistenza e le prove. Codice del chip: <span id="lic-chip">-</span></small>
     </div>
   </fieldset>
@@ -1494,38 +1503,34 @@
 
   <fieldset>
     <legend>💾 Copie della configurazione</legend>
-    <h4 style="margin:.2rem 0 .3rem">Copia completa (file .bin, con le password)</h4>
+    <h4 style="margin:.2rem 0 .3rem">Copia completa, per ripristinare questo ricevitore (file .bin)</h4>
     <small class="hint">
-      La base tiene da sola una copia della configurazione sulla microSD, aggiornata a ogni salvataggio:
+      Il ricevitore tiene da solo una copia della configurazione sulla microSD, aggiornata a ogni salvataggio:
       se la configurazione in memoria si perde, all'avvio viene ripristinata automaticamente (non dopo un
-      reset di fabbrica fatto con il pulsante). Qui puoi anche scaricarla sul computer, o caricarla per
-      ripristinare questa base o preparare una seconda base uguale (matricola e rete di setup restano
-      quelle della base su cui la carichi). <strong>Il file contiene anche le password</strong>: conservalo
-      con cura.
+      reset di fabbrica fatto con il pulsante). Qui puoi anche scaricarla sul computer e ricaricarla su
+      questo stesso ricevitore. <strong>Il file contiene anche le password</strong>: conservalo con cura.
+      Non usarla per un altro ricevitore: copierebbe mountpoint, VPN e coordinate di questo.
     </small>
     <div style="margin-top:.6rem; display:flex; gap:.5rem; flex-wrap:wrap">
-      <a class="action secondary" href="/api/config/export" id="cfg-export-btn" style="text-decoration:none">⬇️ Scarica configurazione</a>
-      <button type="button" class="action secondary" id="cfg-import-btn">⬆️ Carica configurazione</button>
+      <a class="action secondary" href="/api/config/export" id="cfg-export-btn" style="text-decoration:none">⬇️ Scarica copia completa</a>
+      <button type="button" class="action secondary" id="cfg-import-btn">⬆️ Ripristina da copia completa</button>
       <input type="file" id="cfg-import-file" accept=".bin" style="display:none">
     </div>
     <div id="cfg-import-msg" class="hint" style="margin-top:.4rem"></div>
-  
-    <h4 style="margin:1.2rem 0 .3rem">Copia leggibile (file .json, senza password)</h4>
-    <button type="button" class="action secondary" id="cfgjson-export-btn">Scarica configurazione (JSON)</button>
+
+    <h4 style="margin:1.2rem 0 .3rem">Copia per preparare un altro ricevitore (file .json)</h4>
     <small class="hint">
-      Utile prima di sperimentare. Le password non sono incluse (il dispositivo non le restituisce
-      mai in lettura, solo in scrittura): vanno reinserite a mano dopo un'importazione.
+      Contiene le impostazioni comuni (caster, messaggi RTCM, avvisi, SIM, aggiornamenti...) ma
+      <strong>non</strong> le password ne' i dati che appartengono solo a questo ricevitore: matricola,
+      rete di setup, mountpoint della base e del caster locale, utente NTRIP del rover, coordinate della
+      base, VPN, numero e ICCID della SIM, data di rinnovo del piano, indirizzo del monitoraggio remoto.
+      Sul nuovo ricevitore questi dati e le password vanno compilati a mano dopo l'importazione.
     </small>
-    <button type="button" class="action secondary" id="cfgjson-export-clone-btn" style="margin-top:.6rem">Scarica per clonare su un nuovo dispositivo</button>
-    <small class="hint">
-      Come sopra, ma senza matricola e SSID dell'AP di setup - campi che devono restare unici per
-      ogni base fisica: importarli per sbaglio su un secondo dispositivo gli farebbe assumere
-      l'identita' del primo.
-    </small>
-    <label style="margin-top:.8rem">File configurazione (.json)<input type="file" id="cfgjson-import-file" accept=".json"></label>
+    <button type="button" class="action secondary" id="cfgjson-export-clone-btn" style="margin-top:.6rem">⬇️ Scarica copia per un altro ricevitore</button>
+    <div id="cfg-clone-msg" class="hint" style="margin-top:.4rem"></div>
+    <label style="margin-top:.8rem">Copia da importare (.json)<input type="file" id="cfgjson-import-file" accept=".json"></label>
     <button type="button" class="action" id="cfgjson-import-btn" style="margin-top:.6rem">Importa e applica</button>
     <div id="cfgjson-import-msg" class="hint" style="margin-top:.6rem"></div>
-  
   </fieldset>
 
   <fieldset data-adv>
@@ -1546,7 +1551,7 @@
     <label>Indirizzo manifest (JSON con versione e link al .bin)
       <input name="ota_update_url" placeholder="es. https://github.com/utente/repo/releases/latest/download/version.json">
     </label>
-    <small class="hint">Lascia vuoto per disattivare. Salva con il pulsante 💾 qui sopra.</small>
+    <small class="hint">Lascia vuoto per disattivare. Salva con il pulsante 💾 qui sotto.</small>
     <button type="button" class="action" id="fw-online-btn" style="margin-top:.8rem">Controlla aggiornamenti online</button>
     <div id="fw-online-msg" class="hint" style="margin-top:.6rem"></div>
     <div id="fw-online-bar-track" class="sig-bar-track" style="display:none">
@@ -1605,6 +1610,7 @@
       Forza modifica (di norma la matricola resta quella ricavata dal chip - cambiarla e' una scelta deliberata)
     </label>
     <small class="hint">Per default e' lo stesso numero del nome della rete WiFi di configurazione (es. "EVONETRTK-893428" -> "893428") - puoi sostituirlo con un tuo codice se preferisci un altro sistema di tracciamento.</small>
+    <small class="hint" id="device-serial-locked" style="display:none; color:#b45309; font-weight:600">🔒 La matricola non si puo' cambiare dopo l'attivazione della licenza.</small>
     <small class="hint" id="device-serial-mismatch" style="display:none; color:#d97706; font-weight:600">
       ⚠️ Non corrisponde alla matricola ricavata dal chip di questo dispositivo (<span id="device-serial-mac-expected"></span>) - verifica che sia voluto.
     </small>
@@ -1707,15 +1713,54 @@
 </small>
 </form>
 
-<div id="page-log" class="page">
-  
-
-  
-</div>
-
 <div id="save-msg"></div>
 
 <script>
+// Risposte del ricevitore: con la sessione scaduta (401) o un errore arriva
+// una pagina di testo, non JSON - prima l'utente vedeva "Unexpected token".
+// Per 400 e 403 il ricevitore spiega il motivo nel corpo (testo semplice da
+// httpd_resp_send_err, oppure JSON {error}): si mostra quello.
+async function httpError(r) {
+  let text = '';
+  if (r.status !== 401) {
+    try {
+      const raw = String(await r.text()).trim();
+      try {
+        const j = JSON.parse(raw);
+        text = String(j.error || j.message || '');
+      } catch (x) {
+        text = /^\s*</.test(raw) ? '' : raw; // pagina HTML: niente di leggibile
+      }
+    } catch (x) {}
+  }
+  const e = new Error(r.status === 401 ? 'Accesso scaduto: ricarica la pagina'
+    : text ? text.slice(0, 300) : (r.status === 403 ? 'Comando rifiutato dal ricevitore (codice 403): ricarica la pagina'
+      : 'Errore del ricevitore (codice ' + r.status + ')'));
+  e.httpErr = true;
+  return e;
+}
+async function readJson(r) {
+  if (!r.ok) throw await httpError(r);
+  try {
+    return await r.json();
+  } catch (x) {
+    const e = new Error('Risposta non valida dal ricevitore');
+    e.httpErr = true;
+    throw e;
+  }
+}
+// Testo da mostrare per un errore: il nostro, oppure quello di ripiego.
+function errText(e, fallback) {
+  return e && e.httpErr ? e.message : fallback;
+}
+// Richiesta con limite di tempo: una risposta che non arriva non blocca
+// l'aggiornamento automatico.
+function fetchWithTimeout(url, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  return fetch(url, { signal: ctl.signal, cache: 'no-store' }).finally(() => clearTimeout(t));
+}
+
 function goToPage(pageId) {
   document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.remove('active'));
   document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
@@ -1723,11 +1768,11 @@ function goToPage(pageId) {
   if (navBtn) navBtn.classList.add('active');
   document.getElementById(pageId).classList.add('active');
   if (typeof markMoreTab === 'function') markMoreTab(pageId);
-  if (pageId === 'page-signals' && typeof lastSignals !== 'undefined' && lastSignals) {
+  if (pageId === 'page-status' && typeof lastSignals !== 'undefined' && lastSignals) {
     drawSatChart(lastSignals.satellites || []);
   }
   window.scrollTo(0, 0);
-  if (pageId === 'page-log' || pageId === 'page-firmware') {
+  if (pageId === 'page-firmware') {
     loadLog();
   }
 }
@@ -1882,7 +1927,7 @@ document.querySelectorAll('.page fieldset').forEach((fs) => {
     haystack: (legend.textContent + ' ' + labelTexts).toLowerCase(),
     legend: legend.textContent,
     // Icona + nome lungo della scheda (senza il nome corto per il telefono:
-    // prima usciva "GNSS & NTRIPGNSS").
+    // prima usciva il nome lungo attaccato a quello corto).
     pageName: pageBtn ? ((pageBtn.querySelector('.tab-icon')?.textContent || '') + ' ' +
       (pageBtn.querySelector('.tl-long') || pageBtn.querySelector('.tab-label') || pageBtn).textContent).trim() : '',
     pageId: page.id,
@@ -1984,7 +2029,7 @@ setInterval(refreshLastSavedLabels, 60000);
 const QUICK_STATUS_TARGET = {
   'qs-wifi': 'page-network',
   'qs-ntrip': 'page-gnss',
-  'qs-fix': 'page-signals',
+  'qs-fix': 'page-status',
   'qs-sd': 'page-firmware',
 };
 Object.entries(QUICK_STATUS_TARGET).forEach(([chipId, pageId]) => {
@@ -2003,7 +2048,7 @@ document.getElementById('cfg-import-file').addEventListener('change', async (ev)
   ev.target.value = '';
   if (!file) return;
   const msg = document.getElementById('cfg-import-msg');
-  if (!confirm('Caricare la configurazione da "' + file.name + '"? Sostituisce tutte le impostazioni attuali e la base si riavvia.')) return;
+  if (!confirm('Ripristinare la configurazione da "' + file.name + '"? Sostituisce tutte le impostazioni attuali e il ricevitore si riavvia.')) return;
   msg.textContent = 'Caricamento...';
   try {
     const r = await fetch('/api/config/import', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: await file.arrayBuffer() });
@@ -2099,10 +2144,20 @@ document.getElementById('alert-test-btn').addEventListener('click', async () => 
   }
 });
 
+// Una sola richiesta di stato per volta (anche quando la chiamano i pulsanti).
+let statusInFlight = false;
 async function loadStatus() {
+  if (statusInFlight) return;
+  statusInFlight = true;
   try {
-    const r = await fetch('/api/status');
-    const s = await r.json();
+    await loadStatusOnce();
+  } finally {
+    statusInFlight = false;
+  }
+}
+async function loadStatusOnce() {
+  try {
+    const s = await readJson(await fetchWithTimeout('/api/status', 8000));
 
     const serialMismatch = !!(s.device_serial && s.device_serial_from_mac && s.device_serial !== s.device_serial_from_mac);
     document.getElementById('st-serial').textContent =
@@ -2115,9 +2170,8 @@ async function loadStatus() {
       serialMismatchEl.style.display = serialMismatch ? '' : 'none';
       document.getElementById('device-serial-mac-expected').textContent = s.device_serial_from_mac || '';
     }
-    document.getElementById('st-version').textContent = s.firmware_version || '-';
     document.getElementById('st-mdns').textContent = s.ap_ssid ? ('http://' + s.ap_ssid + '.local') : '-';
-    document.getElementById('st-ip').textContent = s.wifi_ip || s.ap_ip || '-';
+    document.getElementById('st-ip').textContent = localIp(s) || '-';
     {
       const ethEl = document.getElementById('st-eth');
       if (s.eth_connected && s.eth_ip) {
@@ -2216,6 +2270,7 @@ async function loadStatus() {
     updateReliabilityUi(s);
     updateSimRenewBanner(s);
     updateSimUi(s);
+    document.getElementById('st-cell-wrap').hidden = !usesCellular(s);
     {
       const st = document.getElementById('vpn-state');
       const fmtUp = n => n >= 3600 ? Math.floor(n / 3600) + ' h ' + Math.floor(n % 3600 / 60) + ' min' : Math.floor(n / 60) + ' min';
@@ -2265,8 +2320,8 @@ async function loadStatus() {
       }
     }
     {
-      const netLabels = { wifi: 'WiFi', cellulare: 'Cellulare', nessuna: 'Nessuna' };
-      let netText = netLabels[s.net] || s.net;
+      const netLabels = { wifi: 'WiFi', cellulare: 'Cellulare', ethernet: 'Ethernet (cavo)' };
+      let netText = netLabels[netInUse(s)] || 'Nessuna';
       if (s.net === 'wifi' && s.wifi_current_ssid) {
         netText += ' — connesso a "' + s.wifi_current_ssid + '"';
       }
@@ -2420,6 +2475,7 @@ async function loadStatus() {
     renderBasePosCurrent(s);
     renderDriftStatus(s);
     renderLicense(s);
+    renderLicenseLocks(s);
     renderQuickStatusFromStatus(s);
     renderPppLog(s);
     const casterClientsEl = document.getElementById('caster-srv-clients');
@@ -2429,7 +2485,7 @@ async function loadStatus() {
     const casterAddrEl = document.getElementById('caster-srv-address');
     if (casterAddrEl) {
       if (s.ntrip_caster_server_enable) {
-        const ip = s.wifi_ip || s.ap_ip || '?';
+        const ip = localIp(s) || '?';
         const port = s.ntrip_caster_server_port || 2101;
         const mount = s.ntrip_caster_server_mountpoint || '(mountpoint da impostare)';
         casterAddrEl.textContent = ip + ':' + port + '/' + mount;
@@ -2438,7 +2494,7 @@ async function loadStatus() {
       }
     }
   } catch (e) {
-    document.getElementById('st-net').textContent = 'errore lettura stato';
+    document.getElementById('st-net').textContent = errText(e, 'errore lettura stato');
   }
 }
 
@@ -2461,8 +2517,6 @@ function updateSatCount(sats) {
     if (x.snr >= 35) good++;
   }
   const parts = Object.keys(per).map(k => k + ' ' + per[k]).join(' · ');
-  const short = sats.length ? sats.length + ' (' + good + ' con segnale buono)' : 'nessuno';
-  document.getElementById('st-sats-view').textContent = short;
   document.getElementById('sat-count').innerHTML = sats.length
     ? '<b>In vista: ' + sats.length + '</b> — ' + parts + ' — <b>segnale buono (≥35 dB): ' + good + '</b>'
     : '<b>In vista:</b> nessun satellite';
@@ -2493,7 +2547,7 @@ function drawSatChart(sats) {
     ctx.fillStyle = '#999';
     ctx.font = '13px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Nessun dato satellitare (serve modalita\' rover con GNSS collegato)', w / 2, h / 2);
+    ctx.fillText('Nessun satellite in vista: controlla antenna e cavo', w / 2, h / 2);
     return;
   }
 
@@ -2622,8 +2676,8 @@ function renderChipTemp(celsius, maxCelsius, maxAt, maxAgoS) {
 // Colore per qualita' di fix NMEA (campo GGA): 4/5 sono i due stati RTK
 // veri e propri, gli altri sono un fix "normale" (utile ma senza le
 // precisioni centimetriche che giustificano l'uso di questa scheda).
-const FIX_QUALITY_COLOR = { 4: '#16a34a', 5: '#d97706', 1: '#2563eb', 2: '#2563eb', 3: '#2563eb' };
-const FIX_QUALITY_ICON = { 4: '✅', 5: '🟡', 1: 'ℹ️', 2: 'ℹ️', 3: 'ℹ️' };
+const FIX_QUALITY_COLOR = { 4: '#16a34a', 6: '#16a34a', 5: '#d97706', 2: '#d97706', 1: '#2563eb', 3: '#2563eb' };
+const FIX_QUALITY_ICON = { 4: '✅', 6: '✅', 5: '🟡', 2: '🟡', 1: 'ℹ️', 3: 'ℹ️' };
 
 function formatElapsed(seconds) {
   if (seconds < 60) return Math.round(seconds) + ' s';
@@ -2662,6 +2716,17 @@ function renderNtripStatus(s) {
 
 let lastStatus = null;
 
+// Rete in uso: 'wifi', 'cellulare', 'ethernet' oppure '' (nessuna). Con il
+// solo cavo il ricevitore manda net:"nessuna" ed eth_connected: e' Ethernet.
+function netInUse(s) {
+  if (s.net === 'wifi' || s.net === 'cellulare' || s.net === 'ethernet') return s.net;
+  return s.eth_connected ? 'ethernet' : '';
+}
+// Indirizzo con cui raggiungere il ricevitore sulla rete locale.
+function localIp(s) {
+  return s.wifi_ip || s.eth_ip || s.ap_ip || '';
+}
+
 function setQsChip(id, state, label) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -2674,8 +2739,10 @@ function setQsChip(id, state, label) {
 }
 
 function renderQuickStatusFromStatus(s) {
-  const netLabel = s.net === 'wifi' ? 'WiFi' : (s.net === 'cellulare' ? 'Cellulare' : 'Assente');
-  setQsChip('qs-wifi', s.net && s.net !== 'nessuna' ? 'qs-ok' : 'qs-bad', netLabel);
+  const net = netInUse(s);
+  const netLabel = { wifi: 'WiFi', cellulare: 'Cellulare', ethernet: 'Ethernet' }[net] || 'Assente';
+  // Cavo collegato ma senza indirizzo: giallo.
+  setQsChip('qs-wifi', !net ? 'qs-bad' : (net === 'ethernet' && !s.eth_ip ? 'qs-warn' : 'qs-ok'), netLabel);
 
   setQsChip('qs-ntrip', s.ntrip_connected ? 'qs-ok' : 'qs-bad', s.ntrip_connected ? 'NTRIP OK' : 'NTRIP giu\'');
 
@@ -2689,17 +2756,23 @@ function renderQuickStatusFromStatus(s) {
 }
 
 function renderQuickStatusFromSignals(s) {
-  if (!s.gnss_fix_valid) {
-    setQsChip('qs-fix', null, 'Fix n/d');
+  if (activeDeviceMode === 'base' && lastStatus) {
+    const st = basePositionState(lastStatus);
+    if (st === 'ok') setQsChip('qs-fix', 'qs-ok', 'Posiz. OK');
+    else if (st === 'svin') setQsChip('qs-fix', 'qs-warn', 'Survey-in');
+    else if (st === 'starting') setQsChip('qs-fix', 'qs-warn', 'In avvio');
+    else setQsChip('qs-fix', 'qs-bad', 'No posiz.');
     return;
   }
-  if (s.gnss_fix_quality === 4) {
-    setQsChip('qs-fix', 'qs-ok', 'RTK fisso');
-  } else if (s.gnss_fix_quality === 5) {
-    setQsChip('qs-fix', 'qs-warn', 'RTK float');
-  } else {
-    setQsChip('qs-fix', 'qs-bad', 'No RTK');
-  }
+  const q = s.gnss_fix_valid ? s.gnss_fix_quality : -1;
+  const label = { 4: 'RTK fisso', 5: 'RTK float', 6: 'Stimato', 2: 'DGPS/HAS' }[q] || (s.gnss_fix_valid ? 'No RTK' : 'No fix');
+  setQsChip('qs-fix', 'qs-' + fixClass(q), label);
+}
+
+// Classificazione del fix del rover, uguale per indicatore, riquadro e
+// giudizio: RTK fisso e stimato (INS) verde, float e DGPS/HAS giallo, il resto rosso.
+function fixClass(q) {
+  return (q === 4 || q === 6) ? 'ok' : (q === 5 || q === 2 ? 'warn' : 'bad');
 }
 
 function updateBasePosVisibility() {
@@ -2720,6 +2793,21 @@ document.getElementById('cfg-form').base_position_mode.addEventListener('change'
 document.getElementById('device-serial-unlock').addEventListener('change', (ev) => {
   document.getElementById('cfg-form').device_serial.readOnly = !ev.target.checked;
 });
+// Licenza salvata: la matricola e' legata alla licenza, il ricevitore rifiuta il cambio.
+function renderSerialLock(l) {
+  const locked = !!(l && l.stored);
+  const f = document.getElementById('cfg-form');
+  const unlock = document.getElementById('device-serial-unlock');
+  const btn = document.querySelector('.fieldset-save-btn[data-fields="device_serial"]');
+  document.getElementById('device-serial-locked').style.display = locked ? '' : 'none';
+  if (locked) {
+    unlock.checked = false;
+    f.device_serial.readOnly = true;
+  }
+  unlock.disabled = locked;
+  f.device_serial.disabled = locked;
+  if (btn) btn.disabled = locked;
+}
 
 function renderBasePosCurrent(s) {
   const hintEl = document.getElementById('base-pos-current-hint');
@@ -2890,11 +2978,11 @@ document.getElementById('ppp-log-stop-btn').addEventListener('click', async () =
   const msg = document.getElementById('ppp-log-msg');
   msg.textContent = 'Arresto in corso...';
   try {
-    await fetch('/api/ppp-log/stop', { method: 'POST' });
-    msg.textContent = 'Registrazione fermata, file pronto per il download.';
+    const j = await readJson(await fetch('/api/ppp-log/stop', { method: 'POST' }));
+    msg.textContent = j.ok ? 'Registrazione fermata, file pronto per il download.' : 'Arresto non riuscito: ' + (j.error || 'riprova');
     loadStatus();
   } catch (e) {
-    msg.textContent = 'Errore di comunicazione con il dispositivo.';
+    msg.textContent = errText(e, 'Errore di comunicazione con il dispositivo.');
   }
 });
 
@@ -2903,12 +2991,87 @@ document.getElementById('ppp-log-download-btn').addEventListener('click', () => 
 });
 
 const LIC_NAMES = {
-  rtk: 'Correzioni RTK (base: invio al caster; rover: 1 posizione al secondo)',
-  nmea_fast: 'Autosterzo: 5-10 posizioni al secondo',
-  has: 'Galileo HAS (misura della base, riserva del rover)',
-  ins: 'IMU e doppia antenna (ComNav K922)',
-  base_pro: 'Servizi avanzati: caster locale, VPN, monitoraggio, dati grezzi, avvisi',
+  rover: '📦 Pacchetto Rover: lavorare come rover, correzioni dal caster (1 posizione al secondo)',
+  base: '📦 Pacchetto Base: lavorare come base (invio al caster), misura HAS, caster locale, VPN, monitoraggio, dati grezzi, avvisi, antenna spostata',
+  nmea_fast: '➕ Extra rover: autosterzo, 5-10 posizioni al secondo',
+  has: '➕ Extra rover: riserva Galileo HAS quando manca l\'RTK',
+  ins: '➕ Extra rover: IMU e doppia antenna (ComNav K922)',
 };
+// Funzione compresa ma non ancora attiva: si accende al prossimo riavvio.
+// Stesso calcolo di license.c: non scaduta, licenza non revocata, e gli extra
+// del rover solo con il Pacchetto Rover (concesso o anche lui in attesa).
+function licUsable(f) {
+  return !!f && f.expiry >= 0 && (f.expiry === 0 || f.expiry > Date.now() / 1000);
+}
+function licPending(l, code) {
+  const feats = (l && l.features) || {};
+  const f = feats[code];
+  if (!f || f.granted || !licUsable(f) || l.state === 'revocato') return false;
+  if (l.extras_suspended && LIC_EXTRAS.includes(code)) return false; // sospeso, non in attesa
+  if (code === 'rover' || code === 'base') return true;
+  const r = feats.rover;
+  return !!r && (r.granted || licUsable(r));
+}
+const LIC_EXTRAS = ['nmea_fast', 'has', 'ins'];
+// Extra sospeso in questo avvio: nessun contatto con il server da troppo tempo.
+function licSuspended(l, code) {
+  const f = ((l && l.features) || {})[code];
+  return !!(l && l.extras_suspended) && LIC_EXTRAS.includes(code) && !!f && !f.granted && licUsable(f);
+}
+const LIC_SHORT = { base: 'Pacchetto Base', rover: 'Pacchetto Rover', nmea_fast: 'extra Autosterzo', has: 'extra Galileo HAS', ins: 'extra IMU e doppia antenna' };
+// Voci non comprese nella licenza: in grigio con il lucchetto. Con il blocco
+// attivo (enforce) anche disattivate; in prova restano utilizzabili. Un
+// ricevitore ancora da attivare, in prova, non viene ingrigito.
+function renderLicenseLocks(s) {
+  const l = s.license;
+  if (!l) return;
+  const show = l.enforce || l.state !== 'da_attivare';
+  document.querySelectorAll('[data-lic]').forEach((el) => {
+    const code = el.dataset.lic;
+    const f = (l.features || {})[code];
+    const pending = licPending(l, code); // compresa, attiva dal prossimo riavvio
+    const locked = show && !(f && f.granted);
+    el.classList.toggle('lic-locked', locked);
+    el.classList.toggle('lic-hard', locked && l.enforce);
+    if (locked) el.dataset.licTitle = '1';
+    const susp = licSuspended(l, code);
+    if (locked) el.title = susp ? LIC_SHORT[code] + ': sospeso, manca il contatto con il server delle licenze'
+      : pending ? LIC_SHORT[code] + ': attiva dal prossimo riavvio' : 'Non compreso nella licenza: ' + LIC_SHORT[code];
+    else if (el.dataset.licTitle) { el.title = ''; delete el.dataset.licTitle; }
+    if (el.tagName !== 'BUTTON') {
+      let b = el.querySelector(':scope > .lic-badge');
+      if (locked && !b) {
+        b = document.createElement('div');
+        b.className = 'lic-badge';
+        const lg = el.querySelector(':scope > legend');
+        if (lg) lg.after(b); else el.prepend(b);
+      }
+      if (b) {
+        b.style.display = locked ? '' : 'none';
+        b.textContent = (susp ? '⏸️ ' + LIC_SHORT[code] + ': sospeso, manca il contatto con il server delle licenze'
+          : pending ? '🔄 ' + LIC_SHORT[code] + ': attiva dal prossimo riavvio' : '🔒 Non compreso nella licenza: ' + LIC_SHORT[code]) +
+          (l.enforce ? '' : ' (in prova: ancora utilizzabile)');
+      }
+      el.querySelectorAll('input, select, button, textarea').forEach((c) => {
+        if (locked && l.enforce) { if (!c.disabled) { c.disabled = true; c.dataset.licDis = '1'; } }
+        else if (c.dataset.licDis) { c.disabled = false; delete c.dataset.licDis; }
+      });
+    }
+  });
+  // Modo di lavoro: il pacchetto decide se il ricevitore puo' essere base o rover.
+  const sel = document.querySelector('select[name="device_mode"]');
+  if (sel) {
+    for (const o of sel.options) {
+      const code = o.value === '1' || o.value === 'rover' ? 'rover' : 'base';
+      const f = (l.features || {})[code];
+      const locked = show && !(f && f.granted);
+      const txt = o.textContent.replace(/^🔒 /, '');
+      const want = locked ? '🔒 ' + txt : txt;
+      if (o.textContent !== want) o.textContent = want; // solo se cambia: non disturba un menu aperto
+      o.disabled = locked && l.enforce && !o.selected;
+    }
+  }
+}
 const LIC_STATES = {
   da_attivare: ['⚪', 'Da attivare'],
   attivo: ['✅', 'Attivo'],
@@ -2917,6 +3080,41 @@ const LIC_STATES = {
   revocato: ['⛔', 'Revocato dal server (vale dal riavvio)'],
 };
 let licServerFilled = false;
+let licLastShownErr = '';
+let licActivationSent = false; // c'e' stato un tentativo da questa pagina
+// Elenco dei motivi per cui l'attivazione non parte, con i campi da correggere in rosso.
+function showActivationErrors(items, marks) {
+  const box = document.getElementById('lic-act-err');
+  document.querySelectorAll('.lic-field-err').forEach((e) => e.classList.remove('lic-field-err'));
+  if (!items.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = '<b>❌ Attivazione non eseguita:</b><ul style="margin:.3rem 0 0; padding-left:1.2rem"></ul>';
+  const ul = box.querySelector('ul');
+  items.forEach((t) => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+  box.style.display = '';
+  document.querySelectorAll('[aria-invalid]').forEach((e) => e.removeAttribute('aria-invalid'));
+  (marks || []).forEach((id) => {
+    const e = document.getElementById(id);
+    if (!e) return;
+    e.classList.add('lic-field-err');
+    (e.matches('input') ? e : e.querySelector('input'))?.setAttribute('aria-invalid', 'true');
+  });
+}
+// "evo 7kq2 mx4p 9tra" o "EVO7KQ2MX4P9TRA" -> "EVO-7KQ2-MX4P-9TRA".
+function normalizeActivationCode(v) {
+  const raw = String(v || '').toUpperCase().trim();
+  let c = raw.replace(/[\s_.]/g, '').replace(/-/g, '');
+  if (/^[A-Z0-9]{12}$/.test(c)) c = 'EVO' + c; // scritto senza il prefisso
+  if (/^EVO[A-Z0-9]{12}$/.test(c)) return 'EVO-' + c.slice(3, 7) + '-' + c.slice(7, 11) + '-' + c.slice(11, 15);
+  return raw; // formato non riconosciuto: si lascia com'era scritto
+}
+['lic-terms', 'lic-clauses', 'lic-who', 'lic-code'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => {
+    const row = id === 'lic-terms' ? 'lic-terms-row' : id === 'lic-clauses' ? 'lic-clauses-row' : id;
+    const e = document.getElementById(row);
+    if (e) e.classList.remove('lic-field-err');
+  });
+});
 function renderLicense(s) {
   const l = s.license;
   if (!l) return;
@@ -2924,51 +3122,130 @@ function renderLicense(s) {
   const st = LIC_STATES[l.state] || LIC_STATES.da_attivare;
   document.getElementById('lic-state').textContent = st[0] + ' ' + st[1];
   document.getElementById('lic-customer').textContent = l.customer || '-';
-  document.getElementById('lic-contact').textContent = l.last_contact > 0 ? new Date(l.last_contact * 1000).toLocaleString('it-IT') : 'mai';
+  const contactEl = document.getElementById('lic-contact');
+  const days = typeof l.no_contact_days === 'number' ? l.no_contact_days : -1;
+  contactEl.textContent = (l.last_contact > 0 ? new Date(l.last_contact * 1000).toLocaleString('it-IT') : 'mai') +
+    (days >= 7 ? ' — ⚠️ nessun contatto da ' + days + ' giorni' : '');
+  contactEl.style.color = days >= 7 ? (l.extras_suspended ? '#dc2626' : '#b45309') : '';
+  contactEl.style.fontWeight = days >= 7 ? '600' : '';
+  const noteEl = document.getElementById('lic-note');
+  noteEl.style.display = l.note ? '' : 'none';
+  noteEl.textContent = l.note ? (l.extras_suspended ? '⏸️ ' : '⚠️ ') + l.note : '';
+  noteEl.style.background = l.extras_suspended ? '#fef2f2' : '#fffbeb';
+  noteEl.style.border = '2px solid ' + (l.extras_suspended ? '#f87171' : '#fcd34d');
+  noteEl.style.color = l.extras_suspended ? '#7f1d1d' : '#78350f';
   document.getElementById('lic-chip').textContent = l.chip || '-';
-  document.getElementById('lic-msg').textContent = (l.busy ? '⏳ ' : '') + (l.msg || '');
+  // La nota il ricevitore la copia anche nel messaggio: non ripeterla due volte.
+  document.getElementById('lic-msg').textContent = (l.msg && l.msg === l.note && !l.busy) ? '' : (l.busy ? '⏳ ' : '') + (l.msg || '');
+  renderSerialLock(l);
+  document.getElementById('lic-server-https').style.display = l.enforce ? '' : 'none';
+  const msg = l.msg || '';
+  if (!l.busy && licActivationSent && msg.startsWith('Attivazione non riuscita') && msg !== licLastShownErr) {
+    licLastShownErr = msg;
+    const why = msg.replace(/^Attivazione non riuscita: ?/, '');
+    const items = [why.charAt(0).toUpperCase() + why.slice(1) + '.'];
+    const marks = [];
+    if (/codice/i.test(why)) marks.push('lic-code');
+    if (/condizioni|accettazione/i.test(why)) marks.push('lic-terms-row', 'lic-clauses-row');
+    if (/raggiungibile|firewall/i.test(why)) items.push('Controlla che il ricevitore sia collegato a internet e che il firewall della rete lasci uscire verso rtk.evo-net.it (HTTPS, porta 443).');
+    if (/gia' usato|altro ricevitore|altra scheda|revocato/i.test(why)) items.push("Contatta l'assistenza EVONETRTK con la matricola del ricevitore.");
+    showActivationErrors(items, marks);
+  }
   document.getElementById('lic-activate').style.display = (l.state === 'da_attivare' || l.state === 'revocato') ? '' : 'none';
   document.getElementById('lic-renew-btn').disabled = l.busy || l.state === 'da_attivare';
   document.getElementById('lic-activate-btn').disabled = l.busy;
   if (!licServerFilled) { document.getElementById('lic-server').value = l.server || ''; licServerFilled = true; }
   const now = Date.now() / 1000;
-  const cell = 'padding:.25rem .4rem; border-bottom:1px solid #e5e7eb';
+  const cell = 'padding:.25rem .4rem; border-bottom:1px solid #e5e7eb; overflow-wrap:anywhere; vertical-align:top';
   const rows = Object.entries(LIC_NAMES).map(([code, name]) => {
     const f = (l.features || {})[code] || { expiry: -1 };
     let txt;
     if (f.expiry < 0) txt = '🔒 non compresa';
     else if (f.expiry === 0) txt = '✅ compresa';
     else txt = (f.expiry < now ? '⛔ scaduta il ' : (f.expiry - now < 30 * 86400 ? '⚠️ fino al ' : '✅ fino al ')) + new Date(f.expiry * 1000).toLocaleDateString('it-IT');
-    if (f.expiry >= 0 && !f.granted) txt += ' (dal prossimo riavvio)';
-    return '<tr><td style="' + cell + '">' + name + '</td><td style="' + cell + '; white-space:nowrap">' + txt + '</td></tr>';
+    if (licSuspended(l, code)) txt += ' (sospesa: manca il contatto con il server)';
+    else if (licPending(l, code)) txt += ' (dal prossimo riavvio)';
+    else if (f.expiry >= 0 && !f.granted && licUsable(f) && l.state !== 'revocato') txt += ' (serve il Pacchetto Rover)';
+    return '<tr><td style="' + cell + '">' + name + '</td><td style="' + cell + '; min-width:7rem">' + txt + '</td></tr>';
   });
   document.getElementById('lic-features').innerHTML = rows.join('');
 }
 async function licensePost(body) {
   const msg = document.getElementById('lic-msg');
   try {
-    const r = await fetch('/api/license', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await r.json();
+    const j = await readJson(await fetch('/api/license', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
     if (!j.ok) { msg.textContent = '❌ ' + (j.error || 'errore'); return false; }
     return true;
-  } catch (e) { msg.textContent = '❌ ' + e.message; return false; }
+  } catch (e) { msg.textContent = '❌ ' + errText(e, 'Errore di comunicazione con il ricevitore'); return false; }
 }
 document.getElementById('lic-activate-btn').addEventListener('click', async () => {
+  const codeEl = document.getElementById('lic-code');
+  const code = normalizeActivationCode(codeEl.value);
+  if (code) codeEl.value = code;
   const body = {
     action: 'activate',
-    code: document.getElementById('lic-code').value.trim().toUpperCase(),
-    who: document.getElementById('lic-who').value.trim(),
+    code,
+    who: document.getElementById('lic-who').value.trim().replace(/\s+/g, ' '),
     terms: document.getElementById('lic-terms').checked,
     clauses_1341: document.getElementById('lic-clauses').checked,
   };
-  if (!body.terms || !body.clauses_1341) { document.getElementById('lic-msg').textContent = '❌ Servono entrambe le spunte.'; return; }
-  if (await licensePost(body)) document.getElementById('lic-msg').textContent = '⏳ Attivazione in corso...';
+  const items = [], marks = [];
+  if (!body.terms) {
+    items.push('Manca la spunta 1: accettazione delle avvertenze di sicurezza, delle note legali, delle condizioni di licenza e della garanzia.');
+    marks.push('lic-terms-row');
+  }
+  if (!body.clauses_1341) {
+    items.push('Manca la spunta 2: approvazione specifica delle clausole (artt. 1341-1342 del codice civile).');
+    marks.push('lic-clauses-row');
+  }
+  if (body.who.length < 3 || !body.who.includes(' ')) {
+    items.push('Scrivi nome e cognome di chi accetta le condizioni (per esempio «Mario Rossi»).');
+    marks.push('lic-who');
+  }
+  if (!code) {
+    items.push('Scrivi il codice di attivazione: lo trovi in fattura o nel portale EVONETRTK.');
+    marks.push('lic-code');
+  } else if (!/^EVO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
+    items.push('Il codice non ha il formato giusto: deve essere EVO- seguito da tre gruppi di 4 caratteri, per esempio EVO-7KQ2-MX4P-9TRA.');
+    marks.push('lic-code');
+  } else if (/[01OIL]/.test(code.slice(4))) {
+    items.push('Nei codici di attivazione non ci sono le cifre 0 e 1 né le lettere O, I e L: controlla di non averle confuse con lettere o cifre simili.');
+    marks.push('lic-code');
+  }
+  showActivationErrors(items, marks);
+  if (items.length) {
+    const first = document.getElementById(marks[0] === 'lic-terms-row' ? 'lic-terms' : marks[0] === 'lic-clauses-row' ? 'lic-clauses' : marks[0]);
+    if (first) first.focus();
+    return;
+  }
+  licLastShownErr = '';
+  licActivationSent = true;
+  const btn = document.getElementById('lic-activate-btn');
+  btn.disabled = true; // niente doppio invio (lo riabilita renderLicense quando l'operazione finisce)
+  const r = await fetch('/api/license', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(readJson).catch((e) => ({ ok: false, error: errText(e, 'errore di comunicazione con il ricevitore') }));
+  if (!r.ok) {
+    const e = String(r.error || 'errore');
+    const extra = /internet|rete/i.test(e) ? ['Collega il ricevitore a internet (scheda Connessione) e riprova.'] : [];
+    showActivationErrors([e.charAt(0).toUpperCase() + e.slice(1) + '.', ...extra], /codice/i.test(e) ? ['lic-code'] : /nome/i.test(e) ? ['lic-who'] : []);
+    return;
+  }
+  document.getElementById('lic-msg').textContent = '⏳ Attivazione in corso...';
 });
 document.getElementById('lic-renew-btn').addEventListener('click', async () => {
   if (await licensePost({ action: 'renew' })) document.getElementById('lic-msg').textContent = '⏳ Controllo in corso...';
 });
+document.getElementById('lic-forget-btn').addEventListener('click', async () => {
+  if (!confirm("Cancellare la licenza salvata? Il ricevitore torna da attivare e servira' il codice di attivazione per riattivarlo. WiFi e impostazioni non cambiano.")) return;
+  if (await licensePost({ action: 'forget' })) document.getElementById('lic-msg').textContent = '✅ Licenza dimenticata';
+});
 document.getElementById('lic-server-btn').addEventListener('click', async () => {
-  if (await licensePost({ action: 'server', url: document.getElementById('lic-server').value.trim() })) document.getElementById('lic-msg').textContent = '✅ Indirizzo salvato';
+  const url = document.getElementById('lic-server').value.trim();
+  const l = (lastStatus && lastStatus.license) || {};
+  if (l.enforce && url && !/^https:\/\//i.test(url)) {
+    document.getElementById('lic-msg').textContent = '❌ Serve un indirizzo che inizia con https:// (con il blocco della licenza attivo il ricevitore non accetta http://).';
+    return;
+  }
+  if (await licensePost({ action: 'server', url })) document.getElementById('lic-msg').textContent = '✅ Indirizzo salvato';
 });
 
 function renderDriftStatus(s) {
@@ -3024,11 +3301,10 @@ function renderFixStatus(s) {
   const diffAgeEl = document.getElementById('fix-diffage');
   const altEl = document.getElementById('fix-alt');
   const ageEl = document.getElementById('fix-age');
-  const stFixEl = document.getElementById('st-fix');
 
   if (!s.gnss_fix_valid) {
     const txt = '⬜ Nessun dato ricevuto';
-    [qualityEl, stFixEl].forEach((el) => { el.textContent = txt; el.style.color = ''; el.style.fontWeight = ''; });
+    qualityEl.textContent = txt; qualityEl.style.color = ''; qualityEl.style.fontWeight = '';
     satsEl.textContent = hdopEl.textContent = diffAgeEl.textContent = altEl.textContent = ageEl.textContent = '-';
     return;
   }
@@ -3038,7 +3314,7 @@ function renderFixStatus(s) {
   // Rover con riserva Galileo HAS: quale soluzione va ad AgOpenGPS.
   const hasNote = { has: ' · GALILEO HAS (convertita in ETRF2000)', autonoma: ' · SENZA CORREZIONI (convertita in ETRF2000)', rtk: ' · RTK DALLA BASE' }[s.rover_has_state] || '';
   const label = icon + ' ' + (s.gnss_fix_quality_str || '-').toUpperCase() + hasNote;
-  [qualityEl, stFixEl].forEach((el) => { el.textContent = label; el.style.color = color; el.style.fontWeight = '600'; });
+  qualityEl.textContent = label; qualityEl.style.color = color; qualityEl.style.fontWeight = '600';
 
   satsEl.textContent = s.gnss_satellites_used;
   hdopEl.textContent = s.gnss_hdop >= 0 ? s.gnss_hdop.toFixed(1) : '-';
@@ -3088,22 +3364,27 @@ function updateNtripFlow(s) {
   }
 }
 
+let signalsInFlight = false;
 async function loadSignals() {
+  if (signalsInFlight) return;
+  signalsInFlight = true;
   try {
-    const r = await fetch('/api/signals');
-    const s = await r.json();
+    await loadSignalsOnce();
+  } finally {
+    signalsInFlight = false;
+  }
+}
+async function loadSignalsOnce() {
+  try {
+    const s = await readJson(await fetchWithTimeout('/api/signals', 8000));
     updateNtripFlow(s);
     lastSignals = s;
     drawSatChart(s.satellites || []);
     updateSatCount(s.satellites || []);
-    setSignalBar('wifi-sig-bar', 'wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
-    setSignalBar('cell-sig-bar', 'cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
     setSignalBar('st-wifi-sig-bar', 'st-wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
     setSignalBar('st-cell-sig-bar', 'st-cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
-    document.getElementById('cell-operator').textContent = s.cellular_operator || 'non registrato';
     document.getElementById('sim-op').textContent = s.cellular_operator ? s.cellular_operator + (s.cellular_tech ? ' (' + s.cellular_tech + ')' : '') : 'non registrato';
     document.getElementById('sim-rssi').textContent = s.cellular_rssi_dbm !== null && s.cellular_rssi_dbm !== undefined ? s.cellular_rssi_dbm + ' dBm' : 'non disponibile';
-    document.getElementById('cell-tech').textContent = s.cellular_tech || '-';
     const stCellOperatorEl = document.getElementById('st-cell-operator');
     if (stCellOperatorEl) {
       stCellOperatorEl.textContent = 'Gestore: ' + (s.cellular_operator || 'non registrato') +
@@ -3112,13 +3393,14 @@ async function loadSignals() {
     renderFixStatus(s);
     renderQuickStatusFromSignals(s);
     renderRtcmByteStats(s.rtcm_bytes_by_type || []);
+    if (lastStatus) updateSummaryCards(lastStatus);
   } catch (e) {
     // pagina segnali non visibile o rete assente: si ritenta al giro dopo
   }
 }
 
 // Etichette leggibili per i numeri messaggio RTCM3 gia' selezionabili in
-// GNSS & NTRIP (vedi RTCM_ALL_MESSAGE_FIELDS) - un tipo non in questa
+// Posizione e correzioni (vedi RTCM_ALL_MESSAGE_FIELDS) - un tipo non in questa
 // mappa (es. 1033, sempre attivo su Unicore) mostra solo il numero.
 const RTCM_TYPE_LABELS = {
   1005: 'Posizione base', 1007: 'Descrittore antenna', 1008: 'Descrittore antenna + serie',
@@ -3325,7 +3607,7 @@ async function saveFieldset(names, btn, msgEl) {
   msgEl.textContent = '';
   try {
     const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
-    if (!r.ok) throw new Error('errore server');
+    if (!r.ok) throw await httpError(r);
     btn.classList.add('ok');
     msgEl.textContent = btn.dataset.reboot ? 'Salvato — vale dopo il riavvio (🔄 Salva e riavvia)' : 'Salvato';
     msgEl.style.color = '';
@@ -3348,7 +3630,7 @@ async function saveFieldset(names, btn, msgEl) {
     refreshLastSavedLabels();
   } catch (e) {
     btn.classList.add('err');
-    msgEl.textContent = 'Errore nel salvataggio';
+    msgEl.textContent = errText(e, 'Errore nel salvataggio');
   }
   btn.disabled = false;
   btn.textContent = orig;
@@ -3402,7 +3684,7 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
   try {
     const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
     if (!r.ok) throw new Error('errore server');
-    msg.textContent = 'Salvato. Se hai modificato pin GNSS/OLED/RGB serve un riavvio manuale (scheda Connessione) per applicarli - il resto e\' gia\' attivo.';
+    msg.textContent = 'Salvato. Se hai modificato pin GNSS/OLED/RGB serve un riavvio (pulsante «Riavvia dispositivo» in fondo alla scheda Stato) per applicarli - il resto e\' gia\' attivo.';
     loadStatus();
   } catch (e) {
     msg.textContent = 'Errore nel salvataggio';
@@ -3413,8 +3695,10 @@ document.getElementById('reboot-btn').addEventListener('click', async () => {
   if (!confirm('Riavviare il dispositivo ora? Se sta trasmettendo correzioni a dei rover collegati, il flusso si interrompe per qualche secondo.')) {
     return;
   }
-  document.getElementById('save-msg').textContent = 'Riavvio...';
+  document.getElementById('reboot-btn').disabled = true;
+  document.getElementById('reboot-msg').textContent = 'Riavvio in corso: la pagina si ricarica da sola tra circa 25 secondi';
   try { await fetch('/api/reboot', { method: 'POST' }); } catch (e) {}
+  setTimeout(() => location.reload(), 25000);
 });
 
 document.getElementById('fw-upload-btn').addEventListener('click', () => {
@@ -3786,7 +4070,7 @@ document.getElementById('measure-has-btn').addEventListener('click', () => {
   const hours = parseInt(document.getElementById('measure-has-hours').value, 10) || 6;
   if (confirm('Avviare la misura con Galileo HAS per ' + hours + ' ore?\n\n' +
     '• Per tutta la misura (piu’ mezz’ora di convergenza) la base non manda correzioni ai rover.\n' +
-    '• Serve un ricevitore Unicore UM980/UM982 con l’antenna nella posizione definitiva.\n' +
+    '• Serve un ricevitore Unicore UM980/UM982 o ComNav K922, con l’antenna nella posizione definitiva.\n' +
     '• Alla fine le coordinate (convertite in ETRF2000) diventano la posizione fissa e la base torna base da sola.')) {
     postMeasure('start_has', { hours });
   }
@@ -3814,8 +4098,10 @@ function monthProgress(localTime) {
   return { days, elapsed };
 }
 
-function renderDataBar(el, s) {
+// inSimTab: riquadro dentro la scheda SIM (il rimando alla scheda non serve).
+function renderDataBar(el, s, inSimTab) {
   if (!el) return;
+  const simTab = !inSimTab && s.network_mode !== 'wifi' && s.network_mode !== 'ethernet_only';
   const planB = (s.data_plan_mb || 0) * 1e6;
   const used = s.data_cell_month_bytes || 0;
   const mp = monthProgress(s.local_time);
@@ -3847,7 +4133,7 @@ function renderDataBar(el, s) {
     }
   } else {
     html = '<div style="background:#e5e7eb; border-radius:6px; padding:.3rem .6rem; font-size:.85rem">' +
-      'Cellulare questo mese: <b>' + fmtGB(used) + '</b> — imposta il piano dati nella scheda SIM e costi per vedere la percentuale</div>';
+      'Cellulare questo mese: <b>' + fmtGB(used) + '</b>' + (simTab ? ' — imposta il piano dati nella scheda SIM e costi per vedere la percentuale' : '') + '</div>';
   }
   html += '<div style="font-size:.82rem; color:#6b7280; margin-top:.25rem">Oggi: cellulare ' + fmtGB(s.data_cell_day_bytes || 0) +
     ', WiFi ' + fmtGB(s.data_wifi_day_bytes || 0) +
@@ -3909,10 +4195,14 @@ function drawDataChart(canvas, s) {
 // Ultimo riavvio, traffico dati e cadute del caster (schede Stato e Connessione).
 // Promemoria del rinnovo della SIM in cima allo Stato: giallo nei giorni
 // del primo promemoria, rosso se scaduto.
+// Da quanti giorni prima del rinnovo si avvisa (il piu' lontano dei due promemoria).
+function simNoticeDays(s) {
+  return Math.max(s.sim_notice1_days || 0, s.sim_notice2_days || 0);
+}
 function updateSimRenewBanner(s) {
   const box = document.getElementById('sim-renew-banner');
   const left = s.sim_renew_days_left;
-  const n1 = Math.max(s.sim_notice1_days || 0, s.sim_notice2_days || 0);
+  const n1 = simNoticeDays(s);
   if (left === undefined || left > n1) { box.style.display = 'none'; return; }
   const d = s.sim_renew_date;
   const date = d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
@@ -3937,12 +4227,13 @@ function updateReliabilityUi(s) {
   reset.textContent = (s.last_reset || '-') + (s.fw_rollback_note ? ' — ' + s.fw_rollback_note : '') +
     (s.fw_pending ? ' · firmware nuovo in prova: confermato dopo 5 minuti senza problemi' : '') +
     (s.last_crash ? ' — dettagli: ' + s.last_crash : '') +
-    (s.config_guard_note ? ' — ' + s.config_guard_note : '');
-  reset.style.color = (/calo di tensione|crash|watchdog|bloccato/.test(s.last_reset || '') || s.fw_rollback_note || s.config_guard_note) ? '#dc2626' : '';
+    (s.config_guard_note ? ' — ' + s.config_guard_note : '') +
+    (s.boot_prev_note ? ' — ' + s.boot_prev_note : '');
+  reset.style.color = (/calo di tensione|crash|watchdog|bloccato/.test(s.last_reset || '') || s.fw_rollback_note || s.config_guard_note || s.boot_prev_note) ? '#dc2626' : '';
 
   renderDataBar(document.getElementById('st-data'), s);
   drawDataChart(document.getElementById('st-data-chart'), s);
-  renderDataBar(document.getElementById('data-usage-box'), s);
+  renderDataBar(document.getElementById('data-usage-box'), s, true);
 
   const list = s.ntrip_outages || [];
   const el = document.getElementById('st-outages');
@@ -4052,11 +4343,8 @@ function updateSimIdBox(s) {
 function updateSimUi(s) {
   const mod = { sim7600_lilygo: 'SIM7600 (LilyGO)', sim7600_simcom: 'SIM7600 (SIMCom originale)', sim868: 'SIM868' };
   document.getElementById('sim-module').textContent = mod[s.cellular_module] || '-';
-  document.getElementById('sim-iccid').textContent = s.sim_iccid_live ? s.sim_iccid : 'non letto (modem assente o SIM non inserita)';
-  document.getElementById('sim-imei').textContent = s.sim_imei_live ? s.sim_imei : 'non letto (modem assente)';
-  document.getElementById('sim-phone-read').textContent = s.sim_phone_read || (s.sim_iccid_live ? 'non scritto nella SIM: scoprilo con l\'SMS di prova' : 'non letto (modem assente o SIM non inserita)');
   updateSimIdBox(s);
-  document.getElementById('sim-net').textContent = s.net === 'cellulare' ? 'cellulare (questa SIM)' : (s.net === 'wifi' ? 'WiFi (SIM non usata ora)' : (s.net || '-'));
+  document.getElementById('sim-net').textContent = { cellulare: 'cellulare (questa SIM)', wifi: 'WiFi (SIM non usata ora)', ethernet: 'Ethernet (SIM non usata ora)' }[netInUse(s)] || 'nessuna';
   const eur = document.getElementById('sim-credit-eur');
   if (s.sim_credit_at) {
     eur.textContent = s.sim_credit_eur !== undefined ? s.sim_credit_eur.toFixed(2).replace('.', ',') + ' €' : 'importo non riconosciuto';
@@ -4205,60 +4493,109 @@ document.getElementById('vpn-keygen-btn').addEventListener('click', async () => 
   const pk = document.getElementById('vpn-pubkey');
   if (pk.value && !confirm('Generare chiavi nuove? La chiave pubblica attuale non varra\' piu\': andra\' aggiornata anche sul server.')) return;
   try {
-    const r = await fetch('/api/vpn/keygen', { method: 'POST' });
-    const j = await r.json();
+    const j = await readJson(await fetch('/api/vpn/keygen', { method: 'POST' }));
     if (j.ok) { pk.value = j.public_key; pk.select(); }
     else alert('Generazione delle chiavi fallita');
-  } catch (e) { alert('Errore: ' + e.message); }
+  } catch (e) { alert(errText(e, 'Errore di comunicazione con la base')); }
 });
 window.addEventListener('resize', () => {
-  if (lastSignals && document.getElementById('page-signals').classList.contains('active')) {
+  if (lastSignals && document.getElementById('page-status').classList.contains('active')) {
     drawSatChart(lastSignals.satellites || []);
   }
 });
-function sumCard(id, title, cls, value, sub, target) {
-  return '<div class="sum-card ' + cls + '" data-target="' + target + '"><div class="sc-title">' + title +
-    '</div><div class="sc-value">' + value + '</div><div class="sc-sub">' + (sub || '') + '</div></div>';
+// I testi dei riquadri vengono dal dispositivo (errori del caster, nomi di
+// rete, operatori): titolo e riga sotto sono sempre resi come testo;
+// valueHtml accetta markup solo da questo codice (le tacche).
+function sumCard(id, title, cls, valueHtml, sub, target) {
+  return '<div class="sum-card ' + cls + '" data-target="' + target + '"><div class="sc-title">' + escHtml(title) +
+    '</div><div class="sc-value">' + valueHtml + '</div><div class="sc-sub">' + escHtml(sub || '') + '</div></div>';
 }
+// Modem davvero presente: cellular_module e' solo l'impostazione (sempre
+// inviata), conta che il modem abbia risposto almeno una volta.
+function hasModem(s) {
+  return !!s.sim_imei || s.net === 'cellulare' || !!(lastSignals && lastSignals.cellular_rssi_dbm != null);
+}
+// Le reti mobili e la SIM contano solo con il modem e se la modalita' di rete le prevede.
+function usesCellular(s) {
+  return hasModem(s) && s.network_mode !== 'wifi' && s.network_mode !== 'ethernet_only';
+}
+// Stato della posizione della base, uguale per riquadro, indicatore e giudizio.
+function basePositionState(s) {
+  const age = s.base_position_age_s;
+  if (age !== undefined && age >= 0 && age <= 30) return 'ok';
+  if (s.svin_active) return 'svin';
+  if (!(s.now_us > 60e6)) return 'starting';
+  return 'bad';
+}
+let lastCardsHtml = '';
 function updateSummaryCards(s) {
   const box = document.getElementById('summary-cards');
   if (!box) return;
   const cards = [];
   // Caster
   if (s.ntrip_connected) {
-    cards.push(sumCard('c', '📡 Caster', 'ok', 'Collegato', s.ntrip_mountpoint ? '/' + (activeDeviceMode === 'rover' ? s.rover_mountpoint : s.ntrip_mountpoint) : '', 'page-status'));
+    const mp = activeDeviceMode === 'rover' ? s.rover_mountpoint : s.ntrip_mountpoint;
+    cards.push(sumCard('c', '📡 Caster', 'ok', 'Collegato', mp ? '/' + mp : '', 'page-status'));
   } else {
     cards.push(sumCard('c', '📡 Caster', 'bad', 'Scollegato', String(s.ntrip_last_error || '').slice(0, 60), 'page-gnss'));
   }
   // Posizione (base) o fix (rover)
   if (activeDeviceMode === 'base') {
-    const age = s.base_position_age_s;
-    if (age !== undefined && age >= 0 && age <= 30) {
+    const st = basePositionState(s);
+    if (st === 'ok') {
       cards.push(sumCard('p', '📍 Posizione base', 'ok', 'Inviata', s.base_position_mode === 'manual' ? 'coordinate fisse' : 'da survey-in', 'page-gnss'));
-    } else if (s.svin_active) {
+    } else if (st === 'svin') {
       cards.push(sumCard('p', '📍 Posizione base', 'warn', 'Survey-in', (s.svin_mean_acc_m || 0).toFixed(1) + ' m su ' + (s.base_svin_acc_m || 0.25) + ' m richiesti', 'page-gnss'));
+    } else if (st === 'starting') {
+      cards.push(sumCard('p', '📍 Posizione base', 'warn', 'In avvio', 'primo minuto dopo l’accensione', 'page-gnss'));
     } else {
       cards.push(sumCard('p', '📍 Posizione base', 'bad', 'Non inviata', 'i rover non possono fare RTK', 'page-gnss'));
     }
   } else if (lastSignals) {
-    const q = lastSignals.gnss_fix_quality;
-    const cls = q === 4 ? 'ok' : (q === 5 || q === 2 ? 'warn' : 'bad');
-    cards.push(sumCard('p', '🎯 Fix', cls, lastSignals.gnss_fix_valid ? (lastSignals.gnss_fix_quality_str || '-') : 'Nessun dato', '', 'page-signals'));
+    const cls = fixClass(lastSignals.gnss_fix_valid ? lastSignals.gnss_fix_quality : -1);
+    cards.push(sumCard('p', '🎯 Fix', cls, escHtml(lastSignals.gnss_fix_valid ? (lastSignals.gnss_fix_quality_str || '-') : 'Nessun dato'),
+      lastSignals.gnss_satellites_used ? lastSignals.gnss_satellites_used + ' satelliti nel fix' : '', 'page-status#fix'));
   }
   // Satelliti
   if (lastSignals) {
     const sats = lastSignals.satellites || [];
     const good = sats.filter((x) => x.snr >= 35).length;
     const cls = good >= 8 ? 'ok' : (good >= 4 ? 'warn' : 'bad');
-    cards.push(sumCard('s', '🛰️ Satelliti', cls, good + ' buoni', 'su ' + sats.length + ' in vista', 'page-signals'));
+    cards.push(sumCard('s', '🛰️ Satelliti', cls, good + ' buoni', 'su ' + sats.length + ' in vista · grafico ›', 'page-status#sat'));
   }
-  // Sistema
+  // Temperature
+  {
+    const t = s.chip_temp_c, g = s.gnss_temp_c;
+    const hot = Math.max(t || 0, g || 0);
+    const cls = hot >= 70 ? 'bad' : (hot >= 60 ? 'warn' : 'ok');
+    if (t || (g !== undefined && g !== null)) {
+      cards.push(sumCard('t', '🌡️ Temperature', cls, (t ? 'ESP ' + t.toFixed(0) + ' °C' : '') + (g !== undefined && g !== null ? (t ? ' · ' : '') + 'GNSS ' + g + ' °C' : ''),
+        s.chip_temp_max_c ? 'massima ' + s.chip_temp_max_c.toFixed(0) + ' °C' : '', 'page-status#sys'));
+    }
+  }
+  // Connessioni: WiFi, LTE, Ethernet, con le tacche come sul telefono.
+  const sig = lastSignals || {};
+  const ethInUse = netInUse(s) === 'ethernet';
+  if (s.wifi_current_ssid) {
+    const b = signalBars(sig.wifi_rssi_dbm, [-80, -70, -60]);
+    cards.push(sumCard('w', '📶 WiFi', b.n ? b.cls : 'warn', '<span class="sc-bars">' + b.bars + '</span> ' + b.word,
+      (b.n ? sig.wifi_rssi_dbm + ' dBm · ' : '') + s.wifi_current_ssid + (s.net === 'wifi' ? ' · in uso' : ''), 'page-network'));
+  }
+  if (usesCellular(s)) {
+    const b = signalBars(sig.cellular_rssi_dbm, [-105, -95, -85]);
+    cards.push(sumCard('l', '📱 LTE', b.n ? b.cls : (s.net === 'cellulare' ? 'bad' : 'warn'), b.n ? '<span class="sc-bars">' + b.bars + '</span> ' + b.word : 'Nessun segnale',
+      (b.n ? sig.cellular_rssi_dbm + ' dBm · ' : '') + (sig.cellular_operator || 'non registrato') + (sig.cellular_tech ? ' · ' + sig.cellular_tech : '') + (s.net === 'cellulare' ? ' · in uso' : ''), 'page-sim'));
+  }
+  if (s.eth_connected) {
+    cards.push(sumCard('e', '🔌 Ethernet', 'ok', 'Collegata', ethInUse ? 'in uso' : '', 'page-network'));
+  }
+  // Memoria: solo se scarsa (i dettagli sono nel riquadro Sistema).
   const freeKb = Math.round((s.free_heap_bytes || 0) / 1024);
-  const temp = s.chip_temp_c;
-  const sysCls = (freeKb < 16 || (temp && temp >= 70)) ? 'bad' : ((freeKb < 30 || (temp && temp >= 60)) ? 'warn' : 'ok');
-  cards.push(sumCard('y', '⚙️ Sistema', sysCls, freeKb + ' KB liberi', (temp ? 'ESP ' + temp.toFixed(0) + ' °C · ' : '') + (s.gnss_temp_c !== undefined ? 'GNSS ' + s.gnss_temp_c + ' °C · ' : '') + 'CPU ' + Math.round(Math.max(s.cpu0_percent || 0, s.cpu1_percent || 0)) + '%', 'page-status'));
+  if (freeKb > 0 && freeKb < 16) {
+    cards.push(sumCard('y', '⚙️ Memoria', 'bad', freeKb + ' KB liberi', 'poca memoria: se capita spesso, riavvia', 'page-status#sys'));
+  }
   // SIM
-  if (s.cellular_module) {
+  if (usesCellular(s)) {
     let cls = 'ok', val = 'Pronta', sub = '';
     if (s.sim_credit_eur !== undefined) {
       val = s.sim_credit_eur.toFixed(2).replace('.', ',') + ' €';
@@ -4272,21 +4609,122 @@ function updateSummaryCards(s) {
       sub = 'piano dati ' + pct + '%';
       if (pct >= 90) cls = 'bad'; else if (pct >= 70 && cls === 'ok') cls = 'warn';
     }
-    if (s.sim_renew_days_left !== undefined && s.sim_renew_days_left <= (s.sim_notice1_days || 7)) {
+    if (s.sim_renew_days_left !== undefined && s.sim_renew_days_left <= simNoticeDays(s)) {
       sub += (sub ? ' · ' : '') + (s.sim_renew_days_left < 0 ? 'rinnovo scaduto' : 'rinnovo tra ' + s.sim_renew_days_left + ' g');
       if (s.sim_renew_days_left < 0) cls = 'bad'; else if (cls === 'ok') cls = 'warn';
     }
-    cards.push(sumCard('m', '📱 SIM', cls, val, sub, 'page-sim'));
+    cards.push(sumCard('m', '📱 SIM', cls, escHtml(val), sub, 'page-sim'));
   }
-  box.innerHTML = cards.join('');
-  box.querySelectorAll('.sum-card').forEach((c) => c.addEventListener('click', () => goToPage(c.dataset.target)));
+  // Riscritti solo se cambiano: un tocco a cavallo dell'aggiornamento non va perso.
+  const html = cards.join('');
+  if (html !== lastCardsHtml) {
+    box.innerHTML = html;
+    lastCardsHtml = html;
+  }
+  updateStatusVerdict(s);
+}
+// Un solo ascoltatore per tutti i riquadri (vengono ricreati).
+document.getElementById('summary-cards').addEventListener('click', (ev) => {
+  const c = ev.target.closest('.sum-card');
+  if (!c) return;
+  const [page, anchor] = c.dataset.target.split('#');
+  goToPage(page);
+  const el = { sat: 'sat-fieldset', fix: 'fix-quality', sys: 'st-reset' }[anchor];
+  const target = el ? document.getElementById(el) : null;
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+function escHtml(t) {
+  return String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+// Tacche come sul telefono: soglie in dBm per 2, 3 e 4 tacche. n = 0: dato non disponibile.
+function signalBars(dbm, th) {
+  if (dbm === null || dbm === undefined) return { bars: '____', cls: 'warn', n: 0, word: 'segnale ?' };
+  let n = 1;
+  if (dbm >= th[0]) n = 2;
+  if (dbm >= th[1]) n = 3;
+  if (dbm >= th[2]) n = 4;
+  return { bars: '▂▄▆█'.slice(0, n) + '_'.repeat(4 - n), cls: n >= 3 ? 'ok' : (n === 2 ? 'warn' : 'bad'), n,
+    word: ['', 'Debole', 'Discreto', 'Buono', 'Ottimo'][n] };
+}
+// Riquadro in cima: tutto bene, oppure il problema piu' importante per primo.
+function updateStatusVerdict(s) {
+  const box = document.getElementById('status-verdict');
+  if (!box) return;
+  const bad = [], warn = [];
+  let why1005 = '', whyCaster = '';
+  const rover = activeDeviceMode === 'rover';
+  const sig = lastSignals || {};
+  const sats = sig.satellites || [];
+  const good = sats.filter((x) => x.snr >= 35).length;
+  const lic = s.license;
+  if (lic && lic.enforce && (lic.state === 'da_attivare' || lic.state === 'revocato')) {
+    bad.push(lic.state === 'revocato' ? 'Ricevitore revocato: contatta l’assistenza.' : 'Ricevitore da attivare: Manutenzione → Licenza.');
+  }
+  if (lic && lic.extras_suspended) {
+    warn.push('Funzioni extra sospese: il ricevitore non si collega al server delle licenze (Manutenzione → Licenza).');
+  }
+  if (!s.ntrip_connected) {
+    const down = s.ntrip_last_disconnect_us > 0 && s.now_us ? Math.round((s.now_us - s.ntrip_last_disconnect_us) / 60e6) : null;
+    bad.push('Caster scollegato' + (down ? ' da ' + down + ' min' : '') + '.');
+    whyCaster = s.ntrip_last_error ? 'Motivo: ' + s.ntrip_last_error + '.' : '';
+  }
+  if (!rover) {
+    const st = basePositionState(s);
+    if (st === 'bad' || st === 'svin') {
+      (st === 'bad' ? bad : warn).push(st === 'bad' ? 'La base non manda la sua posizione (1005): i rover non possono fare RTK.'
+        : 'La base non manda ancora la sua posizione (1005): survey-in in corso.');
+      why1005 = (document.getElementById('no-1005-reason') || {}).textContent || '';
+    }
+    if (s.selfpos_alarm) bad.push("L'antenna della base sembra spostata.");
+  } else if (lastSignals && sig.gnss_fix_valid !== undefined) {
+    const q = sig.gnss_fix_quality;
+    if (q === 5) warn.push('RTK float: precisione decimetrica, il fix RTK fisso non è ancora arrivato.');
+    else if (q === 2) warn.push('Nessun fix RTK: posizione con correzioni approssimate (DGPS o HAS), precisione di decimetri.');
+    else if (q !== 4 && q !== 6) bad.push(sig.gnss_fix_valid ? 'Nessun fix RTK: posizione autonoma, senza correzioni (qualche metro).' : 'Nessun fix: il ricevitore non ha ancora una posizione.');
+  }
+  if (lastSignals) {
+    if (sats.length === 0) bad.push("Nessun satellite in vista: controlla l'antenna e il cavo.");
+    else if (good < 4) bad.push('Solo ' + good + " satelliti buoni: l'antenna non vede abbastanza cielo.");
+    else if (good < 8) warn.push('Solo ' + good + ' satelliti buoni (ne servono almeno 8 per un RTK affidabile).');
+  }
+  const hot = Math.max(s.chip_temp_c || 0, s.gnss_temp_c || 0);
+  if (hot >= 70) bad.push('Temperatura alta (' + hot.toFixed(0) + ' °C): ripara il ricevitore dal sole.');
+  else if (hot >= 60) warn.push('Temperatura elevata (' + hot.toFixed(0) + ' °C).');
+  if (s.net === 'cellulare' && signalBars(sig.cellular_rssi_dbm, [-105, -95, -85]).n === 1) warn.push('Segnale LTE debole.');
+  if (s.net === 'wifi' && signalBars(sig.wifi_rssi_dbm, [-80, -70, -60]).n === 1) warn.push('Segnale WiFi debole.');
+  if (s.net === 'nessuna' && !netInUse(s)) bad.push('Nessuna connessione a internet.');
+  if (usesCellular(s) && s.sim_renew_days_left !== undefined && s.sim_renew_days_left < 0) bad.push('Piano della SIM scaduto.');
+  const all = bad.concat(warn);
+  let cls, head, sub;
+  if (!lastSignals) {
+    cls = 'warn';
+    head = '⏳ Lettura dello stato in corso…';
+    sub = '';
+  } else if (!all.length) {
+    cls = 'ok';
+    head = '✅ Funziona tutto';
+    sub = rover ? 'Rover in RTK, ' + good + ' satelliti buoni, correzioni dal caster.' : 'Base collegata al caster, posizione inviata ai rover, ' + good + ' satelliti buoni.';
+  } else {
+    cls = bad.length ? 'bad' : 'warn';
+    head = (bad.length ? '❌ ' : '⚠️ ') + all[0];
+    sub = /posizione \(1005\)/.test(all[0]) ? why1005 : (all[0].startsWith('Caster scollegato') ? whyCaster : '');
+  }
+  box.className = 'status-verdict ' + cls;
+  box.innerHTML = '<div class="sv-head"></div>' + (sub ? '<div class="sv-sub"></div>' : '') + (all.length > 1 ? '<ul></ul>' : '');
+  box.querySelector('.sv-head').textContent = head;
+  if (sub) box.querySelector('.sv-sub').textContent = sub;
+  if (all.length > 1) {
+    const ul = box.querySelector('ul');
+    all.slice(1).forEach((t) => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+  }
 }
 
 function update1005Banner(s) {
   const box = document.getElementById('no-1005-banner');
   const age = s.base_position_age_s;
   const show = activeDeviceMode === 'base' && s.now_us > 60e6 && (age === undefined || age < 0 || age > 30);
-  box.style.display = show ? '' : 'none';
+  box.style.display = 'none'; // il motivo compare nel riquadro in cima alla scheda Stato
   if (!show) return;
   let why;
   if (!s.rtcm_1005_enable) {
@@ -4325,7 +4763,7 @@ function updateModeBadge(active, saved, name) {
 function updateModeVisibility() {
   const formMode = document.getElementById('cfg-form').device_mode.value;
   document.querySelectorAll('[data-mode]').forEach((el) => {
-    const isLivePage = !!el.closest('#page-status, #page-signals');
+    const isLivePage = !!el.closest('#page-status');
     const mode = isLivePage ? (activeDeviceMode || formMode) : formMode;
     el.hidden = el.dataset.mode !== mode;
   });
@@ -4547,31 +4985,41 @@ function pollOtaProgress(targetVersion) {
   poll();
 }
 
-async function downloadConfig(stripIdentity) {
+// Copia per preparare un altro ricevitore: le impostazioni lette dallo stato,
+// senza i campi che appartengono solo a questo ricevitore (le password il
+// ricevitore non le manda mai). Vanno poi compilati sul nuovo ricevitore.
+const CLONE_SKIP = [
+  'device_serial', 'device_serial_from_mac', 'ap_ssid', 'ap_ip', 'wifi_ip', 'eth_ip',
+  'ntrip_mountpoint', 'ntrip_caster_server_mountpoint', 'rover_username',
+  'base_position_mode', 'base_fixed_lat_deg', 'base_fixed_lon_deg', 'base_fixed_height_m',
+  'base_current_position_set', 'base_current_lat_deg', 'base_current_lon_deg', 'base_current_height_m',
+  'vpn_enable', 'vpn_address', 'vpn_public_key', 'vpn_has_key',
+  'sim_phone', 'sim_iccid_cfg', 'sim_renew_date', 'sim_iccid', 'sim_imei', 'sim_phone_read',
+  'sim_iccid_prev', 'sim_imei_prev', 'sim_ids_at', 'remote_url', 'license',
+];
+const CLONE_FILL = 'mountpoint della base (o utente del rover), coordinate della base, VPN, numero e ICCID della SIM, ' +
+  'data di rinnovo del piano, indirizzo del monitoraggio remoto e tutte le password';
+async function downloadCloneConfig() {
+  const msg = document.getElementById('cfg-clone-msg');
   try {
-    const r = await fetch('/api/status');
-    const s = await r.json();
-    if (stripIdentity) {
-      delete s.device_serial;
-      delete s.device_serial_from_mac;
-      delete s.ap_ssid;
-    }
+    const s = await readJson(await fetch('/api/status', { cache: 'no-store' }));
+    CLONE_SKIP.forEach((k) => delete s[k]);
     const blob = new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = (stripIdentity ? 'evonetrtk-config-clonabile' : 'evonetrtk-config-' + (s.device_serial || 'dispositivo')) + '.json';
+    a.download = 'evonetrtk-copia-per-altro-ricevitore.json';
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    msg.textContent = '✅ Copia scaricata. Sul nuovo ricevitore, dopo l’importazione, compila: ' + CLONE_FILL + '.';
   } catch (e) {
-    alert('Errore nello scaricamento della configurazione');
+    msg.textContent = errText(e, 'Errore nello scaricamento della copia');
   }
 }
 
-document.getElementById('cfgjson-export-btn').addEventListener('click', () => downloadConfig(false));
-document.getElementById('cfgjson-export-clone-btn').addEventListener('click', () => downloadConfig(true));
+document.getElementById('cfgjson-export-clone-btn').addEventListener('click', downloadCloneConfig);
 
 document.getElementById('cfgjson-import-btn').addEventListener('click', async () => {
   const msg = document.getElementById('cfgjson-import-msg');
@@ -4581,19 +5029,20 @@ document.getElementById('cfgjson-import-btn').addEventListener('click', async ()
     msg.textContent = 'Seleziona prima un file .json';
     return;
   }
-  if (!confirm('Applicare la configurazione dal file "' + file.name + '"? Sovrascrive i valori attuali (le password restano quelle gia\' salvate, il file non le contiene).')) {
+  if (!confirm('Applicare la configurazione dal file "' + file.name + '"? Sovrascrive i valori attuali (le password restano quelle gia\' salvate, il file non le contiene). Matricola, mountpoint, coordinate, VPN e dati della SIM di questo ricevitore non cambiano.')) {
     return;
   }
   msg.textContent = 'Importazione...';
   try {
     const text = await file.text();
     const data = JSON.parse(text);
+    CLONE_SKIP.forEach((k) => delete data[k]); // anche da copie fatte con versioni precedenti del pannello
     const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
-    if (!r.ok) throw new Error('errore server');
-    msg.textContent = 'Configurazione importata, ricarico la pagina per mostrare i nuovi valori...';
-    setTimeout(() => location.reload(), 1200);
+    if (!r.ok) throw await httpError(r);
+    msg.textContent = 'Configurazione importata. Ora compila: ' + CLONE_FILL + '. Ricarico la pagina tra pochi secondi...';
+    setTimeout(() => location.reload(), 6000);
   } catch (e) {
-    msg.textContent = 'Errore: file non valido o problema di comunicazione col dispositivo';
+    msg.textContent = errText(e, 'Errore: file non valido o problema di comunicazione col dispositivo');
   }
 });
 
@@ -4705,8 +5154,16 @@ async function applyFwArchive(filename) {
 loadStatus();
 loadSignals();
 loadFwArchive();
-setInterval(loadStatus, 5000);
-setInterval(loadSignals, 3000);
+// Con la scheda del browser nascosta niente richieste (la base ha poca
+// memoria); al ritorno i dati si aggiornano subito.
+setInterval(() => { if (!document.hidden) loadStatus(); }, 5000);
+setInterval(() => { if (!document.hidden) loadSignals(); }, 3000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    loadStatus();
+    loadSignals();
+  }
+});
 
 // Alcuni browser autocompilano il campo password del WiFi con una
 // credenziale salvata per questo indirizzo (non necessariamente quella

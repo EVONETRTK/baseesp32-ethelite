@@ -8,14 +8,14 @@
   <li><strong>Alimentazione e riavvii</strong>: scheda <em>Stato</em>, riquadro <em>Sistema</em>, riga <em>Ultimo riavvio</em>.</li>
   <li><strong>Modulo GNSS</strong>: <em>Ultimo dato dal GNSS</em> recente e riquadro <strong>Satelliti</strong> verde.</li>
   <li><strong>Posizione</strong>: in base il riquadro <strong>Posizione base</strong>, in rover il riquadro <strong>Fix</strong>.</li>
-  <li><strong>Rete</strong>: pallino di rete e pagina <em>Segnali</em>.</li>
+  <li><strong>Rete</strong>: pallino di rete e riquadri WiFi e LTE della scheda <em>Stato</em>.</li>
   <li><strong>Caster</strong>: riquadro <em>Server/Client NTRIP</em>, campi <em>Ultimo errore</em> e <em>Riconnessioni dal boot</em>.</li>
   <li><strong>Log</strong>: scheda <em>Manutenzione</em>, log recenti e log della microSD (capitolo <a data-cap="Scheda Manutenzione"></a>).</li>
 </ol>
 
 <h2>Pochi satelliti o nessuna posizione</h2>
 
-<p>Il riquadro <strong>Satelliti</strong> è rosso o arancione, la pagina <em>Segnali</em> mostra pochi satelliti o segnali deboli, in base il survey-in non converge, in rover il fix non arriva.</p>
+<p>Il riquadro <strong>Satelliti</strong> è rosso o arancione, il grafico dei satelliti nella scheda <em>Stato</em> mostra pochi satelliti o segnali deboli, in base il survey-in non converge, in rover il fix non arriva.</p>
 
 <table class="divisibile">
   <tr><th>Sintomo</th><th>Causa probabile</th><th>Cosa fare</th></tr>
@@ -83,7 +83,7 @@
 
 <table class="divisibile">
   <tr><th>Sintomo</th><th>Causa probabile</th><th>Cosa fare</th></tr>
-  <tr><td>Caster verde, Fix su <em>GPS</em></td><td>Le correzioni arrivano ma non sono usate, o la base non invia il 1005.</td><td>Controllate la base (Posizione base verde); pagina <em>Segnali</em>, età delle correzioni.</td></tr>
+  <tr><td>Caster verde, Fix su <em>GPS</em></td><td>Le correzioni arrivano ma non sono usate, o la base non invia il 1005.</td><td>Controllate la base (Posizione base verde); scheda <em>Stato</em>, riquadro Fix GNSS, età delle correzioni.</td></tr>
   <tr><td>Fix fermo su <em>RTK float</em></td><td>Cielo parzialmente coperto, base lontana, multipath.</td><td>Cielo libero; base entro 20–30 km; antenna del rover lontana da superfici metalliche.</td></tr>
   <tr><td>Fix che passa spesso da fisso a float</td><td>Ostacoli lungo il percorso, buchi della rete mobile, antenna che vibra.</td><td>Supporto dell'antenna rigido; controllate la qualità della SIM in campo.</td></tr>
   <tr><td>Nessun dato al programma di guida</td><td>Porta o rete diverse, firewall del tablet.</td><td>Capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>, problemi comuni.</td></tr>
@@ -101,6 +101,10 @@
   <li><strong>riavvio software</strong> con un motivo (aggiornamento, configurazione importata, richiesto dal pannello): riavvio voluto.</li>
 </ul>
 
+<h3>Il ricevitore non finisce di avviarsi</h3>
+
+<p>Se l'accensione si ferma a metà (il pannello non risponde, la rete EVONETRTK-… non compare), il ricevitore si riavvia da solo dopo 2 minuti. All'avvio libera anche il bus I2C, che collega il modulo GNSS, il display e i LED, nel caso un componente fosse rimasto bloccato. Quando il ricevitore riparte, la riga <em>Ultimo riavvio</em> indica in rosso dove si era fermato l'avvio precedente: comunicatelo all'assistenza insieme al log della microSD. Se il ricevitore resta comunque spento o bloccato, staccate l'alimentazione per 10 secondi e ricollegatela.</p>
+
 <h3>Il ricevitore torna a una configurazione precedente</h3>
 
 <p>Dopo tre riavvii per guasto di fila il ricevitore ricarica da solo l'ultima configurazione che ha funzionato, salvata sulla microSD. Se succede, l'ultima modifica fatta impediva al ricevitore di lavorare: rifatela con attenzione, una impostazione alla volta, controllando dopo ognuna che il ricevitore risponda.</p>
@@ -115,6 +119,8 @@
 <h3>Ripristino di fabbrica</h3>
 
 <p>Quando la configurazione è compromessa o la password è persa: con il ricevitore acceso tenete premuto il pulsante <strong>BOOT</strong> per 5 secondi. Tutte le impostazioni tornano ai valori di fabbrica (capitolo <a data-cap="Primo avvio e accesso al pannello"></a>); poi ricaricate la copia completa della configurazione dalla scheda <em>Manutenzione</em>.</p>
+
+<p>Il ripristino cancella anche la licenza: il ricevitore torna «da attivare». Per riattivarlo serve un <strong>codice di attivazione nuovo</strong>, che chiedete all'assistenza EVONETRTK indicando la matricola: il vecchio codice, per sicurezza, non basta se il ricevitore era in funzione nei 7 giorni precedenti.</p>
 
 <div class="box avviso"><span class="box-titolo">Pericolo</span>Dopo un ripristino di fabbrica una base non trasmette finché non viene riconfigurata, e le sue coordinate fisse sono perse se non c'è una copia della configurazione o un registro delle coordinate. Prima di qualunque intervento importante scaricate sempre una copia completa.</div>
 

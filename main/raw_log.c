@@ -181,7 +181,9 @@ void raw_log_init(void)
         nvs_get_i64(h, "end", &end);
         nvs_get_u8(h, "int", &iv);
         nvs_close(h);
-        if (end > 0) {
+        if (end > 0 && !license_has(LIC_BASE)) {
+            ESP_LOGW(TAG, "Sessione di registrazione non ripresa: Pacchetto Base non compreso nella licenza");
+        } else if (end > 0) {
             s_end_unix = end;
             s_interval_s = iv ? iv : 5;
             s_active = true; // il file si apre quando c'e' l'ora esatta (raw_log_service)
@@ -202,7 +204,7 @@ uint8_t raw_log_wanted_rate(void)
 
 bool raw_log_start(uint32_t hours, uint8_t interval_s, char *err, size_t err_size)
 {
-    if (!license_has(LIC_BASE_PRO)) {
+    if (!license_has(LIC_BASE)) {
         snprintf(err, err_size, "funzione non compresa nella licenza");
         return false;
     }
@@ -220,6 +222,13 @@ bool raw_log_start(uint32_t hours, uint8_t interval_s, char *err, size_t err_siz
     }
     if (s_active) {
         snprintf(err, err_size, "registrazione gia' in corso");
+        return false;
+    }
+    // Sessione fermata ma file non ancora chiuso: raw_log_service sta ancora
+    // scrivendo il resto del buffer sulla microSD. Ripartire ora azzererebbe
+    // il nome del file e i contatori, e la coda finirebbe nel file nuovo.
+    if (s_file[0]) {
+        snprintf(err, err_size, "la registrazione precedente si sta ancora chiudendo sulla microSD: riprova tra 30 secondi");
         return false;
     }
     s_interval_s = interval_s;

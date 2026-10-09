@@ -5,19 +5,31 @@
 <p>Il riquadro <strong>🔑 Licenza</strong>, in cima alla scheda, mostra lo stato del ricevitore, il cliente a cui è intestato, la data dell'ultimo controllo con il server EVONETRTK e l'elenco delle funzioni con la loro scadenza:</p>
 
 <table>
-  <tr><th>Funzione</th><th>Cosa comprende</th></tr>
-  <tr><td>Correzioni RTK</td><td>Base: invio delle correzioni al caster. Rover: correzioni dal caster e una posizione al secondo verso il software di guida. Compresa nel prezzo del ricevitore.</td></tr>
-  <tr><td>Autosterzo</td><td>5 o 10 posizioni al secondo per AgOpenGPS (capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>).</td></tr>
-  <tr><td>Galileo HAS</td><td>Misura della posizione della base con HAS e riserva HAS del rover.</td></tr>
-  <tr><td>IMU e doppia antenna</td><td>Funzioni inerziali e prua del ComNav K922.</td></tr>
-  <tr><td>Servizi avanzati</td><td>Caster locale, VPN, monitoraggio remoto, registrazione dei dati grezzi, avvisi via email e WhatsApp.</td></tr>
+  <tr><th>Pacchetto o extra</th><th>Cosa comprende</th></tr>
+  <tr><td>📦 Pacchetto Rover</td><td>Lavorare come rover: correzioni dal caster e una posizione al secondo verso il software di guida. È il pacchetto principale.</td></tr>
+  <tr><td>📦 Pacchetto Base</td><td>Lavorare come base: invio delle correzioni al caster, misura della posizione con Galileo HAS, caster locale, VPN, monitoraggio remoto, registrazione dei dati grezzi, avvisi via email e WhatsApp, controllo dell'antenna spostata.</td></tr>
+  <tr><td>➕ Autosterzo (extra rover)</td><td>5 o 10 posizioni al secondo per AgOpenGPS (capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>).</td></tr>
+  <tr><td>➕ Riserva Galileo HAS (extra rover)</td><td>Quando mancano le correzioni dal caster il rover continua con HAS, con precisione di qualche decimetro.</td></tr>
+  <tr><td>➕ IMU e doppia antenna (extra rover)</td><td>Funzioni inerziali e prua del ComNav K922.</td></tr>
 </table>
+
+<p>Il pacchetto decide anche il <strong>modo di lavoro</strong>: un ricevitore con il Pacchetto Rover non può lavorare come base, e viceversa. Le voci del pannello non comprese nella licenza compaiono <strong>in grigio con il lucchetto</strong> 🔒 e la scritta del pacchetto che serve; nella scelta del modo, quello non compreso ha il lucchetto.</p>
 
 <p><strong>Attivazione.</strong> Un ricevitore nuovo è «da attivare». Collegatelo a internet, aprite il riquadro Licenza, leggete le avvertenze di sicurezza, le note legali e la garanzia (capitolo <a data-cap="Avvertenze di sicurezza"></a> e appendice <a data-cap="Note legali e garanzia"></a>), mettete le <strong>due spunte</strong> di accettazione, scrivete nome e cognome e il <strong>codice di attivazione</strong> che trovate in fattura o nel portale EVONETRTK, poi premete <strong>Attiva</strong>. Dopo il messaggio «Ricevitore attivato» riavviate il ricevitore.</p>
 
+<p>Se l'attivazione non parte, un riquadro rosso elenca il motivo e i campi da correggere diventano rossi: manca una delle due spunte, mancano nome e cognome, il codice manca o non ha il formato giusto (<code>EVO-</code> e tre gruppi di 4 caratteri; nei codici non esistono le cifre 0 e 1 né le lettere O, I e L), il codice non è valido, è già stato usato su un altro ricevitore o appartiene a un'altra matricola, la matricola risulta già attivata su un'altra scheda, il ricevitore è stato revocato, l'ora del ricevitore è sbagliata, oppure il server non è raggiungibile. Il messaggio inizia sempre con «Attivazione non riuscita:» seguito dal motivo. Il codice si può scrivere anche in minuscolo o senza trattini.</p>
+
 <p><strong>Rinnovo.</strong> Il ricevitore controlla la licenza da solo una volta al giorno quando ha internet; il pulsante <strong>Aggiorna licenza</strong> fa il controllo subito, per esempio dopo aver acquistato una funzione. La licenza è firmata dal server e il ricevitore la verifica da sé: funziona anche senza internet.</p>
 
-<div class="box nota"><span class="box-titolo">Le funzioni cambiano solo al riavvio</span>Una funzione acquistata, una scadenza o una revoca arrivano con il controllo giornaliero ma valgono <strong>dal riavvio successivo</strong>: nessuna funzione si spegne mentre il ricevitore lavora. Prima della scadenza di una funzione il riquadro lo segnala con 30 giorni di anticipo. Le correzioni RTK non scadono.</div>
+<p><strong>Senza collegamento al server per 30 giorni</strong> le funzioni extra (autosterzo a 5 e 10 Hz, riserva HAS, IMU e doppia antenna) si sospendono al riavvio successivo; il pacchetto Rover o Base continua a funzionare. Il riquadro avvisa già dopo 7 giorni senza collegamento. Le funzioni sospese tornano dopo il primo rinnovo riuscito, dal riavvio successivo.</p>
+
+<p><strong>Promemoria.</strong> Sui canali degli avvisi (email, WhatsApp: capitolo <a data-cap="Scheda Avvisi"></a>) arrivano promemoria a 30 e a 7 giorni dalla scadenza di una funzione extra.</p>
+
+<p><strong>Matricola.</strong> Dopo l'attivazione la matricola non si può più cambiare dal pannello: la licenza vale solo per quella matricola. Il campo compare bloccato con il lucchetto.</p>
+
+<p><strong>Note della licenza.</strong> Quando c'è qualcosa da sapere (preavviso per il mancato collegamento al server, funzioni extra sospese) il riquadro mostra una nota gialla, rossa se le funzioni extra sono sospese; in quel caso le funzioni extra nella tabella risultano «sospese» e anche il giudizio della scheda <em>Stato</em> lo segnala. Sotto «Ultimo controllo con il server» compaiono i giorni senza contatto, da 7 in su.</p>
+
+<div class="box nota"><span class="box-titolo">Le funzioni cambiano solo al riavvio</span>Una funzione acquistata, una scadenza o una revoca arrivano con il controllo giornaliero ma valgono <strong>dal riavvio successivo</strong>: nessuna funzione si spegne mentre il ricevitore lavora. Fino al riavvio, una funzione appena acquistata porta la scritta «attiva dal prossimo riavvio». Prima della scadenza di una funzione il riquadro lo segnala con 30 giorni di anticipo. Le correzioni RTK non scadono.</div>
 
 <div class="box nota"><span class="box-titolo">Versione di prova</span>In questa versione del firmware il sistema delle licenze è in prova: il riquadro mostra lo stato, ma nessuna funzione viene bloccata, nemmeno su un ricevitore non attivato.</div>
 
@@ -51,7 +63,7 @@
 
 <h3>Da microSD</h3>
 
-<p>Senza rete: copiate nella cartella principale di una microSD i file <code>firmware.bin</code> e <code>firmware.json</code> (che contiene il numero di versione, per esempio <code>{"version":"1.26.3"}</code>), inseritela e premete <strong>Controlla e aggiorna da SD</strong>. Se la versione sulla scheda non è più recente di quella installata, non succede niente.</p>
+<p>Senza rete: copiate nella cartella principale di una microSD i file <code>firmware.bin</code> e <code>firmware.json</code> (che contiene il numero di versione, per esempio <code>{"version":"1.26.3"}</code>), inseritela e premete <strong>Controlla e aggiorna da SD</strong>. Se la versione sulla scheda non è più recente di quella installata, non succede niente. Lo stesso controllo avviene da solo a ogni accensione: in quel caso l'aggiornamento può allungare l'avvio di un minuto o poco più, poi il ricevitore si riavvia con la versione nuova.</p>
 
 <h3>Archivio firmware</h3>
 
@@ -63,16 +75,13 @@
 
 <h2>Copie della configurazione</h2>
 
-<p>Il ricevitore tiene da solo sulla microSD una copia della configurazione, aggiornata a ogni salvataggio: se la configurazione in memoria si perde, all'avvio viene ripristinata automaticamente. Non dopo un ripristino di fabbrica fatto con il pulsante, che è voluto. Dal pannello si possono inoltre scaricare e caricare tre tipi di copia:</p>
+<p>Il ricevitore tiene da solo sulla microSD una copia della configurazione, aggiornata a ogni salvataggio: se la configurazione in memoria si perde, all'avvio viene ripristinata automaticamente. Non dopo un ripristino di fabbrica fatto con il pulsante, che è voluto. Dal pannello si possono inoltre scaricare e caricare due tipi di copia:</p>
 
 <table class="divisibile">
   <tr><th>Copia</th><th>Contenuto</th><th>Uso</th></tr>
-  <tr><td><strong>Copia completa</strong> (<code>.bin</code>)<br>Scarica / Carica configurazione</td><td>Tutto, <strong>password comprese</strong>.</td><td>Ripristinare questo ricevitore, o preparare un secondo ricevitore uguale: matricola e rete di setup restano quelle del ricevitore su cui la caricate. Dopo il caricamento il ricevitore si riavvia.</td></tr>
-  <tr><td><strong>Copia leggibile</strong> (<code>.json</code>)</td><td>Tutto <strong>tranne le password</strong>.</td><td>Conservare un riferimento leggibile prima di fare prove. Dopo un'importazione le password vanno reinserite a mano.</td></tr>
-  <tr><td><strong>Copia per clonare</strong> (<code>.json</code>)</td><td>Come la leggibile, ma senza matricola e senza nome della rete di setup.</td><td>Configurare un nuovo ricevitore partendo da uno già pronto, senza che prenda l'identità del primo.</td></tr>
+  <tr><td><strong>Copia completa</strong> (<code>.bin</code>)<br>Scarica copia completa / Ripristina da copia completa</td><td>Tutto, <strong>password comprese</strong>.</td><td>Ripristinare <strong>questo stesso</strong> ricevitore. Il ricevitore rifiuta la copia completa di un altro ricevitore, che porterebbe con sé mountpoint, chiavi VPN e coordinate dell'altro. Dopo il caricamento il ricevitore si riavvia.</td></tr>
+  <tr><td><strong>Copia per un altro ricevitore</strong> (<code>.json</code>)<br>Scarica copia per un altro ricevitore / Importa e applica</td><td>Le impostazioni <strong>senza password</strong> e senza tutto ciò che identifica il singolo ricevitore: matricola, rete di setup, mountpoint e utente, coordinate della base, VPN, dati della SIM, indirizzo del monitoraggio, licenza.</td><td>Preparare un nuovo ricevitore partendo da uno già pronto. Dopo l'importazione il pannello elenca i campi da compilare a mano sul nuovo ricevitore.</td></tr>
 </table>
-
-<p>I file <code>.json</code> si ricaricano con <strong>Importa e applica</strong>.</p>
 
 <div class="box avviso"><span class="box-titolo">Attenzione</span>La copia completa contiene tutte le password: rete WiFi, caster, VPN, avvisi. Conservatela come la scheda di accesso, in un posto sicuro e non condiviso.</div>
 

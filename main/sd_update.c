@@ -2,6 +2,7 @@
 #include "ota_update.h"
 #include "version.h"
 #include "sd_mutex.h"
+#include "sys_stats.h"
 
 #include "sdkconfig.h"
 
@@ -11,6 +12,7 @@
 #include <stdlib.h>
 
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_vfs_fat.h"
 #include "driver/sdspi_host.h"
 #include "driver/spi_common.h"
@@ -221,25 +223,60 @@ cleanup:
 typedef struct {
     char out_msg[96];
     bool result;
+    bool finished;  // il task ha finito e il chiamante lo sta aspettando
+    bool abandoned; // il chiamante e' andato in timeout: il task si arrangia da solo
     SemaphoreHandle_t done;
 } sd_task_ctx_t;
+
+// Protegge finished/abandoned: chiamante e task decidono insieme chi libera
+// il contesto e chi riavvia, anche se il timeout scade proprio mentre il
+// task finisce.
+static portMUX_TYPE s_ctx_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static void sd_update_task(void *arg)
 {
     sd_task_ctx_t *ctx = (sd_task_ctx_t *) arg;
-    ctx->result = sd_update_check_and_apply_impl(ctx->out_msg, sizeof(ctx->out_msg));
-    xSemaphoreGive(ctx->done);
+    bool result = sd_update_check_and_apply_impl(ctx->out_msg, sizeof(ctx->out_msg));
+    taskENTER_CRITICAL(&s_ctx_mux);
+    ctx->result = result;
+    bool orphan = ctx->abandoned;
+    if (!orphan) {
+        ctx->finished = true;
+    }
+    taskEXIT_CRITICAL(&s_ctx_mux);
+    if (!orphan) {
+        xSemaphoreGive(ctx->done);
+        vTaskDelete(NULL);
+        return;
+    }
+    // Il chiamante ha gia' rinunciato. Se l'aggiornamento e' riuscito la
+    // partizione di avvio e' gia' quella nuova: si riavvia subito, altrimenti
+    // il firmware nuovo partirebbe a sorpresa al primo riavvio, magari giorni dopo.
+    set_status(s_last_card_present, ctx->out_msg, s_last_total_bytes, s_last_used_bytes);
+    if (result) {
+        ESP_LOGW(TAG, "Aggiornamento da microSD finito dopo il timeout (%s): riavvio", ctx->out_msg);
+        sys_stats_note_restart_reason("aggiornamento firmware da microSD (finito dopo l'attesa)");
+        vTaskDelay(pdMS_TO_TICKS(300));
+        esp_restart();
+    }
+    ESP_LOGW(TAG, "Controllo della microSD finito dopo il timeout: %s", ctx->out_msg);
+    vSemaphoreDelete(ctx->done);
+    free(ctx);
     vTaskDelete(NULL);
 }
 
 // La UI web (e chi la usa) non deve mai restare bloccata a tempo
 // indeterminato per un problema hardware della SD (scheda difettosa,
 // contatti sporchi, ecc.) - il lavoro vero gira in un task a parte con un
-// timeout massimo. Se scade, il task orfano continua comunque in
-// background (il suo contesto viene volutamente non liberato in quel
-// caso, per evitare un crash se scrivesse su memoria gia' rilasciata) -
-// accettabile per un'azione manuale/occasionale come questa.
+// timeout massimo. Se scade, il task orfano continua in background e libera
+// lui il contesto; se poi l'aggiornamento riesce riavvia lui la base (prima
+// la partizione nuova restava impostata e partiva al primo riavvio qualunque).
 bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size)
+{
+    return sd_update_check_and_apply_timeout(out_msg, out_msg_size, SD_UPDATE_TIMEOUT_MS);
+}
+
+bool sd_update_check_and_apply_timeout(char *out_msg, size_t out_msg_size, uint32_t timeout_ms)
 {
     sd_task_ctx_t *ctx = calloc(1, sizeof(sd_task_ctx_t));
     if (!ctx) {
@@ -259,14 +296,24 @@ bool sd_update_check_and_apply(char *out_msg, size_t out_msg_size)
         return false;
     }
 
-    if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(SD_UPDATE_TIMEOUT_MS)) != pdTRUE) {
-        ESP_LOGE(TAG, "Timeout (%d ms) durante il controllo della scheda SD - il tentativo continua in background",
-                 SD_UPDATE_TIMEOUT_MS);
-        if (out_msg) {
-            snprintf(out_msg, out_msg_size, "La scheda SD non risponde (timeout) - verifica contatti/formato e riprova");
+    if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) {
+        taskENTER_CRITICAL(&s_ctx_mux);
+        bool finished = ctx->finished;
+        if (!finished) {
+            ctx->abandoned = true;
         }
-        set_status(false, "La scheda SD non risponde (timeout)", 0, 0);
-        return false; // ctx e ctx->done restano vivi per il task orfano, vedi commento sopra
+        taskEXIT_CRITICAL(&s_ctx_mux);
+        if (!finished) {
+            ESP_LOGE(TAG, "Timeout (%lu ms) durante il controllo della scheda SD - il tentativo continua in background "
+                          "(se aggiorna il firmware, la base si riavvia da sola)", (unsigned long) timeout_ms);
+            if (out_msg) {
+                snprintf(out_msg, out_msg_size, "La scheda SD non risponde (timeout) - verifica contatti/formato e riprova");
+            }
+            set_status(false, "La scheda SD non risponde (timeout)", 0, 0);
+            return false; // ctx e ctx->done li libera il task orfano, vedi sd_update_task
+        }
+        // Finito proprio allo scadere: il segnale arriva subito.
+        xSemaphoreTake(ctx->done, portMAX_DELAY);
     }
 
     bool result = ctx->result;

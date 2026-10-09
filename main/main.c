@@ -56,6 +56,7 @@
 #include "raw_log.h"
 #include "base_selfpos.h"
 #include "license.h"
+#include "boot_guard.h"
 
 static const char *TAG = "main";
 
@@ -85,7 +86,7 @@ static void base_forward_rtcm_frame(const uint8_t *frame, size_t len)
     ntrip_caster_server_feed(frame, len);
     ppp_log_feed(frame, len);
     // Senza attivazione il client NTRIP non parte: niente coda che si riempie.
-    if (license_has(LIC_RTK)) {
+    if (license_has(LIC_BASE)) {
         xStreamBufferSend(rtcm_stream, frame, len, pdMS_TO_TICKS(1000));
     }
 }
@@ -144,6 +145,7 @@ static void *cjson_malloc_psram(size_t size)
 
 void app_main(void)
 {
+    boot_guard_early(); // salvavita dell'avvio: prima di tutto il resto
     {
         cJSON_Hooks hooks = { .malloc_fn = cjson_malloc_psram, .free_fn = free };
         cJSON_InitHooks(&hooks);
@@ -163,12 +165,20 @@ void app_main(void)
 
     esp_err_t nvs_err = nvs_flash_init();
     if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // ATTENZIONE: la NVS contiene anche la chiave del ricevitore e la
+        // licenza (namespace "license"): cancellandola il ricevitore torna
+        // "da attivare" e la chiave viene rigenerata (serve riattivarlo con
+        // il server). Da decidere: partizione NVS separata per la licenza.
+        ESP_LOGE(TAG, "NVS non leggibile (%s): la cancello. Si perdono configurazione, chiave del ricevitore "
+                      "e LICENZA: il ricevitore andra' riattivato", esp_err_to_name(nvs_err));
         ESP_ERROR_CHECK(nvs_flash_erase());
         nvs_err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(nvs_err);
+    boot_guard_after_nvs();
 
     settings_init();
+    boot_guard_stage(BOOT_STAGE_SETTINGS);
     config_backup_restore_if_missing(); // configurazione persa: ripristino dalla microSD
     config_backup_crash_guard();        // riavvii a catena: ultima configurazione buona
     ota_update_check_rollback();
@@ -182,6 +192,7 @@ void app_main(void)
     // mai chiamata e la tabella restera' vuota.
     rtcm3_stats_init();
 
+    boot_guard_stage(BOOT_STAGE_OLED);
     status_led_start();
     oled_display_start();
     reset_button_start();
@@ -194,17 +205,21 @@ void app_main(void)
         // gia' andato in overflow per questo (vedi sdkconfig.defaults).
         settings_get_into(&s_boot_cfg);
         pending_restart_snapshot(&s_boot_cfg); // prima del riconoscimento del ricevitore
+        boot_guard_stage(BOOT_STAGE_LICENSE);
         license_init(); // funzioni concesse in questo avvio (fisse fino al riavvio)
         status_set_active_rover(s_boot_cfg.device_mode == DEVICE_MODE_ROVER);
+        boot_guard_stage(BOOT_STAGE_GNSS_PROBE);
         s_gnss_i2c_found = gnss_i2c_probe(s_boot_cfg.oled_sda_pin, s_boot_cfg.oled_scl_pin);
     }
 
     // Porta su l'AP di setup + tenta WiFi/cellulare/Ethernet in background
     // (non blocca): la UI web deve restare raggiungibile anche senza rete
     // configurata.
+    boot_guard_stage(BOOT_STAGE_NET);
     net_manager_start();
     time_sync_start(); // ora vera via NTP (log, temperatura massima)
     nmea_udp_broadcast_init();
+    boot_guard_stage(BOOT_STAGE_WEB);
     web_ui_start();
 
     // A questo punto AP di setup e server web sono su: il firmware si e'
@@ -220,9 +235,19 @@ void app_main(void)
     // un aggiornamento riuscito per non riapplicarlo ad ogni riavvio) -
     // se non c'e' nessuna scheda inserita, o non c'e' un aggiornamento piu'
     // recente di quello attuale, non succede nulla.
+    //
+    // Attesa fino a 90 s (prima 15: con una scheda lenta l'aggiornamento
+    // finiva dopo, la partizione nuova restava impostata e il firmware nuovo
+    // partiva a sorpresa al primo riavvio, anche giorni dopo), ma sempre
+    // 10 s prima che scatti il salvavita dell'avvio. Se l'attesa scade e
+    // l'aggiornamento poi riesce, riavvia il task dell'SD (sd_update.c).
     char sd_msg[96] = {0};
-    if (sd_update_check_and_apply(sd_msg, sizeof(sd_msg))) {
+    boot_guard_stage(BOOT_STAGE_SD_UPDATE);
+    uint32_t sd_wait_ms = boot_guard_remaining_ms();
+    sd_wait_ms = sd_wait_ms > 100000 ? 90000 : (sd_wait_ms > 25000 ? sd_wait_ms - 10000 : 15000);
+    if (sd_update_check_and_apply_timeout(sd_msg, sizeof(sd_msg), sd_wait_ms)) {
         ESP_LOGI(TAG, "Firmware aggiornato da microSD all'avvio, riavvio in corso: %s", sd_msg);
+        sys_stats_note_restart_reason("aggiornamento firmware da microSD all'avvio");
         vTaskDelay(pdMS_TO_TICKS(300));
         esp_restart();
     }
@@ -257,6 +282,7 @@ void app_main(void)
 
     app_settings_t *const settings_p = &s_boot_cfg;
     settings_get_into(settings_p);
+    boot_guard_stage(BOOT_STAGE_GNSS_DETECT);
     if (settings_p->gnss_chip == GNSS_CHIP_AUTO) {
         gnss_detect_run(settings_p, s_gnss_i2c_found); // aggiorna chip, velocita' e I2C di questo avvio
     }
@@ -290,12 +316,13 @@ void app_main(void)
     } else {
         rtcm3_1005_init();
         // Prima del task di lettura, che le passa il flusso grezzo.
-        base_selfpos_start(gnss_detect_effective(settings_p->gnss_chip) == GNSS_CHIP_UBLOX,
+        base_selfpos_start(gnss_detect_effective(settings_p->gnss_chip) == GNSS_CHIP_UBLOX && license_has(LIC_BASE),
                            settings_p->base_position_mode == BASE_POSITION_MANUAL);
         rtcm_stream = xStreamBufferCreate(4096, 1);
         xTaskCreate(gnss_uart_task, "gnss_uart", 5120, NULL, 10, NULL); // 5 KB: con 4 ne restavano ~600 (misurato)
     }
 
+    boot_guard_stage(BOOT_STAGE_SERVICES);
     gnss_driver_configure(s_gnss_uart_num, settings_p->gnss_chip, settings_p->device_mode);
 
     if (settings_p->device_mode == DEVICE_MODE_ROVER) {
@@ -307,18 +334,20 @@ void app_main(void)
         // gia' incontrato piu' volte in questo progetto per altri task.
         // Misura della posizione con Galileo HAS: le correzioni arrivano dai
         // satelliti, nessun caster da contattare.
-        if (!license_has(LIC_RTK)) {
-            ESP_LOGW(TAG, "Ricevitore non attivato: nessuna correzione dal caster (attivalo da Manutenzione -> Licenza)");
+        // Pacchetto Rover; durante la misura della posizione con RTK una base
+        // lavora qualche minuto da rover: li' basta il Pacchetto Base.
+        if (!license_has(LIC_ROVER) && !(base_measure_is_active() && license_has(LIC_BASE))) {
+            ESP_LOGW(TAG, "Pacchetto Rover non compreso nella licenza: nessuna correzione dal caster (Manutenzione -> Licenza)");
         } else if (!base_measure_is_has()) {
             xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
                         (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
         }
         base_measure_start_if_active(); // misura della posizione base in corso
     } else {
-        if (license_has(LIC_RTK)) {
+        if (license_has(LIC_BASE)) {
             xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
         } else {
-            ESP_LOGW(TAG, "Ricevitore non attivato: nessun invio al caster (attivalo da Manutenzione -> Licenza)");
+            ESP_LOGW(TAG, "Pacchetto Base non compreso nella licenza: nessun invio al caster (Manutenzione -> Licenza)");
         }
         ntrip_caster_server_start(); // non fa nulla se disattivato in settings
     }
@@ -326,6 +355,7 @@ void app_main(void)
     alerts_start();
     auto_update_start(); // non fa nulla finche' non attivato dalla UI web (settings.auto_update_check_enable)
     // Margine rimasto sullo stack di main dopo l'avvio (crash della 1.19.113).
+    boot_guard_done();
     ESP_LOGI(TAG, "Avvio completato: stack libero minimo del task main %u byte",
              (unsigned) uxTaskGetStackHighWaterMark(NULL));
 }

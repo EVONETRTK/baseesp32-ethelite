@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.29.2"
+#define FIRMWARE_VERSION "1.30.3"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Attivazione del ricevitore e licenze delle funzioni (in prova: nessun blocco), correzione del pannello della 1.28.1."
+#define FIRMWARE_RELEASE_NOTES "Correzioni di affidabilita': aggiornamento da microSD all'avvio senza sorprese, avvii voluti non piu' segnalati come fermi, licenze piu' robuste (ora sbagliata, tolleranza di 30 giorni), comandi del pannello protetti da altre pagine web."

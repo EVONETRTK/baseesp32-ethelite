@@ -182,7 +182,7 @@ static void peek_rover(const app_settings_t *s, void *ctx)
     v->has = s->rover_has_fallback && license_has(LIC_HAS);
     v->ins = s->comnav_ins_enable && license_has(LIC_INS);
     v->axes = (s->comnav_imu_axes >= 1 && s->comnav_imu_axes <= 8) ? s->comnav_imu_axes : 1;
-    v->heading = s->comnav_heading_enable;
+    v->heading = s->comnav_heading_enable && license_has(LIC_INS); // doppia antenna: extra "ins"
 }
 
 // INS (IMU a bordo), dal "K-series OEM Board User Guide" cap. 4.6: dopo il

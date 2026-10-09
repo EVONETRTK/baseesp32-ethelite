@@ -8,6 +8,80 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.30.3
+
+Revisione del 09/10/2026 (affidabilita' e licenze).
+- **Aggiornamento da microSD all'avvio**: attesa fino a 90 s (sempre 10 s prima del salvavita dell'avvio) invece di 15; se l'attesa scade e l'aggiornamento poi riesce, la base si riavvia da sola (prima il firmware nuovo partiva a sorpresa al primo riavvio qualunque, anche giorni dopo). Vale anche per il pulsante del pannello.
+- **Riavvii voluti** (aggiornamenti, comandi dal pannello, misura della posizione, reset di fabbrica dal pulsante) non lasciano piu' un falso «avvio precedente fermo a…»; motivo registrato anche per l'aggiornamento da microSD all'avvio e per il reset di fabbrica. Commento del salvavita corretto (il reset del watchdog non e' un reset completo).
+- Licenze: un'ora sbagliata nel futuro (NTP, GNSS, modem) non spegne piu' gli extra per sempre: una licenza nuova riporta ultima ora salvata e ultimo contatto all'ora del server; ultimo contatto mai salvato a 0; l'ultima ora salvata non scende mai e si legge anche se la chiave non si legge; «Dimentica la licenza» cancella anche l'ultima ora salvata. Chiave del ricevitore mai rigenerata se c'e' ma non si decodifica.
+- **Tolleranza di 30 giorni**: passato il rinnovo, se il server non risponde da oltre 30 giorni gli extra del rover (autosterzo 5-10 Hz, riserva HAS, IMU/doppia antenna) non partono al riavvio successivo, con il motivo nel pannello; i pacchetti restano.
+- Licenze: stato «in scadenza»/«extra scaduti» solo per gli extra che contano (con il Pacchetto Rover); prua a doppia antenna del K922 e INS del Bynav M21D legate all'extra «ins»; misura della posizione gia' avviata annullata al riavvio senza Pacchetto Base; matricola non modificabile dal pannello con una licenza salvata; con il blocco attivo solo server licenze https://; task della licenza con 10 KB di stack.
+- Pannello: comandi (POST) rifiutati se arrivano da un'altra pagina web (Origin diverso dall'indirizzo della base); /api/license solo in JSON.
+- Avvisi: senza Pacchetto Base restano l'avviso 1005 e il piano dati della SIM (promemoria SIM e credito gia' attivi); nuovi promemoria della licenza a 30 e 7 giorni dalla scadenza degli extra.
+- Registrazione dei dati grezzi: non riparte mentre la sessione precedente si sta ancora chiudendo sulla microSD.
+- Display OLED: niente copia della configurazione sullo stack del task. Messaggio della misura della posizione con il nome attuale della scheda (Posizione e correzioni). Errore chiaro nel log se la NVS va cancellata (si perdono anche chiave e licenza).
+
+## 1.30.2
+
+Controllo qualita' del 09/10/2026 e blocco al riavvio sul PoE.
+- **Salvavita dell'avvio** (nuovo boot_guard.c): il watchdog RTC del chip resta acceso dal bootloader fino alla fine dell'avvio (120 s, reset completo del sistema); traccia dei passi dell'avvio in memoria RTC e, nei punti principali, nella NVS: al riavvio successivo il log e il pannello (Ultimo riavvio) dicono dove si era fermato l'avvio precedente. Il 09/10 la base si e' fermata due volte al riavvio sul PoE senza scrivere log.
+- Bus I2C sbloccato all'avvio (fino a 9 impulsi di clock e STOP) se il ricevitore GNSS, rimasto acceso durante il riavvio, tiene bassa la linea; il display OLED non usa l'I2C mentre la microSD e' montata.
+- Motivo del riavvio: 'accensione' vale anche per il tasto RST; aggiunti reset dalla USB e disturbo sull'alimentazione.
+- Licenze (revisione): misura RTK della posizione con il solo Pacchetto Base; scadenze applicate anche senza ora esatta all'avvio (ultimo istante noto); chiave del ricevitore mai rigenerata per un errore di lettura; licenza salvata in un solo blocco (atomico); attiva/rinnova non piu' contemporanei; rinnovo possibile anche con licenza salvata non piu' verificabile; chiave generata con la sorgente di rumore hardware; extra del rover solo con il Pacchetto Rover; misura e registrazione dati grezzi controllano il Pacchetto Base; attivazione anche con il solo Ethernet; memoria con ripiego se manca la PSRAM.
+- Pannello (revisione): base solo su Ethernet non piu' 'senza internet'; testi del caster e dei riquadri sempre come testo (niente codice iniettabile); LTE e SIM solo se la rete li prevede; nessun falso 'segnale debole' quando il dato manca; survey-in in arancione e primo minuto 'In avvio'; DGPS/HAS in arancione; ricevitore da attivare o revocato segnalato in cima (con il blocco attivo); licenza: funzioni comprese ma non ancora attive indicate 'dal prossimo riavvio'; attivazione: niente doppio invio, codice senza prefisso accettato, errori vecchi non riproposti, accessibilita'; riquadri non riscritti se uguali; riquadro Sistema di nuovo visibile.
+
+## 1.30.1
+
+- Barra in alto: «Cerca» all'estrema destra, dopo Avanzate e Download manuale (sul telefono su una riga sua).
+
+## 1.30.0
+
+Scheda Stato come cruscotto (09/10/2026).
+- In cima un riquadro dice a colpo d'occhio se tutto funziona (verde) o il problema piu' importante (rosso/arancione), con l'elenco degli altri: caster scollegato, 1005 non inviato (con il motivo), antenna spostata, fix del rover, pochi satelliti, temperatura, segnale LTE/WiFi debole, nessuna connessione, SIM scaduta. Sostituisce il banner rosso del 1005.
+- Riquadri: Caster, Posizione base o Fix, Satelliti (con «grafico ›»), Temperature (ESP e GNSS), WiFi e LTE con le tacche e Ottimo/Buono/Discreto/Debole, Ethernet, SIM; Memoria solo se scarsa.
+- La pagina nascosta «Segnali» confluisce in Stato: grafico dei satelliti a tutta larghezza con la spiegazione, Fix GNSS, collegamento NTRIP del rover; byte RTCM per messaggio e il riquadro Sistema tra le Avanzate.
+- Manuale: capitoli 3 e 9 e riferimenti alla pagina Segnali aggiornati, immagini del pannello rifatte.
+
+## 1.29.11
+
+- Barra in alto: lo stato (WiFi, NTRIP, Fix, SD) a sinistra, gli strumenti (Cerca, Avanzate, Download manuale) a destra; i risultati della ricerca si aprono allineati alla casella.
+
+## 1.29.10
+
+- Barra in alto: indicatori, ricerca, «Avanzate» e «Download manuale» tutti alla stessa altezza e con la stessa forma; sul telefono Avanzate e Download manuale occupano mezza riga ciascuno.
+
+## 1.29.9
+
+- «⚙️ Avanzate» piu' in evidenza: pulsante con il bordo arancione, tutto arancione quando e' acceso.
+
+## 1.29.8
+
+- Menu piu' semplici: tolto il riquadro «Manuale d'uso» da Manutenzione (doppione); il manuale si scarica solo dal pulsante blu «📥 Download manuale» in alto.
+
+## 1.29.7
+
+- Licenza: corretto "Attivazione non riuscito" in "non riuscita" (il pannello non lo riconosceva come errore) e messaggi dell'esito fino a 256 caratteri (venivano tagliati).
+
+## 1.29.6
+
+- Attivazione: se non parte, il pannello elenca il motivo (spunta 1 o 2 mancante, nome e cognome, codice mancante o nel formato sbagliato, cifre 0/1 e lettere O/I/L che nei codici non esistono, risposta del server, internet o firewall) e mette in rosso i campi da correggere; il codice si puo' scrivere anche minuscolo o senza trattini.
+- Il Pacchetto Rover e' il principale: primo nella tabella della licenza.
+
+## 1.29.5
+
+Pacchetti (decisione dell'08/10/2026).
+- Licenza: **Pacchetto Base** (lavorare come base, misura HAS, caster locale, VPN, monitoraggio, dati grezzi, avvisi, controllo dell'antenna spostata) e **Pacchetto Rover** (lavorare come rover, correzioni dal caster a 1 Hz); extra del rover venduti a parte: autosterzo 5-10 Hz, riserva HAS, IMU/doppia antenna. Codici: base, rover, nmea_fast, has, ins (spariscono rtk e base_pro).
+- Il pacchetto blocca il modo: senza Pacchetto Base nessun invio al caster, senza Pacchetto Rover nessuna correzione dal caster; durante la misura della posizione con RTK basta il Pacchetto Base.
+- Pannello: le voci non comprese nella licenza sono **in grigio con il lucchetto** (scheda Avvisi, monitoraggio, VPN, caster locale, PPP, misura HAS, riserva HAS, IMU, 5-10 Hz, modo base/rover); con il blocco attivo anche disattivate, in prova restano utilizzabili. Un ricevitore da attivare, in prova, non viene ingrigito.
+
+## 1.29.4
+
+- Licenza (Avanzate): pulsante «Dimentica la licenza» per l'assistenza e per simulare il primo avvio: cancella solo la licenza salvata, non la chiave del ricevitore, il WiFi o le impostazioni.
+
+## 1.29.3
+
+- Pulsante blu **📥 Download manuale** in alto nel pannello (era il piccolo collegamento «📖 Manuale») e nuovo riquadro «Manuale d'uso» in Manutenzione con il PDF e la pagina web. Manuale: capitolo 3 aggiornato.
+
 ## 1.29.2
 
 - Licenza: al rinnovo il ricevitore manda l'impronta SHA-256 completa del firmware (prima solo 9 cifre, valore predefinito di ESP-IDF), cosi' il gestionale la confronta con le release ufficiali. Provata con il gestionale vero (snip-licenze) sul PC: attivazione, rinnovo, funzioni aggiunte dal portale.

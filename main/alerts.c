@@ -9,9 +9,13 @@
 #include "sim_plan.h"
 #include "sim_tools.h"
 #include "remote_status.h"
+#include "time_sync.h"
 
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
+
+#include "nvs.h"
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -284,6 +288,58 @@ void alerts_wake(void)
     }
 }
 
+// Promemoria della licenza (docs/attivazione-licenze.md §1): le funzioni
+// extra scadono tra 30 e tra 7 giorni. Uno per soglia, ricordato nella NVS
+// (scadenza e soglia) per non ripeterlo a ogni riavvio; sui canali gia'
+// configurati per gli avvisi, anche con gli avvisi spenti (come la SIM).
+static void license_reminder_tick(const app_settings_t *s)
+{
+    int64_t exp = 0;
+    if (!time_sync_is_valid() || time(NULL) < 1700000000 || !license_next_extra_expiry(&exp)) {
+        return;
+    }
+    int64_t left = exp - (int64_t) time(NULL);
+    uint8_t stage = left <= 7 * 86400 ? 7 : (left <= 30 * 86400 ? 30 : 0);
+    if (left <= 0 || stage == 0) {
+        return; // dopo la scadenza lo dice il pannello (si spengono al riavvio)
+    }
+    bool any_channel = (s->alert_smtp_host[0] && s->alert_email_to[0]) ||
+                       (s->alert_whatsapp_phone[0] && s->alert_whatsapp_apikey[0]);
+    if (!any_channel) {
+        return;
+    }
+    nvs_handle_t h;
+    if (nvs_open("alerts", NVS_READWRITE, &h) != ESP_OK) {
+        return;
+    }
+    int64_t done_exp = 0;
+    uint8_t done_stage = 0;
+    nvs_get_i64(h, "licexp", &done_exp);
+    nvs_get_u8(h, "licstg", &done_stage);
+    // Gia' avvisato per questa scadenza a questa soglia (o a quella dei 7 giorni).
+    if (done_exp == exp && done_stage != 0 && done_stage <= stage) {
+        nvs_close(h);
+        return;
+    }
+    time_t t = (time_t) exp;
+    struct tm tm;
+    localtime_r(&t, &tm);
+    int days = (int) ((left + 86399) / 86400);
+    char body[300];
+    snprintf(body, sizeof(body),
+             "EVONETRTK %s: le funzioni extra della licenza (autosterzo 5-10 Hz, riserva HAS, IMU/doppia antenna) "
+             "scadono il %02d/%02d/%04d (tra %d giorni). Rinnovale dal portale EVONETRTK: dopo la scadenza si "
+             "spengono al riavvio successivo.",
+             s->device_serial, tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, days);
+    bool ok = alerts_send_now(s, "EVONETRTK - licenza in scadenza", body);
+    ESP_LOGW(TAG, "Promemoria scadenza licenza (%d giorni) %s", days, ok ? "inviato" : "NON inviato (canali in errore)");
+    // Salvato anche se l'invio fallisce: niente tentativi ogni minuto.
+    nvs_set_i64(h, "licexp", exp);
+    nvs_set_u8(h, "licstg", stage);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
 static void alerts_task(void *arg)
 {
     bool already_alerted = false;
@@ -301,19 +357,43 @@ static void alerts_task(void *arg)
         sim_plan_tick(&s);  // rinnovo della SIM: promemoria anche con gli altri avvisi spenti
         sim_tools_tick(&s); // credito, SMS (anche con gli altri avvisi spenti)
         license_tick();         // rinnovo della licenza quando e' il momento
-        if (license_has(LIC_BASE_PRO)) {
+        license_reminder_tick(&s); // extra in scadenza: promemoria a 30 e 7 giorni, come quelli della SIM
+        bool base_pkg = license_has(LIC_BASE);
+        if (base_pkg) {
             remote_status_tick(&s); // monitoraggio remoto, se impostato
         }
-        if (!s.alert_enable || !license_has(LIC_BASE_PRO)) {
+        // Piano dati della SIM, per tutti anche con gli altri avvisi spenti:
+        // un avviso al mese quando il traffico stimato
+        // sul cellulare supera l'80% del piano impostato nel pannello.
+        if (s.data_plan_mb > 0) {
+            data_usage_t du = data_usage_get();
+            if (du.month[0] && strcmp(du.month, alerted_data_month) != 0 &&
+                du.cell_month >= (uint64_t) s.data_plan_mb * 1000000ULL * 8 / 10) {
+                char body[200];
+                snprintf(body, sizeof(body),
+                         "EVONETRTK %s: traffico dati sulla SIM a %.0f MB su %u MB del piano (stima, mese %s).",
+                         s.device_serial, du.cell_month / 1e6, (unsigned) s.data_plan_mb, du.month);
+                send_on_configured_channels(&s, "EVONETRTK - piano dati quasi esaurito", body, NULL, 0);
+                strncpy(alerted_data_month, du.month, sizeof(alerted_data_month) - 1);
+            }
+        }
+
+        if (!s.alert_enable) {
             already_alerted = false;
             already_alerted_drift = false;
             already_alerted_temp = false;
             already_alerted_1005 = false;
             continue;
         }
+        // Senza Pacchetto Base restano gli avvisi per tutti (1005, piano dati
+        // della SIM, temperatura, che riguarda la sicurezza; promemoria SIM e
+        // credito sono sopra); caster scollegato e antenna spostata fanno parte
+        // del Pacchetto Base.
 
         ntrip_conn_status_t ntrip = status_ntrip_get();
-        if (!ntrip.connected) {
+        if (!base_pkg) {
+            already_alerted = false;
+        } else if (!ntrip.connected) {
             if (ntrip.last_disconnect_us <= 0) {
                 // mai stato connesso dal boot: non e' una disconnessione da segnalare
             } else {
@@ -338,7 +418,7 @@ static void alerts_task(void *arg)
         // dai dati grezzi contro quella trasmessa, confermato su due finestre
         // di 30 minuti): stesso schema di "un avviso quando succede, uno
         // quando rientra" di sopra, con un latch separato.
-        if (s.base_drift_alert_enable) {
+        if (s.base_drift_alert_enable && base_pkg) {
             base_selfpos_status_t sp;
             base_selfpos_get_status(&sp);
             if (sp.alarm) {
@@ -386,21 +466,6 @@ static void alerts_task(void *arg)
                 snprintf(body, sizeof(body), "EVONETRTK %s: la base invia di nuovo la sua posizione (1005).", s.device_serial);
                 send_on_configured_channels(&s, "EVONETRTK - posizione base ripristinata", body, NULL, 0);
                 already_alerted_1005 = false;
-            }
-        }
-
-        // Piano dati della SIM: un avviso al mese quando il traffico stimato
-        // sul cellulare supera l'80% del piano impostato nel pannello.
-        if (s.data_plan_mb > 0) {
-            data_usage_t du = data_usage_get();
-            if (du.month[0] && strcmp(du.month, alerted_data_month) != 0 &&
-                du.cell_month >= (uint64_t) s.data_plan_mb * 1000000ULL * 8 / 10) {
-                char body[200];
-                snprintf(body, sizeof(body),
-                         "EVONETRTK %s: traffico dati sulla SIM a %.0f MB su %u MB del piano (stima, mese %s).",
-                         s.device_serial, du.cell_month / 1e6, (unsigned) s.data_plan_mb, du.month);
-                send_on_configured_channels(&s, "EVONETRTK - piano dati quasi esaurito", body, NULL, 0);
-                strncpy(alerted_data_month, du.month, sizeof(alerted_data_month) - 1);
             }
         }
 

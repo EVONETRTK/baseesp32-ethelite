@@ -32,7 +32,7 @@ bool ppp_log_start(void);
 // Ferma la registrazione in corso (chiude il file, smonta la SD) - il file
 // resta disponibile per il download finche' non se ne avvia una nuova.
 // Sicura da chiamare anche se non c'e' nessuna registrazione in corso.
-void ppp_log_stop(void);
+bool ppp_log_stop(void); // false se non c'era una registrazione in corso
 
 typedef struct {
     bool recording;
