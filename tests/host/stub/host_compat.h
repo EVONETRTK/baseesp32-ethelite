@@ -28,3 +28,21 @@ static inline struct tm *host_gmtime_r(const time_t *t, struct tm *out)
     return gmtime_s(out, t) == 0 ? out : NULL;
 }
 #define gmtime_r host_gmtime_r
+
+static inline char *host_strcasestr(const char *h, const char *n)
+{
+    size_t ln = strlen(n);
+    for (; *h; h++) {
+        size_t i = 0;
+        while (i < ln && h[i]) {
+            char a = h[i], b = n[i];
+            if (a >= 'A' && a <= 'Z') a = (char) (a - 'A' + 'a');
+            if (b >= 'A' && b <= 'Z') b = (char) (b - 'A' + 'a');
+            if (a != b) break;
+            i++;
+        }
+        if (i == ln) return (char *) h;
+    }
+    return ln ? NULL : (char *) h;
+}
+#define strcasestr host_strcasestr

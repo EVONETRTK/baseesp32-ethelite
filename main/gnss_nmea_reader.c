@@ -123,12 +123,21 @@ static void nmea_rmc_time(const char *line)
     if (n < 9 || f[1][0] != 'A' || f[0][0] == ',' || f[8][0] == ',') {
         return;
     }
-    int hh = (f[0][0] - '0') * 10 + (f[0][1] - '0');
-    int mi = (f[0][2] - '0') * 10 + (f[0][3] - '0');
-    int ss = (f[0][4] - '0') * 10 + (f[0][5] - '0');
-    int dd = (f[8][0] - '0') * 10 + (f[8][1] - '0');
-    int mo = (f[8][2] - '0') * 10 + (f[8][3] - '0');
-    int yy = (f[8][4] - '0') * 10 + (f[8][5] - '0');
+    // Sei cifre per ora e data: un campo piu' corto (riga rovinata) prima
+    // faceva leggere oltre la fine della riga (trovato dal fuzzing).
+    int t[6], d[6];
+    for (int i = 0; i < 6; i++) {
+        if (f[0][i] < '0' || f[0][i] > '9' || f[8][i] < '0' || f[8][i] > '9') {
+            return;
+        }
+        t[i] = f[0][i] - '0';
+        d[i] = f[8][i] - '0';
+    }
+    int hh = t[0] * 10 + t[1], mi = t[2] * 10 + t[3], ss = t[4] * 10 + t[5];
+    int dd = d[0] * 10 + d[1], mo = d[2] * 10 + d[3], yy = d[4] * 10 + d[5];
+    if (hh > 23 || mi > 59 || ss > 60 || dd < 1 || dd > 31 || mo < 1 || mo > 12) {
+        return;
+    }
     time_sync_from_gnss(2000 + yy, mo, dd, hh, mi, ss);
 }
 

@@ -31,72 +31,8 @@ $Out = Join-Path $Here "build"
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 # --- Funzioni di validazione di web_ui.c ------------------------------------
-# web_ui.c dipende da server HTTP, cJSON, mbedTLS...: non si puo' compilare
-# sul PC. Le poche funzioni pure si copiano qui, testo identico, in un file
-# generato a ogni giro (build/web_ui_estratto.c, con #line verso web_ui.c
-# per gli errori). Se una funzione cambia nome il giro lo dice.
-
-function Get-Blocco([string[]]$Righe, [string]$Inizio, [string]$Nome) {
-    for ($i = 0; $i -lt $Righe.Count; $i++) {
-        if ($Righe[$i] -match $Inizio) {
-            $j = $i
-            while ($j -lt $Righe.Count -and -not ($Righe[$j] -match '^}')) { $j++ }
-            if ($j -ge $Righe.Count) { break }
-            return @("#line $($i + 1) `"main/web_ui.c`"") + $Righe[$i..$j]
-        }
-    }
-    throw "web_ui.c: non trovo '$Nome' (cambiato nome? aggiornare run.ps1 e test_web_ui.c)"
-}
-
-function Get-PinConfig {
-    # Pin del menuconfig: da sdkconfig se c'e' (configurazione vera della
-    # build), altrimenti i valori predefiniti di main/Kconfig.projbuild.
-    $def = [ordered]@{}
-    $sdk = Join-Path $Repo "sdkconfig"
-    if (Test-Path $sdk) {
-        foreach ($r in Get-Content $sdk) {
-            if ($r -match '^(CONFIG_BASEESP32_\w+_PIN)=(-?\d+)\s*$') { $def[$Matches[1]] = $Matches[2] }
-        }
-        return @{ Fonte = "sdkconfig"; Valori = $def }
-    }
-    $nome = $null
-    foreach ($r in Get-Content (Join-Path $Main "Kconfig.projbuild")) {
-        if ($r -match '^\s*config\s+(BASEESP32_\w+_PIN)\s*$') { $nome = "CONFIG_" + $Matches[1]; continue }
-        if ($nome -and $r -match '^\s*default\s+(-?\d+)\s*$') { $def[$nome] = $Matches[1]; $nome = $null }
-    }
-    return @{ Fonte = "Kconfig.projbuild (manca sdkconfig)"; Valori = $def }
-}
-
-function New-WebUiEstratto {
-    $righe = Get-Content (Join-Path $Main "web_ui.c")
-    $pin = Get-PinConfig
-    $txt = @(
-        "// GENERATO da tests/host/run.ps1 a ogni giro: NON modificare.",
-        "// Funzioni copiate senza cambiamenti da main/web_ui.c; pin da $($pin.Fonte).",
-        "#include <stdio.h>",
-        "#include <string.h>",
-        "#include <stdbool.h>",
-        "#include `"settings.h`""
-    )
-    foreach ($k in $pin.Valori.Keys) { $txt += "#define $k $($pin.Valori[$k])" }
-    $vs = $righe | Where-Object { $_ -match '^#define VERR_SIZE ' } | Select-Object -First 1
-    if (-not $vs) { throw "web_ui.c: non trovo '#define VERR_SIZE'" }
-    $txt += $vs
-    $txt += Get-Blocco $righe '^static void verr_set\(' "verr_set"
-    $txt += Get-Blocco $righe '^static bool pin_allowed\(int pin\)' "pin_allowed"
-    # typedef pin_use_t: dal "typedef struct {" che precede "} pin_use_t;"
-    $fine = [Array]::FindIndex([string[]]$righe, [Predicate[string]]{ param($r) $r -match '^} pin_use_t;' })
-    if ($fine -lt 0) { throw "web_ui.c: non trovo 'pin_use_t'" }
-    $ini = $fine
-    while ($ini -gt 0 -and -not ($righe[$ini] -match '^typedef struct')) { $ini-- }
-    $txt += "#line $($ini + 1) `"main/web_ui.c`""
-    $txt += $righe[$ini..$fine]
-    $txt += Get-Blocco $righe '^static bool pins_conflict\(' "pins_conflict"
-    $txt += Get-Blocco $righe '^static bool clean_phone_number\(' "clean_phone_number"
-    $txt += Get-Blocco $righe '^static bool only_chars\(' "only_chars"
-    $txt += Get-Blocco $righe '^static bool sms_number_ok\(' "sms_number_ok"
-    Set-Content -Path (Join-Path $Out "web_ui_estratto.c") -Value $txt -Encoding UTF8
-}
+# Estratte a ogni giro da web_ui_estrai.ps1 (condiviso con fuzz.ps1).
+. (Join-Path $Here "web_ui_estrai.ps1")
 
 # --- Compilazione ed esecuzione -------------------------------------------
 $Prove = Get-ChildItem (Join-Path $Here "test_*.c") | Sort-Object Name
@@ -105,13 +41,26 @@ if (-not $Prove) { Write-Host "Nessun file di prova trovato" -ForegroundColor Re
 
 $tot = 0; $fallite = 0; $bug = 0; $rotti = @()
 $comuni = @((Join-Path $Here "prove.c"), (Join-Path $Stub "host_rt.c"))
-# -fsanitize=undefined con trap: un comportamento indefinito (overflow,
-# indice fuori dai limiti noti al compilatore) ferma la prova invece di
-# passare inosservato.
+# -fsanitize=undefined: un comportamento indefinito non passa inosservato.
+# Indici fuori dai limiti noti al compilatore, puntatori nulli o
+# disallineati: trap, il programma di prova si ferma ("INTERROTTA").
+# Conversioni double -> int fuori scala, overflow di interi con segno, shift
+# fuori misura: senza trap, fanno fallire la prova in corso con file e riga
+# (gestori in prove.c), cosi' un bug noto si puo' segnare con ESEGUI_BUG.
 $flag = @("cc", "-std=gnu11", "-O1", "-g", "-Wall", "-Wno-unused-function", "-Wno-unused-variable",
           "-Wno-unused-but-set-variable", "-fsanitize=undefined", "-fsanitize-trap=undefined",
+          "-fno-sanitize-trap=float-cast-overflow,signed-integer-overflow,shift",
           "-include", (Join-Path $Stub "host_compat.h"),
-          "-I", $Stub, "-I", $Main, "-I", $Here, "-I", $Out)
+          "-I", $Stub, "-I", $Main, "-I", $Here, "-I", $Out, "-L", $Out)
+# Senza trap clang chiede al linker la libreria di UBSan, che zig su Windows
+# non ha: i gestori usati sono in prove.c, basta una libreria vuota.
+$vuota = Join-Path $Out "liblibclang_rt.ubsan_standalone-x86_64.a"
+if (-not (Test-Path $vuota)) {
+    $c = Join-Path $Out "ubsan_vuota.c"
+    Set-Content -Path $c -Value "int prove_libreria_ubsan_vuota;" -Encoding ASCII
+    $null = & $Zig cc -c -O1 -o (Join-Path $Out "ubsan_vuota.o") $c 2>&1
+    $null = & $Zig ar rcs $vuota (Join-Path $Out "ubsan_vuota.o") 2>&1
+}
 
 foreach ($p in $Prove) {
     $nome = $p.BaseName.Substring(5)

@@ -46,3 +46,28 @@ int prove_fine(void)
     fflush(stdout);
     return s_fallite ? 1 : 0;
 }
+
+// --- comportamenti indefiniti "di valore" (vedi run.ps1) ---------------------
+// Conversioni di double fuori scala in int, overflow di interi con segno e
+// shift fuori misura non fermano il programma di prova (run.ps1 li compila
+// senza trap): fanno fallire la prova in corso con file e riga, cosi' una
+// prova di regressione di un bug noto (ESEGUI_BUG) li puo' mostrare senza
+// interrompere le altre. Indici fuori dagli array, puntatori nulli o
+// disallineati restano con trap (programma fermato: "INTERROTTA").
+typedef struct { const char *file; uint32_t riga, col; } ubsan_pos_t;
+
+static void ub_valore(const char *tipo, const void *dati)
+{
+    const ubsan_pos_t *p = (const ubsan_pos_t *) dati;
+    const char *f = p && p->file ? p->file : "?";
+    const char *b = strstr(f, "main");
+    prove_errore(b ? b : f, p ? (int) p->riga : 0, "comportamento indefinito: %s", tipo);
+}
+
+void __ubsan_handle_float_cast_overflow(void *d, void *a) { (void) a; ub_valore("double fuori scala convertito in intero", d); }
+void __ubsan_handle_add_overflow(void *d, void *a, void *b) { (void) a; (void) b; ub_valore("overflow di un intero con segno (+)", d); }
+void __ubsan_handle_sub_overflow(void *d, void *a, void *b) { (void) a; (void) b; ub_valore("overflow di un intero con segno (-)", d); }
+void __ubsan_handle_mul_overflow(void *d, void *a, void *b) { (void) a; (void) b; ub_valore("overflow di un intero con segno (*)", d); }
+void __ubsan_handle_negate_overflow(void *d, void *a) { (void) a; ub_valore("overflow di un intero con segno (cambio di segno)", d); }
+void __ubsan_handle_divrem_overflow(void *d, void *a, void *b) { (void) a; (void) b; ub_valore("divisione intera in overflow o per zero", d); }
+void __ubsan_handle_shift_out_of_bounds(void *d, void *a, void *b) { (void) a; (void) b; ub_valore("shift fuori misura", d); }

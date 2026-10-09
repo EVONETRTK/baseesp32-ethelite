@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.30.6"
+#define FIRMWARE_VERSION "1.30.7"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Controllo qualita' completo del firmware: piu' di 70 correzioni di affidabilita' e sicurezza (rete, modem, GNSS, microSD, pannello). Controllo dell'antenna anche con le coordinate fisse."
+#define FIRMWARE_RELEASE_NOTES "Lettura dei dati del ricevitore piu' robusta: corretti 6 difetti trovati con le prove automatiche e il fuzzing (righe NMEA rovinate, ora della RMC, riga per AgOpenGPS con il checksum troncato)."

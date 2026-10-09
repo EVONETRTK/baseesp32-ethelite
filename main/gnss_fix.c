@@ -1,6 +1,7 @@
 #include "gnss_fix.h"
 
 #include <string.h>
+#include <math.h>
 #include <stdlib.h>
 
 #include "esp_timer.h"
@@ -49,6 +50,11 @@ static char *next_field(char **cursor)
 static double nmea_coord_deg(const char *field, bool negative)
 {
     double v = strtod(field, NULL);
+    // Riga rovinata (trovato dal fuzzing): fuori da 0..18060 (dddmm) la
+    // conversione in int non e' definita; NAN e la posizione viene scartata.
+    if (!(v >= 0.0 && v < 18100.0)) {
+        return NAN;
+    }
     double deg = (double) ((int) (v / 100));
     double d = deg + (v - deg * 100) / 60.0;
     return negative ? -d : d;
@@ -122,8 +128,14 @@ void gnss_fix_parse_gga(const char *line_in)
     s_status.geoid_sep_m = (sep && sep[0] != '\0') ? (float) atof(sep) : -9999;
     s_status.has_position = lat && lat[0] != '\0' && lon && lon[0] != '\0' && ns && ew;
     if (s_status.has_position) {
-        s_status.lat_deg = nmea_coord_deg(lat, ns[0] == 'S');
-        s_status.lon_deg = nmea_coord_deg(lon, ew[0] == 'W');
+        double la = nmea_coord_deg(lat, ns[0] == 'S');
+        double lo = nmea_coord_deg(lon, ew[0] == 'W');
+        if (isfinite(la) && isfinite(lo) && fabs(la) <= 90.0 && fabs(lo) <= 180.0) {
+            s_status.lat_deg = la;
+            s_status.lon_deg = lo;
+        } else {
+            s_status.has_position = false;
+        }
     }
     s_status.last_update_us = esp_timer_get_time();
     xSemaphoreGive(s_mutex);

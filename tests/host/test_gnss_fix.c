@@ -173,6 +173,37 @@ PROVA(qualita_sconosciuta_descritta)
     VERIFICA_STR(gnss_fix_quality_str(GNSS_FIX_NONE), "Nessun fix");
 }
 
+
+// "$corpo*HH" con il checksum giusto.
+static void con_checksum(char *riga, size_t cap, const char *corpo)
+{
+    unsigned char cs = 0;
+    for (const char *c = corpo; *c; c++) cs ^= (unsigned char) *c;
+    snprintf(riga, cap, "$%s*%02X", corpo, cs);
+}
+
+// Trovato dal fuzzing (tests/host/fuzz.ps1, bersaglio gnss_fix): GGA con il
+// checksum giusto ma una coordinata fuori scala ("1e300", oppure 12 cifre
+// prima del punto). nmea_coord_deg (gnss_fix.c) converte v/100 in int:
+// comportamento indefinito, sull'ESP32 un numero a caso, e la posizione
+// assurda va nello stato del fix e nella media della misura della base.
+// Una riga cosi' passa il checksum NMEA (8 bit) una volta su 256 quando la
+// seriale perde o incolla byte. Correzione proposta: coordinata accettata
+// solo se finita e nei limiti (lat < 9000, lon < 18000 in gradi*100+minuti),
+// altrimenti has_position = false.
+PROVA(gga_con_coordinate_fuori_scala_senza_posizione)
+{
+    char r[160];
+    azzera();
+    con_checksum(r, sizeof(r), "GNGGA,123519.00,1e300,N,01131.0000000,E,4,12,0.8,545.4,M,46.9,M,1.0,0000");
+    gnss_fix_parse_gga(r);
+    VERIFICA(!gnss_fix_get_status().has_position);
+    azzera();
+    con_checksum(r, sizeof(r), "GNGGA,123519.00,4807.0380000,N,999999999999.0,E,4,12,0.8,545.4,M,46.9,M,1.0,0000");
+    gnss_fix_parse_gga(r);
+    VERIFICA(!gnss_fix_get_status().has_position);
+}
+
 int main(void)
 {
     ESEGUI(checksum_giusto_accettato);
@@ -190,5 +221,6 @@ int main(void)
     ESEGUI(gga_prima_di_init_ignorata);
     ESEGUI(gga_troppo_corta_ignorata);
     ESEGUI(qualita_sconosciuta_descritta);
+    ESEGUI(gga_con_coordinate_fuori_scala_senza_posizione);
     return prove_fine();
 }

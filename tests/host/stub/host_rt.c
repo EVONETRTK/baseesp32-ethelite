@@ -73,6 +73,12 @@ void esp_restart(void)
     host_restart_count++;
 }
 
+esp_err_t esp_register_shutdown_handler(shutdown_handler_t handler)
+{
+    (void) handler;
+    return ESP_OK;
+}
+
 const esp_app_desc_t *esp_app_get_description(void)
 {
     static const esp_app_desc_t d = { .version = "prova", .project_name = "prove", .time = "12:00:00", .date = "Oct  9 2026" };
@@ -86,6 +92,14 @@ esp_err_t nvs_commit(nvs_handle_t h) { (void) h; return ESP_FAIL; }
 esp_err_t nvs_get_blob(nvs_handle_t h, const char *k, void *o, size_t *l) { (void) h; (void) k; (void) o; (void) l; return ESP_FAIL; }
 esp_err_t nvs_set_blob(nvs_handle_t h, const char *k, const void *v, size_t l) { (void) h; (void) k; (void) v; (void) l; return ESP_FAIL; }
 esp_err_t nvs_erase_key(nvs_handle_t h, const char *k) { (void) h; (void) k; return ESP_FAIL; }
+esp_err_t nvs_get_u8(nvs_handle_t h, const char *k, uint8_t *o) { (void) h; (void) k; (void) o; return ESP_FAIL; }
+esp_err_t nvs_set_u8(nvs_handle_t h, const char *k, uint8_t v) { (void) h; (void) k; (void) v; return ESP_FAIL; }
+esp_err_t nvs_get_u32(nvs_handle_t h, const char *k, uint32_t *o) { (void) h; (void) k; (void) o; return ESP_FAIL; }
+esp_err_t nvs_set_u32(nvs_handle_t h, const char *k, uint32_t v) { (void) h; (void) k; (void) v; return ESP_FAIL; }
+esp_err_t nvs_get_i32(nvs_handle_t h, const char *k, int32_t *o) { (void) h; (void) k; (void) o; return ESP_FAIL; }
+esp_err_t nvs_set_i32(nvs_handle_t h, const char *k, int32_t v) { (void) h; (void) k; (void) v; return ESP_FAIL; }
+esp_err_t nvs_get_str(nvs_handle_t h, const char *k, char *o, size_t *l) { (void) h; (void) k; (void) o; (void) l; return ESP_FAIL; }
+esp_err_t nvs_set_str(nvs_handle_t h, const char *k, const char *v) { (void) h; (void) k; (void) v; return ESP_FAIL; }
 
 // --- semafori: sempre liberi ------------------------------------------------
 struct host_sem {

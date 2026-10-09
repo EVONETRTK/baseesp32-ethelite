@@ -1693,6 +1693,9 @@ static bool clean_phone_number(const char *in, char *out, size_t out_size)
             out[n++] = *c;
             digits++;
         } else if (*c == '+' && n == 0) {
+            if (n + 1 >= out_size) {
+                return false;
+            }
             out[n++] = *c;
         } else if (!(*c == ' ' || *c == '-' || *c == '.' || *c == '/' || *c == '(' || *c == ')')) {
             return false;

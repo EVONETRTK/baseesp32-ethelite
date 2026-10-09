@@ -8,6 +8,17 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.30.7
+
+Prime prove automatiche sul PC (tests/host, 125 prove) e fuzzing (milioni di dati rovinati a caso su 13 lettori di dati): corretti i 6 difetti trovati.
+- **Righe GGA e RMC rovinate**: coordinate enormi o "nan" non vengono piu' convertite in intero (comportamento indefinito); la posizione viene scartata (gnss_fix.c, nmea_etrf.c).
+- **Riga per AgOpenGPS**: una riga lunga allungata dalla conversione in ETRF2000 poteva uscire con il checksum troncato; ora non viene riscritta.
+- **Soluzione HAS non valida** (NaN, fuori scala): la riga non viene riscritta con valori assurdi.
+- **Quota assurda** (es. separazione del geoide infinita): la trasformazione in ETRF2000 non viene fatta e la riga resta com'era (trovato al secondo giro di fuzzing).
+- **Ora dalla RMC del rover**: con un campo ora o data piu' corto di 6 cifre il firmware leggeva oltre la fine della riga; ora servono 6 cifre e valori sensati.
+- **Numero di telefono**: controllo dello spazio anche per il + iniziale (nessun effetto con l'uso attuale).
+- **Numero per il credito via SMS**: + accettato solo all'inizio, come per l'invio degli SMS.
+
 ## 1.30.6
 
 Controllo qualita' completo del firmware (cinque revisioni indipendenti, 09/10/2026): oltre 70 correzioni.

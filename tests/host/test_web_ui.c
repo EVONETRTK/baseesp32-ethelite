@@ -212,6 +212,20 @@ PROVA(numero_sms_con_piu_solo_iniziale)
     VERIFICA(!sms_number_ok("+39 351"));
 }
 
+// Trovato dal fuzzing (bersaglio web_ui): con un buffer di uscita di un solo
+// byte, un "+" iniziale viene scritto senza controllare lo spazio e poi il
+// terminatore finisce un byte oltre (web_ui.c, clean_phone_number: il ramo
+// del '+' non controlla n + 1 < out_size). Nessun effetto oggi: il firmware
+// la chiama solo con ph[24] e un ingresso di al massimo 23 caratteri.
+// Correzione proposta: nel ramo del '+' lo stesso controllo delle cifre
+// (if (n + 1 >= out_size) return false;).
+PROVA(numero_con_buffer_di_un_byte)
+{
+    char b[4] = { 'X', 'Y', 'Z', '\0' };
+    (void) clean_phone_number("+", b, 1);
+    VERIFICA(b[1] == 'Y'); // nessuna scrittura oltre il byte concesso
+}
+
 int main(void)
 {
     ESEGUI(pin_riservati_della_scheda_rifiutati);
@@ -231,5 +245,6 @@ int main(void)
     ESEGUI(numero_whatsapp_troppo_lungo_rifiutato_senza_sforare);
     ESEGUI(solo_caratteri_ammessi);
     ESEGUI(numero_sms_con_piu_solo_iniziale);
+    ESEGUI(numero_con_buffer_di_un_byte);
     return prove_fine();
 }

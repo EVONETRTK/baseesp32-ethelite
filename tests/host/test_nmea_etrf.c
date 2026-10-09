@@ -264,6 +264,89 @@ PROVA(anno_decimale_della_data)
     VERIFICA_VICINO(etrf_decimal_year((time_t) 1835481600), 2028.0 + 60.0 / 366.0, 1e-9);
 }
 
+// "$corpo*HH" con il checksum giusto.
+static void con_checksum(char *riga, size_t cap, const char *corpo)
+{
+    unsigned cs = 0;
+    for (const char *c = corpo; *c; c++) cs ^= (unsigned char) *c;
+    snprintf(riga, cap, "$%s*%02X", corpo, cs);
+}
+
+// Trovato dal fuzzing (bersagli nmea_etrf e gnss_nmea_reader): coordinata
+// fuori scala in una GGA/RMC (checksum giusto). parse_coord (nmea_etrf.c)
+// converte x/100 in int (comportamento indefinito con "1e300") e poi
+// moltiplica d * 100 in int (overflow con "4000000000.0"): la riga
+// riscritta per AgOpenGPS e il caster avrebbe coordinate a caso.
+// Correzione proposta: in parse_coord rifiutare (false) valori non finiti o
+// fuori scala (lat >= 9000, lon >= 18000), prima delle conversioni in int.
+PROVA(coordinate_fuori_scala_rifiutate)
+{
+    char r[200], copia[200];
+    double lat, lon;
+    con_checksum(r, sizeof(r), "GNGGA,101010.00,1e300,N,01630.0000000,E,1,10,0.9,409.5000,M,40.500,M,,");
+    VERIFICA(!nmea_gga_latlon(r, &lat, &lon));
+    strcpy(copia, r);
+    VERIFICA(!nmea_etrf_convert(r, sizeof(r), 2026.5, 0));
+    VERIFICA_STR(r, copia);
+    con_checksum(r, sizeof(r), "GNRMC,101010.00,A,4100.0000000,N,4000000000.0,E,0.01,0.0,091026,,,A,V");
+    strcpy(copia, r);
+    VERIFICA(!nmea_etrf_convert(r, sizeof(r), 2026.5, 450.0));
+    VERIFICA_STR(r, copia);
+}
+
+// Trovato dal fuzzing (bersaglio nmea_etrf): posizione data non numerica o
+// enorme (soluzione HAS da #PPPNAVA: atof di un campo rovinato, o "nan").
+// format_coord (nmea_etrf.c) converte i gradi in int: comportamento
+// indefinito, e nella GGA per AgOpenGPS finirebbe "nan" o un numero a caso.
+// In gnss_nmea_reader.c il controllo del salto (hypot(...) > 10 m) non ferma
+// un NaN (il confronto e' falso). Correzione proposta: in
+// nmea_etrf_set_position (o in rewrite) rifiutare lat/lon/quota non finite o
+// fuori da +-90 / +-180; in has_fallback_line scrivere il controllo come
+// !(hypot(dn, de) <= HAS_PPP_MAX_JUMP_M).
+PROVA(posizione_has_non_numerica_rifiutata)
+{
+    char r[128];
+    strcpy(r, GGA_IN);
+    VERIFICA(!nmea_etrf_set_position(r, sizeof(r), 2026.5, NAN, 16.5, 450.0, 2, 3.0f));
+    VERIFICA_STR(r, GGA_IN);
+    VERIFICA(!nmea_etrf_set_position(r, sizeof(r), 2026.5, 41.0, 1e300, 450.0, 2, 3.0f));
+    VERIFICA_STR(r, GGA_IN);
+}
+
+// Trovato dal fuzzing (bersaglio nmea_etrf): una riga lunga (vicina ai 199
+// caratteri ammessi) che la riscrittura allunga (piu' decimali per la
+// posizione HAS, quota, eta' delle correzioni) supera i 216 byte del buffer
+// statico "out" di rewrite: l'ultimo snprintf del checksum viene troncato
+// ("*4" invece di "*4B") ma il controllo confronta con cap invece che con
+// sizeof(out), quindi la riga esce con il checksum rotto e il memcpy finale
+// legge 1-3 byte oltre "out". Correzione proposta in rewrite (nmea_etrf.c):
+// if (w < 0 || (size_t) w >= sizeof(out) - k || k + (size_t) w >= cap) return false;
+PROVA(riga_lunga_allungata_checksum_intero)
+{
+    char corpo[260];
+    strcpy(corpo, "GNGGA,101010.00,4100.0,N,01630.0,E,1,10,0.9,409.5,M,40.500,M,,");
+    while (strlen(corpo) < 199 - 4) strcat(corpo, "0"); // id stazione lungo: riga di 199 caratteri
+    char r[320];
+    con_checksum(r, sizeof(r), corpo);
+    VERIFICA_INT(strlen(r), 199);
+    bool ok = nmea_etrf_set_position(r, sizeof(r), 2026.5, 41.0, 16.5, 450.0, 2, 3.0f);
+    VERIFICA(!ok || checksum_valido(r));
+}
+
+// Trovato dal fuzzing il 09/10/2026: quota o separazione del geoide enormi
+// ("1e1200" = infinito) davano lat/lon non numeriche dopo la trasformazione
+// e poi una conversione in int non definita in format_coord.
+PROVA(quota_infinita_rifiutata)
+{
+    char r[200], copia[200];
+    con_checksum(r, sizeof(r), "GNGGA,101010.00,4107.0000000,N,01630.0000000,E,1,10,0.9,409.5000,M,40.5e1200,M,,");
+    strcpy(copia, r);
+    VERIFICA(!nmea_etrf_convert(r, sizeof(r), 2026.5, 0));
+    VERIFICA_STR(r, copia);
+    strcpy(r, GGA_IN);
+    VERIFICA(!nmea_etrf_set_position(r, sizeof(r), 2026.5, 41.0, 16.5, INFINITY, 2, 3.0f));
+}
+
 int main(void)
 {
     ESEGUI(righe_di_partenza_hanno_checksum_giusto);
@@ -279,5 +362,9 @@ int main(void)
     ESEGUI(gga_qualita_quota_e_latlon_lette);
     ESEGUI(posizione_has_messa_nella_gga);
     ESEGUI(anno_decimale_della_data);
+    ESEGUI(coordinate_fuori_scala_rifiutate);
+    ESEGUI(posizione_has_non_numerica_rifiutata);
+    ESEGUI(riga_lunga_allungata_checksum_intero);
+    ESEGUI(quota_infinita_rifiutata);
     return prove_fine();
 }

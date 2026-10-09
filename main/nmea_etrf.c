@@ -41,6 +41,11 @@ static bool parse_coord(const char *v, const char *hemi, double *deg)
         return false;
     }
     double x = atof(v);
+    // Riga rovinata (trovato dal fuzzing): fuori da 0..18060 (dddmm) la
+    // conversione in int non e' definita.
+    if (!(x >= 0.0 && x < 18100.0)) {
+        return false;
+    }
     int d = (int) (x / 100);
     *deg = d + (x - d * 100) / 60.0;
     if (hemi[0] == 'S' || hemi[0] == 'W') {
@@ -124,7 +129,16 @@ static bool rewrite(char *line, size_t cap, double epoch, double h_ell_m,
         h = atof(f[9]) + sep;
     }
     int dec_lat = decimals(f[ilat]), dec_lon = decimals(f[ilat + 2]), dec_alt = has_h ? decimals(f[9]) : 0;
+    // Decimali di un campo rovinato: oltre 9 la riga non ci sta e pow() esplode.
+    if (dec_lat > 9) dec_lat = 9;
+    if (dec_lon > 9) dec_lon = 9;
+    if (dec_alt > 4) dec_alt = 4;
     if (given) {
+        // Soluzione HAS rovinata o "nan" (trovato dal fuzzing): non riscrivere.
+        if (!isfinite(given[0]) || !isfinite(given[1]) || !isfinite(given[2]) ||
+            fabs(given[0]) > 90.0 || fabs(given[1]) > 180.0 || fabs(given[2]) > 100000.0) {
+            return false;
+        }
         lat = given[0];
         lon = given[1];
         h = given[2];
@@ -134,7 +148,15 @@ static bool rewrite(char *line, size_t cap, double epoch, double h_ell_m,
         if (dec_alt < 3) dec_alt = 3;
     }
 
+    // Quota da un campo rovinato (es. separazione "1e1200", trovato dal
+    // fuzzing): infinita, la trasformazione darebbe lat/lon non numeriche.
+    if (!isfinite(h) || fabs(h) > 100000.0) {
+        return false;
+    }
     etrf_itrf2020_to_etrf2000(&lat, &lon, &h, epoch);
+    if (!isfinite(lat) || !isfinite(lon) || fabs(lat) > 90.0 || fabs(lon) > 180.0) {
+        return false;
+    }
 
     char lat_s[24], lon_s[24], alt_s[24], q_s[12], age_s[24];
     format_coord(lat_s, sizeof(lat_s), lat, 2, dec_lat);
@@ -171,7 +193,9 @@ static bool rewrite(char *line, size_t cap, double epoch, double h_ell_m,
         cs ^= (unsigned char) out[i];
     }
     int w = snprintf(out + k, sizeof(out) - k, "*%02X", cs);
-    if (w < 0 || k + (size_t) w >= cap) {
+    // Anche il checksum deve stare in out: troncato, la riga usciva con il
+    // checksum rotto (trovato dal fuzzing).
+    if (w < 0 || (size_t) w >= sizeof(out) - k || k + (size_t) w >= cap) {
         return false;
     }
     memcpy(line, out, k + (size_t) w + 1);
