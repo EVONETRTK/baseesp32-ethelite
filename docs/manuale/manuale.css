@@ -214,11 +214,15 @@ figcaption b { color: var(--text); }
   h2 { font-size: 14pt; break-after: avoid; }
   h3, h4 { break-after: avoid; }
   a { color: inherit; text-decoration: none; }
-  section.capitolo { break-before: right; string-set: capitolo attr(data-titolo); }
+  section.capitolo { break-before: right; }
+  /* un solo string-set per "capitolo": Paged.js tiene solo l'ultima regola per nome */
+  section.capitolo, .prefazione { string-set: capitolo attr(data-titolo); }
   .frontespizio { page: copertina; height: 247mm; justify-content: center; padding: 0; }
   .frontespizio .logo { width: 90mm; height: auto; }
   .pagina-retro { page: copertina; break-before: page; height: 247mm; display: flex; flex-direction: column; justify-content: flex-end; font-size: 8.5pt; color: var(--muted); }
   .prefazione, .indice-pagina { break-before: right; }
+  p.attacca { break-after: avoid; }   /* frase che introduce la tabella o figura seguente */
+  code, kbd { padding: 0 .15em; }
   .indice-pagina { page: indice; }
   .indice a::after { content: target-counter(attr(href), page); min-width: 2em; text-align: right; color: var(--muted); font-weight: 400; }
   .indice > ol > li > a::after { color: var(--text); font-weight: 700; }
@@ -239,7 +243,16 @@ figcaption b { color: var(--text); }
 
 /* schermate del pannello (catturate dal telefono, a doppia risoluzione) */
 figure img.schermata { width: 100%; max-width: 380px; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
-@media print { figure img.schermata { max-width: 80mm; } }
+/* In stampa nessuna schermata supera i 200 mm di altezza (la pagina utile e'
+   circa 250 mm): con width:auto il rapporto dei lati resta quello giusto.
+   Le schermate ancora piu' alte vanno marcate <figure class="alta"
+   data-tagli="..."> e build.js le taglia in pezzi affiancati. */
+@media print {
+  figure img.schermata { width: auto; max-width: 80mm; max-height: 200mm; }
+  figure.alta .pezzi { display: flex; justify-content: center; align-items: flex-start; gap: 8mm; }
+  figure.alta .pezzo { flex: none; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  figure.alta .pezzo img { display: block; max-width: none; }
+}
 
 /* "firewall": sempre evidenziato (build.js), perche' e' la causa piu'
    frequente degli intoppi nelle installazioni. NIENTE white-space: nowrap:
@@ -250,7 +263,13 @@ figure img.schermata { width: 100%; max-width: 380px; border: 1px solid var(--bo
 dl.glossario { margin: 0; }
 dl.glossario dt { font-weight: 700; color: var(--brand-dark); margin-top: .7em; break-after: avoid; }
 dl.glossario dd { margin: .1em 0 0 1.2em; }
-@media print { dl.glossario { columns: 2; column-gap: 8mm; font-size: 9.5pt; } dl.glossario dt { break-inside: avoid; } }
+/* ogni termine con la sua spiegazione e' un <div class="voce">: in stampa non
+   si divide tra due colonne o due pagine */
+@media print { dl.glossario { columns: 2; column-gap: 8mm; font-size: 9.5pt; } dl.glossario .voce { break-inside: avoid; } }
+
+/* paragrafo con pittogramma a sinistra (es. RAEE nelle note legali) */
+.con-pitto { display: flex; gap: .8em; align-items: flex-start; }
+.con-pitto > .pitto-solo { flex: none; }
 
 /* ---------- riquadri di sicurezza (ISO 3864-2 / ANSI Z535.6) ----------
    Colori della fascia: PERICOLO rosso, AVVERTENZA arancione, ATTENZIONE
@@ -291,3 +310,12 @@ ol.passi > li::before { content: counter(passo); position: absolute; left: 0; to
 ul.checklist { list-style: none; padding-left: 0; border: 1px solid var(--border); border-radius: 8px; padding: .4em .9em; break-inside: avoid; }
 ul.checklist > li { position: relative; padding-left: 1.9em; margin: .45em 0; }
 ul.checklist > li::before { content: ""; position: absolute; left: 0; top: .2em; width: 1.05em; height: 1.05em; border: 2px solid var(--brand-dark); border-radius: 3px; background: #fff; }
+
+/* Tasti del pannello nel testo (build.js, tastiInLinea): stessi colori del pannello. */
+.tasto { display: inline-block; padding: .02em .55em .08em; border-radius: 6px; background: #2563eb; color: #fff; font-weight: 700; font-size: .88em; line-height: 1.35; white-space: nowrap; box-shadow: 0 1px 0 rgba(0,0,0,.25); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.tasto.secondario { background: #6b7280; }
+/* Nelle celle strette (tabelle, telefono) un tasto lungo va a capo invece di sbordare. */
+td .tasto, th .tasto { white-space: normal; }
+/* tasto con la punteggiatura vicina (build.js, tastiConPunteggiatura): un solo blocco */
+.tasto-unito { white-space: nowrap; }
+td .tasto-unito { white-space: normal; }

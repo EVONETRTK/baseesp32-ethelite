@@ -7,7 +7,7 @@
 <h3>Fase 1 · Preparazione</h3>
 <ol class="passi">
   <li>Scegliete il punto: cielo libero fino a 10–15° sopra l'orizzonte, supporto rigido, <strong>nessuna linea elettrica vicina</strong>, accesso sicuro per i lavori in quota (capitolo <a data-cap="Hardware e installazione della base"></a>).</li>
-  <li>Verificate la connessione disponibile: cavo di rete, WiFi con buon segnale o copertura della rete mobile. In una rete aziendale chiedete che il <span>firewall</span> lasci uscire la porta 2101 (capitolo <a data-cap="Scheda Connessione"></a>).</li>
+  <li>Verificate la connessione disponibile: cavo di rete, WiFi con buon segnale o copertura della rete mobile. In una rete aziendale chiedete che il <span>firewall</span> lasci uscire il ricevitore sulla porta TCP 2101 (caster) e sulla TCP 443 (HTTPS: licenza, aggiornamenti, WhatsApp) verso <code>rtk.evo-net.it</code> (capitolo <a data-cap="Scheda Connessione"></a>).</li>
   <li>Procuratevi dal gestore del caster il nome della mountpoint e la password sorgente.</li>
 </ol>
 
@@ -20,7 +20,7 @@
 
 <h3>Fase 3 · Configurazione</h3>
 <ol class="passi" start="7">
-  <li>Primo collegamento dalla rete <strong>EVONETRTK-…</strong>, cambio delle due password di fabbrica (capitolo <a data-cap="Primo avvio e accesso al pannello"></a>).</li>
+  <li>Primo collegamento dalla rete <strong>EVONETRTK-…</strong>, cambio delle due password di fabbrica e attivazione della licenza con il codice del cliente, scheda <em>Manutenzione</em>, riquadro <em>Licenza</em> (capitolo <a data-cap="Primo avvio e accesso al pannello"></a>).</li>
   <li>Connessione, modo <strong>Base</strong>, modulo GNSS, <strong>Server NTRIP</strong> con <strong>Prova connessione al caster</strong> (capitolo <a data-cap="Scheda Posizione e correzioni"></a>).</li>
   <li>Posizione: survey-in solo per la prova iniziale, poi <strong>coordinate fisse ETRF2000</strong> misurate con RTK, HAS o PPP (capitolo <a data-cap="Coordinate precise della base"></a>).</li>
   <li>SIM, avvisi con prova di invio, copia completa della configurazione, scheda di accesso stampata.</li>
@@ -35,8 +35,8 @@
   <li>Antenna a cielo libero, su supporto rigido; antenna LTE ad almeno 1 m</li>
   <li>Supporto a terra, scaricatore montato, connettori stretti e protetti</li>
   <li>Alimentazione PoE conforme 802.3af/at con protettore sulla linea, oppure 12–24 V con fusibile, oppure pannello fotovoltaico; batteria tampone collegata e provata; ricevitore nella custodia, al riparo</li>
-  <li>Password del pannello e della rete di setup cambiate</li>
-  <li><span>firewall</span>: prova del caster riuscita</li>
+  <li>Password del pannello e della rete di setup cambiate; licenza attivata (Pacchetto Base)</li>
+  <li><span>firewall</span>: porte 2101 e 443 in uscita aperte; prova del caster riuscita e licenza attivata</li>
   <li>Coordinate fisse ETRF2000 inserite e annotate nel registro, con data e metodo</li>
   <li>Caster, Posizione base e Satelliti verdi; prova su un punto noto superata</li>
   <li>Avvisi provati; copia completa della configurazione salvata; scheda di accesso consegnata</li>
@@ -53,10 +53,10 @@
 
 <h3>Fase 2 · Configurazione</h3>
 <ol class="passi" start="4">
-  <li>Primo collegamento e cambio delle password; modo <strong>Rover</strong>; modulo GNSS.</li>
+  <li>Primo collegamento e cambio delle password; attivazione della licenza (Pacchetto Rover ed eventuali extra); modo <strong>Rover</strong>; modulo GNSS.</li>
   <li>Internet: hotspot del telefono o SIM, con <strong>WiFi con fallback cellulare</strong> se c'è il modem.</li>
   <li><strong>Client NTRIP</strong> con i dati del cliente e <strong>Prova connessione al caster</strong> (capitolo <a data-cap="Collegare il trattore"></a>).</li>
-  <li>Uscita dati: porta <strong>9999</strong> e <strong>10</strong> posizioni al secondo per l'autosterzo; riavvio.</li>
+  <li>Uscita dati: porta <strong>9999</strong> e <strong>10</strong> posizioni al secondo per l'autosterzo (serve l'extra <em>Autosterzo</em> della licenza; senza, 1 al secondo); riavvio.</li>
 </ol>
 
 <h3>Fase 3 · Programma di guida</h3>
@@ -73,9 +73,9 @@
   <li>Antenna fissata, nuova altezza del mezzo annotata e comunicata agli operatori</li>
   <li>Misure A, B, C, D prese e scritte in cabina</li>
   <li>Alimentazione sotto chiave con fusibile; cavi fissati</li>
-  <li>Password cambiate; dati del caster provati</li>
+  <li>Password cambiate; licenza attivata (Pacchetto Rover ed extra acquistati); dati del caster provati</li>
   <li>Hotspot del telefono senza spegnimento automatico, oppure SIM attiva</li>
-  <li>Porta 9999, 10 posizioni al secondo; AgIO consentito dal <span>firewall</span></li>
+  <li>Porta 9999, 10 posizioni al secondo (extra Autosterzo attivo); AgIO consentito dal <span>firewall</span></li>
   <li>RTK fisso in campo; prova del picchetto superata (2–3 cm)</li>
   <li>Autosterzo provato a bassa velocità in un'area sgombra; operatore istruito sulle avvertenze</li>
 </ul>

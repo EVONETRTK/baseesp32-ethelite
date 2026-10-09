@@ -4,12 +4,12 @@
 
 <h2>Caster disconnesso e temperatura</h2>
 
-<p>La casella <strong>Avvisami se la connessione al caster resta interrotta troppo a lungo o se la base si scalda troppo</strong> attiva il gruppo principale di avvisi:</p>
+<p>La casella <strong>Avvisami se la connessione al caster resta interrotta troppo a lungo o se il ricevitore si scalda troppo</strong> attiva il gruppo principale di avvisi; la casella vale per tutti i ricevitori:</p>
 
 <table class="divisibile">
   <tr><th>Avviso</th><th>Quando arriva</th><th>Rientro</th></tr>
-  <tr><td><strong>Caster disconnesso</strong></td><td>Quando il collegamento al caster resta interrotto per più dei <strong>minuti di disconnessione</strong> impostati.</td><td>Quando il collegamento riprende.</td></tr>
-  <tr><td><strong>Posizione della base non inviata</strong> (solo base)</td><td>Quando la base non invia il 1005 da oltre 30 minuti: i rover non possono lavorare in RTK.</td><td>Quando il 1005 riprende.</td></tr>
+  <tr><td><strong>Caster disconnesso</strong></td><td>Quando il collegamento al caster resta interrotto per più dei <strong>minuti di disconnessione</strong> impostati. Fa parte del Pacchetto Base.</td><td>Quando il collegamento riprende.</td></tr>
+  <tr><td><strong>Posizione della base non inviata</strong> (solo base)</td><td>Quando la base non invia il 1005 da oltre 30 minuti (o dai minuti di disconnessione impostati, se sono di più): i rover non possono lavorare in RTK.</td><td>Quando il 1005 riprende.</td></tr>
   <tr><td><strong>Temperatura alta</strong></td><td>Quando il chip supera i <strong>70 °C</strong>, per esempio con il sole diretto sulla custodia.</td><td>Quando scende sotto i 65 °C.</td></tr>
 </table>
 
@@ -17,15 +17,15 @@
 
 <p>Sugli stessi canali arrivano anche, <strong>sempre</strong>, anche con la casella spenta: i <strong>promemoria della SIM</strong> (rinnovo del piano, credito sotto la soglia, traffico oltre l'80% del piano: capitolo <a data-cap="Scheda SIM e costi"></a>) e i <strong>promemoria della licenza</strong> a 30 e 7 giorni dalla scadenza di una funzione extra.</p>
 
-<p>Canali, promemoria, posizione della base non inviata e temperatura alta valgono per tutti i ricevitori. Con il solo Pacchetto Rover non sono disponibili l'avviso di caster disconnesso e quello di spostamento dell'antenna, che fanno parte del Pacchetto Base.</p>
+<p>Canali, promemoria, posizione della base non inviata e temperatura alta valgono per tutti i ricevitori: anche con il solo Pacchetto Rover la casella si può spuntare. L'avviso di caster disconnesso e quello di spostamento dell'antenna fanno invece parte del Pacchetto Base.</p>
 
 <h2>Avviso di spostamento dell'antenna</h2>
 
 <p><span class="pubblico tecnico">Solo base · ricevitori u-blox</span> In modalità base il modulo GNSS non ricalcola la propria posizione: trasmette ai rover sempre quella fissata (survey-in o coordinate inserite), anche se l'antenna viene urtata da un mezzo, piegata dal vento o spostata. I rover riceverebbero correzioni sbagliate senza nessun segnale sul posto.</p>
 
-<p>Per accorgersene, la base ricalcola da sola la posizione dell'antenna dai dati grezzi dei satelliti GPS e Galileo, ogni 5 secondi, e ogni <strong>30 minuti</strong> confronta la mediana di queste posizioni con quella che trasmette. Con la casella <strong>Avvisami se l'antenna della base si sposta</strong> spuntata, la base manda un avviso quando la differenza supera la <strong>distanza minima</strong> impostata (in verticale il doppio) per <strong>due controlli di fila</strong>, cioè dopo circa un'ora; quando la posizione torna coerente arriva il messaggio di rientro. Nella scheda <em>Stato</em> compare anche un riquadro rosso «L'antenna della base sembra spostata».</p>
+<p>Per accorgersene, la base ricalcola da sola la posizione dell'antenna dai dati grezzi dei satelliti GPS e Galileo, ogni 5 secondi, e ogni <strong>30 minuti</strong> confronta la mediana di queste posizioni con quella che trasmette. Con la casella <strong>Avvisami se l'antenna della base si sposta</strong> spuntata (insieme alla casella del riquadro <em>Caster disconnesso e temperatura</em>, senza la quale nessun avviso automatico parte), la base manda un avviso quando la differenza supera la <strong>distanza minima</strong> impostata (in verticale il doppio) per <strong>due controlli di fila</strong>, cioè dopo circa un'ora; quando la posizione torna coerente arriva il messaggio di rientro. Nella scheda <em>Stato</em> compare anche un riquadro rosso «L'antenna della base sembra spostata».</p>
 
-<p>Il riquadro mostra lo stato del controllo (satelliti usati, posizioni raccolte, minuti al prossimo confronto) e il risultato dell'ultimo confronto, in orizzontale e in verticale. L'avviso usa i canali (email, WhatsApp) degli altri avvisi, che devono essere attivi.</p>
+<p>Il riquadro mostra lo stato del controllo (satelliti usati, posizioni raccolte, minuti al prossimo confronto) e il risultato dell'ultimo confronto, in orizzontale e in verticale. L'avviso usa i canali (email, WhatsApp) degli altri avvisi, che devono essere configurati. Fa parte del Pacchetto Base.</p>
 
 <div class="box nota"><span class="box-titolo">Precisione del controllo</span>Il ricalcolo usa una sola frequenza, senza correzioni: la mediana di 30 minuti è precisa a circa 1 metro a cielo libero, 2–3 metri con il cielo in parte coperto. Per questo la distanza minima consigliata è <strong>5 metri</strong> (valore di fabbrica) e non conviene scendere sotto i 3: il controllo serve a scoprire un'antenna spostata, caduta o rubata, non gli spostamenti di pochi centimetri. Dopo ogni lavoro vicino alla base conviene comunque controllare a vista.</div>
 

@@ -37,13 +37,13 @@
   </g>
   <g fill="#16365c" font-weight="600">
     <text x="90" y="92" text-anchor="middle">GPS</text>
-    <text x="245" y="62" text-anchor="middle">Galileo</text>
-    <text x="410" y="72" text-anchor="middle">BeiDou</text>
+    <text x="240" y="62" text-anchor="end">Galileo</text>
+    <text x="412" y="72" text-anchor="start">BeiDou</text>
     <text x="560" y="112" text-anchor="middle">GLONASS</text>
   </g>
   <circle cx="320" cy="226" r="7" fill="#1f6b3f" stroke="#fff" stroke-width="2"/>
   <text x="335" y="248" fill="#164f2e" font-weight="700">ricevitore</text>
-  <text x="140" y="165" fill="#2f6fb0" transform="rotate(36 140 165)">distanza = tempo × velocità della luce</text>
+  <text x="105" y="112" fill="#2f6fb0" font-size="11" transform="rotate(36 105 112)">distanza = tempo × velocità della luce</text>
 </svg>
 <figcaption><b>Figura 1.</b> Il ricevitore misura la distanza da ciascun satellite e da queste ricava la propria posizione. Servono almeno quattro satelliti: tre per la posizione e uno per correggere l'orologio del ricevitore.</figcaption>
 </figure>
@@ -170,7 +170,7 @@
 
 <p>Il rover, oltre a ricevere le correzioni, invia al caster la propria posizione approssimata ogni pochi secondi (un messaggio chiamato <strong>GGA</strong>): così il caster sa dove si trova e può servirgli la base più vicina.</p>
 
-<div class="box consiglio"><span class="box-titolo">Consiglio</span>La base EVONETRTK può fare anche da <strong>caster locale</strong>: i rover collegati alla stessa rete WiFi della base ricevono le correzioni direttamente, anche senza internet. È utile per le prove e nelle zone senza copertura.</div>
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>La base EVONETRTK può fare anche da <strong>caster locale</strong>, se il tecnico lo attiva: i rover collegati alla stessa rete locale della base ricevono le correzioni direttamente, anche senza internet. È utile per le prove e nelle zone senza copertura.</div>
 
 <h2>Coordinate e sistemi di riferimento</h2>
 

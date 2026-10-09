@@ -6,34 +6,37 @@
 
 <table class="divisibile">
   <tr><th>Riquadro</th><th>Verde</th><th>Arancione</th><th>Rosso</th></tr>
-  <tr><td>Posizione base</td><td>1005 inviato negli ultimi 30 s</td><td>Survey-in in corso</td><td>1005 non inviato</td></tr>
-  <tr><td>Fix (rover)</td><td>RTK fisso</td><td>RTK float o DGPS</td><td>Altro</td></tr>
+  <tr><td>Posizione base</td><td>1005 inviato negli ultimi 30 s</td><td>Survey-in in corso, o primo minuto dopo l'accensione («In avvio»)</td><td>1005 non inviato</td></tr>
+  <tr><td>Fix (rover)</td><td>RTK fisso o Stimato (INS del K922)</td><td>RTK float, DGPS o Galileo HAS</td><td>Altro</td></tr>
   <tr><td>Satelliti</td><td>8 o più con C/N0 ≥ 35 dB-Hz</td><td>Da 4 a 7</td><td>Meno di 4</td></tr>
   <tr><td>Temperature</td><td>ESP32 e modulo GNSS &lt; 60 °C</td><td>Da 60 a 70 °C</td><td>Oltre 70 °C</td></tr>
   <tr><td>WiFi</td><td>≥ −70 dBm (Buono, Ottimo)</td><td>Da −80 a −70 dBm (Discreto)</td><td>Sotto −80 dBm (Debole)</td></tr>
   <tr><td>LTE</td><td>≥ −95 dBm (Buono, Ottimo)</td><td>Da −105 a −95 dBm (Discreto)</td><td>Sotto −105 dBm (Debole)</td></tr>
   <tr><td>Memoria (solo se scarsa)</td><td>—</td><td>—</td><td>RAM interna &lt; 16 KB</td></tr>
-  <tr><td>SIM</td><td>Pronta o in uso</td><td>Non in uso, piano &gt; 70%, rinnovo entro il primo preavviso</td><td>Credito sotto la soglia, piano &gt; 90%, rinnovo scaduto</td></tr>
+  <tr><td>SIM</td><td>In uso, o credito sopra la soglia</td><td>Non in uso, piano &gt; 70%, rinnovo entro il primo preavviso</td><td>Credito sotto la soglia, piano &gt; 90%, rinnovo scaduto</td></tr>
 </table>
 
-<p>Il giudizio in cima segnala, in ordine di importanza: caster scollegato (con il motivo), 1005 non inviato, antenna spostata, fix del rover non RTK, pochi satelliti, temperatura alta, segnale LTE o WiFi debole sulla connessione in uso, nessuna connessione, piano della SIM scaduto. Il messaggio <strong>La base non manda la sua posizione (1005)</strong> compare in modo base dopo il primo minuto dall'avvio, se il 1005 non è stato inviato negli ultimi 30 secondi, e indica anche la causa più probabile:</p>
+<p>Il giudizio in cima segnala, prima i problemi rossi e poi quelli arancioni: ricevitore da attivare o revocato, funzioni extra della licenza sospese, caster scollegato (con il motivo), 1005 non inviato, antenna spostata, fix del rover non RTK, pochi satelliti, temperatura alta, segnale LTE o WiFi debole sulla connessione in uso, nessuna connessione, piano della SIM scaduto. Il messaggio <strong>La base non manda la sua posizione (1005)</strong> compare in modo base dopo il primo minuto dall'avvio, se il 1005 non è stato inviato negli ultimi 30 secondi, e indica anche la causa più probabile:</p>
 
 <ul>
   <li>il messaggio 1005 è stato <strong>disattivato</strong> tra i messaggi RTCM;</li>
   <li>dal modulo GNSS <strong>non arrivano dati</strong> RTCM da oltre 10 secondi: problema di collegamento tra modulo e scheda;</li>
   <li><strong>coordinate fisse</strong> impostate ma il modulo non manda il 1005: controllate nel log l'esito della configurazione all'avvio;</li>
-  <li><strong>survey-in in corso</strong> da troppo tempo: con la precisione attuale e quella richiesta, che con il cielo coperto può non essere mai raggiunta.</li>
+  <li><strong>survey-in in corso</strong> da troppo tempo: con la precisione attuale e quella richiesta, che con il cielo coperto può non essere mai raggiunta;</li>
+  <li>il modulo <strong>ha smesso di mandarlo</strong> da un certo numero di secondi, oppure il survey-in <strong>non è ancora partito</strong>.</li>
 </ul>
+
+<p>Durante il survey-in il giudizio è arancione: <em>La base non manda ancora la sua posizione (1005): survey-in in corso</em>, con il tempo trascorso e la precisione.</p>
 
 <h2>Server NTRIP o Client NTRIP</h2>
 
-<p>Il primo riquadro dice se il collegamento con il caster funziona: in modo base si chiama <strong>Server NTRIP</strong> (la base invia le correzioni), in modo rover <strong>Client NTRIP</strong> (il rover le riceve).</p>
+<p>Il riquadro che nella scheda si trova sotto il grafico dei satelliti e il fix (sezione «Satelliti, fix e connessioni» più avanti) dice se il collegamento con il caster funziona: in modo base si chiama <strong>Server NTRIP</strong> (la base invia le correzioni), in modo rover <strong>Client NTRIP</strong> (il rover le riceve).</p>
 
 <table>
   <tr><th>Campo</th><th>Significato</th></tr>
-  <tr><td><strong>Stato</strong></td><td><em>CONNESSO</em> o <em>disconnesso</em>.</td></tr>
-  <tr><td><strong>Connesso da</strong></td><td>Da quanto tempo dura il collegamento attuale.</td></tr>
-  <tr><td><strong>Riconnessioni dal boot</strong></td><td>Quante volte il collegamento è caduto ed è stato ripreso dall'ultimo riavvio. Qualche riconnessione al giorno è normale con la SIM; decine all'ora indicano un problema di rete o di caster.</td></tr>
+  <tr><td><strong>Stato</strong></td><td><em>✅ CONNESSO</em> o <em>❌ NON CONNESSO</em>.</td></tr>
+  <tr><td><strong>Connesso da</strong> / <strong>Disconnesso da</strong></td><td>Da quanto tempo dura il collegamento attuale, oppure da quanto è caduto (<em>mai connesso dal boot</em> se non si è mai collegato).</td></tr>
+  <tr><td><strong>Riconnessioni dal boot</strong></td><td>Quante volte il collegamento si è aperto dall'ultimo riavvio: 1 significa nessuna caduta. Qualche riconnessione al giorno è normale con la SIM; decine all'ora indicano un problema di rete o di caster.</td></tr>
   <tr><td><strong>Ultimo errore</strong></td><td>Il motivo dell'ultima caduta o dell'ultimo rifiuto, in chiaro: per esempio password non accettata, mountpoint inesistente, caster irraggiungibile, caster che non risponde.</td></tr>
 </table>
 
@@ -44,7 +47,7 @@
   <tr><td><strong>Matricola</strong>, <strong>Modalità</strong></td><td>Identità del ricevitore e modo di lavoro (base o rover). La versione del firmware è nella scheda <em>Manutenzione</em>.</td></tr>
   <tr><td><strong>Rete attiva</strong></td><td>La connessione in uso verso internet: WiFi (con il nome della rete), cellulare o Ethernet (cavo); l'indirizzo IP mostrato è quello della connessione in uso. Il segnale cellulare compare solo se il modem è montato.</td></tr>
   <tr><td><strong>Byte RTCM (dal boot)</strong></td><td>Correzioni inviate (base) o ricevute (rover) dall'ultimo riavvio. Deve crescere di continuo.</td></tr>
-  <tr><td><strong>Ultimo dato dal GNSS</strong></td><td>Da quanto tempo è arrivato l'ultimo dato dal modulo GNSS: deve restare sotto il secondo o pochi secondi.</td></tr>
+  <tr><td><strong>Ultimo dato RTCM</strong></td><td>Quanti secondi fa è arrivato l'ultimo blocco di correzioni RTCM: in base sono quelle prodotte dal modulo GNSS, in rover quelle ricevute dal caster. Deve restare a pochi secondi.</td></tr>
   <tr><td><strong>Survey-in</strong> (solo base)</td><td>Durata e precisione attuale del survey-in, oppure il suo esito.</td></tr>
   <tr><td><strong>Scheda microSD</strong>, <strong>Spazio SD</strong></td><td>Presenza della scheda, eventuali aggiornamenti trovati sulla scheda e spazio occupato.</td></tr>
   <tr><td><strong>Indirizzo IP attuale</strong></td><td>L'indirizzo del ricevitore sulla rete a cui è collegato, con il pulsante per copiarlo. Può cambiare se il router ne assegna uno nuovo: per tenerlo fisso va riservato nel router.</td></tr>
@@ -55,6 +58,11 @@
 </table>
 
 <h2>Il riquadro Sistema</h2>
+
+<figure>
+  <img class="schermata" src="img/riq-sistema.png" alt="Riquadro Sistema">
+  <figcaption><b>Figura 0.</b> Il riquadro Sistema di una base.</figcaption>
+</figure>
 
 <table class="divisibile">
   <tr><th>Campo</th><th>Significato</th></tr>
@@ -84,11 +92,13 @@
   <tr><td>riavvio software: aggiornamento firmware…</td><td>Dopo un aggiornamento (online, dal pannello o da microSD) o un ripristino dall'archivio.</td></tr>
   <tr><td>riavvio software: configurazione importata</td><td>Dopo il caricamento di una copia della configurazione.</td></tr>
   <tr><td>riavvio software: misura della posizione base…</td><td>All'avvio, al termine o all'annullamento della misura della posizione della base.</td></tr>
+  <tr><td>riavvio software: reset di fabbrica dal pulsante</td><td>Il pulsante BOOT è stato tenuto premuto 5 secondi: le impostazioni sono tornate quelle di fabbrica.</td></tr>
+  <tr><td>riavvio software: nessun dato RTCM (o NMEA) dal ricevitore da 10 minuti, caster scollegato da 30 minuti, task bloccato…</td><td>Riavvio automatico di sicurezza: una parte del sistema era ferma da troppo tempo. Controllate rete e collegamento del modulo GNSS. Conta come guasto per il ripristino automatico della configurazione (riquadro seguente).</td></tr>
   <tr><td>blocco del firmware (watchdog)</td><td>Una parte del firmware si era bloccata e il controllo interno ha riavviato il ricevitore. Vale anche per l'accensione: se il ricevitore non finisce di avviarsi entro 2 minuti, si riavvia da solo.</td></tr>
   <tr><td>errore del firmware (crash)</td><td>Errore del programma. Se si ripete, scaricate i log e segnalatelo.</td></tr>
 </table>
 
-<div class="box avviso"><span class="box-titolo">Attenzione</span>Dopo <strong>tre riavvii per guasto di fila</strong> (errore o blocco del firmware), ognuno entro 10 minuti dall'avvio, il ricevitore torna da solo all'<strong>ultima configurazione che ha funzionato</strong> per almeno due ore di fila, che conserva sulla microSD. Senza microSD questo ripristino automatico non è possibile. Se succede, controllate le ultime modifiche fatte: una di queste ha impedito al ricevitore di lavorare.</div>
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Dopo <strong>tre riavvii per guasto di fila</strong> (errore o blocco del firmware, riavvio automatico di sicurezza), ognuno entro 10 minuti dall'avvio, il ricevitore torna da solo all'<strong>ultima configurazione che ha funzionato</strong> per almeno due ore di fila, che conserva sulla microSD. Senza microSD questo ripristino automatico non è possibile. Se succede, controllate le ultime modifiche fatte: una di queste ha impedito al ricevitore di lavorare.</div>
 
 <p>In fondo alla scheda il pulsante <strong>Riavvia dispositivo</strong> riavvia il ricevitore; serve, per esempio, per applicare le modifiche che lo richiedono. La pagina si ricarica da sola dopo circa 25 secondi.</p>
 
@@ -98,14 +108,19 @@
 
 <h2>Satelliti, fix e connessioni</h2>
 
-<p>Subito sotto i riquadri, la scheda <em>Stato</em> mostra il grafico dei satelliti e i dati del fix; il riquadro <strong>Satelliti</strong> («grafico ›») e l'indicatore <strong>Fix</strong> in alto portano direttamente qui. Fino al firmware 1.29 questi dati erano in una pagina separata, «Segnali».</p>
+<p>Subito sotto i riquadri, la scheda <em>Stato</em> mostra il grafico dei satelliti e i dati del fix; il riquadro <strong>Satelliti</strong> («grafico ›») e, dalle altre schede, l'indicatore <strong>Fix</strong> in alto portano direttamente qui. Fino al firmware 1.29 questi dati erano in una pagina separata, «Segnali».</p>
 
 <h3>Fix GNSS</h3>
 
+<figure>
+  <img class="schermata" src="img/riq-fix.png" alt="Riquadro Fix GNSS">
+  <figcaption><b>Figura 0.</b> Il riquadro Fix GNSS di un rover in RTK fisso.</figcaption>
+</figure>
+
 <table>
   <tr><th>Campo</th><th>Significato</th></tr>
-  <tr><td>Stato fix</td><td>RTK fisso, RTK float, DGPS, GPS o Nessun fix.</td></tr>
-  <tr><td>Satelliti usati / in vista</td><td>Quanti satelliti entrano nel calcolo e quanti ne vede il modulo.</td></tr>
+  <tr><td>Stato fix</td><td>RTK fisso, RTK float, DGPS (anche Galileo HAS), GPS, Stimato (INS del K922) o Nessun fix; senza dati dal modulo <em>Nessun dato ricevuto</em>. Con la riserva HAS è indicata anche la soluzione in uso: RTK dalla base, Galileo HAS o senza correzioni.</td></tr>
+  <tr><td>Satelliti usati nel fix</td><td>Quanti satelliti entrano nel calcolo; quelli in vista sono sotto il grafico dei satelliti.</td></tr>
   <tr><td>HDOP</td><td>Bontà della geometria dei satelliti: sotto 1 ottima, tra 1 e 2 buona, oltre 2–3 scarsa (cielo parzialmente coperto).</td></tr>
   <tr><td>Età correzioni RTCM</td><td>Da quanti secondi sono arrivate le ultime correzioni (rover): 1–2 s normale.</td></tr>
   <tr><td>Altitudine, Ultimo fix</td><td>Quota della posizione e da quanto tempo è stata calcolata.</td></tr>
@@ -129,7 +144,7 @@
   <tr><td>sotto 25 dB-Hz</td><td>Scarsa</td></tr>
 </table>
 
-<div class="box consiglio"><span class="box-titolo">Consiglio</span>Se tutti i satelliti hanno segnali deboli, il problema è l'antenna, il cavo o un disturbo vicino; se sono deboli solo quelli di una direzione, c'è un ostacolo da quella parte. Il grafico è disponibile in rover e, con i moduli u-blox, anche in base.</div>
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Se tutti i satelliti hanno segnali deboli, il problema è l'antenna, il cavo o un disturbo vicino; se sono deboli solo quelli di una direzione, c'è un ostacolo da quella parte. Il grafico è disponibile in rover e, con i moduli u-blox, Unicore e ComNav, anche in base.</div>
 
 <h3>Byte RTCM per messaggio (base, Avanzate)</h3>
 
@@ -150,7 +165,7 @@
 <div class="in-breve">
 <ul>
   <li>Server/Client NTRIP: <em>Ultimo errore</em> e <em>Riconnessioni dal boot</em> dicono subito se il problema è il collegamento al caster.</li>
-  <li>Stato: rete in uso, correzioni inviate o ricevute, ultimo dato dal modulo GNSS, indirizzi.</li>
+  <li>Stato: rete in uso, correzioni inviate o ricevute, ultimo dato RTCM, indirizzi.</li>
   <li>Sistema: motivo dell'ultimo riavvio, traffico dati, temperatura e memoria.</li>
   <li>In cima il giudizio: verde se funziona tutto, altrimenti il problema più importante con la spiegazione.</li>
   <li>Riquadri con satelliti, temperature, WiFi e LTE con le tacche; sotto il grafico dei satelliti e il fix.</li>

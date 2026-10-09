@@ -2,7 +2,7 @@
 
 <h2>Connettività</h2>
 
-<p>Il campo <strong>Connettività da usare</strong> decide quali connessioni il ricevitore usa per raggiungere internet. Vale dopo il riavvio.</p>
+<p>Il campo <strong>Connettività da usare</strong> decide quali connessioni il ricevitore usa per raggiungere internet. Vale dopo il riavvio: dopo il salvataggio compare la barra gialla delle modifiche non ancora attive.</p>
 
 <table class="divisibile">
   <tr><th>Scelta</th><th>Comportamento</th><th>Quando usarla</th></tr>
@@ -12,7 +12,7 @@
   <tr><td><strong>⚠️ Solo Ethernet</strong></td><td>Spegne del tutto la radio WiFi, compresa la rete di setup.</td><td>Solo per escludere disturbi della radio WiFi sul GNSS, con un cavo di rete già verificato.</td></tr>
 </table>
 
-<div class="box avviso"><span class="box-titolo">Pericolo</span>Con <strong>Solo Ethernet</strong> la rete WiFi <strong>EVONETRTK-…</strong> non c'è più. Se il cavo di rete non funziona, il ricevitore non è più raggiungibile in nessun modo e l'unico rimedio è il ripristino di fabbrica con il pulsante BOOT, che cancella tutta la configurazione. Sceglietela solo dopo aver verificato che via cavo il pannello si apre.</div>
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Con <strong>Solo Ethernet</strong> la rete WiFi <strong>EVONETRTK-…</strong> non c'è più. Se il cavo di rete non funziona, il ricevitore non è più raggiungibile in nessun modo e l'unico rimedio è il ripristino di fabbrica con il pulsante BOOT, che cancella tutta la configurazione. Sceglietela solo dopo aver verificato che via cavo il pannello si apre.</div>
 
 <p>L'<strong>Ethernet</strong>, quando il cavo è collegato, funziona in ogni caso, indipendentemente da questa scelta. Il ricevitore prende l'indirizzo automaticamente dal router (DHCP); per avere sempre lo stesso indirizzo, riservatelo nel router.</p>
 
@@ -43,7 +43,7 @@
 
 <h2>Monitoraggio remoto</h2>
 
-<p><span class="pubblico tecnico">Avanzate</span> Una base collegata solo con la SIM non si raggiunge da fuori. Con questa funzione è la base a mandare, a intervalli regolari, un riassunto del suo stato a un indirizzo web, per esempio una pagina sul server del caster: stato del caster, posizione, memoria, temperatura, ultimo riavvio, traffico e credito. Il riassunto non contiene né impostazioni né password.</p>
+<p><span class="pubblico tecnico">Avanzate · Pacchetto Base</span> Una base collegata solo con la SIM non si raggiunge da fuori. Con questa funzione è la base a mandare, a intervalli regolari, un riassunto del suo stato a un indirizzo web, per esempio una pagina sul server del caster: stato del caster, posizione, memoria, temperatura, ultimo riavvio, traffico e credito. Il riassunto non contiene né impostazioni né password.</p>
 
 <ul>
   <li><strong>Indirizzo</strong>: l'indirizzo che riceve i dati (<code>http://</code> o <code>https://</code>), in formato JSON con il metodo POST.</li>
@@ -54,7 +54,7 @@
 
 <h2>Accesso remoto con la VPN WireGuard</h2>
 
-<p>Per aprire il pannello di una base lontana, anche quando usa la SIM, il ricevitore può collegarsi da solo a un server <strong>WireGuard</strong> e restarci collegato. Dal computer o dal telefono, collegati alla stessa rete privata, il pannello si apre all'indirizzo della base nella VPN, per esempio <code>http://10.8.0.2</code>. Il tunnel serve solo per raggiungere la base: le correzioni verso il caster continuano a passare dalla connessione normale.</p>
+<p><span class="pubblico tecnico">Pacchetto Base</span> Per aprire il pannello di una base lontana, anche quando usa la SIM, il ricevitore può collegarsi da solo a un server <strong>WireGuard</strong> e restarci collegato. Dal computer o dal telefono, collegati alla stessa rete privata, il pannello si apre all'indirizzo della base nella VPN, per esempio <code>http://10.8.0.2</code>. Il tunnel serve solo per raggiungere la base: le correzioni verso il caster continuano a passare dalla connessione normale.</p>
 
 <p>Funziona anche con le SIM che non accettano connessioni in entrata, perché è la base a chiamare il server, e tiene il collegamento aperto con un segnale ogni 25 secondi.</p>
 
@@ -71,9 +71,11 @@
 
 <div class="box nota"><span class="box-titolo">Nota</span>Il server può collegare la VPN delle basi alla rete privata Tailscale dei tecnici: in quel caso chi ha l'app Tailscale autorizzata raggiunge le basi senza configurare WireGuard sul proprio telefono. La procedura per il server è descritta nella documentazione tecnica del firmware (<code>docs/vpn-server.md</code>).</div>
 
-<div class="box avviso"><span class="box-titolo">Pericolo</span>Con la VPN il pannello è raggiungibile da tutti i dispositivi della rete privata: usate una password del pannello robusta e diversa dalla matricola.</div>
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Con la VPN il pannello è raggiungibile da tutti i dispositivi della rete privata: usate una password del pannello robusta e diversa dalla matricola.</div>
 
 <h2>Il firewall della rete</h2>
+
+<div class="box avviso"><span class="box-titolo">IMPORTANTE – Il firewall: causa n. 1 dei problemi di installazione</span>Prima di installare un ricevitore in una rete aziendale fate aprire in uscita le porte della tabella qui sotto: almeno la <strong>2101</strong> verso il caster e la <strong>443</strong> (HTTPS) verso <code>rtk.evo-net.it</code> per la licenza.</div>
 
 <p>Nelle installazioni nelle reti aziendali il firewall è la causa più frequente di una base che "non si collega" pur avendo internet: il ricevitore si collega alla rete WiFi o al cavo, ma il firewall del router o dell'azienda blocca le porte che usa. Tutte le connessioni partono dal ricevitore verso l'esterno: non serve aprire nessuna porta in entrata verso il ricevitore.</p>
 
@@ -82,7 +84,7 @@
 <table class="divisibile">
   <tr><th>Servizio</th><th>Porta e protocollo</th><th>Verso</th><th>Se bloccato</th></tr>
   <tr><td><strong>Caster NTRIP</strong></td><td>TCP <strong>2101</strong> (o quella del caster)</td><td>il caster EVONETRTK</td><td>La base non invia correzioni: <em>Connessione … fallita</em> o <em>Nessuna risposta dal caster</em>.</td></tr>
-  <tr><td>Aggiornamenti, WhatsApp, monitoraggio remoto</td><td>TCP 443 (HTTPS)</td><td>github.com, api.callmebot.com, indirizzo del monitoraggio</td><td>Niente aggiornamenti online e niente avvisi WhatsApp.</td></tr>
+  <tr><td><strong>Licenza</strong> (attivazione e rinnovo), aggiornamenti, WhatsApp, monitoraggio remoto</td><td>TCP <strong>443</strong> (HTTPS)</td><td>rtk.evo-net.it, github.com, api.callmebot.com, indirizzo del monitoraggio</td><td>Attivazione impossibile e licenza non rinnovata (<em>server non raggiungibile (rete o firewall)</em>: dopo 30 giorni si sospendono le funzioni extra), niente aggiornamenti online e niente avvisi WhatsApp.</td></tr>
   <tr><td>Avvisi email</td><td>TCP 465 o 587</td><td>il server SMTP</td><td>Gli avvisi email non partono.</td></tr>
   <tr><td>Ora esatta</td><td>UDP 123 (NTP)</td><td>pool.ntp.org, time.google.com</td><td>Il ricevitore prende l'ora dai satelliti: funziona, ma i log possono avere l'ora sbagliata finché non c'è una posizione.</td></tr>
   <tr><td>Nomi degli indirizzi</td><td>UDP/TCP 53 (DNS)</td><td>il DNS della rete</td><td><em>Indirizzo del caster non trovato (DNS)</em>.</td></tr>
@@ -100,6 +102,6 @@
   <li><strong>Connetti</strong> prova la rete WiFi prima di salvarla; il ricevitore ricorda fino a 5 reti.</li>
   <li>Cambiate la password della rete di setup.</li>
   <li>Monitoraggio remoto: la base manda il suo stato a un indirizzo web; VPN WireGuard: si apre il pannello di una base lontana, anche via SIM.</li>
-  <li>Nelle reti aziendali il firewall deve lasciare uscire almeno la porta 2101 verso il caster: provate sempre con <strong>Prova connessione al caster</strong>.</li>
+  <li><strong>Firewall</strong>: nelle reti aziendali deve lasciare uscire almeno la porta 2101 verso il caster e la 443 verso <code>rtk.evo-net.it</code> per la licenza; provate sempre con <strong>Prova connessione al caster</strong>.</li>
 </ul>
 </div>

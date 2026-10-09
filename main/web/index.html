@@ -46,8 +46,9 @@
   legend { font-weight: 700; font-size: 1rem; padding: 0 .5rem; }
   label { display:block; margin-top:.6rem; font-size:.9rem; color:#333; }
   input, select { width:100%; padding:.5rem; margin-top:.2rem; box-sizing:border-box; border:1px solid #c5c9d0; border-radius:6px; font-size:1rem; }
-  button.action { padding:.6rem 1.2rem; border:none; border-radius:8px; background:#2563eb; color:#fff; font-size:1rem; font-weight:600; cursor:pointer; margin-top:1rem; }
-  button.secondary { background:#6b7280; margin-left:.5rem; }
+  a.action { display:inline-block; text-decoration:none; }
+  button.action, a.action { padding:.6rem 1.2rem; border:none; border-radius:8px; background:#2563eb; color:#fff; font-size:1rem; font-weight:600; cursor:pointer; margin-top:1rem; }
+  button.secondary, a.action.secondary { background:#6b7280; margin-left:.5rem; }
   dl.kv { display:grid; grid-template-columns:auto 1fr; gap:.4rem .8rem; margin:0; font-size:.9rem; }
   dl.kv dt { color:#666; }
   #save-msg { margin-top:.6rem; font-size:.9rem; }
@@ -201,8 +202,8 @@
     /* Comandi comodi per il dito, niente zoom automatico su iPhone (16 px) */
     input, select, textarea { font-size:16px; min-height:44px; }
     input[type=checkbox], input[type=radio] { min-height:0; width:1.3rem !important; height:1.3rem; }
-    button.action { min-height:44px; padding:.6rem 1rem; }
-    button.secondary { margin-left:0; margin-right:.4rem; }
+    button.action, a.action { min-height:44px; padding:.6rem 1rem; box-sizing:border-box; }
+    button.secondary, a.action.secondary { margin-left:0; margin-right:.4rem; }
     fieldset { padding:.8rem; margin-bottom:.9rem; }
     /* Titolo dentro il riquadro: quelli lunghi andavano su due righe sopra il bordo */
     fieldset > legend { float:left; width:100%; padding:0 0 .3rem; font-size:.98rem; }
@@ -400,7 +401,7 @@
       <dt>Modalita'</dt><dd id="st-mode">-</dd>
       <dt>Rete attiva</dt><dd id="st-net">-</dd>
       <dt>Byte RTCM (dal boot)</dt><dd id="st-bytes">-</dd>
-      <dt>Ultimo dato dal GNSS</dt><dd id="st-last">-</dd>
+      <dt>Ultimo dato RTCM</dt><dd id="st-last">-</dd>
       <dt data-mode="base">Survey-in (posizione base)</dt><dd id="st-svin" data-mode="base">-</dd>
       <dt>Scheda microSD</dt><dd id="st-sd">-</dd>
       <dt id="st-sd-space-label" style="display:none">Spazio SD</dt>
@@ -504,11 +505,11 @@
         <option value="cellular">Solo cellulare (ignora il WiFi station)</option>
         <option value="ethernet_only">⚠️ Solo Ethernet (spegne la radio WiFi)</option>
       </select>
-      <small class="hint">L'AP di setup di questa pagina resta sempre attivo in ogni caso, <strong>tranne</strong> con "Solo Ethernet": in quel modo la radio WiFi non si accende proprio (utile per isolare interferenze RF sul GNSS), ma se l'Ethernet non funziona perdi ogni accesso remoto - l'unico recupero e' il tasto fisico di reset (tenuto premuto), che cancella le impostazioni. Usalo solo con Ethernet gia' verificato funzionante. L'Ethernet, se abilitata via menuconfig, e' indipendente da questa scelta.</small>
+      <small class="hint">L'AP di setup di questa pagina resta sempre attivo in ogni caso, <strong>tranne</strong> con "Solo Ethernet": in quel modo la radio WiFi non si accende proprio (utile per isolare interferenze RF sul GNSS), ma se l'Ethernet non funziona perdi ogni accesso remoto - l'unico recupero e' il pulsante BOOT tenuto premuto 5 secondi, che cancella le impostazioni. Usalo solo con Ethernet gia' verificato funzionante. L'Ethernet, se abilitata via menuconfig, e' indipendente da questa scelta.</small>
     </label>
   
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="network_mode">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="network_mode" data-reboot="1">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -547,7 +548,7 @@
     <legend>🔌 Rete di setup (AP di questo dispositivo)</legend>
     <label>SSID AP<input name="ap_ssid"></label>
     <label>Password AP<input autocomplete="new-password" name="ap_password" type="password" placeholder="lascia vuoto per non modificare">
-      <small class="hint">Minimo 8 caratteri. Se l'AP non ha mai avuto una password impostata, resta aperto.</small>
+      <small class="hint">Minimo 8 caratteri. Quella di fabbrica e' sulla scheda di accesso.</small>
     </label>
   
     <div class="fieldset-save-row">
@@ -666,7 +667,7 @@
     </div>
   </fieldset>
 
-  <fieldset id="bynav-m21d-fieldset" hidden>
+  <fieldset id="bynav-m21d-fieldset" data-lic="ins" hidden>
     <legend>🧭 Bynav M21D - installazione IMU/INS (solo rover)</legend>
     <small class="hint">
       Solo per chip <strong>Bynav M21D</strong> in modalita' <strong>rover</strong>: il braccio di
@@ -840,7 +841,7 @@
         La base si riavvia come rover, riceve le correzioni dal mountpoint del rover
         (<span id="measure-mp">-</span>), aspetta il fix RTK e fa la media delle posizioni per 3 minuti.
         Poi salva le coordinate come posizione fissa e torna base da sola. Precisione di centimetri,
-        invece dei metri del survey-in. Massimo 20 minuti (3 se il caster non manda correzioni, es. password del rover sbagliata); se non arriva il fix, le coordinate non cambiano.
+        invece dei metri del survey-in. Massimo 20 minuti (3 se il caster non manda correzioni, es. password del rover sbagliata). Se il fix RTK fisso non basta ma c'e' almeno 5 minuti di RTK float, salva la media float (precisione di decimetri: "Ultima misura" lo dice); senza fix ne' float le coordinate non cambiano.
         Le coordinate sono nel sistema della rete che manda le correzioni: per la rete EVONETRTK deve essere ETRF2000 (RDN2008).
       </small>
       <button type="button" class="action" id="measure-start-btn">📡 Avvia misura</button>
@@ -851,7 +852,7 @@
       <small class="hint" style="display:block; margin:.3rem 0">
         Il ricevitore calcola la posizione con le correzioni gratuite di Galileo (HAS), che arrivano dai satelliti:
         non servono internet ne' un'altra stazione. La base fa la media per le ore scelte, converte le coordinate
-        da ITRF2020 a ETRF2000 (il sistema della rete) e le salva come posizione fissa. Precisione attesa: circa un decimetro.
+        da ITRF2020 a ETRF2000 (il sistema della rete) e le salva come posizione fissa. Precisione attesa: circa 10 cm in orizzontale e 10-20 cm in quota (stima, da confermare).
       </small>
       <div class="sim-sms-warn">
         <b>⚠️ Prima di avviare</b>
@@ -1023,7 +1024,7 @@
     </label>
     <small class="hint">
       Senza correzioni (niente copertura della SIM, caster o base spenti) il rover scende a 1-2 metri. Con la riserva
-      il ricevitore usa le correzioni gratuite di Galileo, che arrivano dai satelliti, e resta intorno ai 20 cm.
+      il ricevitore usa le correzioni gratuite di Galileo, che arrivano dai satelliti, e resta intorno ai 20 cm in orizzontale (40 cm in quota).
       Appena tornano le correzioni della base riprende l'RTK da solo. Le posizioni fuori dall'RTK vengono convertite
       in ETRF2000, il sistema delle basi: passando da RTK a HAS e ritorno la posizione non salta di un metro.
     </small>
@@ -1032,7 +1033,7 @@
       <ul>
         <li>Serve un ricevitore <b>Unicore UM980/UM982</b> o <b>ComNav K922</b> (per il K922 l'attivazione di HAS va ancora verificata sul modulo; lo ZED-F9P non riceve il segnale Galileo E6).</li>
         <li>HAS <b>non basta per semina di precisione, strip-till e sarchiatura</b> (servono 2-3 cm): va bene per concimazione, irrorazione, trinciatura e mappe.</li>
-        <li>Dopo l'avvio o dopo una perdita del segnale (alberi, capannoni) servono <b>da alcuni minuti a decine di minuti</b> prima che HAS sia preciso.</li>
+        <li>Dopo l'avvio o dopo una perdita del segnale (alberi, capannoni) servono oggi <b>da 30 a 60 minuti</b> prima che HAS sia preciso.</li>
         <li>Lo stato del fix nella scheda Stato dice sempre quale soluzione e' in uso: RTK, HAS o autonoma.</li>
       </ul>
     </div>
@@ -1115,7 +1116,7 @@
       Con i ricevitori u-blox e Unicore: quante posizioni al secondo (frasi GGA, RMC con la velocita'
       e VTG con la direzione) arrivano al software di guida. Per l'autosterzo AgOpenGPS ne servono 5-10;
       l'elenco dei satelliti (GSV) resta una volta al secondo e al caster la posizione va sempre ogni 10 s.
-      Con il ComNav K922 la frequenza e' fissa (5 al secondo). Richiede un riavvio.
+      Con il ComNav K922 esce solo la GGA, a 1 al secondo oppure a 5 con la navigazione inerziale (INS) attiva; con la prua dalla doppia antenna esce anche la GPHDT. Richiede un riavvio.
     </small>
     <div class="fieldset-save-row">
       <button type="button" class="action fieldset-save-btn" data-fields="nmea_rate_hz" data-reboot="1">💾 Salva</button>
@@ -1237,7 +1238,7 @@
     </div>
     <small class="hint">
       Il traffico e' una stima (dati inviati al caster piu' le intestazioni di rete), utile per non
-      restare senza dati. Con gli avvisi attivi arriva un avviso all'80% del piano. La base torna da
+      restare senza dati. All'80% del piano arriva un avviso (una volta per periodo, anche con gli altri avvisi spenti: basta un canale nella scheda Avvisi). La base torna da
       sola al WiFi appena e' di nuovo disponibile (controllo ogni 5 minuti).
     </small>
   
@@ -1323,11 +1324,11 @@
 </div>
 
 <div id="page-security" class="page">
-  <fieldset data-lic="base">
+  <fieldset>
     <legend>🔌 Avvisi: caster disconnesso e temperatura</legend>
     <label style="flex-direction:row; align-items:center; gap:.5rem">
       <input name="alert_enable" type="checkbox" style="width:auto; margin:0">
-      Avvisami se la connessione al caster resta interrotta troppo a lungo o se la base si scalda troppo
+      Avvisami se la connessione al caster resta interrotta troppo a lungo o se il ricevitore si scalda troppo
     </label>
     <label>Minuti di disconnessione prima di avvisare<input name="alert_threshold_min" type="number" min="1"></label>
     <small class="hint">
@@ -1337,7 +1338,8 @@
       In modalita' base arriva anche un avviso se la base non invia la sua posizione (1005) da oltre
       30 minuti: i rover in quel caso non possono fare RTK.<br>
       Con questa opzione attiva arriva anche un avviso se la temperatura del chip supera 70 °C
-      (es. sole diretto sulla custodia) e uno quando scende sotto 65 °C.
+      (es. sole diretto sulla custodia) e uno quando scende sotto 65 °C.<br>
+      L'avviso del caster fa parte del Pacchetto Base; posizione (1005) e temperatura valgono per tutti.
     </small>
   
     <div class="fieldset-save-row">
@@ -2333,7 +2335,7 @@ async function loadStatusOnce() {
     }
     document.getElementById('st-bytes').textContent = s.rtcm_bytes;
     document.getElementById('st-last').textContent = s.last_rtcm_us
-      ? new Date(s.last_rtcm_us / 1000).toLocaleTimeString()
+      ? (s.now_us ? Math.max(0, Math.round((s.now_us - s.last_rtcm_us) / 1e6)) + ' s fa' : 'si')
       : 'mai';
 
     renderNtripStatus(s);

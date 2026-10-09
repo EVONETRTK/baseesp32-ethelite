@@ -33,9 +33,9 @@
   <li>Montate l'antenna nella <strong>posizione definitiva</strong>, sul supporto definitivo, con il cielo libero.</li>
   <li>Inserite una microSD con almeno 1 GB libero (capitolo <a data-cap="Hardware e installazione della base"></a>).</li>
   <li>Nel pannello attivate le <strong>Avanzate</strong> e aprite la scheda <em>Posizione</em>, riquadro <strong>Dati per le coordinate precise (PPP)</strong>.</li>
-  <li>Con un modulo <strong>u-blox</strong> scegliete <strong>Durata</strong> <em>24 ore</em> e <strong>Misure ogni</strong> <em>5 s</em> (circa 50 MB al giorno), poi <strong>Avvia registrazione</strong>. Con gli altri moduli usate la registrazione delle <strong>osservazioni RTCM3</strong> nello stesso riquadro.</li>
-  <li>Lasciate lavorare la base: continua a inviare le correzioni normalmente. La registrazione si ferma da sola alla fine.</li>
-  <li>Scaricate il file dal pannello (<strong>File registrati</strong> o <strong>Scarica log</strong>), oppure togliete la microSD e copiatelo dalla cartella <code>raw</code>.</li>
+  <li>Con un modulo <strong>u-blox</strong> scegliete <strong>Durata</strong> <em>24 ore</em> e <strong>Misure ogni</strong> <em>5 s</em> (circa 50 MB al giorno), poi <strong>▶️ Avvia registrazione</strong>. Con gli altri moduli usate la registrazione delle <strong>osservazioni RTCM3</strong> nello stesso riquadro.</li>
+  <li>Lasciate lavorare la base: continua a inviare le correzioni normalmente. La registrazione u-blox si ferma da sola alla fine; quella RTCM3 va fermata con <strong>⏹️ Ferma</strong> dopo 24 ore.</li>
+  <li>Scaricate il file dal pannello (<strong>📂 File registrati</strong> o <strong>⬇️ Scarica log</strong>), oppure togliete la microSD: i file u-blox sono nella cartella <code>raw</code>, il file <code>ppp_log.rtcm3</code> nella cartella principale.</li>
 </ol>
 
 <div class="box nota"><span class="box-titolo">Nota</span>Più ore significano più precisione, soprattutto in quota: con 6 ore si arriva a pochi centimetri, con 24 ore a 1–2 cm. Se nel periodo manca la corrente, ripetete la registrazione: un file interrotto si può usare, ma con meno ore.</div>
@@ -46,7 +46,7 @@
 
 <ul>
   <li>File u-blox: <code>convbin file.ubx -r ubx -v 3.04</code></li>
-  <li>File RTCM3: <code>convbin ppp_log.rtcm3 -r rtcm3 -v 3.03 -n ppp_log.obs</code></li>
+  <li>File RTCM3: <code>convbin ppp_log.rtcm3 -r rtcm3 -v 3.03 -n ppp_log.obs</code> (per OPUS e altri servizi che chiedono RINEX 2: <code>-v 2.11</code>)</li>
 </ul>
 
 <p>Escono un file di <strong>osservazioni</strong> (<code>.obs</code>) e uno di <strong>navigazione</strong> (<code>.nav</code>). Ai servizi PPP serve il file <code>.obs</code>.</p>

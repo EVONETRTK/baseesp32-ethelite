@@ -24,7 +24,7 @@
   <text x="315" y="158" text-anchor="middle" fill="#334">firmware EVONETRTK</text>
   <text x="315" y="176" text-anchor="middle" fill="#334">pannello · microSD</text>
   <path d="M142 150 L226 150" stroke="#556070" stroke-width="2" marker-start="url(#f6)" marker-end="url(#f6)"/>
-  <text x="184" y="142" text-anchor="middle" fill="#334">seriale o I2C</text>
+  <text x="185" y="141" text-anchor="middle" fill="#334" font-size="12">seriale o I2C</text>
   <!-- reti -->
   <rect x="500" y="40" width="160" height="36" rx="6" fill="#fff" stroke="#556070" stroke-width="1.5"/>
   <text x="580" y="63" text-anchor="middle" fill="#334">WiFi</text>
@@ -57,13 +57,13 @@
 
 <h2>Moduli GNSS supportati</h2>
 
-<p>Il modulo GNSS si sceglie nel pannello, scheda <em>Posizione</em>, riquadro <em>Ricevitore GNSS e collegamento</em>. Con la scelta <strong>Automatico</strong> il firmware riconosce da solo, all'avvio, i moduli u-blox, Unicore e ComNav, sia in seriale sia in I2C. In base al modulo e al modo (base o rover) il firmware gli invia la configurazione adatta: messaggi RTCM, frequenze, survey-in o coordinate fisse.</p>
+<p>Il modulo GNSS si sceglie nel pannello, scheda <em>Posizione e correzioni</em>, riquadro <em>Ricevitore GNSS e collegamento</em>. Con la scelta <strong>Automatico</strong> il firmware riconosce da solo, all'avvio, i moduli u-blox, Unicore e ComNav, sia in seriale sia in I2C. In base al modulo e al modo (base o rover) il firmware gli invia la configurazione adatta: messaggi RTCM, frequenze, survey-in o coordinate fisse.</p>
 
 <table class="divisibile">
   <tr><th>Modulo</th><th>Collegamento</th><th>Stato</th><th>Note</th></tr>
   <tr><td><strong>u-blox ZED-F9P</strong></td><td>I2C o seriale</td><td>Provato sul campo</td><td>Modulo di riferimento. Doppia frequenza L1/L2. Non riceve il segnale Galileo E6, quindi niente HAS.</td></tr>
   <tr><td>u-blox ZED-X20P</td><td>I2C o seriale</td><td>Supportato, non ancora provato su questa scheda</td><td>Tripla frequenza.</td></tr>
-  <tr><td><strong>Unicore UM980, UM982</strong></td><td>Solo seriale (115200 di fabbrica)</td><td>Supportato, non ancora provato su questa scheda</td><td>Multifrequenza con Galileo E6: permette la riserva HAS in rover e la misura della posizione della base con HAS. L'UM982 ha la doppia antenna per la prua.</td></tr>
+  <tr><td><strong>Unicore UM980, UM982</strong></td><td>Solo seriale (115200 di fabbrica)</td><td>Supportato, non ancora provato su questa scheda</td><td>Multifrequenza con Galileo E6: permette la riserva HAS in rover e la misura della posizione della base con HAS. L'UM982 ha la doppia antenna; la prua non è ancora usata dal firmware.</td></tr>
   <tr><td>ComNav K922</td><td>Seriale</td><td>Non ancora provato</td><td>Multifrequenza con IMU e doppia antenna; riserva HAS da verificare.</td></tr>
   <tr><td>Quectel LC29H (BA, CA, DA, EA)</td><td>Seriale</td><td>Supportato</td><td>Modulo economico.</td></tr>
   <tr><td>Bynav M20, M20D, M21D</td><td>Seriale</td><td>Non verificato su hardware</td><td>L'M21D ha IMU e funzioni INS in rover.</td></tr>
@@ -74,7 +74,7 @@
 
 <h3>Collegamento in I2C</h3>
 
-<p>È il collegamento della configurazione di riferimento, disponibile <strong>solo per i moduli u-blox</strong>. La scheda HAT del ZED-F9P porta sul connettore a 40 pin solo alimentazione e I2C, sui pin fisici 3 e 5 (GPIO 17 e 18 dell'ESP32), lo stesso bus dell'eventuale display OLED. Il modulo risponde all'indirizzo 0x42. Nel pannello: <em>Collegamento</em> = <strong>I2C</strong>.</p>
+<p>È il collegamento della configurazione di riferimento, disponibile <strong>solo per i moduli u-blox</strong>. La scheda HAT dello ZED-F9P porta sul connettore a 40 pin solo alimentazione e I2C, sui pin fisici 3 e 5 (GPIO 17 e 18 dell'ESP32), lo stesso bus dell'eventuale display OLED. Il modulo risponde all'indirizzo 0x42. Nel pannello: <em>Collegamento</em> = <strong>I2C</strong>.</p>
 
 <div class="box nota"><span class="box-titolo">Nota</span>Sulla configurazione di riferimento la linea di clock della microSD è collegata, attraverso la scheda HAT, a una delle linee I2C. Il firmware lo gestisce da solo sospendendo l'I2C mentre scrive sulla microSD: non serve nessun intervento, ma è il motivo per cui la registrazione dei dati grezzi sulla microSD avviene a blocchi.</div>
 
@@ -125,7 +125,7 @@
   <li><strong>Raggiungibile</strong> per la manutenzione, ma protetta da urti accidentali e da chi passa.</li>
 </ul>
 
-<div class="box avviso"><span class="box-titolo">Attenzione</span>Una volta misurate le coordinate precise della base, l'antenna <strong>non deve più muoversi</strong>, nemmeno di pochi centimetri. Se va spostata o sostituita, le coordinate vanno misurate di nuovo (capitolo <a data-cap="Coordinate precise della base"></a>). Il ricevitore non si accorge da solo di uno spostamento fisico dell'antenna (capitolo <a data-cap="Scheda Avvisi"></a>): controllatela a vista dopo urti, lavori o maltempo.</div>
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Una volta misurate le coordinate precise della base, l'antenna <strong>non deve più muoversi</strong>, nemmeno di pochi centimetri. Se va spostata o sostituita, le coordinate vanno misurate di nuovo (capitolo <a data-cap="Coordinate precise della base"></a>). Il ricevitore si accorge da solo solo di spostamenti di alcuni metri, e solo con i moduli u-blox e l'avviso di spostamento attivato (capitolo <a data-cap="Scheda Avvisi"></a>): spostamenti di pochi centimetri non li vede. Controllate l'antenna a vista dopo urti, lavori o maltempo.</div>
 
 <h3>Cavo e connettori</h3>
 
@@ -251,8 +251,10 @@
   <tr><th>Connessione</th><th>Quando usarla</th></tr>
   <tr><td><strong>Ethernet</strong> (chip W5500 della scheda)</td><td>La più stabile, quando c'è un cavo di rete vicino alla base; con il PoE lo stesso cavo porta anche la corrente.</td></tr>
   <tr><td><strong>WiFi</strong></td><td>Quando la base è nel raggio della rete aziendale con un segnale buono e stabile.</td></tr>
-  <tr><td><strong>Modem LTE</strong> con SIM</td><td>Dove non c'è altro, oppure come riserva automatica di WiFi e cavo: la modalità consigliata è "WiFi con riserva cellulare".</td></tr>
+  <tr><td><strong>Modem LTE</strong> con SIM</td><td>Dove non c'è altro, oppure come riserva automatica di WiFi e cavo: la modalità consigliata è <strong>WiFi con fallback cellulare</strong>.</td></tr>
 </table>
+
+<div class="box avviso"><span class="box-titolo">Firewall</span>Con il WiFi o il cavo di una rete aziendale, il firewall deve lasciare uscire il ricevitore sulla porta TCP <strong>2101</strong> verso il caster e sulla TCP <strong>443</strong> (HTTPS) verso il server EVONETRTK <code>rtk.evo-net.it</code>, per la licenza e gli aggiornamenti. È la causa più frequente di una base che ha internet ma non invia correzioni: verificate sempre con <strong>Prova connessione al caster</strong> (capitolo <a data-cap="Scheda Connessione"></a>).</div>
 
 <h3>Il modem e la SIM</h3>
 

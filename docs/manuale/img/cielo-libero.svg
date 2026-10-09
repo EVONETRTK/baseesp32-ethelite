@@ -43,7 +43,7 @@
   <text x="472" y="150" fill="#c4161c" font-weight="600">riflesso</text>
   <!-- segnale bloccato dall'albero -->
   <path d="M655 80 L640 128" stroke="#c4161c" stroke-width="2" stroke-dasharray="6 4"/>
-  <text x="580" y="122" fill="#c4161c" font-weight="600">bloccato</text>
+  <text x="640" y="104" text-anchor="end" fill="#c4161c" font-weight="600">bloccato</text>
   <!-- terreno, antenna -->
   <rect x="360" y="230" width="335" height="65" fill="#e5e7e9"/>
   <rect x="527" y="196" width="6" height="34" fill="#556070"/>

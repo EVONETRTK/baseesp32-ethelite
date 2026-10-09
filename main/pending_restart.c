@@ -21,6 +21,7 @@ typedef struct {
     bool comnav_ins_enable, comnav_heading_enable;
     uint8_t comnav_imu_axes;
     bool rover_has_fallback;
+    network_mode_t network_mode;
     uint8_t nmea_rate_hz;
     int oled_sda_pin, oled_scl_pin;
     uint8_t oled_i2c_addr;
@@ -59,6 +60,7 @@ static void pick(const app_settings_t *s, restart_fields_t *o)
     o->comnav_heading_enable = s->comnav_heading_enable;
     o->comnav_imu_axes = s->comnav_imu_axes;
     o->rover_has_fallback = s->rover_has_fallback;
+    o->network_mode = s->network_mode;
     o->nmea_rate_hz = s->nmea_rate_hz;
     o->oled_sda_pin = s->oled_sda_pin;
     o->oled_scl_pin = s->oled_scl_pin;
@@ -98,6 +100,7 @@ void pending_restart_describe(const app_settings_t *s, char *out, size_t out_siz
     pick(s, &n);
     const restart_fields_t *b = &s_boot;
     if (n.device_mode != b->device_mode) add(out, out_size, "funzione base/rover");
+    if (n.network_mode != b->network_mode) add(out, out_size, "connettivita'");
     if (n.gnss_chip != b->gnss_chip) add(out, out_size, "ricevitore GNSS");
     if (n.gnss_i2c != b->gnss_i2c || n.gnss_uart_num != b->gnss_uart_num || n.gnss_uart_tx_pin != b->gnss_uart_tx_pin ||
         n.gnss_uart_rx_pin != b->gnss_uart_rx_pin || n.gnss_uart_baud != b->gnss_uart_baud) {

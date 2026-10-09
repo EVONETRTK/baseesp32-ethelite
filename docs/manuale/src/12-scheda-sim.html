@@ -13,7 +13,7 @@
 
 <h3>Stato della SIM</h3>
 
-<p>I dati letti dal modem: <strong>modulo</strong>, <strong>operatore di rete</strong>, <strong>segnale</strong> e la <strong>rete usata dal ricevitore</strong> in quel momento (WiFi, Ethernet o cellulare). ICCID, IMEI e numero sono nel riquadro in cima alla scheda. Senza modem montato, i riquadri SIM e LTE della scheda <em>Stato</em> non compaiono.</p>
+<p>I dati letti dal modem: <strong>modulo</strong>, <strong>operatore di rete</strong>, <strong>segnale</strong> e la <strong>rete usata dal ricevitore</strong> in quel momento (WiFi, Ethernet o cellulare). ICCID, IMEI e numero sono nel riquadro in cima alla scheda. Senza modem montato, o con la connettività <em>Solo WiFi</em> o <em>Solo Ethernet</em>, i riquadri SIM e LTE della scheda <em>Stato</em> non compaiono.</p>
 
 <h2>Scoprire il numero della SIM</h2>
 
@@ -61,7 +61,7 @@ La seriale del modulo è a 1,8 V: lo shield ha già il convertitore di livello, 
 
 <ul>
   <li>Il traffico si conta da un rinnovo all'altro. È una <strong>stima</strong>, fatta sui dati inviati più le intestazioni di rete, e può differire un poco dal conteggio dell'operatore.</li>
-  <li>Con gli avvisi attivi arriva un avviso quando il traffico supera l'<strong>80%</strong> del piano.</li>
+  <li>Quando il traffico supera l'<strong>80%</strong> del piano arriva un avviso, una volta per periodo, anche con gli altri avvisi spenti: basta un canale configurato nella scheda <em>Avvisi</em>.</li>
   <li>Con la <em>scadenza unica</em>, una volta scaduta, arriva un promemoria al giorno finché non inserite la nuova data.</li>
   <li>Il consumo giorno per giorno si vede nel grafico del riquadro <em>Sistema</em> della scheda <em>Stato</em> (capitolo <a data-cap="Scheda Stato"></a>).</li>
 </ul>
@@ -103,7 +103,7 @@ La seriale del modulo è a 1,8 V: lo shield ha già il convertitore di livello, 
   <tr><td><strong>Avvisami se il credito scende sotto</strong></td><td>La soglia in euro (0 = mai). Se nel controllo automatico il ricevitore non riesce a leggere l'importo, manda il testo della risposta dell'operatore.</td></tr>
 </table>
 
-<p>Per le prove ci sono anche: l'invio di un <strong>codice USSD</strong> o di un <strong>SMS</strong> scritto al momento, per vedere la risposta dell'operatore, e <strong>Prova lettura</strong>, che verifica se il ricevitore riesce a leggere l'importo da un testo di esempio incollato.</p>
+<p>Per le prove ci sono anche: nella sezione <em>Codice o SMS scritto al momento</em>, l'invio di un codice USSD con <strong>Invia codice</strong> o di un SMS con <strong>Invia SMS</strong>, per vedere la risposta dell'operatore, e <strong>Prova lettura</strong>, che verifica se il ricevitore riesce a leggere l'importo da un testo di esempio incollato.</p>
 
 <div class="box nota"><span class="box-titolo">Nota</span>Le SIM per uso IoT e molti abbonamenti non hanno un credito da controllare: lasciate il controllo automatico a 0 e usate i promemoria di rinnovo del piano dati.</div>
 

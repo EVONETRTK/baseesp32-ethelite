@@ -13,9 +13,11 @@
   <li>Rispettate la polarità e fissate bene i cavi lontano da parti in movimento, da fonti di calore e dalle cerniere delle porte.</li>
 </ul>
 
-<div class="box nota"><span class="box-titolo">Nota</span>All'avviamento del motore la tensione dell'impianto cala per un istante e il ricevitore può riavviarsi. Non è un problema: riparte da solo in pochi secondi e si ricollega al caster. Se succede anche a motore acceso, controllate il convertitore e i collegamenti.</div>
+<div class="box nota"><span class="box-titolo">Nota</span>All'avviamento del motore la tensione dell'impianto cala per un istante e il ricevitore può riavviarsi. Non è un problema: riparte da solo in pochi secondi e si ricollega al caster. Se succede anche a motore acceso, controllate fusibile, collegamenti e cavo di alimentazione.</div>
 
 <h2>Antenna sulla cabina: posizione e misure</h2>
+
+<p>Dal punto in cui si monta l'antenna dipendono la qualità del segnale e la precisione della guida: prima si sceglie il posto sul tetto, poi si prendono le misure da inserire nel programma di guida.</p>
 
 <h3>Dove montarla</h3>
 
@@ -70,19 +72,21 @@
   <tr><td><strong>SIM nel modem</strong> del ricevitore.</td><td>Il trattore è autonomo, indipendente dal telefono.</td><td>Serve una SIM dati dedicata, attiva e senza PIN, e il modem LTE.</td></tr>
 </table>
 
-<p>Con il modem montato, la scelta consigliata è <strong>WiFi con riserva cellulare</strong>: il ricevitore usa l'hotspot del telefono quando c'è e passa da solo alla SIM quando manca.</p>
+<p>Con il modem montato, la scelta consigliata è <strong>WiFi con fallback cellulare</strong>: il ricevitore usa l'hotspot del telefono quando c'è e passa da solo alla SIM quando manca.</p>
 
 <div class="box avviso"><span class="box-titolo">Attenzione</span>Alcuni telefoni spengono da soli l'hotspot quando per qualche minuto nessun dispositivo lo usa, o per risparmiare batteria. Nelle impostazioni del telefono disattivate lo spegnimento automatico dell'hotspot.</div>
 
 <h2>Uscita dati verso tablet e display</h2>
 
-<p>Il ricevitore in modo rover trasmette le frasi <strong>NMEA</strong> del modulo GNSS (posizione e satelliti) in <strong>broadcast UDP</strong> sulla rete, alla porta impostata nella scheda <em>Posizione</em>, riquadro <em>Uscita dati per software di guida</em> (preimpostata: <code>9999</code>, la porta su cui riceve AgIO di AgOpenGPS). I dati escono contemporaneamente su tutte le reti attive:</p>
+<p>Il ricevitore in modo rover trasmette le frasi <strong>NMEA</strong> del modulo GNSS (posizione e satelliti) in <strong>broadcast UDP</strong> sulla rete, alla porta impostata nella scheda <em>Posizione e correzioni</em>, riquadro <em>Uscita dati per software di guida</em> (preimpostata: <code>9999</code>, la porta su cui riceve AgIO di AgOpenGPS). I dati escono contemporaneamente su tutte le reti attive:</p>
 
 <ul>
   <li>sulla <strong>rete WiFi del ricevitore</strong> (<strong>EVONETRTK-…</strong>): è il collegamento consigliato per il tablet in cabina, perché non dipende da altri apparecchi;</li>
   <li>sulla <strong>rete WiFi a cui è collegato il ricevitore</strong>, per esempio l'hotspot del telefono, se anche il tablet è collegato lì;</li>
   <li>sul <strong>cavo di rete</strong> (Ethernet), per un computer di bordo collegato via cavo.</li>
 </ul>
+
+<div class="box avviso"><span class="box-titolo">Firewall di Windows</span>Sul tablet Windows il firewall deve consentire ad AgIO di ricevere i dati anche sulle reti <em>pubbliche</em>: la rete WiFi del ricevitore e l'hotspot del telefono di solito sono classificate così. Se AgIO non riceve nulla, è la prima cosa da controllare (capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>).</div>
 
 <figure>
   <img class="schermata" src="img/rover-uscita-guida.png" alt="Riquadro Uscita dati per software di guida">
@@ -91,14 +95,14 @@
 
 <h3>Posizioni al secondo</h3>
 
-<p>Nello stesso riquadro, il campo <strong>Posizioni al secondo</strong> sceglie quante volte al secondo il rover manda la posizione al programma di guida: <strong>1</strong>, <strong>5</strong> o <strong>10</strong>. Con i moduli u-blox e Unicore il rover trasmette:</p>
+<p>Nello stesso riquadro, il campo <strong>Posizioni al secondo</strong> sceglie quante volte al secondo il rover manda la posizione al programma di guida: <strong>1</strong>, <strong>5</strong> o <strong>10</strong>. 5 e 10 posizioni al secondo richiedono l'extra <em>Autosterzo</em> della licenza (capitolo <a data-cap="Scheda Manutenzione"></a>); senza, il rover manda 1 posizione al secondo. Con i moduli u-blox e Unicore il rover trasmette:</p>
 
 <ul>
   <li><strong>GGA</strong> (posizione e qualità del fix), <strong>RMC</strong> (con la velocità) e <strong>VTG</strong> (con la direzione di marcia), alla frequenza scelta;</li>
   <li><strong>GSV</strong> (satelliti in vista) una volta al secondo.</li>
 </ul>
 
-<p>Con il ComNav K922 la frequenza è fissa a 5 posizioni al secondo, con in più la prua dalla doppia antenna (GPHDT). La posizione inviata al caster resta in ogni caso una ogni 10 secondi, per non consumare traffico.</p>
+<p>Con il ComNav K922 esce solo la GGA, a 1 posizione al secondo oppure a 5 con la navigazione inerziale (INS) attiva; con la prua dalla doppia antenna attiva esce anche la GPHDT. INS e prua sono l'extra «IMU e doppia antenna» della licenza. La posizione inviata al caster resta in ogni caso una ogni 10 secondi, per non consumare traffico.</p>
 
 <table>
   <tr><th>Uso</th><th>Posizioni al secondo</th></tr>
@@ -119,9 +123,9 @@
   <li><strong>Alimentazione</strong>: girate la chiave; entro un minuto la rete WiFi <strong>EVONETRTK-…</strong> deve comparire. Spegnete il trattore: il ricevitore deve spegnersi.</li>
   <li><strong>Internet e caster</strong>: nel pannello il pallino <strong>NTRIP OK</strong> e il riquadro <strong>Caster</strong> devono essere verdi. Provate sia con l'hotspot del telefono sia con la SIM, se presente, spegnendo l'hotspot.</li>
   <li><strong>Fix</strong>: a cielo libero il riquadro <strong>Fix</strong> deve arrivare a <strong>RTK fisso</strong> entro un paio di minuti dall'accensione. Il riquadro <strong>Satelliti</strong> deve essere verde.</li>
-  <li><strong>Programma di guida</strong>: il tablet riceve la posizione e indica la stessa qualità del fix del pannello.</li>
+  <li><strong>Programma di guida</strong>: il tablet riceve la posizione e indica la stessa qualità del fix del pannello. Se non arriva nulla, controllate per primo il firewall di Windows per AgIO.</li>
   <li><strong>Ripetibilità</strong>: piantate un picchetto, segnate il punto con il programma di guida, allontanatevi e tornate dopo qualche ora o il giorno dopo. Il punto ritrovato deve coincidere con il picchetto entro 2–3 cm.</li>
-  <li><strong>Avvisi</strong>: se il ricevitore è configurato per gli avvisi, provateli dal pannello (scheda <em>Avvisi</em>, <strong>Prova avvisi</strong>).</li>
+  <li><strong>Avvisi</strong>: se il ricevitore è configurato per gli avvisi, provateli dal pannello (scheda <em>Avvisi</em>, riquadro <em>Prova avvisi</em>, pulsante <strong>Invia avviso di prova</strong>).</li>
 </ol>
 
 <div class="box consiglio"><span class="box-titolo">Consiglio</span>Lasciate all'operatore la scheda di accesso del ricevitore e la Parte 1 di questo manuale, e mostrategli una volta il pannello dal suo telefono: sapere dove guardare i riquadri <strong>Caster</strong> e <strong>Fix</strong> risolve da solo la maggior parte dei dubbi in campo.</div>
@@ -130,8 +134,8 @@
 <ul>
   <li>Alimentazione diretta dall'impianto del mezzo, 12 o 24 V (scheda di alimentazione integrata), da linea sotto chiave e con fusibile.</li>
   <li>Antenna in alto, al centro della cabina, su supporto rigido e lontana dalle altre antenne; annotate altezza, distanza dall'asse posteriore, spostamento laterale e passo.</li>
-  <li>Internet dall'hotspot del telefono o dalla SIM del ricevitore; con il modem, "WiFi con riserva cellulare".</li>
-  <li>Posizione al tablet in UDP (porta 9999, quella di AgIO) sulla rete WiFi del ricevitore, sull'hotspot o via cavo; per l'autosterzo 10 posizioni al secondo.</li>
+  <li>Internet dall'hotspot del telefono o dalla SIM del ricevitore; con il modem, "WiFi con fallback cellulare".</li>
+  <li>Posizione al tablet in UDP (porta 9999, quella di AgIO) sulla rete WiFi del ricevitore, sull'hotspot o via cavo; per l'autosterzo 10 posizioni al secondo, con l'extra Autosterzo della licenza.</li>
   <li>Prima della stagione: alimentazione, caster, fix, programma di guida, ripetibilità su un picchetto, avvisi.</li>
 </ul>
 </div>

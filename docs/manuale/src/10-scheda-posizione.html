@@ -4,9 +4,19 @@
 
 <h2>Modalità operativa</h2>
 
-<p>Il campo <strong>Funzione del dispositivo</strong> sceglie tra <strong>Base</strong> (invia correzioni RTCM al caster) e <strong>Rover</strong> (riceve correzioni dal caster). Il cambio vale dopo il riavvio. Base e rover conservano ciascuno i propri dati di accesso al caster: passando da un modo all'altro e tornando indietro non si perde niente.</p>
+<figure>
+  <img class="schermata" src="img/riq-modalita.png" alt="Riquadro Modalità operativa">
+  <figcaption><b>Figura 0.</b> La scelta tra base e rover.</figcaption>
+</figure>
+
+<p>Il campo <strong>Funzione del dispositivo</strong> sceglie tra <strong>Base</strong> (invia correzioni RTCM al caster) e <strong>Rover</strong> (riceve correzioni dal caster). Il cambio vale dopo il riavvio. Nei riquadri le cui impostazioni valgono solo dopo il riavvio, accanto a <strong>💾 Salva</strong> c'è il pulsante <strong>🔄 Salva e riavvia</strong>, che salva e riavvia in un solo passo; con il solo Salva compare la barra gialla delle modifiche non ancora attive. Base e rover conservano ciascuno i propri dati di accesso al caster: passando da un modo all'altro e tornando indietro non si perde niente.</p>
 
 <h2>Ricevitore GNSS e collegamento</h2>
+
+<figure>
+  <img class="schermata" src="img/riq-ricevitore.png" alt="Riquadro Ricevitore GNSS e collegamento">
+  <figcaption><b>Figura 0.</b> Il modulo GNSS e il suo collegamento.</figcaption>
+</figure>
 
 <table class="divisibile">
   <tr><th>Campo</th><th>Uso</th></tr>
@@ -16,7 +26,7 @@
   <tr><td><strong>Baud rate</strong></td><td>La velocità della seriale. Il Quectel LC29H esce di fabbrica a 460800. Con <em>Automatico</em> è solo la prima velocità provata.</td></tr>
 </table>
 
-<p>Tutti i campi di questo riquadro valgono dopo il riavvio. Dopo il riavvio controllate nella scheda <em>Stato</em> che <em>Ultimo dato dal GNSS</em> sia recente e che arrivino satelliti.</p>
+<p>Tutti i campi di questo riquadro valgono dopo il riavvio. Dopo il riavvio controllate nella scheda <em>Stato</em> che arrivino satelliti e, in base, che <em>Ultimo dato RTCM</em> sia di pochi secondi fa (in rover guardate <em>Ultimo fix</em> nel riquadro Fix GNSS).</p>
 
 <h2>Messaggi RTCM inviati</h2>
 
@@ -25,12 +35,14 @@
 <ul>
   <li><strong>Standard MSM4 (leggero)</strong>: la scelta consigliata, compatibile con quasi tutti i ricevitori agricoli e con il traffico dati più basso;</li>
   <li><strong>Massima precisione MSM7</strong>: misure più complete, per ricevitori recenti; più traffico;</li>
-  <li><strong>Solo GPS+GLONASS</strong>: per ricevitori vecchi che non usano Galileo e BeiDou.</li>
+  <li><strong>Solo GPS+GLONASS</strong> (in MSM7): per ricevitori che non usano Galileo e BeiDou.</li>
 </ul>
+
+<p>Di fabbrica la base invia l'MSM7 per tutte e quattro le costellazioni, più 1005 e 1230.</p>
 
 <table class="divisibile">
   <tr><th>Messaggio</th><th>Contenuto</th><th>Note</th></tr>
-  <tr><td><strong>1005</strong></td><td>Posizione della base</td><td><strong>Sempre attivo</strong>: senza, nessun rover arriva al fix.</td></tr>
+  <tr><td><strong>1005</strong></td><td>Posizione della base</td><td><strong>Da lasciare sempre attivo</strong>: senza, nessun rover arriva al fix.</td></tr>
   <tr><td>1007, 1008</td><td>Descrittore dell'antenna (e numero di serie)</td><td>Non disponibili sugli u-blox.</td></tr>
   <tr><td>1230</td><td>Bias di fase e codice GLONASS</td><td>Consigliato quando si inviano le misure GLONASS.</td></tr>
   <tr><td>1019, 1020</td><td>Effemeridi GPS e GLONASS</td><td>Non disponibili sugli u-blox.</td></tr>
@@ -45,6 +57,11 @@
 <p>Il peso reale di ogni messaggio si vede nella scheda <em>Stato</em>, riquadro <em>Byte RTCM per messaggio</em> (tra le Avanzate) (capitolo <a data-cap="Scheda Stato"></a>).</p>
 
 <h2>Posizione base</h2>
+
+<figure class="alta" data-tagli="2331">
+  <img class="schermata" src="img/riq-posizione-base.png" alt="Riquadro Posizione base">
+  <figcaption><b>Figura 0.</b> Il riquadro Posizione base in modo manuale, con le coordinate fisse e la misura con RTK (con un modulo Unicore compare anche la misura con Galileo HAS).</figcaption>
+</figure>
 
 <p><span class="pubblico tecnico">Solo base</span> Le coordinate della base sono la cosa più importante della rete: ogni errore si trasferisce a tutti i rover. Il riquadro offre due modi e due misure automatiche.</p>
 
@@ -74,17 +91,19 @@
 
 <h3>Misura la posizione con RTK</h3>
 
-<p>Il metodo consigliato quando la base è nella zona coperta da un'altra stazione della rete. La base si riavvia temporaneamente come rover, si collega al caster con i dati del <strong>rover</strong> (mountpoint, utente e password del riquadro Client NTRIP), aspetta il fix RTK e fa la media delle posizioni per <strong>3 minuti</strong>. Poi salva le coordinate come posizione fissa e torna base da sola.</p>
+<p>Il metodo consigliato quando la base è nella zona coperta da un'altra stazione della rete. La base si riavvia temporaneamente come rover, si collega al caster con i dati del <strong>rover</strong> (mountpoint, utente e password del riquadro Client NTRIP), aspetta il fix RTK e fa la media delle posizioni per <strong>3 minuti</strong>. Poi salva le coordinate come posizione fissa e torna base da sola. Si avvia con il pulsante <strong>📡 Avvia misura</strong>.</p>
 
 <ul>
   <li>Precisione di pochi centimetri, nel sistema della stazione che manda le correzioni: per la rete EVONETRTK è ETRF2000.</li>
-  <li>Durata massima 20 minuti; 3 minuti se il caster non manda correzioni, per esempio con password del rover sbagliata. Se il fix non arriva, le coordinate non cambiano.</li>
-  <li>Durante la misura in cima alla scheda <em>Stato</em> compare un avviso azzurro con l'avanzamento e il pulsante per annullarla.</li>
+  <li>Durata massima 20 minuti; 3 minuti se il caster non manda correzioni, per esempio con password del rover sbagliata.</li>
+  <li>Se il fix RTK fisso non basta ma ci sono almeno 5 minuti di RTK float, la base salva la media float: la precisione è di decimetri e la riga <em>Ultima misura</em> lo dice; in quel caso ripetete la misura con il cielo più libero. Senza fix né float le coordinate non cambiano.</li>
+  <li>Durante la misura in cima alla scheda <em>Stato</em> compare un avviso azzurro con l'avanzamento e il pulsante <strong>Annulla misura</strong>, che torna base senza cambiare le coordinate.</li>
+  <li>Fa parte del <strong>Pacchetto Base</strong>.</li>
 </ul>
 
 <h3>Misura la posizione con Galileo HAS</h3>
 
-<p>Quando non c'è un'altra stazione vicina, il modulo calcola la posizione con le correzioni gratuite di Galileo, che arrivano dai satelliti: non servono né internet né altre stazioni. La base fa la media per il tempo scelto (2, 4, <strong>6 ore consigliate</strong>, 12 o 24), converte le coordinate da ITRF2020 a ETRF2000 e le salva come posizione fissa. Precisione attesa con 6 ore: circa <strong>10 cm in orizzontale e 10–20 cm in quota</strong>. È una stima dagli studi pubblicati: sul nostro ricevitore la misura non è ancora stata confermata da una prova all'aperto.</p>
+<p>Quando non c'è un'altra stazione vicina, il modulo calcola la posizione con le correzioni gratuite di Galileo, che arrivano dai satelliti: non servono né internet né altre stazioni. La base fa la media per il tempo scelto (2, 4, <strong>6 ore consigliate</strong>, 12 o 24), converte le coordinate da ITRF2020 a ETRF2000 e le salva come posizione fissa. Si sceglie la <strong>Durata della media</strong> e si preme <strong>🛰️ Avvia misura HAS</strong>. Precisione attesa con 6 ore: circa <strong>10 cm in orizzontale e 10–20 cm in quota</strong>. È una stima dagli studi pubblicati: sul nostro ricevitore la misura non è ancora stata confermata da una prova all'aperto.</p>
 
 <ul>
   <li>Serve un modulo <strong>Unicore UM980/UM982</strong>: lo ZED-F9P non riceve il segnale Galileo E6. Con il <strong>ComNav K922</strong> la misura si può avviare, ma il comando che accende HAS sul modulo non è ancora noto: oggi finirebbe senza soluzioni HAS.</li>
@@ -92,7 +111,7 @@
   <li>Per tutta la misura la base <strong>non invia correzioni</strong> ai rover.</li>
   <li>L'antenna deve essere già nella posizione definitiva, con il cielo libero.</li>
   <li>La prima mezz'ora dopo ogni avvio serve alla convergenza e viene scartata; se manca la corrente la misura riprende da dove era.</li>
-  <li>Se il modulo non riceve HAS, o per 10 minuti non arriva nessuna soluzione HAS, la misura si ferma: le coordinate non cambiano e il motivo compare nel riquadro.</li>
+  <li>Se dal modulo non arriva nessuna soluzione per 10 minuti, la misura si ferma subito. Se arrivano soluzioni ma senza HAS, la misura prosegue fino alla durata scelta e alla fine fallisce se ha meno di 30 minuti di soluzioni HAS buone. In entrambi i casi le coordinate non cambiano e il motivo compare nel riquadro; durante la misura controllate nella scheda <em>Stato</em> la riga «soluzioni buone N su M».</li>
   <li>La quota conta: un errore di quota della base passa tale e quale ai rover. Per la prima base di una zona preferite i dati grezzi con il PPP.</li>
 </ul>
 
@@ -100,7 +119,7 @@
 
 <h2>Dati per le coordinate precise (PPP)</h2>
 
-<p><span class="pubblico tecnico">Avanzate · solo base</span> Registra sulla microSD le misure grezze del modulo GNSS, da elaborare con un servizio PPP gratuito per ottenere le coordinate della base al centimetro. Durante la registrazione la base continua a lavorare normalmente.</p>
+<p><span class="pubblico tecnico">Avanzate · solo base · Pacchetto Base</span> Registra sulla microSD le misure grezze del modulo GNSS, da elaborare con un servizio PPP gratuito per ottenere le coordinate della base al centimetro. Durante la registrazione la base continua a lavorare normalmente.</p>
 
 <h3>Misure grezze u-blox</h3>
 
@@ -114,13 +133,24 @@
 
 <h3>Osservazioni RTCM3 (qualsiasi modulo)</h3>
 
-<p>Per i moduli che non sono u-blox, la seconda parte del riquadro registra il flusso RTCM3 della base (file <code>ppp_log.rtcm3</code>), da scaricare con <strong>Scarica log</strong> e convertire in RINEX con RTKLIB:</p>
+<p>Per i moduli che non sono u-blox, la seconda parte del riquadro registra il flusso RTCM3 della base (file <code>ppp_log.rtcm3</code>, nella cartella principale della microSD) con <strong>▶️ Avvia registrazione</strong> e <strong>⏹️ Ferma</strong>: non ha una durata e va fermata a mano. Il file si scarica con <strong>⬇️ Scarica log</strong> e si converte in RINEX con RTKLIB:</p>
 
-<p><code>convbin ppp_log.rtcm3 -r rtcm3 -v 3.03 -n ppp_log.obs</code></p>
+<p><code>convbin ppp_log.rtcm3 -r rtcm3 -v 3.03 -n ppp_log.obs</code> (RINEX 3.03, per CSRS-PPP)<br>
+<code>convbin ppp_log.rtcm3 -r rtcm3 -v 2.11 -n ppp_log.obs</code> (RINEX 2.11, per OPUS e altri)</p>
 
-<p>Il file resta sul ricevitore finché non lo scaricate: niente viene inviato in automatico.</p>
+<p>Il file resta sul ricevitore finché non lo scaricate: niente viene inviato in automatico. Una nuova registrazione sovrascrive il file precedente.</p>
 
 <h2>Server NTRIP e Client NTRIP</h2>
+
+<figure>
+  <img class="schermata" src="img/riq-server-ntrip.png" alt="Riquadro Server NTRIP">
+  <figcaption><b>Figura 0.</b> In modo base: l'invio delle correzioni al caster EVONETRTK.</figcaption>
+</figure>
+
+<figure>
+  <img class="schermata" src="img/riq-client-ntrip.png" alt="Riquadro Client NTRIP">
+  <figcaption><b>Figura 0.</b> In modo rover: il collegamento al caster per ricevere le correzioni.</figcaption>
+</figure>
 
 <p>Il collegamento al caster EVONETRTK. In base il riquadro si chiama <strong>Server NTRIP</strong>, in rover <strong>Client NTRIP</strong>.</p>
 
@@ -135,11 +165,16 @@
 
 <h2>Riserva Galileo HAS</h2>
 
+<figure>
+  <img class="schermata" src="img/riq-riserva-has.png" alt="Riquadro Riserva Galileo HAS">
+  <figcaption><b>Figura 0.</b> La riserva Galileo HAS di un rover con modulo Unicore.</figcaption>
+</figure>
+
 <p><span class="pubblico tecnico">Solo rover · Unicore (ComNav K922 da verificare) · extra della licenza</span> Con la casella <strong>Usa Galileo HAS quando non arrivano correzioni dalla base</strong>, il rover passa alle correzioni gratuite di Galileo quando mancano quelle RTK e torna in RTK da solo quando riprendono. Le posizioni HAS sono convertite in ETRF2000, così il passaggio tra RTK e HAS non fa saltare la posizione. Precisione circa 20 cm in orizzontale e 40 cm in quota, dopo una convergenza che oggi richiede da 30 a 60 minuti. Vale dopo il riavvio. I limiti d'uso sono descritti nel capitolo <a data-cap="Collegare il trattore"></a>.</p>
 
 <h2>Caster NTRIP locale</h2>
 
-<p><span class="pubblico tecnico">Avanzate · solo base</span> La base può fare anche da caster per i rover sulla <strong>stessa rete locale</strong> (WiFi aziendale, rete di setup della base, hotspot), in aggiunta all'invio al caster EVONETRTK. È utile per le prove e in campo senza internet.</p>
+<p><span class="pubblico tecnico">Avanzate · solo base · Pacchetto Base</span> La base può fare anche da caster per i rover sulla <strong>stessa rete locale</strong> (WiFi aziendale, rete di setup della base, hotspot), in aggiunta all'invio al caster EVONETRTK. È utile per le prove e in campo senza internet.</p>
 
 <table class="divisibile">
   <tr><th>Campo</th><th>Uso</th></tr>
@@ -154,11 +189,16 @@
 
 <h2>Uscita dati per software di guida</h2>
 
-<p><span class="pubblico tecnico">Solo rover</span> La <strong>Porta UDP broadcast NMEA</strong> (predefinita 9999, la porta di AgIO) su cui il rover trasmette le frasi NMEA del modulo a tablet e computer di bordo, su tutte le reti attive; vale subito. Il campo <strong>Posizioni al secondo</strong> (1, 5 o 10; 10 per l'autosterzo) sceglie la frequenza di GGA, RMC e VTG con i moduli u-blox e Unicore e vale dopo il riavvio. Il funzionamento è descritto nel capitolo <a data-cap="Installare il ricevitore sul trattore"></a>, la configurazione di AgOpenGPS nel capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>.</p>
+<figure>
+  <img class="schermata" src="img/riq-uscita-guida.png" alt="Riquadro Uscita dati per software di guida">
+  <figcaption><b>Figura 0.</b> L'uscita della posizione verso AgOpenGPS o altri software di guida.</figcaption>
+</figure>
+
+<p><span class="pubblico tecnico">Solo rover</span> La <strong>Porta UDP broadcast NMEA</strong> (predefinita 9999, la porta di AgIO) su cui il rover trasmette le frasi NMEA del modulo a tablet e computer di bordo, su tutte le reti attive; vale subito. Il campo <strong>Posizioni al secondo</strong> (1, 5 o 10; 10 per l'autosterzo) sceglie la frequenza di GGA, RMC e VTG con i moduli u-blox e Unicore e vale dopo il riavvio; con il ComNav K922 escono 1 posizione al secondo, o 5 con l'INS attivo (solo la frase GGA, più la GPHDT con la prua dalla doppia antenna). Le 5 e 10 posizioni al secondo richiedono l'extra <strong>Autosterzo</strong> della licenza: senza, il ricevitore resta a 1 al secondo. Il funzionamento è descritto nel capitolo <a data-cap="Installare il ricevitore sul trattore"></a>, la configurazione di AgOpenGPS nel capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>.</p>
 
 <h2>Moduli con IMU e doppia antenna</h2>
 
-<p><span class="pubblico tecnico">Solo rover</span> Due riquadri compaiono solo con i moduli dotati di sensore inerziale (IMU). Nessuno dei due è ancora stato provato con un modulo reale: verificate il funzionamento prima di usarlo per la guida.</p>
+<p><span class="pubblico tecnico">Solo rover · extra IMU e doppia antenna</span> Due riquadri compaiono solo con i moduli dotati di sensore inerziale (IMU). Nessuno dei due è ancora stato provato con un modulo reale: verificate il funzionamento prima di usarlo per la guida.</p>
 
 <h3>Bynav M21D</h3>
 
@@ -175,7 +215,7 @@
 <div class="in-breve">
 <ul>
   <li>Modo base o rover e modulo GNSS valgono dopo il riavvio; con <em>Automatico</em> u-blox, Unicore e ComNav vengono riconosciuti da soli.</li>
-  <li>Messaggi RTCM: 1005 sempre attivo; MSM4 è la scelta compatibile e leggera.</li>
+  <li>Messaggi RTCM: 1005 da lasciare sempre attivo; di fabbrica MSM7, MSM4 è la scelta compatibile e leggera.</li>
   <li>Il survey-in serve solo per le prove: in servizio la base va in coordinate fisse ETRF2000, misurate con RTK, HAS o PPP.</li>
   <li>Prova connessione al caster verifica i dati prima di salvarli; base e rover hanno credenziali separate.</li>
   <li>Caster locale per i rover sulla stessa rete; riserva HAS e uscita UDP solo in rover.</li>

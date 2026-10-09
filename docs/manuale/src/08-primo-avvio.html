@@ -6,13 +6,13 @@
 
 <ol>
   <li>Alimentate il ricevitore e aspettate circa mezzo minuto.</li>
-  <li>Cercate la rete WiFi <strong>EVONETRTK-</strong><em>XXXXXX</em>: le sei cifre finali sono la <strong>matricola</strong> del ricevitore, ricavata dal suo chip; possono contenere anche le lettere da A a F.</li>
+  <li>Cercate la rete WiFi <strong>EVONETRTK-</strong><em>XXXXXX</em>: i sei caratteri finali sono, di fabbrica, la <strong>matricola</strong> del ricevitore, ricavata dal suo chip; oltre alle cifre possono contenere le lettere da A a F.</li>
   <li>Collegatevi con la password di fabbrica della rete: <code>baseesp32setup</code>.</li>
   <li>Aprite il browser e scrivete <code>http://192.168.4.1</code>. Il pannello non si apre da solo: l'indirizzo va scritto a mano.</li>
   <li>Alla richiesta di accesso inserite utente <code>admin</code> e password di fabbrica <code>1234</code>.</li>
 </ol>
 
-<div class="box avviso"><span class="box-titolo">Pericolo</span>Le password di fabbrica sono uguali per tutti i ricevitori e scritte in questo manuale: <strong>cambiatele entrambe alla prima configurazione</strong>, prima di collegare il ricevitore a qualunque rete. La password del pannello <strong>non</strong> deve essere uguale alla matricola, che compare nel nome della rete WiFi ed è quindi visibile a chiunque sia nelle vicinanze.</div>
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Le password di fabbrica sono uguali per tutti i ricevitori e scritte in questo manuale: <strong>cambiatele entrambe alla prima configurazione</strong>, prima di collegare il ricevitore a qualunque rete. La password del pannello <strong>non</strong> deve essere uguale alla matricola, che compare nel nome della rete WiFi ed è quindi visibile a chiunque sia nelle vicinanze.</div>
 
 <p>La rete <strong>EVONETRTK-…</strong> resta sempre attiva, anche quando il ricevitore è collegato a un'altra rete WiFi, al cavo o alla SIM: è l'accesso di emergenza sul posto. L'unica eccezione è la modalità di connessione <em>Solo Ethernet</em>, che spegne del tutto la radio WiFi (capitolo <a data-cap="Scheda Connessione"></a>).</p>
 
@@ -25,14 +25,15 @@
   <tr><td>1</td><td><em>Manutenzione</em> → <em>Sicurezza</em></td><td>Cambiate la password del pannello.</td></tr>
   <tr><td>2</td><td><em>Connessione</em> → <em>Rete di setup</em> (avanzate)</td><td>Cambiate la password della rete WiFi del ricevitore (almeno 8 caratteri).</td></tr>
   <tr><td>3</td><td><em>Connessione</em></td><td>Scegliete la connettività e configurate WiFi, Ethernet o SIM. Riavviate e controllate che il pallino di rete diventi verde.</td></tr>
-  <tr><td>4</td><td><em>Posizione</em> → <em>Modalità operativa</em></td><td>Scegliete <strong>base</strong> o <strong>rover</strong>.</td></tr>
-  <tr><td>5</td><td><em>Posizione</em> → <em>Ricevitore GNSS e collegamento</em></td><td>Scegliete il modulo GNSS, o <em>Automatico</em>, e il collegamento (I2C o seriale). Riavviate e controllate che arrivino satelliti.</td></tr>
-  <tr><td>6</td><td><em>Posizione</em> → <em>Server/Client NTRIP</em></td><td>Inserite i dati del caster e usate <strong>Prova connessione al caster</strong>.</td></tr>
-  <tr><td>7</td><td><em>Posizione</em> → <em>Posizione base</em> (solo base)</td><td>Survey-in per le prove, coordinate fisse per l'esercizio (capitolo <a data-cap="Coordinate precise della base"></a>).</td></tr>
-  <tr><td>8</td><td><em>SIM e costi</em></td><td>Dati del piano dati e del rinnovo, se c'è la SIM.</td></tr>
-  <tr><td>9</td><td><em>Avvisi</em></td><td>Canali email e WhatsApp, soglie, e una prova.</td></tr>
-  <tr><td>10</td><td><em>Manutenzione</em> → <em>Copie della configurazione</em></td><td>Scaricate una copia della configurazione finita.</td></tr>
-  <tr><td>11</td><td><em>Manutenzione</em> → <em>Scheda di accesso</em></td><td>Stampate la scheda di accesso e consegnatela al cliente.</td></tr>
+  <tr><td>4</td><td><em>Manutenzione</em> → <em>Licenza</em></td><td>Con internet attivo leggete le avvertenze, mettete le due spunte, scrivete nome e cognome e il codice di attivazione del cliente, premete <strong>Attiva</strong> e riavviate (capitolo <a data-cap="Scheda Manutenzione"></a>). Il firewall della rete deve lasciar uscire il ricevitore verso <code>rtk.evo-net.it</code> sulla porta 443.</td></tr>
+  <tr><td>5</td><td><em>Posizione</em> → <em>Modalità operativa</em></td><td>Scegliete <strong>base</strong> o <strong>rover</strong>.</td></tr>
+  <tr><td>6</td><td><em>Posizione</em> → <em>Ricevitore GNSS e collegamento</em></td><td>Scegliete il modulo GNSS, o <em>Automatico</em>, e il collegamento (I2C o seriale). Riavviate e controllate che arrivino satelliti.</td></tr>
+  <tr><td>7</td><td><em>Posizione</em> → <em>Server/Client NTRIP</em></td><td>Inserite i dati del caster e usate <strong>Prova connessione al caster</strong>.</td></tr>
+  <tr><td>8</td><td><em>Posizione</em> → <em>Posizione base</em> (solo base)</td><td>Survey-in per le prove, coordinate fisse per l'esercizio (capitolo <a data-cap="Coordinate precise della base"></a>).</td></tr>
+  <tr><td>9</td><td><em>SIM e costi</em></td><td>Dati del piano dati e del rinnovo, se c'è la SIM.</td></tr>
+  <tr><td>10</td><td><em>Avvisi</em></td><td>Canali email e WhatsApp, soglie, e una prova.</td></tr>
+  <tr><td>11</td><td><em>Manutenzione</em> → <em>Copie della configurazione</em></td><td>Scaricate una copia della configurazione finita.</td></tr>
+  <tr><td>12</td><td><em>Manutenzione</em> → <em>Scheda di accesso</em></td><td>Stampate la scheda di accesso e consegnatela al cliente.</td></tr>
 </table>
 
 <h2>Password e sicurezza</h2>
@@ -47,11 +48,11 @@
 
 <h3>Password dimenticata</h3>
 
-<p>Se la password del pannello è stata dimenticata, l'unico modo per rientrare è il <strong>ripristino di fabbrica</strong>: con il ricevitore acceso, tenete premuto il pulsante <strong>BOOT</strong> della scheda per <strong>5 secondi</strong>. Il ricevitore cancella <strong>tutta</strong> la configurazione (reti, caster, coordinate, avvisi, password) e riparte con i valori di fabbrica. Per questo conviene avere sempre una copia della configurazione: si ricarica dalla scheda <em>Manutenzione</em> e il ricevitore torna com'era.</p>
+<p>Se la password del pannello è stata dimenticata, l'unico modo per rientrare è il <strong>ripristino di fabbrica</strong>: con il ricevitore acceso, tenete premuto il pulsante <strong>BOOT</strong> della scheda per <strong>5 secondi</strong>. Il ricevitore cancella <strong>tutta</strong> la configurazione (reti, caster, coordinate, avvisi, password) e riparte con i valori di fabbrica. Per questo conviene avere sempre una copia della configurazione: si ricarica dalla scheda <em>Manutenzione</em> e la configurazione torna com'era. Il ripristino cancella però anche la <strong>licenza</strong>: il ricevitore torna «da attivare» e serve un <strong>codice di attivazione nuovo</strong>, da chiedere all'assistenza EVONETRTK indicando la matricola (capitolo <a data-cap="Risoluzione dei problemi"></a>).</p>
 
 <h3>La matricola</h3>
 
-<p>La matricola è il numero che compare nel nome della rete WiFi e nella scheda di accesso, e identifica il ricevitore negli avvisi e nell'assistenza. Di norma è quella ricavata dal chip; si può sostituire con un codice proprio nella scheda <em>Manutenzione</em>, riquadro <em>Identificazione dispositivo</em>, spuntando <strong>Forza modifica</strong>. Se non corrisponde a quella del chip il pannello lo segnala, per evitare scambi tra ricevitori.</p>
+<p>La matricola compare nella scheda di accesso e nella scheda <em>Stato</em> (riga <em>Matricola</em>) e identifica il ricevitore negli avvisi, nella licenza e nell'assistenza. Di norma è quella ricavata dal chip, la stessa del nome della rete WiFi; si può sostituire con un codice proprio nella scheda <em>Manutenzione</em>, riquadro <em>Identificazione dispositivo</em> (tra le Avanzate), spuntando <strong>Forza modifica</strong>. Il nome della rete WiFi non cambia con la matricola: si cambia a parte, nel riquadro <em>Rete di setup</em>. Se la matricola non corrisponde a quella del chip il pannello lo segnala, per evitare scambi tra ricevitori. Dopo l'attivazione della licenza la matricola non si può più cambiare.</p>
 
 <h2>La scheda di accesso</h2>
 
@@ -99,15 +100,17 @@
 
 <h3>Modifiche che richiedono il riavvio</h3>
 
-<p>Molte impostazioni valgono subito; altre, come la modalità base/rover, il modulo GNSS e il suo collegamento, la connessione, il modem o la posizione della base, valgono solo dopo un riavvio. In quel caso, dopo il salvataggio, in cima al pannello compare la barra gialla <strong>Modifiche salvate ma non ancora attive</strong> con l'elenco di cosa cambierà e il pulsante <strong>🔄 Riavvia ora</strong>. Il riavvio dura circa mezzo minuto e la pagina si ricarica da sola.</p>
+<p>Molte impostazioni valgono subito; altre, come la modalità base/rover, il modulo GNSS e il suo collegamento, la connessione, il modem o la posizione della base, valgono solo dopo un riavvio. In quel caso, dopo il salvataggio, in cima al pannello compare la barra gialla <strong>Modifiche salvate ma non ancora attive</strong> con l'elenco di cosa cambierà e il pulsante <strong>🔄 Riavvia ora</strong>. Il riavvio dura da mezzo minuto a un minuto e la pagina si ricarica da sola.</p>
+
+<p>Nei riquadri le cui impostazioni valgono solo dopo un riavvio, accanto a <strong>💾 Salva</strong> c'è <strong>🔄 Salva e riavvia</strong>, che salva e riavvia in un colpo solo.</p>
 
 <div class="box consiglio"><span class="box-titolo">Consiglio</span>La barra gialla resta visibile a tutti finché il ricevitore non viene riavviato. Se la trovate su un ricevitore che non avete toccato, qualcuno ha salvato una modifica non ancora applicata: controllate cosa indica prima di riavviare.</div>
 
 <div class="in-breve">
 <ul>
   <li>Primo accesso: rete <strong>EVONETRTK-</strong><em>matricola</em>, password <code>baseesp32setup</code>, <code>http://192.168.4.1</code>, utente <code>admin</code>, password <code>1234</code>; cambiare subito entrambe le password.</li>
-  <li>Configurazione nell'ordine: password, rete, modalità, modulo GNSS, caster, posizione, SIM, avvisi, copia della configurazione, scheda di accesso.</li>
-  <li>Password dimenticata: pulsante BOOT per 5 secondi, poi ricaricare la copia della configurazione.</li>
+  <li>Configurazione nell'ordine: password, rete, licenza, modalità, modulo GNSS, caster, posizione, SIM, avvisi, copia della configurazione, scheda di accesso.</li>
+  <li>Password dimenticata: pulsante BOOT per 5 secondi, poi ricaricare la copia della configurazione e riattivare la licenza con un codice nuovo.</li>
   <li>La scheda di accesso è riservata e va ristampata a ogni cambio.</li>
   <li>Ogni riquadro ha il suo Salva; la barra gialla indica le modifiche che aspettano il riavvio.</li>
 </ul>

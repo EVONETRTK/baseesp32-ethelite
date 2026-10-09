@@ -11,7 +11,7 @@
 <ul>
   <li><strong>Le correzioni arrivano?</strong> Quasi tutti i display mostrano lo stato del collegamento NTRIP e l'<strong>età delle correzioni</strong> in secondi: 1–2 secondi è normale. Nel pannello EVONETRTK il riquadro <strong>Caster</strong> deve essere verde; se è rosso, sotto c'è scritto il motivo. Se le correzioni non arrivano, passate al punto 2.</li>
   <li><strong>Le correzioni arrivano ma resta in float?</strong> Spostatevi in un punto con il cielo libero, lontano da alberi, capannoni e linee elettriche, e aspettate un paio di minuti. Se lì arriva al fix, il problema erano gli ostacoli.</li>
-  <li><strong>Quanti satelliti vede?</strong> Con meno di 10–12 satelliti il fix è difficile; nel pannello EVONETRTK il riquadro <strong>Satelliti</strong> diventa arancione o rosso. Controllate che nulla copra l'antenna sulla cabina e che il suo cavo sia ben avvitato.</li>
+  <li><strong>Quanti satelliti vede?</strong> Con meno di 8 satelliti buoni il fix è difficile; nel pannello EVONETRTK il riquadro <strong>Satelliti</strong> diventa arancione (rosso sotto i 4). Controllate che nulla copra l'antenna sulla cabina e che il suo cavo sia ben avvitato.</li>
 </ul>
 
 <h3>2. Controllate la connessione del trattore</h3>
@@ -47,14 +47,14 @@
 
 <ol>
   <li><strong>Avvicinatevi al ricevitore</strong> e collegate il telefono alla sua rete WiFi <strong>EVONETRTK-…</strong>, poi aprite <code>http://192.168.4.1</code>. Se il pannello si apre, il ricevitore è acceso: il problema è nella connessione a internet (router, WiFi, hotspot del telefono, SIM).</li>
-  <li><strong>Se la rete EVONETRTK-… non compare</strong>, il ricevitore probabilmente non è alimentato. Per una base controllate la presa, l'alimentatore, eventuali interruttori o salvavita della linea. Per un rover controllate che il trattore sia sotto chiave, il fusibile e il connettore dell'alimentazione.</li>
-  <li><strong>Riavviate il ricevitore</strong>, se il pannello si apre ma qualcosa resta bloccato: scheda <em>Stato</em>, pulsante <strong>Riavvia dispositivo</strong> in fondo alla pagina. Il riavvio dura circa un minuto.</li>
+  <li><strong>Se la rete EVONETRTK-… non compare</strong>, il ricevitore probabilmente non è alimentato (oppure è impostato «Solo Ethernet», che spegne la sua rete WiFi: in quel caso chiamate il tecnico). Per una base controllate la presa, l'alimentatore, eventuali interruttori o salvavita della linea. Per un rover controllate che il trattore sia sotto chiave, il fusibile e il connettore dell'alimentazione.</li>
+  <li><strong>Riavviate il ricevitore</strong>, se il pannello si apre ma qualcosa resta bloccato: scheda <em>Stato</em>, pulsante <strong>Riavvia dispositivo</strong> in fondo alla pagina. Il riavvio dura da mezzo minuto a un minuto.</li>
   <li>Se il pannello non si apre e l'alimentazione c'è, potete <strong>staccare e riattaccare l'alimentazione</strong> (per un rover, spegnere e riaccendere il trattore): aspettate 10 secondi prima di riattaccarla. Dopo un paio di minuti il ricevitore riparte da solo con le sue impostazioni.</li>
 </ol>
 
 <div class="box nota"><span class="box-titolo">Nota</span>Dopo un'interruzione di corrente il ricevitore riparte da solo senza bisogno di nessun intervento. Una base con le coordinate fisse riprende a inviare le correzioni in un paio di minuti; se calcola la sua posizione da sola (survey-in), può servire qualche minuto in più. Un rover torna in RTK fisso di solito entro un minuto dal collegamento al caster.</div>
 
-<div class="box avviso"><span class="box-titolo">Pericolo</span><strong>Non tenete mai premuto il pulsante sul ricevitore.</strong> Tenuto premuto per 5 secondi a ricevitore acceso, <strong>cancella tutte le impostazioni</strong>: rete WiFi, dati del caster, coordinate della base e password. Il ricevitore smette di funzionare finché il tecnico non lo riconfigura. Non aprite la custodia, non scollegate l'antenna e non spostate la base.</div>
+<div class="box avviso"><span class="box-titolo">Attenzione</span><strong>Non tenete mai premuto il pulsante sul ricevitore.</strong> Tenuto premuto per 5 secondi a ricevitore acceso, <strong>cancella tutte le impostazioni</strong>: rete WiFi, dati del caster, coordinate della base e password. Il ricevitore smette di funzionare finché il tecnico non lo riconfigura. Non aprite la custodia, non scollegate l'antenna e non spostate la base.</div>
 
 <h3>Gli avvisi WhatsApp ed email</h3>
 
@@ -62,10 +62,10 @@
 
 <table class="divisibile">
   <tr><th>Avviso</th><th>Cosa fare</th></tr>
-  <tr><td>Collegamento al caster interrotto</td><td>Aspettate il messaggio di rientro per qualche minuto; se non arriva, controllate la connessione del ricevitore come sopra.</td></tr>
+  <tr><td>Collegamento al caster interrotto (solo dalle basi)</td><td>Aspettate il messaggio di rientro per qualche minuto; se non arriva, controllate la connessione del ricevitore come sopra.</td></tr>
   <tr><td>La base non invia la sua posizione</td><td>Controllate l'antenna della base, poi chiamate il tecnico.</td></tr>
   <tr><td>Temperatura alta</td><td>Controllate che la custodia non sia al sole diretto o coperta; se si ripete, il tecnico valuterà un'ombreggiatura.</td></tr>
-  <tr><td>Cambio della posizione della base</td><td>La posizione trasmessa dalla base è cambiata: non lavorate di precisione e chiamate subito il tecnico, perché le linee di guida potrebbero essere spostate.</td></tr>
+  <tr><td>Antenna della base spostata</td><td>L'antenna sembra spostata rispetto alla posizione che la base trasmette: non lavorate di precisione e chiamate subito il tecnico, perché le correzioni e le linee di guida potrebbero essere spostate.</td></tr>
   <tr><td>Rinnovo o credito della SIM</td><td>Ricaricate o rinnovate il piano dati entro la data indicata.</td></tr>
 </table>
 
@@ -85,7 +85,7 @@
 <h3>Cosa preparare prima di chiamare</h3>
 
 <ul>
-  <li><strong>La matricola del ricevitore</strong>: è sulla scheda di accesso ed è il numero nel nome della rete WiFi del ricevitore (<strong>EVONETRTK-</strong><em>matricola</em>).</li>
+  <li><strong>La matricola del ricevitore</strong>: è sulla scheda di accesso e nel pannello, scheda <em>Stato</em>, riga <em>Matricola</em>; di fabbrica è anche il numero nel nome della rete WiFi del ricevitore (<strong>EVONETRTK-</strong><em>matricola</em>).</li>
   <li><strong>Cosa succede</strong>: il trattore non arriva al fix? Il display dà un messaggio di errore? Riguarda uno o tutti i trattori?</li>
   <li><strong>Da quando</strong>: da stamattina, da ieri, dopo un temporale o un'interruzione di corrente, dopo un lavoro vicino alla base.</li>
   <li><strong>Una foto del pannello</strong>: uno screenshot della scheda Stato, con i riquadri colorati, dice al tecnico più di tante parole.</li>

@@ -1,4 +1,4 @@
-<p class="sommario-capitolo">I messaggi di correzione RTCM 3 che la base può inviare, cosa contengono e quali servono davvero ai rover. La scelta si fa nella scheda <em>Posizione</em>, riquadro <em>Messaggi RTCM inviati</em> (capitolo <a data-cap="Scheda Posizione e correzioni"></a>).</p>
+<p class="sommario-capitolo">I messaggi di correzione RTCM 3 che la base può inviare, cosa contengono e quali servono davvero ai rover. La scelta si fa nella scheda <em>Posizione e correzioni</em>, riquadro <em>Messaggi RTCM inviati</em> (capitolo <a data-cap="Scheda Posizione e correzioni"></a>).</p>
 
 <h2>I messaggi</h2>
 
@@ -25,7 +25,7 @@
   <li><strong>MSM7</strong>: le stesse misure con risoluzione maggiore e in più l'effetto Doppler. Può migliorare di poco il fix dei ricevitori recenti, ma occupa più traffico e alcuni ricevitori più vecchi non lo accettano.</li>
 </ul>
 
-<div class="box consiglio"><span class="box-titolo">Consiglio</span>La scelta standard per una base EVONETRTK è: <strong>1005, 1230 e MSM4 per tutte e quattro le costellazioni</strong> (1074, 1084, 1094, 1124). È quella del pulsante <strong>Standard MSM4 (leggero)</strong>. Per ricevitori vecchi che non usano Galileo e BeiDou c'è <strong>Solo GPS+GLONASS</strong>.</div>
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Di fabbrica la base invia <strong>1005, 1230 e MSM7 per tutte e quattro le costellazioni</strong> (1077, 1087, 1097, 1127), come con il pulsante <strong>Massima precisione MSM7</strong>. Per ridurre il traffico, o per ricevitori che non accettano MSM7, usate <strong>Standard MSM4 (leggero)</strong>: 1005, 1230 e MSM4 per tutte e quattro le costellazioni. <strong>Solo GPS+GLONASS</strong> invia MSM7 delle sole due costellazioni: con ricevitori vecchi controllate che accettino MSM7, altrimenti spuntate a mano 1074 e 1084.</div>
 
 <h2>Limiti dei moduli GNSS</h2>
 

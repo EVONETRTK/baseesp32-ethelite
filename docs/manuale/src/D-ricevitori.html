@@ -8,12 +8,14 @@
   <tr><td>u-blox ZED-X20P</td><td>I2C o seriale</td><td>Sì</td><td>Sì, 1/5/10 Hz</td><td>No</td><td>No</td><td>Non ancora provato su questa scheda</td></tr>
   <tr><td>Unicore UM980</td><td>Seriale</td><td>Sì</td><td>Sì, 1/5/10 Hz</td><td>Sì (riserva rover e misura della base)</td><td>No</td><td>Non ancora provato su questa scheda</td></tr>
   <tr><td>Unicore UM982</td><td>Seriale</td><td>Sì</td><td>Sì, 1/5/10 Hz</td><td>Sì (riserva rover e misura della base)</td><td>Doppia antenna presente, prua non ancora inviata</td><td>Non ancora provato su questa scheda</td></tr>
-  <tr><td>ComNav K922</td><td>Seriale</td><td>Sì</td><td>Sì, 5 Hz</td><td>Da verificare</td><td>Prua (HDT) e INS</td><td>Non ancora provato</td></tr>
+  <tr><td>ComNav K922</td><td>Seriale</td><td>Sì</td><td>Sì, solo GGA: 1 Hz, 5 Hz con l'INS</td><td>Da verificare</td><td>Prua (HDT) e INS</td><td>Non ancora provato</td></tr>
   <tr><td>Quectel LC29H (BA, CA, DA, EA)</td><td>Seriale (460800 di fabbrica)</td><td>Sì</td><td>Sì</td><td>No</td><td>No</td><td>Supportato</td></tr>
   <tr><td>Bynav M20, M20D</td><td>Seriale</td><td>Sì</td><td>Sì</td><td>No</td><td>No</td><td>Non verificato su hardware</td></tr>
   <tr><td>Bynav M21D</td><td>Seriale</td><td>—</td><td>Sì</td><td>No</td><td>INS</td><td>Non verificato su hardware</td></tr>
   <tr><td>Quectel L76K (dello shield)</td><td>Seriale</td><td>—</td><td>Solo prove</td><td>No</td><td>No</td><td>Nessun RTK</td></tr>
 </table>
+
+<div class="box nota"><span class="box-titolo">Funzioni della licenza</span>Alcune funzioni della tabella sono extra del Pacchetto Rover (capitolo <a data-cap="Scheda Manutenzione"></a>): 5 e 10 Hz verso il software di guida (extra <em>Autosterzo</em>; senza, 1 Hz), la riserva Galileo HAS (extra <em>Riserva Galileo HAS</em>), prua, IMU e INS del ComNav K922 e del Bynav M21D (extra <em>IMU e doppia antenna</em>). La misura della posizione della base con Galileo HAS fa parte del Pacchetto Base.</div>
 
 <p>Con la scelta <strong>Automatico</strong> il firmware riconosce da solo all'avvio i moduli u-blox, Unicore e ComNav.</p>
 

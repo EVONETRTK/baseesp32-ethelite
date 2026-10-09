@@ -6,9 +6,9 @@
 
 <ol>
   <li><strong>Alimentazione e riavvii</strong>: scheda <em>Stato</em>, riquadro <em>Sistema</em>, riga <em>Ultimo riavvio</em>.</li>
-  <li><strong>Modulo GNSS</strong>: <em>Ultimo dato dal GNSS</em> recente e riquadro <strong>Satelliti</strong> verde.</li>
+  <li><strong>Modulo GNSS</strong>: riquadro <strong>Satelliti</strong> verde; in base <em>Ultimo dato RTCM</em> di pochi secondi fa, in rover <em>Ultimo fix</em> recente nel riquadro Fix GNSS.</li>
   <li><strong>Posizione</strong>: in base il riquadro <strong>Posizione base</strong>, in rover il riquadro <strong>Fix</strong>.</li>
-  <li><strong>Rete</strong>: pallino di rete e riquadri WiFi e LTE della scheda <em>Stato</em>.</li>
+  <li><strong>Rete</strong>: riquadri WiFi, LTE ed Ethernet della scheda <em>Stato</em> (la spia di rete in alto si vede nelle altre schede).</li>
   <li><strong>Caster</strong>: riquadro <em>Server/Client NTRIP</em>, campi <em>Ultimo errore</em> e <em>Riconnessioni dal boot</em>.</li>
   <li><strong>Log</strong>: scheda <em>Manutenzione</em>, log recenti e log della microSD (capitolo <a data-cap="Scheda Manutenzione"></a>).</li>
 </ol>
@@ -19,7 +19,7 @@
 
 <table class="divisibile">
   <tr><th>Sintomo</th><th>Causa probabile</th><th>Cosa fare</th></tr>
-  <tr><td>Zero satelliti e <em>Ultimo dato dal GNSS</em> vecchio</td><td>Il modulo GNSS non comunica con la scheda.</td><td>Controllate modulo e collegamento nella scheda <em>Posizione</em> (I2C o seriale, pin, velocità) e nel log l'esito della configurazione all'avvio; sullo shield LTE il DIP <strong>GPS</strong> deve essere su OFF.</td></tr>
+  <tr><td>Zero satelliti e, in base, <em>Ultimo dato RTCM</em> vecchio (in rover: riquadro Fix su <em>Nessun dato ricevuto</em>)</td><td>Il modulo GNSS non comunica con la scheda.</td><td>Controllate modulo e collegamento nella scheda <em>Posizione</em> (I2C o seriale, pin, velocità) e nel log l'esito della configurazione all'avvio; sullo shield LTE il DIP <strong>GPS</strong> deve essere su OFF.</td></tr>
   <tr><td>Dati recenti ma zero o pochissimi satelliti, sempre</td><td>Antenna scollegata, cavo interrotto, antenna al chiuso.</td><td>Controllate il cavo e i connettori; provate con un'antenna e un cavo sicuramente funzionanti.</td></tr>
   <tr><td>Pochi satelliti <strong>solo in certe ore</strong>, poi tutto torna normale</td><td>Connettore allentato o con acqua (spesso con l'umidità della sera), cavo danneggiato, disturbo radio intermittente.</td><td>Stringete e proteggete i connettori con nastro autoagglomerante; sostituite il cavo; allontanate antenna e cavo dal modem LTE.</td></tr>
   <tr><td>Segnali deboli solo da una direzione</td><td>Ostacolo (edificio, albero, silo).</td><td>Spostate l'antenna più in alto o lontano dall'ostacolo.</td></tr>
@@ -30,7 +30,7 @@
 
 <h2>Il survey-in non finisce</h2>
 
-<p>Il riquadro <strong>Posizione base</strong> resta arancione su <em>Survey-in</em>, con una precisione attuale peggiore di quella richiesta, e l'avviso rosso indica da quanti minuti dura.</p>
+<p>Il riquadro <strong>Posizione base</strong> resta arancione su <em>Survey-in</em>, con una precisione attuale peggiore di quella richiesta, e il giudizio arancione in cima alla scheda <em>Stato</em> indica da quanti minuti dura.</p>
 
 <ul>
   <li>Con una <strong>precisione attuale enorme</strong> (migliaia di metri) il modulo non ha una posizione: è il caso dei satelliti assenti, vedi la sezione precedente.</li>
@@ -40,7 +40,7 @@
 
 <h2>La base non invia il 1005</h2>
 
-<p>L'avviso rosso <em>La base NON sta inviando la sua posizione</em> indica già la causa. I casi sono quattro:</p>
+<p>Il riquadro del giudizio in cima alla scheda <em>Stato</em> (rosso: <em>La base non manda la sua posizione (1005)</em>) indica già la causa sotto il titolo. I casi sono:</p>
 
 <table class="divisibile">
   <tr><th>Spiegazione nel pannello</th><th>Cosa fare</th></tr>
@@ -48,11 +48,13 @@
   <tr><td>Dal ricevitore non arrivano dati RTCM</td><td>Il modulo non è configurato come base o non comunica: controllate collegamento e log di avvio.</td></tr>
   <tr><td>Posizione fissa impostata ma il ricevitore non manda il 1005</td><td>Il modulo ha rifiutato le coordinate: controllate nel log l'esito della configurazione della posizione fissa e la correttezza delle coordinate (gradi decimali, quota ellissoidica).</td></tr>
   <tr><td>Survey-in in corso da molti minuti</td><td>Vedi la sezione precedente.</td></tr>
+  <tr><td>Il ricevitore ha smesso di mandarlo da … s</td><td>Controllate il collegamento del modulo e il log; se non riprende, riavviate il ricevitore.</td></tr>
+  <tr><td>Il survey-in non è ancora partito o non è completato</td><td>Aspettate qualche minuto; se resta così, controllate satelliti e log di avvio.</td></tr>
 </table>
 
 <h2>Il caster rifiuta il collegamento</h2>
 
-<p>Il campo <strong>Ultimo errore</strong> del riquadro <em>Server/Client NTRIP</em> riporta il motivo in chiaro. Il pulsante <strong>Prova connessione al caster</strong>, nella scheda <em>Posizione</em>, verifica i dati senza riavviare.</p>
+<p>Il campo <strong>Ultimo errore</strong> del riquadro <em>Server/Client NTRIP</em> riporta il motivo in chiaro; i rifiuti del caster compaiono preceduti da «Caster ha rifiutato:». Il pulsante <strong>Prova connessione al caster</strong>, nella scheda <em>Posizione</em>, verifica i dati senza riavviare.</p>
 
 <table class="divisibile">
   <tr><th>Ultimo errore</th><th>Significato e soluzione</th></tr>
@@ -62,9 +64,9 @@
   <tr><td><em>mountpoint già occupata da un'altra base collegata</em></td><td>Un'altra base usa la stessa mountpoint, oppure il caster considera ancora aperta una connessione precedente della stessa base: di solito si risolve da solo in meno di un minuto. Se continua, verificate che non ci siano due basi con la stessa mountpoint.</td></tr>
   <tr><td><em>abbonamento non attivo o scaduto</em></td><td>Rinnovo dell'abbonamento del cliente.</td></tr>
   <tr><td><em>troppe sessioni contemporanee per questo abbonamento</em></td><td>Le stesse credenziali sono in uso su più rover: ogni rover deve avere le sue.</td></tr>
-  <tr><td><em>Indirizzo del caster non trovato (DNS)</em></td><td>Indirizzo scritto male, oppure il ricevitore non ha internet.</td></tr>
-  <tr><td><em>Connessione a … fallita</em>, <em>Nessuna risposta dal caster</em></td><td>Caster irraggiungibile: porta errata, internet assente, firewall della rete aziendale che blocca la porta 2101.</td></tr>
-  <tr><td><em>Caster ha chiuso la connessione</em>, <em>Invio/Ricezione dati fallita, riconnessione</em></td><td>Interruzione della rete o del caster: il ricevitore si ricollega da solo. Se succede molte volte all'ora, controllate la rete.</td></tr>
+  <tr><td><em>Indirizzo del caster non trovato (DNS)</em>; in rover <em>DNS lookup fallita</em></td><td>Indirizzo scritto male, oppure il ricevitore non ha internet.</td></tr>
+  <tr><td><em>Connessione a … fallita</em>; in rover <em>Connessione al caster fallita</em>; <em>Nessuna risposta dal caster</em></td><td>Caster irraggiungibile: porta errata, internet assente, firewall della rete aziendale che blocca la porta 2101.</td></tr>
+  <tr><td><em>Caster ha chiuso la connessione</em>, <em>Invio dati fallito, riconnessione</em>, <em>Ricezione dati fallita, riconnessione</em></td><td>Interruzione della rete o del caster: il ricevitore si ricollega da solo. Se succede molte volte all'ora, controllate la rete.</td></tr>
 </table>
 
 <h2>Problemi di rete mobile</h2>
@@ -98,7 +100,8 @@
 <ul>
   <li><strong>calo di tensione</strong> o <strong>accensione</strong> senza che nessuno abbia staccato la corrente: alimentatore, cavi, connessioni;</li>
   <li><strong>blocco del firmware (watchdog)</strong> o <strong>errore del firmware (crash)</strong>: scaricate il log della microSD dell'accensione precedente e segnalatelo, indicando la versione del firmware;</li>
-  <li><strong>riavvio software</strong> con un motivo (aggiornamento, configurazione importata, richiesto dal pannello): riavvio voluto.</li>
+  <li><strong>riavvio software</strong> con un motivo (aggiornamento, configurazione importata, richiesto dal pannello, reset di fabbrica dal pulsante): riavvio voluto;</li>
+  <li><strong>riavvio di sicurezza</strong> (nessun dato dal ricevitore da 10 minuti, caster scollegato da 30 minuti, task bloccato): controllate rete e collegamento del modulo GNSS; se si ripete, scaricate il log della microSD e segnalatelo.</li>
 </ul>
 
 <h3>Il ricevitore non finisce di avviarsi</h3>
@@ -113,7 +116,7 @@
 
 <ul>
   <li>Se la nuova versione non parte, il ricevitore torna da solo alla precedente al riavvio successivo: nella scheda <em>Manutenzione</em> la <em>Versione attuale</em> lo conferma.</li>
-  <li>Se una versione nuova funziona ma ha un difetto scoperto dopo, si può tornare a una delle due versioni precedenti dall'<strong>Archivio firmware</strong>.</li>
+  <li>Se una versione nuova funziona ma ha un difetto scoperto dopo, si può tornare a una delle due versioni precedenti dall'<strong>Archivio firmware</strong> (tra le Avanzate).</li>
 </ul>
 
 <h3>Ripristino di fabbrica</h3>
@@ -122,13 +125,13 @@
 
 <p>Il ripristino cancella anche la licenza: il ricevitore torna «da attivare». Per riattivarlo serve un <strong>codice di attivazione nuovo</strong>, che chiedete all'assistenza EVONETRTK indicando la matricola: il vecchio codice, per sicurezza, non basta se il ricevitore era in funzione nei 7 giorni precedenti.</p>
 
-<div class="box avviso"><span class="box-titolo">Pericolo</span>Dopo un ripristino di fabbrica una base non trasmette finché non viene riconfigurata, e le sue coordinate fisse sono perse se non c'è una copia della configurazione o un registro delle coordinate. Prima di qualunque intervento importante scaricate sempre una copia completa.</div>
+<div class="box avviso"><span class="box-titolo">Attenzione</span>Dopo un ripristino di fabbrica una base non trasmette finché non viene riconfigurata, e le sue coordinate fisse sono perse se non c'è una copia della configurazione o un registro delle coordinate. Prima di qualunque intervento importante scaricate sempre una copia completa.</div>
 
 <h2>Altri problemi</h2>
 
 <table class="divisibile">
   <tr><th>Sintomo</th><th>Cosa fare</th></tr>
-  <tr><td>Pallino <strong>SD</strong> rosso o microSD non letta</td><td>Scheda oltre i 32 GB in exFAT o usata prima su un Raspberry Pi: formattatela dal pannello in FAT32. Se il problema continua, sostituitela.</td></tr>
+  <tr><td>Spia <strong>SD</strong> rossa (nelle schede diverse da Stato) o microSD non letta</td><td>Scheda oltre i 32 GB in exFAT o usata prima su un Raspberry Pi: formattatela dal pannello in FAT32 (<strong>🧹 Formatta microSD (FAT32)</strong>, scheda <em>Manutenzione</em>, tra le Avanzate). Se il problema continua, sostituitela.</td></tr>
   <tr><td>Gli avvisi non arrivano</td><td>Avviso attivo e almeno un canale configurato; <strong>Invia avviso di prova</strong>; per WhatsApp riattivate CallMeBot se ha cambiato bot (capitolo <a data-cap="Scheda Avvisi"></a>).</td></tr>
   <tr><td>La VPN non si collega</td><td>Chiave pubblica della base registrata sul server; chiave pubblica del server, indirizzo e porta 51820 corretti; porta aperta sul server.</td></tr>
   <tr><td>Il pannello è lento o non si apre del tutto</td><td>Segnale WiFi debole verso il telefono: avvicinatevi o usate la rete EVONETRTK-… del ricevitore.</td></tr>
@@ -143,7 +146,7 @@
 <ul>
   <li>Ordine della diagnosi: alimentazione, modulo GNSS, posizione, rete, caster, log.</li>
   <li>Satelliti che spariscono a tratti: quasi sempre antenna, cavo o connettore.</li>
-  <li>L'avviso del 1005 e il campo <em>Ultimo errore</em> indicano già la causa.</li>
+  <li>Il giudizio in cima alla scheda Stato (1005) e il campo <em>Ultimo errore</em> indicano già la causa.</li>
   <li>SIM: APN, PIN, banda 20; le brevi interruzioni periodiche sono normali.</li>
   <li>Ripristino di fabbrica con BOOT per 5 secondi, poi la copia della configurazione: tenetene sempre una aggiornata.</li>
 </ul>

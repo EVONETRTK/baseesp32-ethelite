@@ -17,7 +17,7 @@
 
 <h3>Vicino al ricevitore, senza WiFi</h3>
 
-<p>Il ricevitore crea sempre una sua rete WiFi, chiamata <strong>EVONETRTK-</strong> seguito dalla matricola, per esempio <code>EVONETRTK-123456</code>. Funziona anche quando il ricevitore non ha internet, ed è il modo per raggiungerlo in campo o in cabina:</p>
+<p>Il ricevitore crea sempre una sua rete WiFi (tranne quando il tecnico l'ha spenta con la connessione «Solo Ethernet»), chiamata <strong>EVONETRTK-</strong> seguito dalla matricola, per esempio <code>EVONETRTK-123456</code>. Funziona anche quando il ricevitore non ha internet, ed è il modo per raggiungerlo in campo o in cabina:</p>
 
 <ol>
   <li>Avvicinatevi al ricevitore, a qualche decina di metri al massimo.</li>
@@ -45,11 +45,11 @@
 <ul>
   <li><strong>WiFi</strong>, <strong>Cellulare</strong> o <strong>Ethernet</strong>: la connessione a internet in uso (Ethernet in giallo: cavo collegato ma senza indirizzo). "Assente" in rosso: il ricevitore non è collegato a internet.</li>
   <li><strong>NTRIP OK</strong>: il ricevitore è collegato al caster; una base gli manda le correzioni, un rover le riceve. "NTRIP giù" in rosso: il collegamento è interrotto.</li>
-  <li><strong>Fix</strong>: la qualità della posizione. Sul rover deve indicare <strong>RTK fisso</strong> (verde); <em>RTK float</em> e le correzioni approssimate DGPS o HAS (arancione) vogliono dire precisione di decimetri, <em>No RTK</em> (rosso) che le correzioni non vengono usate. Lo stesso colore compare nel riquadro Fix e nel giudizio della scheda Stato. Su una base invece <em>No RTK</em> è normale: la base non riceve correzioni, le produce.</li>
+  <li><strong>Fix</strong>: la qualità della posizione. Sul rover deve indicare <strong>RTK fisso</strong> (verde); <em>RTK float</em> e le correzioni approssimate DGPS o HAS (arancione) vogliono dire precisione di decimetri, <em>No RTK</em> (rosso) che le correzioni non vengono usate. Lo stesso colore compare nel riquadro Fix e nel giudizio della scheda Stato. Su una base lo stesso pallino indica invece se la base manda la sua posizione: <strong>Posiz. OK</strong> (verde), <em>Survey-in</em> o <em>In avvio</em> (arancione), <em>No posiz.</em> (rosso: i trattori non possono arrivare al fix).</li>
   <li><strong>SD</strong>: la scheda di memoria dove il ricevitore salva il suo diario di funzionamento.</li>
 </ul>
 
-<p>A destra, sempre insieme, ci sono tre strumenti: <strong>Avanzate</strong> (arancione) mostra le impostazioni per i tecnici; il pulsante blu <strong>📥 Download manuale</strong> scarica questo manuale in PDF, sempre nell'ultima versione (serve internet sul telefono o sul PC); il campo <strong>Cerca</strong> trova un'impostazione scrivendone il nome. Sul telefono stanno in due righe sotto i pallini. I pulsanti in basso aprono le <strong>sei schede</strong> del pannello: Stato, Posizione, Connessione, SIM, Avvisi e Manutenzione. All'agricoltore interessa soprattutto la prima, <strong>Stato</strong>.</p>
+<p>A destra, sempre insieme, ci sono tre strumenti: <strong>Avanzate</strong> (arancione) mostra le impostazioni per i tecnici; il pulsante blu <strong>📥 Download manuale</strong> scarica questo manuale in PDF, sempre nell'ultima versione (serve internet sul telefono o sul PC); il campo <strong>Cerca</strong> trova un'impostazione scrivendone il nome. Sul telefono stanno in due righe sotto i pallini. I pulsanti subito sotto aprono le <strong>sei schede</strong> del pannello: Stato, Posizione, Connessione, SIM, Avvisi e Manutenzione. All'agricoltore interessa soprattutto la prima, <strong>Stato</strong>.</p>
 
 <h2>Le schede di riepilogo e i colori</h2>
 
@@ -94,9 +94,9 @@
 
 <table>
   <tr><th>Fix</th><th>Colore</th><th>Cosa significa</th></tr>
-  <tr><td><strong>RTK fisso</strong></td><td style="color:#15803d"><strong>Verde</strong></td><td>Si lavora al centimetro.</td></tr>
-  <tr><td><strong>RTK float</strong> o <strong>DGPS</strong></td><td style="color:#b45309"><strong>Arancione</strong></td><td>Correzioni in uso ma calcolo non ancora risolto, oppure precisione ridotta: aspettate o spostatevi a cielo libero.</td></tr>
-  <tr><td><strong>GPS</strong> o <strong>Nessun fix</strong></td><td style="color:#b91c1c"><strong>Rosso</strong></td><td>"GPS": posizione autonoma, senza correzioni (qualche metro). "Nessun fix": nessuna posizione.</td></tr>
+  <tr><td><strong>RTK fisso</strong> o <strong>Stimato</strong></td><td style="color:#15803d"><strong>Verde</strong></td><td>Si lavora al centimetro. "Stimato": posizione proseguita per pochi istanti dalla navigazione inerziale (INS), dove c'è.</td></tr>
+  <tr><td><strong>RTK float</strong> o <strong>DGPS</strong> (anche Galileo HAS)</td><td style="color:#b45309"><strong>Arancione</strong></td><td>Correzioni in uso ma calcolo non ancora risolto, oppure precisione ridotta: aspettate o spostatevi a cielo libero.</td></tr>
+  <tr><td><strong>GPS</strong> o <strong>Nessun dato</strong></td><td style="color:#b91c1c"><strong>Rosso</strong></td><td>"GPS": posizione autonoma, senza correzioni (qualche metro). "Nessun dato": nessuna posizione (il pallino in alto dice <em>No fix</em>).</td></tr>
 </table>
 
 <figure>
@@ -119,7 +119,10 @@
 
 <ul>
   <li><strong>La base non manda la sua posizione (1005)</strong> (rosso, solo base, nel riquadro in cima): è l'avviso più importante, perché senza posizione della base nessun trattore arriva al fix. Spesso dipende dall'antenna che vede pochi satelliti. Va chiamato il tecnico.</li>
-  <li><strong>Misura della posizione base in corso</strong> (azzurro, solo base): il tecnico ha avviato la misura precisa della posizione della base. Dura qualche minuto; al termine la base torna a lavorare da sola.</li>
+  <li><strong>Misura della posizione base in corso</strong> (azzurro, solo base): il tecnico ha avviato la misura precisa della posizione della base. Dura fino a 20 minuti con l'RTK, alcune ore (di solito 6) con Galileo HAS: <strong>intanto la base non manda correzioni</strong> e i trattori non lavorano in RTK con questa base. Al termine la base torna a lavorare da sola.</li>
+  <li><strong>L'antenna della base sembra spostata</strong> (rosso, solo base): le correzioni potrebbero essere sbagliate. Non lavorate di precisione e chiamate il tecnico.</li>
+  <li><strong>Funzioni extra sospese</strong> (arancione): il ricevitore non riesce a collegarsi al server delle licenze da oltre 30 giorni; autosterzo a 5 e 10 posizioni al secondo, riserva Galileo HAS e IMU restano spenti fino al rinnovo. Controllate la connessione a internet e avvisate il tecnico.</li>
+  <li><strong>Ricevitore da attivare</strong> o <strong>revocato</strong> (rosso): il ricevitore non ha una licenza valida. Chiamate il tecnico o l'assistenza.</li>
   <li><strong>Rinnovo della SIM</strong> (giallo): il piano dati della SIM sta per scadere. Ricordate di controllare il credito o di rinnovare il piano entro la data indicata, altrimenti il ricevitore resta senza internet quando il WiFi non c'è.</li>
   <li><strong>Modifiche salvate ma non ancora attive</strong> (giallo): qualcuno ha cambiato un'impostazione che vale solo dopo un riavvio. Se non siete stati voi o il tecnico, non toccate niente e avvisate il tecnico.</li>
 </ul>

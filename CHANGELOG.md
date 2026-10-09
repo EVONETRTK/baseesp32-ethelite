@@ -8,6 +8,13 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.30.5
+
+- **Galileo HAS nel pannello**: precisioni verificate sulle fonti (riserva del rover circa 20 cm in orizzontale e 40 cm in quota; misura della base circa 10 cm in orizzontale e 10-20 cm in quota, stima da confermare) e convergenza di oggi, da 30 a 60 minuti invece di 'alcuni minuti'.
+- **Pannello**: "Ultimo dato RTCM" mostra da quanti secondi (prima un orario sbagliato); misura RTK: spiegato che con solo RTK float salva la media float; ComNav K922: frequenze NMEA corrette; avvisi di temperatura e posizione (1005) attivabili anche senza Pacchetto Base; Connettivita' segnalata tra le modifiche che valgono dopo il riavvio; pulsanti "Scarica copia completa" e "Apri la scheda di accesso" con l'aspetto di pulsanti; riquadro Bynav M21D con il lucchetto dell'extra IMU; testi del piano dati SIM, della password della rete di setup e del pulsante BOOT corretti.
+- **Scheda di accesso**: le coordinate della base non vanno piu' a capo a meta' numero (quota su una riga a parte).
+- **Manuale** (controllo qualita' completo): i pulsanti citati nel testo sono disegnati come nel pannello; foto dei riquadri principali con dati d'esempio coerenti; un centinaio di correzioni (licenza nel primo avvio e nelle guide rapide, firewall con la porta 443, ComNav K922, extra Autosterzo, avvisi, motivi di riavvio, misure RTK e HAS, copie della configurazione, note legali sulla licenza); impaginazione del PDF rivista (tabelle spezzate con l'intestazione ripetuta, niente titoli soli in fondo alla pagina, schermate alte su una pagina).
+
 ## 1.30.4
 
 - **Scheda Stato**: le spie in alto (rete, caster, posizione o fix, SD) non compaiono piu' nella scheda Stato, dove ripetevano giudizio e riquadri; restano in tutte le altre schede.

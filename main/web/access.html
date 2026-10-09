@@ -25,6 +25,7 @@
   table.ident td { border-bottom:1px solid var(--line); padding:4px 8px; }
   table.ident tr:last-child td { border-bottom:0; }
   table.ident td:first-child { width:auto; white-space:nowrap; }
+  .nw { white-space:nowrap; } /* coordinate: un numero non va a capo a meta' */
   .blank { display:inline-block; min-width:220px; border-bottom:1px solid var(--fg); height:1.2em; }
   .qrs { display:flex; flex-wrap:wrap; gap:18px; margin:8px 0; }
   .qr { text-align:center; font-size:12px; width:170px; }
@@ -203,7 +204,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       ['Ricevitore GNSS', esc(recv)],
       ['Scheda', 'ESP32-S3 (LilyGO T-ETH-Elite)'],
       !rover && ['Posizione della base', (s.base_position_mode !== 'auto' && (s.base_fixed_lat_deg || s.base_fixed_lon_deg))
-        ? v(s.base_fixed_lat_deg + ', ' + s.base_fixed_lon_deg + ', ' + s.base_fixed_height_m + ' m') : 'automatica (survey-in a ogni avvio)'],
+        ? '<span class="nw">' + v(s.base_fixed_lat_deg + ',') + '</span> <span class="nw">' + v(s.base_fixed_lon_deg) + '</span><br>quota ' + v(s.base_fixed_height_m + ' m') : 'automatica (survey-in a ogni avvio)'],
     ]);
 
     rows('t-local', [

@@ -63,7 +63,7 @@
   <li><strong>Uscita dati per software di guida</strong>:
     <ul>
       <li><strong>Porta UDP</strong>: <code>9999</code>, la porta su cui AgIO riceve la posizione (è il valore di fabbrica);</li>
-      <li><strong>Posizioni al secondo</strong>: <code>10</code> per l'autosterzo.</li>
+      <li><strong>Posizioni al secondo</strong>: <code>10</code> per l'autosterzo; 5 e 10 richiedono l'extra <strong>Autosterzo</strong> della licenza (con il ComNav K922 escono 1 posizione al secondo, o 5 con l'INS attivo).</li>
     </ul>
   </li>
   <li>Riavviate il ricevitore e controllate, a cielo libero, che i riquadri <strong>Caster</strong> e <strong>Fix</strong> della scheda <em>Stato</em> diventino verdi.</li>
@@ -109,7 +109,7 @@
   <li><strong>Allarme RTK fix Perso</strong>: attivatelo, così AgOpenGPS avvisa quando la posizione esce dall'RTK.</li>
 </ul>
 
-<p>Nella barra di stato di AgOpenGPS controllate la <strong>qualità del fix</strong> (RTK fix) e la <strong>frequenza</strong> delle posizioni, che deve essere vicina a 10 al secondo.</p>
+<p>Nella barra di stato di AgOpenGPS controllate la <strong>qualità del fix</strong> (RTK fix) e la <strong>frequenza</strong> delle posizioni, che deve essere vicina a 10 al secondo (con il ComNav K922: 5 con l'INS attivo, altrimenti 1).</p>
 
 <h2>Linee AB, curve e ripetibilità</h2>
 
@@ -140,7 +140,7 @@
 <h2>Doppia antenna e IMU</h2>
 
 <ul>
-  <li><strong>ComNav K922</strong>: con due antenne calcola la <strong>prua</strong> anche da fermo e in retromarcia, e il ricevitore la invia ad AgIO con la frase HDT, 5 volte al secondo. Con l'<strong>INS</strong> attivo la posizione continua per qualche istante anche sotto alberi o capannoni. In AgOpenGPS usate la <em>Configurazione Doppia Antenna</em>. La frequenza con il K922 è fissa a 5 posizioni al secondo.</li>
+  <li><strong>ComNav K922</strong>: con due antenne calcola la <strong>prua</strong> anche da fermo e in retromarcia, e il ricevitore la invia ad AgIO con la frase HDT, 5 volte al secondo. Con l'<strong>INS</strong> attivo la posizione continua per qualche istante anche sotto alberi o capannoni. In AgOpenGPS usate la <em>Configurazione Doppia Antenna</em>. Con il K922 la posizione esce a 5 al secondo con l'INS attivo, altrimenti a 1. Prua e INS sono l'extra «IMU e doppia antenna» della licenza.</li>
   <li><strong>Unicore UM982</strong>: il modulo ha la doppia antenna, ma in questa versione del firmware il ricevitore non ne invia ancora la prua ad AgIO: si usa come antenna singola.</li>
   <li><strong>Inclinazione (rollio)</strong>: il ricevitore non la invia ad AgOpenGPS; usate il sensore di inclinazione della scheda di sterzo.</li>
 </ul>
@@ -154,7 +154,7 @@
   <tr><td>AgIO non riceve nessuna posizione</td><td>UDP spento in AgIO; firewall di Windows; tablet su un'altra rete; porta diversa da 9999.</td><td>Attivate l'UDP in AgIO; consentite AgIO sulle reti pubbliche; collegate il tablet alla rete EVONETRTK-…; controllate la porta nel pannello del ricevitore.</td></tr>
   <tr><td>Nell'UDP Monitor arrivano frasi ma senza posizione</td><td>Il ricevitore non ha ancora una posizione (antenna coperta, appena acceso).</td><td>Portate il trattore a cielo libero e aspettate un minuto; controllate il riquadro Satelliti nel pannello.</td></tr>
   <tr><td>Posizione presente ma niente RTK</td><td>Correzioni non in arrivo al ricevitore.</td><td>Riquadro <strong>Caster</strong> del pannello: leggete il motivo; internet del ricevitore (SIM, hotspot) e dati di accesso.</td></tr>
-  <tr><td>Frequenza bassa (1 al secondo)</td><td>Posizioni al secondo a 1, o modifica non ancora attiva.</td><td>Impostate 10 e riavviate il ricevitore.</td></tr>
+  <tr><td>Frequenza bassa (1 al secondo)</td><td>Posizioni al secondo a 1, modifica non ancora attiva, oppure extra Autosterzo non compreso nella licenza o sospeso (scheda Manutenzione → Licenza).</td><td>Impostate 10 e riavviate il ricevitore.</td></tr>
   <tr><td>Direzione instabile da fermo o a bassa velocità</td><td>Con una sola antenna la direzione si calcola dal movimento.</td><td>Normale da fermi: partite e la direzione si assesta; per la prua da fermo serve la doppia antenna.</td></tr>
   <tr><td>Linea spostata di qualche centimetro sempre dallo stesso lato</td><td>Disallineamento Antenna errato.</td><td>Rimisurate lo spostamento laterale dell'antenna.</td></tr>
   <tr><td>Linea spostata alternando il lato a ogni passata</td><td>Misure dell'antenna o dell'attrezzo errate, oppure inclinazione non compensata.</td><td>Controllate le misure; attivate il sensore di inclinazione.</td></tr>
@@ -164,7 +164,7 @@
 <div class="in-breve">
 <ul>
   <li>Riferimento: AgOpenGPS 6.8.6 (agosto 2026). AgIO riceve la posizione in UDP sulla porta 9999 e legge GGA, VTG e HDT.</li>
-  <li>Ricevitore in rover: dati del caster, porta 9999, 10 posizioni al secondo.</li>
+  <li>Ricevitore in rover: dati del caster, porta 9999, 10 posizioni al secondo (extra Autosterzo).</li>
   <li>Tablet sulla rete WiFi del ricevitore; AgIO consentito nel firewall anche sulle reti pubbliche.</li>
   <li>In AgIO: profilo, UDP attivo, NTRIP spento, nessuna porta COM. In AgOpenGPS: misure dell'antenna, fonte della direzione, attrezzo, allarme RTK.</li>
   <li>L'autosterzo richiede il kit di sterzo di AgOpenGPS, RTK fisso a 10 Hz e un operatore sempre pronto.</li>
