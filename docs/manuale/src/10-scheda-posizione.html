@@ -84,14 +84,16 @@
 
 <h3>Misura la posizione con Galileo HAS</h3>
 
-<p>Quando non c'è un'altra stazione vicina, il modulo calcola la posizione con le correzioni gratuite di Galileo, che arrivano dai satelliti: non servono né internet né altre stazioni. La base fa la media per il tempo scelto (2, 4, <strong>6 ore consigliate</strong>, 12 o 24), converte le coordinate da ITRF2020 a ETRF2000 e le salva come posizione fissa. Precisione attesa: circa un decimetro.</p>
+<p>Quando non c'è un'altra stazione vicina, il modulo calcola la posizione con le correzioni gratuite di Galileo, che arrivano dai satelliti: non servono né internet né altre stazioni. La base fa la media per il tempo scelto (2, 4, <strong>6 ore consigliate</strong>, 12 o 24), converte le coordinate da ITRF2020 a ETRF2000 e le salva come posizione fissa. Precisione attesa con 6 ore: circa <strong>10 cm in orizzontale e 10–20 cm in quota</strong>. È una stima dagli studi pubblicati: sul nostro ricevitore la misura non è ancora stata confermata da una prova all'aperto.</p>
 
 <ul>
-  <li>Serve un modulo <strong>Unicore UM980/UM982</strong> o <strong>ComNav K922</strong> (per il K922 l'attivazione di HAS è ancora da verificare): lo ZED-F9P non riceve il segnale Galileo E6.</li>
+  <li>Serve un modulo <strong>Unicore UM980/UM982</strong>: lo ZED-F9P non riceve il segnale Galileo E6. Con il <strong>ComNav K922</strong> la misura si può avviare, ma il comando che accende HAS sul modulo non è ancora noto: oggi finirebbe senza soluzioni HAS.</li>
+  <li>Fa parte del <strong>Pacchetto Base</strong> (capitolo <a data-cap="Scheda Manutenzione"></a>).</li>
   <li>Per tutta la misura la base <strong>non invia correzioni</strong> ai rover.</li>
   <li>L'antenna deve essere già nella posizione definitiva, con il cielo libero.</li>
   <li>La prima mezz'ora dopo ogni avvio serve alla convergenza e viene scartata; se manca la corrente la misura riprende da dove era.</li>
-  <li>Se il modulo non riceve HAS le coordinate non cambiano e il motivo compare nel riquadro.</li>
+  <li>Se il modulo non riceve HAS, o per 10 minuti non arriva nessuna soluzione HAS, la misura si ferma: le coordinate non cambiano e il motivo compare nel riquadro.</li>
+  <li>La quota conta: un errore di quota della base passa tale e quale ai rover. Per la prima base di una zona preferite i dati grezzi con il PPP.</li>
 </ul>
 
 <div class="box consiglio"><span class="box-titolo">Consiglio</span>Per la precisione migliore, al centimetro, si usa la registrazione dei dati grezzi con il calcolo PPP descritto nel riquadro successivo. La procedura completa e il confronto tra i metodi sono nel capitolo <a data-cap="Coordinate precise della base"></a>.</div>
@@ -133,7 +135,7 @@
 
 <h2>Riserva Galileo HAS</h2>
 
-<p><span class="pubblico tecnico">Solo rover · Unicore e ComNav</span> Con la casella <strong>Usa Galileo HAS quando non arrivano correzioni dalla base</strong>, il rover passa alle correzioni gratuite di Galileo quando mancano quelle RTK e torna in RTK da solo quando riprendono. Le posizioni HAS sono convertite in ETRF2000, così il passaggio tra RTK e HAS non fa saltare la posizione. Precisione circa 20 cm, dopo una convergenza da alcuni minuti a qualche decina di minuti. Vale dopo il riavvio. I limiti d'uso sono descritti nel capitolo <a data-cap="Collegare il trattore"></a>.</p>
+<p><span class="pubblico tecnico">Solo rover · Unicore (ComNav K922 da verificare) · extra della licenza</span> Con la casella <strong>Usa Galileo HAS quando non arrivano correzioni dalla base</strong>, il rover passa alle correzioni gratuite di Galileo quando mancano quelle RTK e torna in RTK da solo quando riprendono. Le posizioni HAS sono convertite in ETRF2000, così il passaggio tra RTK e HAS non fa saltare la posizione. Precisione circa 20 cm in orizzontale e 40 cm in quota, dopo una convergenza che oggi richiede da 30 a 60 minuti. Vale dopo il riavvio. I limiti d'uso sono descritti nel capitolo <a data-cap="Collegare il trattore"></a>.</p>
 
 <h2>Caster NTRIP locale</h2>
 

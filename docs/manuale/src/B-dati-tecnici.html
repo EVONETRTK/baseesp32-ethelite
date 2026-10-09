@@ -31,7 +31,7 @@
   <tr><td>Uscita verso il software di guida (rover)</td><td>NMEA in broadcast UDP su tutte le reti attive, porta predefinita 9999; GGA, RMC e VTG a 1, 5 o 10 Hz (u-blox, Unicore), GSV a 1 Hz; con il ComNav K922 anche HDT, a 5 Hz</td></tr>
   <tr><td>Posizione della base</td><td>Survey-in, coordinate fisse, misura con RTK, misura con Galileo HAS; sistema della rete ETRF2000</td></tr>
   <tr><td>Dati grezzi</td><td>Registrazione su microSD (u-blox RAWX/SFRBX o RTCM3) per il calcolo PPP</td></tr>
-  <tr><td>Riserva senza RTK (rover)</td><td>Galileo HAS con i moduli Unicore e ComNav, convertito in ETRF2000</td></tr>
+  <tr><td>Riserva senza RTK (rover)</td><td>Galileo HAS con i moduli Unicore (ComNav K922 da verificare), convertito in ETRF2000; circa 20 cm in orizzontale e 40 cm in quota dopo 30–60 minuti</td></tr>
   <tr><td>Pannello</td><td>Pagina web interna, HTTP con utente e password, sessione ricordata 30 giorni</td></tr>
   <tr><td>Accesso remoto</td><td>VPN WireGuard (porta UDP 51820 del server); monitoraggio remoto con invio periodico dello stato in HTTPS</td></tr>
   <tr><td>Avvisi</td><td>Email (SMTP con TLS) e WhatsApp (CallMeBot): caster scollegato, 1005 non inviato, temperatura oltre 70 °C, cambio posizione della base, promemoria SIM</td></tr>
