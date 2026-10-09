@@ -19,8 +19,15 @@ static const char *TAG = "wifi_link";
 
 #define WIFI_CONNECTED_BIT BIT0
 
+// Password della rete di setup (AP) usata se quella salvata non e' valida
+// per WPA2 (meno di 8 o piu' di 63 caratteri): e' quella di fabbrica,
+// stampata sulla scheda di accesso. Prima con una password corta l'AP
+// diventava APERTO senza avvisi, e con una troppo lunga veniva troncata.
+#define AP_FALLBACK_PASSWORD "baseesp32setup"
+
 static EventGroupHandle_t s_events;
 static volatile bool s_connected = false;
+static bool s_inited;
 static esp_netif_t *s_sta_netif = NULL;
 static esp_netif_t *s_ap_netif = NULL;
 // Serializza i tentativi di connessione: net_manager_task ne fa uno in
@@ -53,8 +60,41 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
+// Rete aperta (password vuota): soglia di sicurezza "aperta", altrimenti
+// con la soglia WPA2 il driver scartava le reti senza password e non ci si
+// poteva collegare a un hotspot aperto.
+static void set_sta_threshold(wifi_config_t *cfg, const char *password)
+{
+    cfg->sta.threshold.authmode = (password && password[0]) ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
+}
+
+// Solo i campi della rete, letti senza copiare tutta la configurazione
+// (~2,4 KB) sullo stack del chiamante.
+typedef struct {
+    char ap_ssid[33];
+    char ap_password[65];
+    char wifi_ssid[33];
+    char wifi_password[65];
+} wifi_init_cfg_t;
+
+static void peek_init_cfg(const app_settings_t *s, void *ctx)
+{
+    wifi_init_cfg_t *c = (wifi_init_cfg_t *) ctx;
+    strlcpy(c->ap_ssid, s->ap_ssid, sizeof(c->ap_ssid));
+    strlcpy(c->ap_password, s->ap_password, sizeof(c->ap_password));
+    strlcpy(c->wifi_ssid, s->wifi_ssid, sizeof(c->wifi_ssid));
+    strlcpy(c->wifi_password, s->wifi_password, sizeof(c->wifi_password));
+}
+
 void wifi_link_init(void)
 {
+    // Puo' essere chiamata anche piu' tardi da net_manager (modalita' "Solo
+    // Ethernet" senza cavo: si accende comunque l'AP di setup): una volta sola.
+    if (s_inited) {
+        return;
+    }
+    s_inited = true;
+
     s_events = xEventGroupCreate();
     s_wifi_mutex = xSemaphoreCreateMutex();
 
@@ -67,28 +107,35 @@ void wifi_link_init(void)
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
 
-    app_settings_t settings; // riempita senza copie temporanee (vedi settings_get_into)
-    settings_get_into(&settings);
+    static wifi_init_cfg_t settings; // statica: niente struct sullo stack del chiamante
+    settings_peek(peek_init_cfg, &settings);
 
     // L'AP di setup resta sempre attivo (modalita' APSTA): la UI web e'
     // cosi' raggiungibile in campo anche se WiFi/GPRS non sono ancora
     // configurati o non funzionano.
     wifi_config_t ap_config = { 0 };
     strncpy((char *) ap_config.ap.ssid, settings.ap_ssid, sizeof(ap_config.ap.ssid) - 1);
-    ap_config.ap.ssid_len = (uint8_t) strlen(settings.ap_ssid);
+    ap_config.ap.ssid_len = (uint8_t) strlen((const char *) ap_config.ap.ssid);
     ap_config.ap.channel = 1;
     ap_config.ap.max_connection = 4;
-    if (strlen(settings.ap_password) >= 8) {
-        strncpy((char *) ap_config.ap.password, settings.ap_password, sizeof(ap_config.ap.password) - 1);
-        ap_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    } else {
-        ap_config.ap.authmode = WIFI_AUTH_OPEN;
+    size_t ap_pass_len = strlen(settings.ap_password);
+    const char *ap_pass = settings.ap_password;
+    if (ap_pass_len < 8 || ap_pass_len > 63) {
+        // Mai una rete di setup aperta (da li' si raggiunge il pannello).
+        ESP_LOGE(TAG, "Password della rete di setup non valida (%u caratteri, servono da 8 a 63): "
+                      "uso quella di fabbrica scritta sulla scheda di accesso. Correggila nel pannello.",
+                 (unsigned) ap_pass_len);
+        ap_pass = AP_FALLBACK_PASSWORD;
     }
+    strncpy((char *) ap_config.ap.password, ap_pass, sizeof(ap_config.ap.password) - 1);
+    ap_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
 
     wifi_config_t sta_config = { 0 };
     strncpy((char *) sta_config.sta.ssid, settings.wifi_ssid, sizeof(sta_config.sta.ssid) - 1);
     strncpy((char *) sta_config.sta.password, settings.wifi_password, sizeof(sta_config.sta.password) - 1);
-    sta_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    set_sta_threshold(&sta_config, settings.wifi_password);
+    memset(settings.wifi_password, 0, sizeof(settings.wifi_password));
+    memset(settings.ap_password, 0, sizeof(settings.ap_password));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
@@ -101,6 +148,11 @@ void wifi_link_init(void)
     esp_wifi_set_ps(WIFI_PS_NONE);
 
     ESP_LOGI(TAG, "AP di setup attivo: SSID=%s IP=192.168.4.1", settings.ap_ssid);
+}
+
+bool wifi_link_is_started(void)
+{
+    return s_inited;
 }
 
 // Corpo comune a wifi_link_connect() e wifi_link_connect_with(): va sempre
@@ -123,6 +175,9 @@ static bool do_connect_locked(uint32_t timeout_ms)
 
 bool wifi_link_connect(uint32_t timeout_ms)
 {
+    if (!s_inited) {
+        return false;
+    }
     xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
     bool ok = do_connect_locked(timeout_ms);
     xSemaphoreGive(s_wifi_mutex);
@@ -131,6 +186,9 @@ bool wifi_link_connect(uint32_t timeout_ms)
 
 bool wifi_link_connect_with(const char *ssid, const char *password, uint32_t timeout_ms)
 {
+    if (!s_inited) {
+        return false;
+    }
     xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
 
     // Il driver rifiuta esp_wifi_connect() se la STA e' gia' connessa a
@@ -146,7 +204,7 @@ bool wifi_link_connect_with(const char *ssid, const char *password, uint32_t tim
     wifi_config_t sta_config = { 0 };
     strncpy((char *) sta_config.sta.ssid, ssid, sizeof(sta_config.sta.ssid) - 1);
     strncpy((char *) sta_config.sta.password, password, sizeof(sta_config.sta.password) - 1);
-    sta_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    set_sta_threshold(&sta_config, password);
     esp_wifi_set_config(WIFI_IF_STA, &sta_config);
 
     bool ok = do_connect_locked(timeout_ms);
@@ -156,8 +214,15 @@ bool wifi_link_connect_with(const char *ssid, const char *password, uint32_t tim
 
 void wifi_link_disconnect(void)
 {
+    if (!s_inited) {
+        return;
+    }
+    // Sotto lo stesso lock dei tentativi di connessione: prima net_manager
+    // poteva scollegare la STA nel mezzo di un "Connetti" dal pannello.
+    xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
     esp_wifi_disconnect();
     s_connected = false;
+    xSemaphoreGive(s_wifi_mutex);
 }
 
 bool wifi_link_is_connected(void)
@@ -212,6 +277,9 @@ bool wifi_link_get_current_ssid(char *out, size_t out_size)
 
 static size_t wifi_link_scan_impl(wifi_scan_result_t *out, size_t max_results)
 {
+    if (!s_inited) {
+        return 0; // "Solo Ethernet": radio WiFi mai avviata
+    }
     // net_manager_task tenta la connessione in background in continuo
     // finche' non c'e' un WiFi configurato che funziona (riprova ogni
     // 10-15s) - una scansione manuale puo' andare in conflitto con un
@@ -280,34 +348,50 @@ static size_t wifi_link_scan_impl(wifi_scan_result_t *out, size_t max_results)
     return count;
 }
 
+// Reti note da provare (principale + conosciute), copiate senza portare
+// tutta la configurazione (~2,4 KB) sullo stack di net_manager. Statiche:
+// wifi_link_connect_known() la chiama solo net_manager_task.
+typedef struct {
+    char ssid[1 + WIFI_KNOWN_NETWORKS_MAX][33];
+    char pass[1 + WIFI_KNOWN_NETWORKS_MAX][65];
+    size_t n;
+    bool have_principal;
+} wifi_candidates_t;
+
+static void peek_candidates(const app_settings_t *s, void *ctx)
+{
+    wifi_candidates_t *c = (wifi_candidates_t *) ctx;
+    c->n = 0;
+    c->have_principal = false;
+    if (s->wifi_ssid[0] != '\0') {
+        strlcpy(c->ssid[c->n], s->wifi_ssid, sizeof(c->ssid[0]));
+        strlcpy(c->pass[c->n], s->wifi_password, sizeof(c->pass[0]));
+        c->n++;
+        c->have_principal = true;
+    }
+    for (int i = 0; i < WIFI_KNOWN_NETWORKS_MAX; i++) {
+        if (s->wifi_known_networks[i].ssid[0] != '\0') {
+            strlcpy(c->ssid[c->n], s->wifi_known_networks[i].ssid, sizeof(c->ssid[0]));
+            strlcpy(c->pass[c->n], s->wifi_known_networks[i].password, sizeof(c->pass[0]));
+            c->n++;
+        }
+    }
+}
+
 bool wifi_link_connect_known(uint32_t connect_timeout_ms)
 {
-    app_settings_t settings = settings_get();
+    if (!s_inited) {
+        return false;
+    }
+    static wifi_candidates_t cand;
+    static wifi_scan_result_t results[WIFI_SCAN_MAX_RAW];
+    settings_peek(peek_candidates, &cand);
 
-    wifi_scan_result_t results[WIFI_SCAN_MAX_RAW];
     size_t n = wifi_link_scan_impl(results, WIFI_SCAN_MAX_RAW);
     if (n == 0) {
         // Scansione vuota/fallita: ripiega sul tentativo diretto di
         // sempre, non e' detto che significhi "nessuna rete nota qui".
         return wifi_link_connect(connect_timeout_ms);
-    }
-
-    // Reti note da provare, in ordine di preferenza: la principale prima,
-    // poi le altre gia' collegate con successo in passato.
-    const char *cand_ssid[1 + WIFI_KNOWN_NETWORKS_MAX];
-    const char *cand_pass[1 + WIFI_KNOWN_NETWORKS_MAX];
-    size_t num_cand = 0;
-    if (settings.wifi_ssid[0] != '\0') {
-        cand_ssid[num_cand] = settings.wifi_ssid;
-        cand_pass[num_cand] = settings.wifi_password;
-        num_cand++;
-    }
-    for (int i = 0; i < WIFI_KNOWN_NETWORKS_MAX; i++) {
-        if (settings.wifi_known_networks[i].ssid[0] != '\0') {
-            cand_ssid[num_cand] = settings.wifi_known_networks[i].ssid;
-            cand_pass[num_cand] = settings.wifi_known_networks[i].password;
-            num_cand++;
-        }
     }
 
     // La "principale" (settings.wifi_ssid, sempre candidato indice 0 se
@@ -324,20 +408,20 @@ bool wifi_link_connect_known(uint32_t connect_timeout_ms)
     // ignorando la scelta esplicita appena fatta. Le altre reti "conosciute"
     // restano un fallback per segnale migliore SOLO se la principale non e'
     // visibile in questa scansione.
-    bool have_principal = num_cand > 0 && strcmp(cand_ssid[0], settings.wifi_ssid) == 0;
+    bool have_principal = cand.have_principal;
     for (size_t r = 0; have_principal && r < n; r++) {
-        if (strcmp(cand_ssid[0], results[r].ssid) == 0) {
-            ESP_LOGI(TAG, "Rete principale visibile: '%s' (%d dBm)", cand_ssid[0], results[r].rssi);
-            return wifi_link_connect_with(cand_ssid[0], cand_pass[0], connect_timeout_ms);
+        if (strcmp(cand.ssid[0], results[r].ssid) == 0) {
+            ESP_LOGI(TAG, "Rete principale visibile: '%s' (%d dBm)", cand.ssid[0], results[r].rssi);
+            return wifi_link_connect_with(cand.ssid[0], cand.pass[0], connect_timeout_ms);
         }
     }
 
     int best_result = -1;
     size_t best_cand = 0;
     size_t fallback_start = have_principal ? 1 : 0;
-    for (size_t c = fallback_start; c < num_cand; c++) {
+    for (size_t c = fallback_start; c < cand.n; c++) {
         for (size_t r = 0; r < n; r++) {
-            if (strcmp(cand_ssid[c], results[r].ssid) == 0) {
+            if (strcmp(cand.ssid[c], results[r].ssid) == 0) {
                 if (best_result < 0 || results[r].rssi > results[best_result].rssi) {
                     best_result = (int) r;
                     best_cand = c;
@@ -352,26 +436,66 @@ bool wifi_link_connect_known(uint32_t connect_timeout_ms)
         return false;
     }
 
-    ESP_LOGI(TAG, "Rete nota trovata (principale non visibile): '%s' (%d dBm)", cand_ssid[best_cand], results[best_result].rssi);
-    return wifi_link_connect_with(cand_ssid[best_cand], cand_pass[best_cand], connect_timeout_ms);
+    ESP_LOGI(TAG, "Rete nota trovata (principale non visibile): '%s' (%d dBm)", cand.ssid[best_cand], results[best_result].rssi);
+    return wifi_link_connect_with(cand.ssid[best_cand], cand.pass[best_cand], connect_timeout_ms);
 }
 
 // Contesto allocato sull'heap (non sullo stack del chiamante): se scatta
 // il timeout, il task puo' finire piu' tardi e scrive comunque in memoria
 // valida - mai nel buffer "out" del chiamante, che a quel punto potrebbe
-// gia' essere uscito di scope (stack della richiesta HTTP).
+// gia' essere uscito di scope (stack della richiesta HTTP). Chi arriva per
+// ultimo (task finito o chiamante in timeout) lo libera: prima, dopo un
+// timeout, contesto (~1,3 KB di RAM interna) e semaforo restavano persi.
 typedef struct {
     wifi_scan_result_t out[WIFI_SCAN_MAX_RAW];
     size_t count;
     SemaphoreHandle_t done;
+    bool given;     // il task ha dato il semaforo e non tocca piu' ctx (protetto da s_scan_lock)
+    bool released;  // il chiamante non usa piu' ctx: risultato letto o timeout (idem)
 } wifi_scan_task_ctx_t;
+
+static portMUX_TYPE s_scan_lock = portMUX_INITIALIZER_UNLOCKED;
+
+static void scan_ctx_free(wifi_scan_task_ctx_t *ctx)
+{
+    vSemaphoreDelete(ctx->done);
+    free(ctx);
+}
 
 static void wifi_scan_task(void *arg)
 {
     wifi_scan_task_ctx_t *ctx = (wifi_scan_task_ctx_t *) arg;
     ctx->count = wifi_link_scan_impl(ctx->out, WIFI_SCAN_MAX_RAW);
+    portENTER_CRITICAL(&s_scan_lock);
+    bool released = ctx->released;
+    portEXIT_CRITICAL(&s_scan_lock);
+    if (released) {
+        scan_ctx_free(ctx); // il chiamante e' gia' andato via (timeout)
+        vTaskDelete(NULL);
+        return;
+    }
     xSemaphoreGive(ctx->done);
+    portENTER_CRITICAL(&s_scan_lock);
+    ctx->given = true;
+    released = ctx->released;
+    portEXIT_CRITICAL(&s_scan_lock);
+    if (released) {
+        scan_ctx_free(ctx); // il chiamante ha finito prima di noi: liberiamo noi
+    }
     vTaskDelete(NULL);
+}
+
+// Il chiamante ha finito con ctx: lo libera se il task non lo usa piu',
+// altrimenti ci pensera' il task.
+static void scan_ctx_release(wifi_scan_task_ctx_t *ctx)
+{
+    portENTER_CRITICAL(&s_scan_lock);
+    ctx->released = true;
+    bool task_done = ctx->given;
+    portEXIT_CRITICAL(&s_scan_lock);
+    if (task_done) {
+        scan_ctx_free(ctx);
+    }
 }
 
 // Una scansione manuale puo' andare in stallo per un tempo imprevedibile
@@ -388,22 +512,25 @@ size_t wifi_link_scan(wifi_scan_result_t *out, size_t max_results)
         return 0;
     }
     ctx->done = xSemaphoreCreateBinary();
+    if (!ctx->done) {
+        free(ctx);
+        return 0;
+    }
 
     if (xTaskCreate(wifi_scan_task, "wifi_scan", 4096, ctx, 5, NULL) != pdPASS) {
-        vSemaphoreDelete(ctx->done);
-        free(ctx);
+        scan_ctx_free(ctx);
         return 0;
     }
 
     if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(WIFI_SCAN_TIMEOUT_MS)) != pdTRUE) {
         ESP_LOGE(TAG, "Timeout (%d ms) durante la scansione WiFi - il tentativo continua in background",
                  WIFI_SCAN_TIMEOUT_MS);
-        return 0; // ctx e ctx->done restano vivi per il task orfano, vedi commento sopra
+        scan_ctx_release(ctx);
+        return 0;
     }
 
     size_t n = ctx->count < max_results ? ctx->count : max_results;
     memcpy(out, ctx->out, n * sizeof(wifi_scan_result_t));
-    vSemaphoreDelete(ctx->done);
-    free(ctx);
+    scan_ctx_release(ctx);
     return n;
 }

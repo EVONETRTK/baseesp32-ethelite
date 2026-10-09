@@ -6,6 +6,7 @@
 #include "sim_tools.h"
 #include "time_sync.h"
 #include "version.h"
+#include "eth_link.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -43,7 +44,10 @@ static char *build_json(const app_settings_t *cfg)
     cJSON_AddNumberToObject(r, "uptime_s", (double) (esp_timer_get_time() / 1000000));
     cJSON_AddStringToObject(r, "mode", status_get_active_rover() ? "rover" : "base");
     net_status_t net = status_get_net();
-    cJSON_AddStringToObject(r, "net", net == NET_STATUS_WIFI ? "wifi" : (net == NET_STATUS_CELLULAR ? "cellulare" : "nessuna"));
+    // status_get_net() non conta l'Ethernet (gestita a parte da eth_link).
+    cJSON_AddStringToObject(r, "net", net == NET_STATUS_WIFI ? "wifi"
+                                      : (net == NET_STATUS_CELLULAR ? "cellulare"
+                                                                    : (eth_link_is_connected() ? "ethernet" : "nessuna")));
 
     ntrip_conn_status_t nt = status_ntrip_get();
     cJSON_AddBoolToObject(r, "caster_connected", nt.connected);
@@ -89,7 +93,10 @@ static char *build_json(const app_settings_t *cfg)
 
 void remote_status_tick(const app_settings_t *cfg)
 {
-    if (cfg->remote_interval_min == 0 || !cfg->remote_url[0] || status_get_net() == NET_STATUS_NONE) {
+    // Anche con la sola Ethernet: prima con "Solo Ethernet" lo stato remoto
+    // non partiva mai (status_get_net() vale NONE).
+    if (cfg->remote_interval_min == 0 || !cfg->remote_url[0] ||
+        (status_get_net() == NET_STATUS_NONE && !eth_link_is_connected())) {
         return;
     }
     int64_t now = esp_timer_get_time();

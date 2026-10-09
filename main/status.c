@@ -5,8 +5,14 @@
 #include "freertos/semphr.h"
 
 static volatile net_status_t s_net = NET_STATUS_NONE;
-static volatile uint32_t s_rtcm_bytes = 0;
-static volatile int64_t s_last_rtcm_us = 0;
+// Valori a 64 bit scritti da un task e letti da altri (09/10/2026): su un
+// processore a 32 bit la copia avviene in due meta', e una lettura a cavallo
+// del passaggio della meta' alta (ogni ~71 minuti per i microsecondi) dava un
+// istante sbagliato di 71 minuti - abbastanza per un falso "nessun dato RTCM
+// da 10 minuti" e un riavvio di sicurezza. Letti e scritti sotto spinlock.
+static portMUX_TYPE s_ts_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint64_t s_rtcm_bytes = 0; // 64 bit: a 32 si azzerava dopo ~4 GB (40-50 giorni)
+static int64_t s_last_rtcm_us = 0;
 
 static ntrip_conn_status_t s_ntrip;
 static ntrip_outage_t s_outages[NTRIP_OUTAGE_LOG_LEN]; // anello, s_outage_n totali registrate
@@ -32,42 +38,68 @@ net_status_t status_get_net(void)
 
 void status_note_rtcm_bytes(uint32_t n)
 {
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&s_ts_lock);
     s_rtcm_bytes += n;
-    s_last_rtcm_us = esp_timer_get_time();
+    s_last_rtcm_us = now;
+    portEXIT_CRITICAL(&s_ts_lock);
 }
 
 uint32_t status_get_rtcm_total_bytes(void)
 {
-    return s_rtcm_bytes;
+    return (uint32_t) status_get_rtcm_total_bytes64();
+}
+
+uint64_t status_get_rtcm_total_bytes64(void)
+{
+    portENTER_CRITICAL(&s_ts_lock);
+    uint64_t v = s_rtcm_bytes;
+    portEXIT_CRITICAL(&s_ts_lock);
+    return v;
 }
 
 int64_t status_get_last_rtcm_time_us(void)
 {
-    return s_last_rtcm_us;
+    portENTER_CRITICAL(&s_ts_lock);
+    int64_t v = s_last_rtcm_us;
+    portEXIT_CRITICAL(&s_ts_lock);
+    return v;
 }
 
-static volatile int64_t s_last_gga_sent_us = 0;
+static int64_t s_last_gga_sent_us = 0;
 
 void status_note_gga_sent(void)
 {
-    s_last_gga_sent_us = esp_timer_get_time();
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&s_ts_lock);
+    s_last_gga_sent_us = now;
+    portEXIT_CRITICAL(&s_ts_lock);
 }
 
 int64_t status_get_last_gga_sent_time_us(void)
 {
-    return s_last_gga_sent_us;
+    portENTER_CRITICAL(&s_ts_lock);
+    int64_t v = s_last_gga_sent_us;
+    portEXIT_CRITICAL(&s_ts_lock);
+    return v;
 }
 
-static volatile int64_t s_last_online_update_check_us = 0;
+static int64_t s_last_online_update_check_us = 0;
 
 void status_note_online_update_checked(void)
 {
-    s_last_online_update_check_us = esp_timer_get_time();
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&s_ts_lock);
+    s_last_online_update_check_us = now;
+    portEXIT_CRITICAL(&s_ts_lock);
 }
 
 int64_t status_get_last_online_update_check_us(void)
 {
-    return s_last_online_update_check_us;
+    portENTER_CRITICAL(&s_ts_lock);
+    int64_t v = s_last_online_update_check_us;
+    portEXIT_CRITICAL(&s_ts_lock);
+    return v;
 }
 
 void status_ntrip_note_connected(void)

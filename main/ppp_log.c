@@ -9,6 +9,7 @@
 #include "sdkconfig.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
 #include "esp_vfs_fat.h"
 #include "driver/sdspi_host.h"
 #include "driver/spi_common.h"
@@ -118,6 +119,8 @@ static void unmount_sd(void)
 // che il suo buffer assorbe. Utile anche per l'usura della scheda.
 #define PPP_CHUNK_BYTES     (12 * 1024)
 #define PPP_FLUSH_EVERY_US  (10LL * 1000 * 1000)
+#define PPP_MIN_FREE_MB     50                                  // sotto: la registrazione si ferma
+#define PPP_MAX_FILE_BYTES  (3500ULL * 1024 * 1024)             // margine sotto i 4 GB del FAT32
 
 static bool ppp_append(const uint8_t *data, size_t len, bool truncate)
 {
@@ -132,11 +135,22 @@ static bool ppp_append(const uint8_t *data, size_t len, bool truncate)
     }
     size_t written = len ? fwrite(data, 1, len, f) : 0;
     fclose(f);
+    uint64_t total_b = 0, free_b = 0;
+    bool low_space = esp_vfs_fat_info(MOUNT_POINT, &total_b, &free_b) == ESP_OK &&
+                     free_b < (uint64_t) PPP_MIN_FREE_MB * 1024 * 1024;
     unmount_sd();
-    if (written > 0) {
-        xSemaphoreTake(s_status_mutex, portMAX_DELAY);
-        s_bytes_written += written;
-        xSemaphoreGive(s_status_mutex);
+    uint64_t file_bytes;
+    xSemaphoreTake(s_status_mutex, portMAX_DELAY);
+    s_bytes_written += written;
+    file_bytes = s_bytes_written;
+    xSemaphoreGive(s_status_mutex);
+    // Nessun limite di durata: una registrazione dimenticata accesa riempiva
+    // la microSD (~100-150 MB al giorno) fino al limite di 4 GB per file del
+    // FAT32, bloccando anche la copia della configurazione e l'archivio.
+    if (s_should_record && (low_space || file_bytes >= PPP_MAX_FILE_BYTES)) {
+        ESP_LOGW(TAG, "Registrazione PPP fermata da sola: %s",
+                 low_space ? "microSD quasi piena" : "file al limite di dimensione del FAT32");
+        s_should_record = false;
     }
     return written == len;
 }
@@ -274,4 +288,82 @@ void ppp_log_close_for_read(FILE *f)
         fclose(f);
     }
     unmount_sd();
+}
+
+#define PPP_DL_CHUNK (32 * 1024)
+
+esp_err_t ppp_log_send_http(httpd_req_t *req)
+{
+    static const char *busy = "Nessun log disponibile, oppure una registrazione e' ancora in corso (fermala prima di scaricare)";
+    if (s_should_record || s_recording) {
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_set_type(req, "text/plain; charset=utf-8");
+        return httpd_resp_sendstr(req, busy);
+    }
+    size_t buf_size = PPP_DL_CHUNK;
+    uint8_t *buf = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!buf) {
+        buf_size = 4096; // senza PSRAM: blocchi piccoli nella RAM interna
+        buf = malloc(buf_size);
+    }
+    if (!buf) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    // A blocchi, montando e smontando la SD ogni volta (come raw_log_send_file):
+    // con la SD montata l'I2C del ricevitore e' fermo, quindi niente montaggi
+    // lunghi mentre il file (anche centinaia di MB) viaggia in rete.
+    long offset = 0;
+    bool started = false;
+    esp_err_t err = ESP_OK;
+    while (1) {
+        if (s_should_record || s_recording) {
+            // Registrazione avviata durante il download: il file verrebbe
+            // troncato sotto i piedi, il download si interrompe.
+            ESP_LOGW(TAG, "Download interrotto: e' partita una nuova registrazione");
+            err = ESP_FAIL;
+            break;
+        }
+        if (!mount_sd()) {
+            err = ESP_FAIL;
+            break;
+        }
+        FILE *f = fopen(LOG_FILENAME, "rb");
+        size_t n = 0;
+        if (f) {
+            if (fseek(f, offset, SEEK_SET) == 0) {
+                n = fread(buf, 1, buf_size, f);
+            }
+            fclose(f);
+        }
+        unmount_sd();
+        if (!f && !started) {
+            free(buf);
+            httpd_resp_set_status(req, "409 Conflict");
+            httpd_resp_set_type(req, "text/plain; charset=utf-8");
+            return httpd_resp_sendstr(req, busy);
+        }
+        if (n == 0) {
+            break;
+        }
+        if (!started) {
+            httpd_resp_set_type(req, "application/octet-stream");
+            httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"ppp_log.rtcm3\"");
+            started = true;
+        }
+        offset += (long) n;
+        if (httpd_resp_send_chunk(req, (const char *) buf, n) != ESP_OK) {
+            free(buf);
+            return ESP_FAIL;
+        }
+        vTaskDelay(pdMS_TO_TICKS(20)); // spazio all'I2C tra un blocco e l'altro
+    }
+    free(buf);
+    if (!started) {
+        // File vuoto o SD non montabile al primo blocco.
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_set_type(req, "text/plain; charset=utf-8");
+        return httpd_resp_sendstr(req, busy);
+    }
+    httpd_resp_send_chunk(req, NULL, 0); // chiude la risposta chunked
+    return err;
 }

@@ -10,9 +10,11 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -28,6 +30,15 @@ static const char *TAG = "base_measure";
 #define MEASURE_TIMEOUT_S      (20 * 60)
 #define M_PER_DEG              111320.0
 #define MEASURE_NO_CASTER_S    180          // senza correzioni dal caster si rinuncia prima
+// Un campione al secondo al massimo: i conteggi sopra sono secondi, anche se
+// il ricevitore manda la GGA a 5-10 Hz (es. ComNav con INS).
+#define MEASURE_MIN_INTERVAL_US 900000
+// Campioni scartati perche' lontani dalla media (dopo i primi 10).
+#define MEASURE_OUTLIER_AFTER_N 10
+#define MEASURE_FIXED_MAX_H_M  0.5
+#define MEASURE_FIXED_MAX_V_M  1.0
+#define MEASURE_FLOAT_MAX_H_M  5.0
+#define MEASURE_FLOAT_MAX_V_M  10.0
 
 // Misura con Galileo HAS (PPP): il ricevitore converge in decine di minuti,
 // poi si fa la media per ore. Dopo ogni avvio la prima mezz'ora si scarta.
@@ -83,6 +94,23 @@ static void acc_add(acc_t *a, const double v[3])
         a->mean[i] += d / a->n;
         a->m2[i] += d * (v[i] - a->mean[i]);
     }
+}
+
+// Campione lontano dalla media raccolta finora (riga GGA corrotta: una cifra
+// persa nella latitudine sposta la media di chilometri e finirebbe salvata
+// come posizione della base). Solo dopo i primi campioni, quando la media e'
+// gia' affidabile.
+static bool acc_is_outlier(const acc_t *a, const double v[3], double max_h_m, double max_v_m)
+{
+    if (v[0] < -90.0 || v[0] > 90.0 || v[1] < -180.0 || v[1] > 180.0) {
+        return true;
+    }
+    if (a->n < MEASURE_OUTLIER_AFTER_N) {
+        return false;
+    }
+    double dn = (v[0] - a->mean[0]) * M_PER_DEG;
+    double de = (v[1] - a->mean[1]) * M_PER_DEG * cos(a->mean[0] * M_PI / 180.0);
+    return hypot(dn, de) > max_h_m || fabs(v[2] - a->mean[2]) > max_v_m;
 }
 
 // Deviazione standard orizzontale e verticale in metri.
@@ -146,6 +174,8 @@ static void measure_task(void *arg)
 {
     int64_t start_us = esp_timer_get_time();
     int64_t last_seen_us = 0;
+    int64_t last_sample_us = 0;
+    uint32_t outliers = 0;
     bool never_connected = true;
     char msg[128];
 
@@ -161,14 +191,29 @@ static void measure_task(void *arg)
         if (fx.valid && fx.last_update_us != last_seen_us) {
             last_seen_us = fx.last_update_us;
             s_prog.quality = (int) fx.quality;
-            if (fx.has_position && fx.altitude_m > -9999 && fx.geoid_sep_m > -9999) {
+            if (fx.has_position && fx.altitude_m > -9999 && fx.geoid_sep_m > -9999 &&
+                fx.last_update_us - last_sample_us >= MEASURE_MIN_INTERVAL_US) {
                 // Quota ellissoidica: quella che il ricevitore ha calcolato,
                 // ricostruita da GGA (quota sul geoide + separazione).
                 double v[3] = { fx.lat_deg, fx.lon_deg, (double) fx.altitude_m + (double) fx.geoid_sep_m };
+                acc_t *a = NULL;
+                bool is_out = false;
                 if (fx.quality == GNSS_FIX_RTK_FIXED) {
-                    acc_add(&s_fixed, v);
+                    a = &s_fixed;
+                    is_out = acc_is_outlier(a, v, MEASURE_FIXED_MAX_H_M, MEASURE_FIXED_MAX_V_M);
                 } else if (fx.quality == GNSS_FIX_RTK_FLOAT) {
-                    acc_add(&s_float, v);
+                    a = &s_float;
+                    is_out = acc_is_outlier(a, v, MEASURE_FLOAT_MAX_H_M, MEASURE_FLOAT_MAX_V_M);
+                }
+                if (a) {
+                    last_sample_us = fx.last_update_us;
+                    if (is_out) {
+                        outliers++;
+                        ESP_LOGW(TAG, "Campione scartato, lontano dalla media (lat %.7f lon %.7f, %u scartati finora)",
+                                 v[0], v[1], (unsigned) outliers);
+                    } else {
+                        acc_add(a, v);
+                    }
                 }
                 s_prog.fixed_n = s_fixed.n;
                 s_prog.float_n = s_float.n;
@@ -266,6 +311,24 @@ static bool has_is_jump(const gnss_unicore_ppp_t *p, float sig_h)
     return hypot(dn, de) > lim_h || fabs(p->h_ell_m - h) > lim_v;
 }
 
+// Anno decimale della compilazione (data dell'immagine, "Oct  9 2026"):
+// ripiego per l'epoca quando manca l'ora.
+static double build_decimal_year(void)
+{
+    static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    const char *d = esp_app_get_description()->date;
+    int mon = 0;
+    for (int i = 0; i < 12; i++) {
+        if (strncmp(d, months + i * 3, 3) == 0) {
+            mon = i;
+            break;
+        }
+    }
+    int day = atoi(d + 4);
+    int year = atoi(d + 7);
+    return year + (mon * 30.44 + day) / 365.25;
+}
+
 static void has_finish(void)
 {
     char msg[128];
@@ -280,11 +343,15 @@ static void has_finish(void)
         has_clear();
         finish(false, NULL, msg);
     }
+    // Epoca della conversione: dall'ora, oppure (senza NTP ne' ora dai
+    // satelliti, es. sito senza internet dopo una mancanza di corrente)
+    // dalla data di compilazione del firmware. Prima la misura falliva dopo
+    // ore di lavoro; lo scarto di epoca vale ~2,5 cm per anno, sotto la
+    // precisione di HAS.
     time_t now = time(NULL);
+    double epoch = now >= 1700000000 ? etrf_decimal_year(now) : build_decimal_year();
     if (now < 1700000000) {
-        snprintf(msg, sizeof(msg), "Misura HAS fallita: ora non valida, impossibile convertire in ETRF2000. Coordinate invariate.");
-        has_clear();
-        finish(false, NULL, msg);
+        ESP_LOGW(TAG, "Ora non valida: conversione in ETRF2000 con l'epoca della compilazione del firmware (%.2f)", epoch);
     }
 
     double h, vt;
@@ -293,7 +360,6 @@ static void has_finish(void)
     for (int i = 0; i < 3; i++) {
         itrf[i] = pos[i] = s_has.swx[i] / s_has.sw; // media pesata con 1/sigma^2
     }
-    double epoch = etrf_decimal_year(now);
     etrf_itrf2020_to_etrf2000(&pos[0], &pos[1], &pos[2], epoch);
     double dn = (pos[0] - itrf[0]) * M_PER_DEG;
     double de = (pos[1] - itrf[1]) * M_PER_DEG * cos(pos[0] * M_PI / 180.0);

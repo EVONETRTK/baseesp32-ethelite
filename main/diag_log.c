@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <stdlib.h>
 
 #include "sdkconfig.h"
@@ -123,27 +124,58 @@ static TaskHandle_t s_task;
 static SemaphoreHandle_t s_flushed; // dato dal task dopo una scrittura richiesta
 
 // Copia sulla microSD quello che il log ha in memoria (file di questo avvio).
+// File con la parte precedente di questo stesso avvio: boot_N.log -> boot_N.prv.
+static void prev_path_of(const char *session_path, char *out, size_t out_size)
+{
+    strlcpy(out, session_path, out_size);
+    size_t l = strlen(out);
+    if (l > 4 && strcmp(out + l - 4, ".log") == 0) {
+        strlcpy(out + l - 4, ".prv", out_size - (l - 4));
+    }
+}
+
+// Copia sulla microSD quello che il log ha in memoria (file di questo avvio).
+// Arrivato a MAX_FILE_BYTES il file passa a boot_N.prv (sostituendo quello
+// precedente) e si riparte da un file vuoto (09/10/2026): prima la scrittura
+// si fermava per tutto il resto dell'avvio, e dopo qualche giorno di
+// funzionamento un riavvio di sicurezza o un crash non lasciava sulla SD
+// nulla delle ore precedenti. Restano sempre gli ultimi 200-400 KB.
 static void diag_flush(const char *session_path, size_t *session_bytes, uint8_t *buf, size_t buf_size)
 {
-    if (session_path[0] == '\0' || *session_bytes >= MAX_FILE_BYTES || xStreamBufferIsEmpty(s_stream)) {
+    if (session_path[0] == '\0' || xStreamBufferIsEmpty(s_stream)) {
         return;
     }
     if (!mount_sd()) {
         return; // SD occupata da un'altra funzione in questo momento, si ritenta al giro dopo
     }
+    // Ogni volta: dopo "Formatta microSD" dal pannello la cartella non c'e' piu'
+    // e il log smetteva di scrivere fino al riavvio.
+    mkdir(LOG_DIR, 0755);
     FILE *f = fopen(session_path, "a");
     if (f) {
         size_t n;
-        while (*session_bytes < MAX_FILE_BYTES &&
-               (n = xStreamBufferReceive(s_stream, buf, buf_size, 0)) > 0) {
-            size_t to_write = n;
-            if (*session_bytes + to_write > MAX_FILE_BYTES) {
-                to_write = MAX_FILE_BYTES - *session_bytes;
+        while ((n = xStreamBufferReceive(s_stream, buf, buf_size, 0)) > 0) {
+            if (*session_bytes + n > MAX_FILE_BYTES) {
+                fclose(f);
+                char prev[64];
+                prev_path_of(session_path, prev, sizeof(prev));
+                unlink(prev);
+                rename(session_path, prev);
+                f = fopen(session_path, "w");
+                *session_bytes = 0;
+                if (!f) {
+                    break;
+                }
+                static const char head[] = "--- continua: la parte precedente di questo avvio e' nel file .prv ---\n";
+                fwrite(head, 1, sizeof(head) - 1, f);
+                *session_bytes += sizeof(head) - 1;
             }
-            fwrite(buf, 1, to_write, f);
-            *session_bytes += to_write;
+            fwrite(buf, 1, n, f);
+            *session_bytes += n;
         }
-        fclose(f);
+        if (f) {
+            fclose(f);
+        }
     }
     unmount_sd();
 }
@@ -167,6 +199,11 @@ static void diag_log_task(void *arg)
         if (trunc) {
             fclose(trunc);
         }
+        // La parte precedente lasciata da un vecchio avvio con lo stesso
+        // indice non c'entra con questo.
+        char prev[64];
+        prev_path_of(session_path, prev, sizeof(prev));
+        unlink(prev);
         s_session_idx = idx;
         unmount_sd();
         ESP_LOGI(TAG, "Log diagnostico di questo avvio: %s", session_path);

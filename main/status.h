@@ -47,14 +47,18 @@ typedef struct {
 int status_ntrip_get_outages(ntrip_outage_t *out, int max);
 
 // Stato condiviso, letto dalla UI web e aggiornato dagli altri task.
-// Non e' protetto da lock: le singole letture/scritture sono variabili
-// scalari, sufficiente per un pannello di stato non critico.
+// Contatori e istanti a 64 bit letti e scritti sotto spinlock (status.c):
+// su 32 bit una copia non protetta puo' arrivare spezzata.
 
 void status_set_net(net_status_t s);
 net_status_t status_get_net(void);
 
 void status_note_rtcm_bytes(uint32_t n);
+// A 32 bit: torna a zero dopo ~4 GB (40-50 giorni di RTCM). Va bene solo per
+// vedere se il contatore e' cambiato (LED dati); per i totali mostrati
+// (pannello, OLED) usare la versione a 64 bit.
 uint32_t status_get_rtcm_total_bytes(void);
+uint64_t status_get_rtcm_total_bytes64(void);
 
 // Timestamp (microsecondi, esp_timer_get_time) dell'ultimo dato RTCM
 // ricevuto dalla UART GNSS; 0 se non ancora ricevuto nulla.

@@ -151,6 +151,7 @@ Risposta `200`: licenza nuova (funzioni aggiornate dopo un pagamento o una disde
 - Codici di attivazione: uno per ricevitore venduto, monouso, legato alla matricola o libero.
 - Acquisto e rinnovo delle funzioni extra, legato alla fatturazione del caster (`internal/billing`).
 - Revoca e riattivazione (cambio di proprietario: il nuovo proprietario riattiva con un codice nuovo e accetta di nuovo le condizioni).
+- **Ripristino di fabbrica** (pulsante BOOT, firmware 1.30.6): cancella tutti i namespace NVS tranne `license`, quindi chiave del ricevitore e licenza restano e non serve riattivare. Solo la cancellazione completa della NVS (memoria piena o versione incompatibile) perde la licenza: per proteggere anche quella serve una partizione NVS separata (da decidere, richiede un flash via USB).
 - **Scheda sostituita** («sblocca la scheda»): cancella chip e chiave del ricevitore e **annulla i codici già emessi**, cosi' il vecchio codice non riattiva la scheda vecchia (per esempio rubata). Un ricevitore revocato resta revocato.
 - Controlli: esattamente un pacchetto per ricevitore; la macchina collegata deve essere dello stesso cliente; base e cliente devono esistere.
 

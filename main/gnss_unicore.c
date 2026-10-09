@@ -97,13 +97,66 @@ void gnss_unicore_ppp_get(gnss_unicore_ppp_t *out)
     portEXIT_CRITICAL(&s_ppp_lock);
 }
 
+// CRC32 dei log ASCII in stile NovAtel (Unicore e ComNav lo riusano):
+// polinomio 0xEDB88320 riflesso, valore iniziale 0, sui caratteri tra '#' e
+// '*' esclusi, 8 cifre esadecimali dopo l'asterisco.
+static uint32_t ascii_log_crc32(const char *s, size_t n)
+{
+    uint32_t crc = 0;
+    for (size_t i = 0; i < n; i++) {
+        crc ^= (uint8_t) s[i];
+        for (int k = 0; k < 8; k++) {
+            crc = (crc & 1) ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+        }
+    }
+    return crc;
+}
+
+// Riga completa e integra? Una riga troncata (senza "*xxxxxxxx") e' sempre
+// scartata: con byte persi sulla seriale atof() dei campi mancanti da' 0 e
+// due righe incollate spostano i campi. Il CRC non e' ancora stato provato
+// su un modulo vero: se fallisce su tutte le righe di fila (convenzione
+// diversa), dopo 20 si smette di controllarlo e lo si scrive nel log, invece
+// di perdere per sempre la soluzione HAS.
+static bool ascii_log_ok(const char *line)
+{
+    static int s_bad_in_row;
+    static bool s_crc_off;
+    const char *star = strrchr(line, '*');
+    if (line[0] != '#' || !star || strlen(star + 1) < 8) {
+        return false;
+    }
+    char hex[9];
+    memcpy(hex, star + 1, 8);
+    hex[8] = '\0';
+    char *end;
+    uint32_t want = (uint32_t) strtoul(hex, &end, 16);
+    if (*end != '\0') {
+        return false;
+    }
+    if (s_crc_off) {
+        return true;
+    }
+    if (ascii_log_crc32(line + 1, (size_t) (star - line - 1)) == want) {
+        s_bad_in_row = 0;
+        return true;
+    }
+    if (++s_bad_in_row >= 20) {
+        s_crc_off = true;
+        ESP_LOGW(TAG, "CRC dei log ASCII sbagliato su 20 righe di fila: convenzione diversa da quella attesa, "
+                      "controllo del CRC disattivato (resta quello della riga completa)");
+        return true;
+    }
+    return false;
+}
+
 void gnss_unicore_note_line(const char *line)
 {
     // PPPNAVA (Unicore) e BESTPOSA (stile NovAtel: ComNav K922) hanno gli
     // stessi campi; note_pppnav tiene solo le soluzioni di tipo PPP_*.
     if (strncmp(line, "#PPPNAVA", 8) == 0 || strncmp(line, "#BESTPOSA", 9) == 0) {
         const char *d = strchr(line, ';');
-        if (d) {
+        if (d && ascii_log_ok(line)) {
             note_pppnav(d + 1);
         }
         return;
@@ -278,6 +331,10 @@ static esp_err_t configure_has(uart_port_t uart_num)
         "MODE ROVER SURVEY DEFAULT",
         "GPGGA 1",
         "GPGSV 1",
+        // Ora dai satelliti (gnss_nmea_reader.c): senza internet non c'e'
+        // NTP, e a fine misura la conversione in ETRF2000 vuole la data.
+        // Prima mancava: dopo ore di misura "ora non valida" e tutto perso.
+        "GPRMC 1",
         "PPPNAVA 1", // la soluzione HAS esce solo qui, non nella GGA (prova del 07/10)
     };
     esp_err_t err = ESP_OK;
@@ -331,7 +388,9 @@ esp_err_t gnss_unicore_configure_rover(uart_port_t uart_num)
     // scelto nel pannello (1.27.0: 1, 0.2 o 0.1 s, per il software di guida;
     // la GGA verso il caster la limita ntrip_rover_client.c), GSV ogni secondo.
     // RMC passa anche dalla conversione ETRF2000 di gnss_nmea_reader.c.
-    const uint8_t hz = settings_nmea_rate_hz();
+    // Misura della posizione base con RTK: sempre 1 Hz (base_measure.c conta
+    // i campioni come secondi).
+    const uint8_t hz = base_measure_is_active() ? 1 : settings_nmea_rate_hz();
     const char *period = hz == 10 ? "0.1" : (hz == 5 ? "0.2" : "1");
     ESP_LOGI(TAG, "Uscita NMEA rover: %u posizioni al secondo (GGA, RMC, VTG), GSV ogni secondo", (unsigned) hz);
     static char cmd_gga[16], cmd_rmc[16], cmd_vtg[16];

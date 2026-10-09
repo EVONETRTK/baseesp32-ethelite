@@ -34,7 +34,11 @@ CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 # del client NTRIP - non restava spazio per aprire un socket in piu' per
 # l'aggiornamento online (HTTPS verso GitHub), confermato su hardware
 # reale ("esp-tls: Failed to create socket"). Alzato per dare margine.
-CONFIG_LWIP_MAX_SOCKETS=16
+# 20 (era 16, 09/10/2026): server web 7+2, caster locale 1+4, client NTRIP,
+# UDP NMEA, controllo della rete di net_manager e HTTPS (aggiornamenti,
+# monitoraggio) arrivavano a 16 su 16.
+CONFIG_LWIP_MAX_SOCKETS=20
+CONFIG_LWIP_MAX_ACTIVE_TCP=20
 
 # Il default (3584 byte) va in overflow: app_main() chiama net_manager_start()
 # che esegue esp_wifi_init()/wifi_link_init() (WiFi+mbedtls) in modo sincrono
@@ -161,3 +165,19 @@ CONFIG_ESP_IPC_TASK_STACK_SIZE=2048
 # Salvavita dell'avvio (boot_guard.c): il watchdog RTC del bootloader resta acceso nel firmware
 # finche' l'avvio non e' completato.
 CONFIG_BOOTLOADER_WDT_DISABLE_IN_USER_CODE=y
+
+# PPP: eco LCP ogni 10 s, 3 risposte mancate = collegamento cellulare chiuso
+# (IP_EVENT_PPP_LOST_IP). Senza, un PPP morto senza avviso del modem
+# (copertura persa a lungo) restava "connesso" per sempre (09/10/2026).
+CONFIG_LWIP_ENABLE_LCP_ECHO=y
+CONFIG_LWIP_LCP_ECHOINTERVAL=10
+CONFIG_LWIP_LCP_MAXECHOFAILS=3
+
+# Due server NTP (time_sync.c imposta pool.ntp.org e time.google.com): con 1
+# il secondo veniva ignorato e non c'era riserva.
+CONFIG_LWIP_SNTP_MAX_SERVERS=2
+
+# Risposte AT lunghe (USSD, AT+CMGL con molti SMS): raccolte per intero anche
+# oltre i 512 byte del buffer e anche in CMUX, dove arrivano divise in piu'
+# frame. Senza, credito e lettura degli SMS fallivano (cellular_link.c).
+CONFIG_ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED=y

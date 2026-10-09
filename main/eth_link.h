@@ -13,6 +13,10 @@ void eth_link_init(void);
 
 bool eth_link_is_connected(void);
 
+// Ethernet con indirizzo E gateway (quindi probabilmente con Internet dal
+// cavo); false se scollegata, senza IP o solo rete locale.
+bool eth_link_has_gateway(void);
+
 // Netif Ethernet, o NULL se non abilitata/inizializzata - usato per il
 // broadcast UDP NMEA anche su questa interfaccia.
 esp_netif_t *eth_link_get_netif(void);

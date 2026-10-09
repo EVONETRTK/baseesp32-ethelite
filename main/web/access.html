@@ -316,6 +316,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         body: JSON.stringify({ password: $('pw').value }),
       });
       if (r.status === 403) { $('msg').textContent = 'Password errata.'; return; }
+      if (r.status === 429) { $('msg').textContent = (await r.text()) || 'Troppi tentativi: riprova tra qualche secondo.'; return; }
       if (!r.ok) { $('msg').textContent = 'Errore ' + r.status; return; }
       sec = await r.json();
       $('pw').value = '';

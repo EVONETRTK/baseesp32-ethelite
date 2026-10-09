@@ -303,7 +303,7 @@ static void screen_status(void)
     fb_draw_text(0, 16, net_label(status_get_net()));
 
     char line[24];
-    snprintf(line, sizeof(line), "RTCM %lu B", (unsigned long) status_get_rtcm_total_bytes());
+    snprintf(line, sizeof(line), "RTCM %llu B", (unsigned long long) status_get_rtcm_total_bytes64());
     fb_draw_text(0, 32, line);
 
     format_uptime(line, sizeof(line));

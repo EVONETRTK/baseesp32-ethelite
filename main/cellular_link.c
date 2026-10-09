@@ -31,6 +31,33 @@ static volatile bool s_connected = false;
 static volatile bool s_inited = false; // impostato dal task di avvio del modem (net_manager.c)
 static bool s_is_sim868; // dal momento dell'avvio del modem (niente copie delle impostazioni sullo stack)
 static bool s_simcom_std; // idem: modulo SIMCom originale, PWRKEY non collegato
+static char s_apn[64];    // idem: APN (esp_modem lo copia, ma resta valido comunque)
+static bool s_powered;    // impulso di accensione gia' dato: un secondo impulso spegnerebbe il modem
+static volatile bool s_init_tried; // primo avvio del modem concluso (riuscito o no)
+
+// Collegamento dati attivo SENZA CMUX (SIM868, o SIM7600 che rifiuta il
+// CMUX): la seriale porta solo il PPP. Un comando AT mandato in questo stato
+// finisce dentro il flusso PPP (frame rovinati) e la risposta non arriva mai:
+// si aspettava ogni volta il timeout (OLED fermo ~3,5 s a schermata, SIM
+// "non presente"). Con questo flag segnale e operatore vengono dalla cache
+// letta prima di entrare in modalita' dati, e i comandi SIM falliscono subito.
+static volatile bool s_data_no_cmux;
+static volatile bool s_sig_cache_ok;
+static volatile int s_sig_cache_dbm;
+static char s_op_cache[32];
+static char s_tech_cache[16];
+static volatile bool s_op_cache_ok;
+
+// esp_modem_at() copia la risposta con strlcpy(..., CONFIG_ESP_MODEM_C_API_STR_MAX)
+// qualunque sia la dimensione del buffer passato: i buffer da 32/64 byte di
+// prima potevano traboccare quando nella risposta capitava un messaggio
+// spontaneo lungo del modem (es. una risposta USSD arrivata in ritardo, o
+// "*PSUTTZ:..." del SIM868), corrompendo lo stack del chiamante.
+#ifdef CONFIG_ESP_MODEM_C_API_STR_MAX
+#define AT_RESP_MAX CONFIG_ESP_MODEM_C_API_STR_MAX
+#else
+#define AT_RESP_MAX 128
+#endif
 
 static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -120,18 +147,33 @@ static void modem_power_on(bool is_sim868, bool simcom_std)
 #endif
 }
 
+// Solo i campi del modem, senza copiare tutta la configurazione (~2,4 KB)
+// sullo stack (cellular_link_init puo' girare anche nel task della rete).
+static void peek_modem_cfg(const app_settings_t *s, void *ctx)
+{
+    s_is_sim868 = s->cellular_is_sim868;
+    s_simcom_std = s->cellular_simcom_std;
+    strlcpy(s_apn, s->cellular_apn, sizeof(s_apn));
+}
+
 bool cellular_link_init(void)
 {
     if (s_inited) {
         return true;
     }
 
-    s_events = xEventGroupCreate();
+    if (!s_events) {
+        s_events = xEventGroupCreate();
+    }
 
-    app_settings_t settings = settings_get();
-    s_is_sim868 = settings.cellular_is_sim868;
-    s_simcom_std = settings.cellular_simcom_std;
-    modem_power_on(settings.cellular_is_sim868, settings.cellular_simcom_std);
+    settings_peek(peek_modem_cfg, NULL);
+    // Accensione una volta sola: ai tentativi successivi (vedi
+    // cellular_link_connect) il modem e' gia' acceso e un altro impulso su
+    // PWRKEY lo spegnerebbe.
+    if (!s_powered) {
+        modem_power_on(s_is_sim868, s_simcom_std);
+        s_powered = true;
+    }
 
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
     dte_config.uart_config.port_num = CONFIG_BASEESP32_CELLULAR_UART_NUM;
@@ -142,12 +184,17 @@ bool cellular_link_init(void)
     dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_NONE;
     dte_config.uart_config.baud_rate = CONFIG_BASEESP32_CELLULAR_UART_BAUD;
 
-    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(settings.cellular_apn);
+    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(s_apn);
 
-    esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
-    s_ppp_netif = esp_netif_new(&netif_ppp_config);
+    // Riusato ai tentativi successivi: prima un fallimento qui sotto lasciava
+    // il netif allocato e il modem restava inutilizzabile fino al riavvio.
+    if (!s_ppp_netif) {
+        esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
+        s_ppp_netif = esp_netif_new(&netif_ppp_config);
+    }
     if (!s_ppp_netif) {
         ESP_LOGE(TAG, "Creazione netif PPP fallita");
+        s_init_tried = true;
         return false;
     }
 
@@ -163,14 +210,16 @@ bool cellular_link_init(void)
     // SIM868 e' quello gia' disponibile (proveniente dal progetto gemello,
     // li' risultato difettoso) usato per un primo test sullo slot di
     // questa scheda diversa - vedi README.
-    esp_modem_dce_device_t dce_device = settings.cellular_is_sim868 ? ESP_MODEM_DCE_SIM800 : ESP_MODEM_DCE_SIM7600;
+    esp_modem_dce_device_t dce_device = s_is_sim868 ? ESP_MODEM_DCE_SIM800 : ESP_MODEM_DCE_SIM7600;
     s_dce = esp_modem_new_dev(dce_device, &dte_config, &dce_config, s_ppp_netif);
     if (!s_dce) {
-        ESP_LOGE(TAG, "Inizializzazione modem %s fallita", settings.cellular_is_sim868 ? "SIM868" : "SIM7600");
-        if (!settings.cellular_is_sim868 && settings.cellular_simcom_std) {
+        ESP_LOGE(TAG, "Inizializzazione modem %s fallita (nuovo tentativo al prossimo collegamento)",
+                 s_is_sim868 ? "SIM868" : "SIM7600");
+        if (!s_is_sim868 && s_simcom_std) {
             ESP_LOGW(TAG, "Modulo SIMCom originale: controlla che i DIP POWERKEY (SW2-5) e RESET (SW3) dello shield "
                           "siano spenti e che il modulo sia ben inserito");
         }
+        s_init_tried = true;
         return false;
     }
 
@@ -178,29 +227,45 @@ bool cellular_link_init(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_LOST_IP, &on_ip_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_event, NULL));
 
+    s_init_tried = true;
     s_inited = true;
     return true;
 }
 
+static bool read_operator(char *operator_out, size_t operator_out_size, char *tech_out, size_t tech_out_size);
+
 bool cellular_link_connect(void)
 {
+    // Avvio del modem fallito (es. memoria al momento dell'avvio): si
+    // ritenta qui, senza un nuovo impulso di accensione. Solo dopo che il
+    // task di avvio ha finito il primo tentativo (s_init_tried).
+    if (!s_inited && s_init_tried) {
+        cellular_link_init();
+    }
     if (!s_inited || !s_dce) {
         return false;
     }
 
     xEventGroupClearBits(s_events, CELLULAR_CONNECTED_BIT);
+    s_data_no_cmux = false; // qui il modem e' in modalita' comando
 
     int rssi_csq = 0, ber = 0;
     if (esp_modem_get_signal_quality(s_dce, &rssi_csq, &ber) == ESP_OK) {
         ESP_LOGI(TAG, "Segnale: AT+CSQ rssi=%d (99=sconosciuto/nessuna copertura) ber=%d", rssi_csq, ber);
+        s_sig_cache_ok = rssi_csq != 99;
+        s_sig_cache_dbm = -113 + 2 * rssi_csq;
     } else {
         ESP_LOGW(TAG, "Lettura AT+CSQ fallita (modem non risponde?)");
+        s_sig_cache_ok = false;
     }
+    // Operatore letto ora, per mostrarlo anche durante il collegamento dati
+    // senza CMUX (vedi s_data_no_cmux).
+    s_op_cache_ok = read_operator(s_op_cache, sizeof(s_op_cache), s_tech_cache, sizeof(s_tech_cache));
 
     // AT+CREG? dice se la SIM e' davvero registrata sulla rete (a
     // differenza di AT+CSQ, che misura solo la potenza del segnale
     // ricevuto da una qualunque cella, indipendentemente dalla SIM).
-    char creg_resp[64] = {0};
+    char creg_resp[AT_RESP_MAX] = {0};
     if (esp_modem_at(s_dce, "AT+CREG?", creg_resp, 2000) == ESP_OK) {
         ESP_LOGI(TAG, "Registrazione rete: %s", creg_resp);
     }
@@ -211,7 +276,7 @@ bool cellular_link_connect(void)
     // un piano/agganciarsi ai dati (CGATT: 0), spiegazione comune per un
     // dial PPP che va sempre in timeout nonostante segnale e registrazione
     // regolari.
-    char cgatt_resp[32] = {0};
+    char cgatt_resp[AT_RESP_MAX] = {0};
     if (esp_modem_at(s_dce, "AT+CGATT?", cgatt_resp, 5000) == ESP_OK) {
         ESP_LOGI(TAG, "Aggancio rete dati (CGATT): %s", cgatt_resp);
     } else {
@@ -229,15 +294,23 @@ bool cellular_link_connect(void)
         ESP_LOGE(TAG, "Impossibile entrare in modalita' dati (PPP) - verificare SIM/APN/segnale");
         return false;
     }
+    // Da qui, senza CMUX, la seriale porta il PPP: niente AT da altri task
+    // (OLED, pannello, SIM) gia' durante l'attesa dell'indirizzo.
+    s_data_no_cmux = !cmux;
 
     EventBits_t bits = xEventGroupWaitBits(s_events, CELLULAR_CONNECTED_BIT,
                                             pdFALSE, pdTRUE, pdMS_TO_TICKS(CELLULAR_DIAL_TIMEOUT_MS));
     if (!(bits & CELLULAR_CONNECTED_BIT)) {
         ESP_LOGE(TAG, "Timeout attesa IP");
         esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+        s_data_no_cmux = false;
         return false;
     }
 
+    if (!cmux) {
+        ESP_LOGI(TAG, "Collegamento dati senza CMUX: niente comandi AT finche' resta attivo "
+                      "(segnale e operatore mostrati come letti prima del collegamento)");
+    }
     return true;
 }
 
@@ -246,6 +319,7 @@ void cellular_link_disconnect(void)
     if (s_dce) {
         esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
     }
+    s_data_no_cmux = false;
     s_connected = false;
 }
 
@@ -259,6 +333,11 @@ bool cellular_link_get_signal(int *rssi_dbm)
     if (!s_inited || !s_dce) {
         return false;
     }
+    if (s_data_no_cmux) {
+        // Niente AT durante il PPP senza CMUX: valore letto prima del collegamento.
+        *rssi_dbm = s_sig_cache_dbm;
+        return s_sig_cache_ok;
+    }
     int rssi_csq = 0, ber = 0;
     if (esp_modem_get_signal_quality(s_dce, &rssi_csq, &ber) != ESP_OK) {
         return false;
@@ -267,6 +346,8 @@ bool cellular_link_get_signal(int *rssi_dbm)
         return false;
     }
     *rssi_dbm = -113 + 2 * rssi_csq;
+    s_sig_cache_dbm = *rssi_dbm;
+    s_sig_cache_ok = true;
     return true;
 }
 
@@ -287,12 +368,25 @@ static const char *act_to_tech_str(int act)
 bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_size,
                                       char *tech_out, size_t tech_out_size)
 {
-    if (!s_inited || !s_dce) {
+    if (!s_inited || !s_dce || operator_out_size == 0 || tech_out_size == 0) {
         return false;
     }
+    if (s_data_no_cmux) {
+        // Niente AT durante il PPP senza CMUX: valore letto prima del collegamento.
+        if (!s_op_cache_ok) {
+            return false;
+        }
+        strlcpy(operator_out, s_op_cache, operator_out_size);
+        strlcpy(tech_out, s_tech_cache, tech_out_size);
+        return true;
+    }
+    return read_operator(operator_out, operator_out_size, tech_out, tech_out_size);
+}
 
+static bool read_operator(char *operator_out, size_t operator_out_size, char *tech_out, size_t tech_out_size)
+{
     // Risposta attesa: +COPS: <mode>,<format>,"<operatore>",<AcT>
-    char resp[96] = {0};
+    char resp[AT_RESP_MAX] = {0};
     if (esp_modem_at(s_dce, "AT+COPS?", resp, 3000) != ESP_OK) {
         return false;
     }
@@ -331,32 +425,68 @@ bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_siz
 // comandi), quindi questi comandi non interrompono l'invio al caster.
 // ---------------------------------------------------------------------------
 
-// esp_modem_command() passa al callback tutto quanto ricevuto finora:
-// buffer e risultato statici (un solo comando alla volta).
+// esp_modem_command() passa al callback tutto quanto ricevuto finora (con
+// CONFIG_ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED attivo anche oltre i 512
+// byte del buffer della seriale e anche in CMUX, dove una risposta lunga
+// arriva divisa in piu' frame: senza, il callback vedeva solo l'ultimo
+// pezzo e USSD lunghi e AT+CMGL fallivano sempre). Buffer e risultato
+// statici (un solo comando alla volta).
 static char *s_cmd_out;
 static size_t s_cmd_out_size;
 static const char *s_cmd_until;   // testo che chiude la risposta
 static bool s_cmd_found;
 
+// Come strstr() su dati non terminati da '\0'.
+static const char *mem_find(const char *hay, size_t hay_len, const char *needle)
+{
+    size_t nl = strlen(needle);
+    if (nl == 0 || hay_len < nl) {
+        return NULL;
+    }
+    for (size_t i = 0; i + nl <= hay_len; i++) {
+        if (hay[i] == needle[0] && memcmp(hay + i, needle, nl) == 0) {
+            return hay + i;
+        }
+    }
+    return NULL;
+}
+
 static esp_err_t cmd_collect_cb(uint8_t *data, size_t len)
 {
-    size_t n = len < s_cmd_out_size - 1 ? len : s_cmd_out_size - 1;
-    memcpy(s_cmd_out, data, n);
-    s_cmd_out[n] = '\0';
-    if (strstr(s_cmd_out, "ERROR")) {
-        return ESP_FAIL;
-    }
-    const char *u = strstr(s_cmd_out, s_cmd_until);
-    if (u) {
+    const char *d = (const char *) data;
+    // Esito cercato su TUTTA la risposta ricevuta, non sulla copia (che puo'
+    // essere troncata): con molti SMS nella SIM la risposta di AT+CMGL
+    // supera il buffer e "OK" finale non si trovava mai. ERROR solo come
+    // risposta del modem, non dentro il testo di un SMS.
+    bool error = mem_find(d, len, "\nERROR") != NULL || mem_find(d, len, "+CME ERROR") != NULL ||
+                 mem_find(d, len, "+CMS ERROR") != NULL || (len >= 5 && memcmp(d, "ERROR", 5) == 0);
+    const char *u = mem_find(d, len, s_cmd_until);
+    bool complete = u != NULL;
+    if (u && strcmp(s_cmd_until, "+CUSD:") == 0) {
         // USSD: "+CUSD: 0,"testo",15" - aspetta la virgoletta di chiusura
         // seguita dalla fine riga, non solo l'inizio della risposta.
-        if (strcmp(s_cmd_until, "+CUSD:") == 0) {
-            const char *q1 = strchr(u, '"');
-            const char *q2 = q1 ? strrchr(u, '"') : NULL;
-            if (!q1 || q2 == q1 || !strchr(q2, '\n')) {
-                return ESP_ERR_TIMEOUT; // risposta non ancora completa
+        const char *end = d + len;
+        const char *q1 = memchr(u, '"', (size_t) (end - u));
+        const char *q2 = NULL;
+        for (const char *p = end - 1; q1 && p > q1; p--) {
+            if (*p == '"') {
+                q2 = p;
+                break;
             }
         }
+        complete = q1 && q2 && memchr(q2, '\n', (size_t) (end - q2)) != NULL;
+    }
+
+    // Copia per il chiamante: se non ci sta, la parte FINALE (per AT+CMGL
+    // gli SMS piu' recenti, che sono quelli che servono).
+    size_t n = len < s_cmd_out_size - 1 ? len : s_cmd_out_size - 1;
+    memcpy(s_cmd_out, d + (len - n), n);
+    s_cmd_out[n] = '\0';
+
+    if (error && !complete) {
+        return ESP_FAIL;
+    }
+    if (complete) {
         s_cmd_found = true;
         return ESP_OK;
     }
@@ -366,6 +496,11 @@ static esp_err_t cmd_collect_cb(uint8_t *data, size_t len)
 static bool modem_cmd(const char *cmd, const char *until, char *out, size_t out_size, uint32_t timeout_ms)
 {
     if (!s_inited || !s_dce || out_size < 2) {
+        return false;
+    }
+    if (s_data_no_cmux) {
+        // Collegamento dati senza CMUX: il comando finirebbe nel flusso PPP.
+        out[0] = '\0';
         return false;
     }
     s_cmd_out = out;
@@ -385,7 +520,8 @@ bool cellular_link_reset_modem(void)
     xEventGroupClearBits(s_events, CELLULAR_CONNECTED_BIT);
     s_connected = false;
     esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
-    char resp[32] = {0};
+    s_data_no_cmux = false;
+    char resp[AT_RESP_MAX] = {0};
     if (esp_modem_at(s_dce, "AT+CFUN=1,1", resp, 5000) == ESP_OK) {
         ESP_LOGW(TAG, "Modem riavviato con AT+CFUN=1,1, attesa avvio (20 s)");
         vTaskDelay(pdMS_TO_TICKS(20000));
@@ -415,8 +551,55 @@ bool cellular_link_reset_modem(void)
 
 bool cellular_link_modem_present(void)
 {
-    char resp[32];
-    return s_inited && s_dce && esp_modem_at(s_dce, "AT", resp, 1000) == ESP_OK;
+    if (!s_inited || !s_dce) {
+        return false;
+    }
+    if (s_data_no_cmux) {
+        return true; // collegamento dati attivo: il modem c'e', ma niente AT ora
+    }
+    char resp[AT_RESP_MAX];
+    return esp_modem_at(s_dce, "AT", resp, 1000) == ESP_OK;
+}
+
+// Difesa anche qui, oltre ai controlli del pannello: codici e numeri
+// finiscono dentro un comando AT tra virgolette, e un '"' o un a capo
+// permetterebbero di accodare comandi arbitrari al modem.
+// Codice USSD: solo cifre, '*', '#' e '+'.
+static bool ussd_code_ok(const char *code)
+{
+    size_t n = 0;
+    for (const char *p = code; *p; p++, n++) {
+        if (!((*p >= '0' && *p <= '9') || *p == '*' || *p == '#' || *p == '+')) {
+            return false;
+        }
+    }
+    return n > 0 && n <= 40;
+}
+
+// Numero di telefono: '+' facoltativo seguito solo da cifre (3-20). Senza
+// '+' servono i numeri brevi degli operatori (es. quello per il credito).
+static bool phone_number_ok(const char *number)
+{
+    const char *p = number[0] == '+' ? number + 1 : number;
+    size_t n = 0;
+    for (; *p; p++, n++) {
+        if (*p < '0' || *p > '9') {
+            return false;
+        }
+    }
+    return n >= 3 && n <= 20;
+}
+
+// Testo SMS: niente caratteri di controllo (Ctrl-Z chiude il messaggio,
+// ESC lo annulla: con questi il resto del testo andrebbe al modem come comando).
+static bool sms_text_ok(const char *text)
+{
+    for (const unsigned char *p = (const unsigned char *) text; *p; p++) {
+        if (*p < 0x20 || *p == 0x7F) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool cellular_link_get_iccid(char *out, size_t out_size)
@@ -501,6 +684,10 @@ bool cellular_link_write_number(const char *number)
     // Molte SIM la accettano senza PIN2; se la rifiutano, ERROR e false.
     char cmd[80];
     char tmp[48];
+    if (!number || !phone_number_ok(number)) {
+        ESP_LOGW(TAG, "Numero da scrivere nella SIM non valido: rifiutato");
+        return false;
+    }
     if (!modem_cmd("AT+CSCS=\"GSM\"\r", "OK", tmp, sizeof(tmp), 2000) ||
         !modem_cmd("AT+CPBS=\"ON\"\r", "OK", tmp, sizeof(tmp), 3000)) {
         return false;
@@ -517,6 +704,13 @@ bool cellular_link_ussd(const char *code, char *out, size_t out_size)
     // Testo in "GSM" (leggibile); alcuni operatori rispondono comunque in
     // UCS2 esadecimale: lo decodifica sim_tools.c.
     char tmp[32];
+    if (!code || !ussd_code_ok(code)) {
+        ESP_LOGW(TAG, "Codice USSD non valido (ammessi solo cifre, * # +): rifiutato");
+        if (out_size) {
+            out[0] = '\0';
+        }
+        return false;
+    }
     modem_cmd("AT+CSCS=\"GSM\"\r", "OK", tmp, sizeof(tmp), 2000);
     snprintf(cmd, sizeof(cmd), "AT+CUSD=1,\"%s\",15\r", code);
     return modem_cmd(cmd, "+CUSD:", out, out_size, 30000);
@@ -524,7 +718,11 @@ bool cellular_link_ussd(const char *code, char *out, size_t out_size)
 
 bool cellular_link_send_sms(const char *number, const char *text)
 {
-    if (!s_inited || !s_dce) {
+    if (!s_inited || !s_dce || s_data_no_cmux) {
+        return false;
+    }
+    if (!number || !text || !phone_number_ok(number) || !sms_text_ok(text)) {
+        ESP_LOGW(TAG, "SMS rifiutato: numero non valido ('+' facoltativo e solo cifre) o testo con caratteri di controllo");
         return false;
     }
     esp_modem_sms_txt_mode(s_dce, true);
@@ -535,7 +733,7 @@ bool cellular_link_send_sms(const char *number, const char *text)
 bool cellular_link_read_sms(char *out, size_t out_size)
 {
     char tmp[32];
-    if (!s_inited || !s_dce) {
+    if (!s_inited || !s_dce || s_data_no_cmux) {
         return false;
     }
     esp_modem_sms_txt_mode(s_dce, true);

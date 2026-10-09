@@ -1,6 +1,7 @@
 #include "status_led.h"
 #include "status.h"
 #include "rgb_led.h"
+#include "settings.h"
 #include "sdkconfig.h"
 
 #include <stdbool.h>
@@ -90,11 +91,20 @@ static void status_led_task(void *arg)
     }
 }
 
+static void peek_rgb_mode(const app_settings_t *s, void *ctx)
+{
+    *(rgb_led_mode_t *) ctx = s->rgb_led_mode;
+}
+
 void status_led_start(void)
 {
     rgb_led_init();
 
-    if (NET_PIN < 0 && DATA_PIN < 0) {
+    // Senza LED singoli il task serve comunque se c'e' un LED RGB configurato
+    // dal pannello: prima restava spento.
+    rgb_led_mode_t rgb = RGB_LED_NONE;
+    settings_peek(peek_rgb_mode, &rgb);
+    if (NET_PIN < 0 && DATA_PIN < 0 && rgb == RGB_LED_NONE) {
         return;
     }
     configure_output(NET_PIN);

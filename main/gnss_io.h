@@ -17,6 +17,11 @@ void gnss_io_init(const app_settings_t *settings);
 
 bool gnss_io_is_i2c(void);
 
+// Problema della seriale all'avvio, per il pannello ("" se tutto a posto):
+// pin/porta impostati non validi (si usa la seriale di fabbrica) o seriale
+// non apribile affatto (ricevitore scollegato, il resto funziona).
+const char *gnss_io_note(void);
+
 // Come uart_read_bytes(): attende fino a timeout, ritorna i byte letti
 // (0 se nessuno, -1 su errore).
 int gnss_io_read(uint8_t *buf, size_t len, TickType_t timeout);

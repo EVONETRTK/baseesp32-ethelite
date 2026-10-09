@@ -34,7 +34,8 @@ typedef struct {
 // web puo' cosi' interrogare l'avanzamento con online_update_get_progress()
 // mentre il download e' in corso, invece di restare bloccata in attesa
 // della risposta HTTP. Se l'aggiornamento riesce il dispositivo si riavvia
-// da solo, come online_update_apply().
-void online_update_apply_async(const char *firmware_url);
+// da solo, come online_update_apply(). Ritorna false senza avviare nulla se
+// un altro aggiornamento firmware e' gia' in corso (vedi ota_update.h).
+bool online_update_apply_async(const char *firmware_url);
 
 online_update_progress_t online_update_get_progress(void);

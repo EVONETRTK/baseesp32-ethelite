@@ -2,6 +2,8 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -112,11 +114,22 @@ static int ntrip_connect_and_handshake(const app_settings_t *settings)
         status_ntrip_note_disconnected(err);
         return -1;
     }
-    // I timeout servivano solo all'handshake: per l'invio dei dati resta il
-    // comportamento di prima (bloccante, errori gestiti dal task).
+    // Socket dati: prima l'invio era bloccante senza limite. Con una linea
+    // morta "in silenzio" (WiFi associato ma router senza Internet, PPP
+    // caduto senza avviso) send() restava ferma per i 12 tentativi di
+    // ritrasmissione di lwIP (oltre 10 minuti): scattava il controllo dei
+    // task bloccati e la base si riavviava dopo 5 minuti. Ora: limite di
+    // 30 s per ogni invio e keepalive TCP (linea morta scoperta in ~1 min
+    // anche senza dati da mandare), poi il ciclo sotto si ricollega da solo.
     struct timeval none = { 0 };
+    struct timeval snd_tv = { .tv_sec = 30, .tv_usec = 0 };
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &none, sizeof(none));
-    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &none, sizeof(none));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &snd_tv, sizeof(snd_tv));
+    int on = 1, idle = 30, intvl = 10, cnt = 3;
+    setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+    setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+    setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
+    setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
 
     ESP_LOGI(TAG, "Connesso al caster %s:%d mountpoint /%s",
              settings->ntrip_host, settings->ntrip_port, settings->ntrip_mountpoint);
@@ -163,6 +176,48 @@ static void ntrip_client_shutdown(void)
     }
 }
 
+// Attesa di ms millisecondi SCARTANDO quanto arriva sul flusso RTCM. Quando
+// il caster non e' collegato nessuno svuotava il flusso (4 KB): pieno in
+// pochi secondi, il task che legge il ricevitore restava fermo 1 s per ogni
+// frame (caster locale, registrazione grezza e controlli della posizione a
+// ~1 frame al secondo, seriale in overflow), e alla riconnessione partivano
+// per primi frame vecchi. I frame di un momento in cui il caster non c'e'
+// non servono a nessuno: si buttano.
+static void discard_for_ms(StreamBufferHandle_t stream, uint8_t *buf, size_t buf_size, uint32_t ms)
+{
+    TickType_t start = xTaskGetTickCount();
+    TickType_t total = pdMS_TO_TICKS(ms);
+    while (1) {
+        TickType_t elapsed = xTaskGetTickCount() - start;
+        if (elapsed >= total) {
+            return;
+        }
+        (void) xStreamBufferReceive(stream, buf, buf_size, total - elapsed);
+    }
+}
+
+// Invia tutto il blocco: con SO_SNDTIMEO send() puo' scriverne solo una
+// parte (lwIP restituisce i byte scritti allo scadere del tempo). false =
+// connessione da chiudere.
+static bool send_all(int sock, const uint8_t *data, size_t len)
+{
+    size_t off = 0;
+    while (off < len) {
+        int sent = send(sock, data + off, len - off, 0);
+        if (sent < 0) {
+            return false;
+        }
+        if (sent == 0) {
+            errno = ETIMEDOUT;
+            return false;
+        }
+        data_usage_add((uint32_t) sent, true);
+        off += (size_t) sent;
+        sys_stats_heartbeat(HB_NTRIP);
+    }
+    return true;
+}
+
 void ntrip_client_task(void *arg)
 {
     esp_register_shutdown_handler(ntrip_client_shutdown);
@@ -176,7 +231,16 @@ void ntrip_client_task(void *arg)
 
     while (1) {
         sys_stats_heartbeat(HB_NTRIP);
-        net_wait_ready(30000);
+        // Come net_wait_ready(30000), ma svuotando il flusso RTCM nell'attesa.
+        for (uint32_t waited = 0; waited < 30000; waited += 250) {
+            if (status_get_net() != NET_STATUS_NONE || eth_link_is_connected()) {
+                break;
+            }
+            discard_for_ms(rtcm_stream, buf, sizeof(buf), 250);
+            if (waited % 5000 == 0) {
+                sys_stats_heartbeat(HB_NTRIP);
+            }
+        }
         app_settings_t settings = settings_get();
         int sock = ntrip_connect_and_handshake(&settings);
         if (sock < 0) {
@@ -184,7 +248,7 @@ void ntrip_client_task(void *arg)
             uint32_t gen = settings_generation();
             bool changed = false;
             for (uint32_t waited = 0; waited < retry_ms && !changed; waited += 1000) {
-                vTaskDelay(pdMS_TO_TICKS(1000));
+                discard_for_ms(rtcm_stream, buf, sizeof(buf), 1000);
                 sys_stats_heartbeat(HB_NTRIP);
                 changed = settings_generation() != gen;
             }
@@ -193,6 +257,9 @@ void ntrip_client_task(void *arg)
         }
         retry_ms = 5000;
         s_active_sock = sock;
+        // Quanto accumulato durante l'handshake e' gia' vecchio: via.
+        while (xStreamBufferReceive(rtcm_stream, buf, sizeof(buf), 0) > 0) {
+        }
 
         while (1) {
             sys_stats_heartbeat(HB_NTRIP);
@@ -200,19 +267,16 @@ void ntrip_client_task(void *arg)
             if (len == 0) {
                 continue;
             }
-            int sent = send(sock, buf, len, 0);
-            if (sent > 0) {
-                data_usage_add((uint32_t) sent, true);
-            }
-            if (sent < 0) {
-                ESP_LOGW(TAG, "Invio fallito, riconnessione: errno %d", errno);
+            if (!send_all(sock, buf, len)) {
+                int e = errno;
+                ESP_LOGW(TAG, "Invio fallito, riconnessione: errno %d", e);
                 char msg[128];
-                snprintf(msg, sizeof(msg), "Invio dati fallito, riconnessione (errno %d)", errno);
+                snprintf(msg, sizeof(msg), "Invio dati fallito, riconnessione (errno %d)", e);
                 status_ntrip_note_disconnected(msg);
                 break;
             }
         }
         close_active_sock(sock);
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        discard_for_ms(rtcm_stream, buf, sizeof(buf), 2000);
     }
 }

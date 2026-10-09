@@ -54,9 +54,36 @@ static double nmea_coord_deg(const char *field, bool negative)
     return negative ? -d : d;
 }
 
+static int hex_val(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
+bool nmea_checksum_ok(const char *line)
+{
+    if (!line || line[0] != '$') {
+        return false;
+    }
+    unsigned char cs = 0;
+    const char *p = line + 1;
+    for (; *p && *p != '*'; p++) {
+        cs ^= (unsigned char) *p;
+    }
+    if (*p != '*') {
+        return false;
+    }
+    int hi = hex_val(p[1]), lo = hi >= 0 ? hex_val(p[2]) : -1;
+    return hi >= 0 && lo >= 0 && (unsigned char) ((hi << 4) | lo) == cs;
+}
+
 void gnss_fix_parse_gga(const char *line_in)
 {
-    if (!s_mutex || !line_in || line_in[0] != '$' || strlen(line_in) < 6) {
+    // Checksum controllato qui (oltre che dal lettore): da questa riga
+    // dipende anche la media della misura della posizione base.
+    if (!s_mutex || !line_in || line_in[0] != '$' || strlen(line_in) < 6 || !nmea_checksum_ok(line_in)) {
         return;
     }
 

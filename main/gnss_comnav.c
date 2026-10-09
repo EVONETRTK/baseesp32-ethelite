@@ -216,9 +216,10 @@ esp_err_t gnss_comnav_configure_rover(uart_port_t uart_num)
     rover_view_t v;
     settings_peek(peek_rover, &v);
     bool measuring = base_measure_is_has();
+    bool measuring_any = base_measure_is_active(); // anche la misura con RTK
     bool has = measuring || v.has;
-    bool ins = v.ins && !measuring;     // misura della base: antenna ferma, niente INS
-    bool heading = v.heading && !measuring;
+    bool ins = v.ins && !measuring_any;     // misura della base: antenna ferma, niente INS
+    bool heading = v.heading && !measuring_any;
 
     static const char *const cmds[] = {
         "UNLOGALL",
@@ -231,8 +232,30 @@ esp_err_t gnss_comnav_configure_rover(uart_port_t uart_num)
         esp_err_t e = send_cmd(uart_num, cmds[i]);
         if (e != ESP_OK) err = e;
     }
-    // Con l'INS posizione a 5 Hz (RTK e PVT a 5 Hz, come nel manuale).
-    send_cmd(uart_num, ins ? "LOG GPGGA ONTIME 0.2" : "LOG GPGGA ONTIME 1");
+    // Frequenza delle posizioni: con l'INS 5 Hz (RTK e PVT a 5 Hz, come nel
+    // manuale); altrimenti quella scelta nel pannello (licenza nmea_fast,
+    // come u-blox e Unicore), 1 Hz durante la misura della posizione base.
+    // Prima era sempre 1 Hz e senza RMC/VTG: frequenza del pannello ignorata,
+    // niente velocita' per il software di guida e niente ora dai satelliti
+    // (RMC, gnss_nmea_reader.c: serve senza NTP, es. alla misura HAS).
+    char cmd[40];
+    uint8_t hz = measuring_any ? 1 : settings_nmea_rate_hz();
+    if (ins) {
+        hz = 5;
+    } else if (hz > 1) {
+        snprintf(cmd, sizeof(cmd), "SET RTKFREQ %u", (unsigned) hz);
+        send_cmd(uart_num, cmd);
+        snprintf(cmd, sizeof(cmd), "SET PVTFREQ %u", (unsigned) hz);
+        send_cmd(uart_num, cmd);
+    }
+    const char *period = hz == 10 ? "0.1" : (hz == 5 ? "0.2" : "1");
+    snprintf(cmd, sizeof(cmd), "LOG GPGGA ONTIME %s", period);
+    send_cmd(uart_num, cmd);
+    snprintf(cmd, sizeof(cmd), "LOG GPRMC ONTIME %s", period);
+    send_cmd(uart_num, cmd);
+    snprintf(cmd, sizeof(cmd), "LOG GPVTG ONTIME %s", period);
+    send_cmd(uart_num, cmd);
+    ESP_LOGI(TAG, "Uscita NMEA rover: %u posizioni al secondo (GGA, RMC, VTG), GSV ogni secondo", (unsigned) hz);
 
     // Prua a doppia antenna: HEADINGA per il pannello (stesso formato
     // NovAtel gia' letto per il Bynav M21D), GPHDT per AgOpenGPS.
@@ -241,7 +264,6 @@ esp_err_t gnss_comnav_configure_rover(uart_port_t uart_num)
         send_cmd(uart_num, "LOG GPHDT ONTIME 0.2");
     }
 
-    char cmd[40];
     if (ins) {
         // INS: posizione anche durante brevi perdite del segnale (GGA
         // qualita' 6), solo con l'IMU a bordo.

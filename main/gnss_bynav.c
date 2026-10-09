@@ -122,10 +122,18 @@ esp_err_t gnss_bynav_configure_rover(uart_port_t uart_num)
     esp_err_t e = send_cmd(uart_num, "RTKTYPE ROVER");
     if (e != ESP_OK) err = e;
 
-    char gga_cmd[40];
-    snprintf(gga_cmd, sizeof(gga_cmd), "LOG COM%d GPGGA ONTIME 1", BYNAV_COM_PORT);
-    e = send_cmd(uart_num, gga_cmd);
-    if (e != ESP_OK) err = e;
+    // GGA, RMC e VTG con la frequenza scelta nel pannello (licenza nmea_fast,
+    // come u-blox e Unicore); prima solo GGA a 1 Hz. Stessa forma "LOG COMn
+    // <msg> ONTIME <s>" gia' usata qui; RMC/VTG non ancora provati sul modulo.
+    const uint8_t hz = settings_nmea_rate_hz();
+    const char *period = hz == 10 ? "0.1" : (hz == 5 ? "0.2" : "1");
+    static const char *const nmea[] = { "GPGGA", "GPRMC", "GPVTG" };
+    for (size_t i = 0; i < sizeof(nmea) / sizeof(nmea[0]); i++) {
+        char log_cmd[40];
+        snprintf(log_cmd, sizeof(log_cmd), "LOG COM%d %s ONTIME %s", BYNAV_COM_PORT, nmea[i], period);
+        e = send_cmd(uart_num, log_cmd);
+        if (e != ESP_OK) err = e;
+    }
 
     e = send_cmd(uart_num, "SAVECONFIG");
     if (e != ESP_OK) err = e;

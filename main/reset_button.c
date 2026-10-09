@@ -1,5 +1,6 @@
 #include "reset_button.h"
 #include "sys_stats.h"
+#include "settings.h"
 #include "sdkconfig.h"
 
 #include "driver/gpio.h"
@@ -19,20 +20,20 @@ static const char *TAG = "reset_button";
 
 static void erase_settings_and_reboot(void)
 {
-    ESP_LOGW(TAG, "Reset configurazione richiesto dal pulsante: cancello NVS e riavvio");
+    ESP_LOGW(TAG, "Reset configurazione richiesto dal pulsante: cancello la NVS (tranne la licenza) e riavvio");
     // Motivo del riavvio e avvio segnato come completato (memoria RTC): un
     // reset di fabbrica durante l'avvio non e' un "avvio fermo".
     sys_stats_note_restart_reason("reset di fabbrica dal pulsante");
-    nvs_flash_erase();
+    // Non piu' nvs_flash_erase(): cancellava anche la licenza e la chiave del
+    // ricevitore, che andava riattivato dal server (09/10/2026).
+    settings_factory_erase_keep_license();
     // Segno per config_backup.c: e' un reset voluto, la copia della
     // configurazione sulla microSD non va ripristinata.
-    if (nvs_flash_init() == ESP_OK) {
-        nvs_handle_t h;
-        if (nvs_open("cfgbk", NVS_READWRITE, &h) == ESP_OK) {
-            nvs_set_u8(h, "skip", 1);
-            nvs_commit(h);
-            nvs_close(h);
-        }
+    nvs_handle_t h;
+    if (nvs_open("cfgbk", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "skip", 1);
+        nvs_commit(h);
+        nvs_close(h);
     }
     esp_restart();
 }
@@ -73,5 +74,9 @@ void reset_button_start(void)
     };
     gpio_config(&io_conf);
 
-    xTaskCreate(reset_button_task, "reset_button", 2048, NULL, 2, NULL);
+    // 4096 (era 2048): a riposo il task legge solo il pin, ma il reset fa log
+    // (log_buffer: riga da 256 byte + vprintf), operazioni NVS e il giro dei
+    // namespace - con 2048 il reset rischiava un overflow dello stack prima
+    // di cancellare qualcosa.
+    xTaskCreate(reset_button_task, "reset_button", 4096, NULL, 2, NULL);
 }

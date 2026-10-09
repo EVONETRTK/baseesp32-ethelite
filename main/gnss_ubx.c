@@ -208,6 +208,10 @@ static void wait_model(uart_port_t uart_num)
 // tardi, da svin_poll_task).
 static bool s_x20p_signals_done;
 
+// Survey-in in corso (base senza posizione fissa): solo allora svin_poll_task
+// chiede NAV-SVIN. Scritta prima di creare il task.
+static bool s_svin_active;
+
 static bool model_is_x20(void)
 {
     return strstr(gnss_ubx_ack_model(), "X20") != NULL;
@@ -325,8 +329,16 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
             { 0x4003000f, 100 },               // CFG-TMODE-FIXED_POS_ACC: 10 mm (0,1 mm)
         };
         ubx_valset_group(uart_num, "TMODE (posizione fissa)", kvs_fixed, sizeof(kvs_fixed) / sizeof(kvs_fixed[0]));
+        // Anche con la posizione fissa serve il task periodico: e' lui ad
+        // attivare RAWX/SFRBX (controllo dello spostamento, registrazione dei
+        // dati grezzi), a chiedere l'ora dai satelliti, MON-SYS e il modello.
+        // Prima qui si usciva subito: con le coordinate fisse il controllo
+        // dello spostamento restava per sempre "in attesa dei satelliti".
+        s_svin_active = false;
+        xTaskCreate(svin_poll_task, "ubx_svin", 4096, (void *) (intptr_t) uart_num, 3, NULL);
         return ESP_OK;
     }
+    s_svin_active = true;
 
     // Durata e precisione dal pannello (0 = predefinito: 60 s, 0,25 m).
     uint32_t svin_dur_s = s.base_svin_min_dur_s ? s.base_svin_min_dur_s : 60;
@@ -395,7 +407,7 @@ static void svin_poll_task(void *arg)
     int64_t last_log_us = 0;
     int loop_count = 0;
     while (1) {
-        if (ubx_send(uart_num, 0x01, 0x3B, NULL, 0) == ESP_OK) {
+        if (s_svin_active && ubx_send(uart_num, 0x01, 0x3B, NULL, 0) == ESP_OK) {
             // Nessun ACK per un poll: l'attesa serve solo a tenere aperta la
             // finestra di ascolto (vedi gnss_ubx_ack.h) finche' arriva la
             // risposta. I messaggi NAV polled partono alla soluzione di
@@ -563,13 +575,28 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
     // Posizioni al secondo per il software di guida (1.27.0): GGA, RMC e VTG
     // a ogni epoca, GSV una volta al secondo (i valori CFG-MSGOUT contano le
     // epoche). Alla GGA verso il caster ci pensa ntrip_rover_client.c (10 s).
-    const uint32_t hz = settings_nmea_rate_hz();
+    // Durante la misura della posizione base sempre 1 Hz: base_measure.c conta
+    // i campioni come secondi (180 = 3 minuti di fix); a 5-10 Hz la misura
+    // finiva in mezzo minuto.
+    const uint32_t hz = measuring ? 1 : settings_nmea_rate_hz();
     const ubx_cfg_kv32_t kvs_rate[] = {
         { 0x30210001, 1000 / hz },  // CFG-RATE-MEAS (ms)
         { 0x30210002, 1 },          // CFG-RATE-NAV
     };
     ubx_valset_group(uart_num, "FREQUENZA", kvs_rate, sizeof(kvs_rate) / sizeof(kvs_rate[0]));
     ESP_LOGI(TAG, "Uscita NMEA rover: %lu posizioni al secondo (GGA, RMC, VTG), GSV ogni secondo", (unsigned long) hz);
+
+    // Dati grezzi spenti: in base li accende svin_poll_task (controllo dello
+    // spostamento, registrazione), e il modulo, rimasto acceso durante il
+    // riavvio dell'ESP32 (es. misura della posizione con RTK), continuerebbe
+    // a mandarli. In rover nessuno li legge, e i frame binari in mezzo alle
+    // righe NMEA facevano perdere la frase successiva.
+    const uint32_t raw_off = i2c ? 1 : 0;
+    const ubx_cfg_kv32_t kvs_raw[] = {
+        { 0x209102a5 - raw_off, 0 },   // CFG-MSGOUT-UBX_RXM_RAWX (UART1; -1 = I2C)
+        { 0x20910232 - raw_off, 0 },   // CFG-MSGOUT-UBX_RXM_SFRBX
+    };
+    ubx_valset_group(uart_num, "DATI GREZZI spenti", kvs_raw, sizeof(kvs_raw) / sizeof(kvs_raw[0]));
 
     if (i2c) {
         // Ricevitore collegato via I2C (es. HAT Syneda uRTK6.0): stessa

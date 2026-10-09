@@ -56,5 +56,18 @@ void ppp_log_feed(const uint8_t *data, size_t len);
 // dal task di registrazione e questa chiamata fallisce). Il chiamante deve
 // richiamare ppp_log_close_for_read() con lo stesso FILE* quando ha
 // finito, per smontare correttamente la SD.
+//
+// SUPERATE da ppp_log_send_http() (09/10/2026): tengono la SD montata (e
+// sd_mutex preso) per tutto il download, e con il ricevitore via I2C il
+// ricevitore resta muto per tutto quel tempo (niente RTCM al caster, dopo
+// 10 minuti riavvio di sicurezza). Restano solo per compatibilita'.
 FILE *ppp_log_open_for_read(void);
 void ppp_log_close_for_read(FILE *f);
+
+#include "esp_http_server.h"
+
+// Download del file dell'ultima registrazione via HTTP, a blocchi: monta e
+// smonta la SD per ogni blocco (come raw_log_send_file), cosi' tra un blocco
+// e l'altro il ricevitore via I2C continua a lavorare. Risponde da solo con
+// 409 se una registrazione e' in corso o non c'e' nessun file.
+esp_err_t ppp_log_send_http(httpd_req_t *req);

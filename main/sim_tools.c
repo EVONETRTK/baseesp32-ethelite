@@ -246,6 +246,11 @@ static void store_credit(const char *text, bool automatic)
     float eur = 0;
     bool valid = sim_tools_parse_euro(text, &eur);
     time_t now = time(NULL);
+    // Senza ora valida (prima di NTP/satelliti) niente data: il pannello
+    // mostrava "01/01/1970". 0 = data della lettura sconosciuta.
+    if (now < 1700000000) {
+        now = 0;
+    }
     lock();
     s_st.credit_at = now;
     strncpy(s_st.credit_text, text, sizeof(s_st.credit_text) - 1);
@@ -467,8 +472,46 @@ static void read_ids(void)
 
 // --- richieste --------------------------------------------------------------
 
+// Difesa anche qui, oltre ai controlli del pannello (e a quelli di
+// cellular_link.c): codici e numeri finiscono dentro comandi AT.
+static bool ussd_ok(const char *s)
+{
+    size_t n = 0;
+    for (; s && *s; s++, n++) {
+        if (!((*s >= '0' && *s <= '9') || *s == '*' || *s == '#' || *s == '+')) {
+            return false;
+        }
+    }
+    return n > 0 && n <= 40;
+}
+
+static bool number_ok(const char *s)
+{
+    if (!s) {
+        return false;
+    }
+    if (*s == '+') {
+        s++;
+    }
+    size_t n = 0;
+    for (; *s; s++, n++) {
+        if (*s < '0' || *s > '9') {
+            return false;
+        }
+    }
+    return n >= 3 && n <= 20;
+}
+
 bool sim_tools_request(sim_action_t action, const char *a, const char *b, char *err, size_t err_size)
 {
+    if (action == SIM_ACT_USSD && !ussd_ok(a)) {
+        snprintf(err, err_size, "Codice USSD non valido: ammessi solo cifre e i simboli * # +");
+        return false;
+    }
+    if ((action == SIM_ACT_SMS || action == SIM_ACT_FIND_NUMBER) && !number_ok(a)) {
+        snprintf(err, err_size, "Numero non valido: solo cifre, con il + iniziale facoltativo (es. +393511234567)");
+        return false;
+    }
     lock();
     bool busy = s_st.busy || s_pending != SIM_ACT_NONE;
     if (!busy) {
@@ -514,7 +557,13 @@ static void run_action(sim_action_t act)
             break;
         case SIM_ACT_READ_SMS:
             if (!s_sms) {
-                s_sms = malloc(SMS_BUF_SIZE);
+                char *p = malloc(SMS_BUF_SIZE);
+                if (p) {
+                    p[0] = '\0';
+                }
+                lock();
+                s_sms = p;
+                unlock();
             }
             if (s_sms && cellular_link_read_sms(s_sms, SMS_BUF_SIZE)) {
                 s_sms_at_us = esp_timer_get_time();
@@ -569,9 +618,15 @@ void sim_tools_tick(const app_settings_t *cfg)
     }
 
     // SMS letti: memoria liberata dopo 10 minuti.
+    // Puntatore tolto sotto lock, memoria liberata fuori: prima il free()
+    // avveniva senza lock mentre il pannello poteva copiare il testo in
+    // sim_tools_get_sms() (lettura di memoria gia' liberata).
     if (s_sms && now_us - s_sms_at_us > SMS_KEEP_US) {
-        free(s_sms);
+        lock();
+        char *old = s_sms;
         s_sms = NULL;
+        unlock();
+        free(old);
     }
 
     read_ids();

@@ -12,6 +12,7 @@
 #include "time_sync.h"
 
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -90,6 +91,13 @@ static bool smtp_send_email(const char *host, uint16_t port, const char *user, c
                              const char *to, const char *subject, const char *body,
                              char *out_detail, size_t out_detail_size)
 {
+    // Un a capo in utente o destinatario aggiungerebbe comandi SMTP (il
+    // pannello li rifiuta gia' al salvataggio; qui per le configurazioni
+    // salvate prima o importate).
+    if (strpbrk(user, "\r\n") || strpbrk(to, "\r\n")) {
+        if (out_detail) snprintf(out_detail, out_detail_size, "utente o destinatario non validi (a capo)");
+        return false;
+    }
     esp_tls_t *tls = esp_tls_init();
     if (!tls) {
         if (out_detail) snprintf(out_detail, out_detail_size, "memoria esaurita");
@@ -108,7 +116,7 @@ static bool smtp_send_email(const char *host, uint16_t port, const char *user, c
 
     bool ok = false;
     const char *step = "saluto server";
-    char buf[512];
+    char buf[512] = ""; // nel messaggio d'errore anche se il server non ha risposto nulla
     char cmd[320];
 
     do {
@@ -168,8 +176,9 @@ static bool smtp_send_email(const char *host, uint16_t port, const char *user, c
     return ok;
 }
 
-// Percent-encoding minimale per il parametro "text" della richiesta HTTP -
-// solo i caratteri non riservati (RFC 3986) restano invariati.
+// Percent-encoding minimale per i parametri della richiesta HTTP - solo i
+// caratteri non riservati (RFC 3986) restano invariati. Ogni carattere puo'
+// diventare 3 byte: per non troncare, out_size = 3 * lunghezza + 4.
 static void url_encode(const char *in, char *out, size_t out_size)
 {
     size_t o = 0;
@@ -192,15 +201,45 @@ static void url_encode(const char *in, char *out, size_t out_size)
 // ufficiale/garantito: puo' smettere di funzionare senza preavviso se il
 // servizio cambia o chiude, per questo resta un'opzione aggiuntiva
 // all'email, non l'unica.
+// Testo fino a WA_TEXT_MAX caratteri (i messaggi piu' lunghi sono ~320):
+// prima il testo codificato stava in 300 byte e gli avvisi lunghi arrivavano
+// tagliati (es. "verifica l'antenna" spariva). Buffer allocati, non sullo
+// stack del task degli avvisi o del server web.
+#define WA_TEXT_MAX 400
+
 static bool whatsapp_send_callmebot(const char *phone, const char *apikey, const char *text,
                                      char *out_detail, size_t out_detail_size)
 {
-    char encoded_text[300];
-    url_encode(text, encoded_text, sizeof(encoded_text));
+    // Numero: solo "+" iniziale e cifre (spazi, trattini, punti tolti). Un
+    // numero scritto "+39 333 1234567" rendeva l'URL non valido: il client
+    // HTTP non veniva creato e la base andava in crash (revisione del
+    // 09/10/2026).
+    char clean_phone[24];
+    size_t n = 0;
+    for (const char *c = phone; *c && n < sizeof(clean_phone) - 1; c++) {
+        if ((*c >= '0' && *c <= '9') || (*c == '+' && n == 0)) {
+            clean_phone[n++] = *c;
+        }
+    }
+    clean_phone[n] = '\0';
 
-    char url[420];
-    snprintf(url, sizeof(url), "https://api.callmebot.com/whatsapp.php?phone=%s&text=%s&apikey=%s",
-             phone, encoded_text, apikey);
+    size_t text_len = strnlen(text, WA_TEXT_MAX);
+    size_t enc_size = 3 * text_len + 4;
+    size_t url_size = enc_size + 3 * sizeof(clean_phone) + 3 * strlen(apikey) + 96;
+    char *encoded_text = malloc(enc_size);
+    char *enc_phone = malloc(3 * sizeof(clean_phone) + 4);
+    char *enc_key = malloc(3 * strlen(apikey) + 4);
+    char *url = malloc(url_size);
+    bool ok = false;
+    if (!encoded_text || !enc_phone || !enc_key || !url) {
+        if (out_detail) snprintf(out_detail, out_detail_size, "memoria insufficiente");
+        goto done;
+    }
+    url_encode(text, encoded_text, enc_size); // si ferma da solo a buffer pieno
+    url_encode(clean_phone, enc_phone, 3 * sizeof(clean_phone) + 4);
+    url_encode(apikey, enc_key, 3 * strlen(apikey) + 4);
+    snprintf(url, url_size, "https://api.callmebot.com/whatsapp.php?phone=%s&text=%s&apikey=%s",
+             enc_phone, encoded_text, enc_key);
 
     esp_http_client_config_t config = {
         .url = url,
@@ -208,14 +247,25 @@ static bool whatsapp_send_callmebot(const char *phone, const char *apikey, const
         .timeout_ms = 15000,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) {
+        // URL rifiutato dal client HTTP o memoria esaurita: prima si
+        // proseguiva con un puntatore NULL (crash).
+        if (out_detail) snprintf(out_detail, out_detail_size, "numero o API key non validi, o memoria insufficiente");
+        goto done;
+    }
     esp_err_t err = esp_http_client_perform(client);
     int status = esp_http_client_get_status_code(client);
     esp_http_client_cleanup(client);
 
-    bool ok = (err == ESP_OK && status >= 200 && status < 300);
+    ok = (err == ESP_OK && status >= 200 && status < 300);
     if (!ok && out_detail) {
         snprintf(out_detail, out_detail_size, "richiesta fallita (err=%s status=%d)", esp_err_to_name(err), status);
     }
+done:
+    free(encoded_text);
+    free(enc_phone);
+    free(enc_key);
+    free(url);
     return ok;
 }
 
@@ -353,7 +403,11 @@ static void alerts_task(void *arg)
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ALERT_CHECK_INTERVAL_MS));
         sys_stats_heartbeat(HB_ALERTS);
 
-        app_settings_t s = settings_get();
+        // Copia statica (2,4 KB), non sullo stack: con la catena email/TLS il
+        // task arrivava a ~10,2 KB su 10,24 (revisione del 09/10/2026). Usata
+        // solo da questo task.
+        static app_settings_t s;
+        settings_get_into(&s);
         sim_plan_tick(&s);  // rinnovo della SIM: promemoria anche con gli altri avvisi spenti
         sim_tools_tick(&s); // credito, SMS (anche con gli altri avvisi spenti)
         license_tick();         // rinnovo della licenza quando e' il momento

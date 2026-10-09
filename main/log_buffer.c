@@ -55,11 +55,14 @@ static int log_buffer_vprintf(const char *fmt, va_list args)
             s_wrapped = true;
         }
     }
-    xSemaphoreGive(s_mutex);
-
+    // Dentro il mutex (09/10/2026): uno stream buffer ammette un solo
+    // scrittore alla volta, e due task che scrivevano nel log insieme (uno
+    // per core) mescolavano le righe nel log diagnostico sulla microSD.
+    // Timeout 0: non si aspetta mai con il mutex preso.
     if (s_sink) {
         xStreamBufferSend(s_sink, line, (size_t) n, 0);
     }
+    xSemaphoreGive(s_mutex);
 
     return ret;
 }

@@ -50,7 +50,7 @@ static uint32_t crc24q_update(uint32_t crc, uint8_t byte)
     return crc & 0x00FFFFFF;
 }
 
-static void rtcm_frame_done(base_demux_rtcm_cb_t on_rtcm)
+static bool rtcm_frame_done(base_demux_rtcm_cb_t on_rtcm)
 {
     size_t body = s_rtcm_total - 3;
     uint32_t crc = 0;
@@ -58,9 +58,32 @@ static void rtcm_frame_done(base_demux_rtcm_cb_t on_rtcm)
         crc = crc24q_update(crc, s_rtcm[i]);
     }
     uint32_t got = ((uint32_t) s_rtcm[body] << 16) | ((uint32_t) s_rtcm[body + 1] << 8) | s_rtcm[body + 2];
-    if (crc == got && on_rtcm) {
+    if (crc != got) {
+        return false;
+    }
+    if (on_rtcm) {
         on_rtcm(s_rtcm, s_rtcm_total);
     }
+    return true;
+}
+
+// Falso inizio di frame (0xD3 qualunque, CRC sbagliato): i byte presi dopo
+// il preambolo si rianalizzano da capo, invece di perderli. Prima si
+// saltavano fino a 1029 byte, compresi eventuali frame RTCM veri. Un solo
+// livello: dentro la rianalisi un altro falso inizio si scarta come prima.
+static uint8_t s_replay[RTCM_MAX_FRAME];
+static bool s_replaying;
+
+static void rtcm_resync(size_t n, base_demux_rtcm_cb_t on_rtcm)
+{
+    s_state = ST_IDLE;
+    if (s_replaying || n <= 1) {
+        return;
+    }
+    memcpy(s_replay, s_rtcm + 1, n - 1);
+    s_replaying = true;
+    base_stream_demux_feed(s_replay, n - 1, on_rtcm);
+    s_replaying = false;
 }
 
 static void nmea_line_done(void)
@@ -72,7 +95,8 @@ static void nmea_line_done(void)
         return;
     }
     // '$' + talker (2 caratteri) + tipo (3), es. "$GNGGA", "$GPGSV".
-    if (s_nmea_pos > 6) {
+    // Solo righe con il checksum giusto (gnss_fix.h).
+    if (s_nmea_pos > 6 && nmea_checksum_ok(s_nmea)) {
         if (memcmp(&s_nmea[3], "GGA", 3) == 0) {
             gnss_fix_parse_gga(s_nmea);
         } else if (memcmp(&s_nmea[3], "GSV", 3) == 0) {
@@ -108,14 +132,17 @@ void base_stream_demux_feed(const uint8_t *buf, size_t len, base_demux_rtcm_cb_t
                 // I 6 bit alti dopo il preambolo sono riservati a zero: se
                 // non lo sono, 0xD3 era un byte qualunque, non un frame.
                 if (s_rtcm[1] & 0xFC) {
-                    s_state = ST_IDLE;
+                    rtcm_resync(s_rtcm_pos, on_rtcm);
                     break;
                 }
                 s_rtcm_total = 3 + (((size_t) (s_rtcm[1] & 0x03) << 8) | s_rtcm[2]) + 3;
             }
             if (s_rtcm_total && s_rtcm_pos == s_rtcm_total) {
-                rtcm_frame_done(on_rtcm);
-                s_state = ST_IDLE;
+                if (rtcm_frame_done(on_rtcm)) {
+                    s_state = ST_IDLE;
+                } else {
+                    rtcm_resync(s_rtcm_total, on_rtcm);
+                }
             }
             break;
 
@@ -123,9 +150,13 @@ void base_stream_demux_feed(const uint8_t *buf, size_t len, base_demux_rtcm_cb_t
             if (c == '\n' || c == '\r') {
                 nmea_line_done();
                 s_state = ST_IDLE;
-            } else if (c < 0x20 || c > 0x7E || s_nmea_pos >= NMEA_MAX_LINE - 1) {
-                // Non ASCII stampabile o riga troppo lunga: non era NMEA.
+            } else if (c < 0x20 || c > 0x7E || c == '$' || c == '#' || s_nmea_pos >= NMEA_MAX_LINE - 1) {
+                // Non ASCII stampabile, inizio di un'altra riga o riga troppo
+                // lunga: la riga in corso era troncata. Il byte si rianalizza
+                // da IDLE (puo' essere lo 0xD3 di un frame RTCM o il '$' della
+                // riga seguente): prima andava perso, e con lui il frame.
                 s_state = ST_IDLE;
+                i--;
             } else {
                 s_nmea[s_nmea_pos++] = (char) c;
             }
@@ -137,7 +168,9 @@ void base_stream_demux_feed(const uint8_t *buf, size_t len, base_demux_rtcm_cb_t
                 s_state = ST_UBX_BODY;
                 s_ubx_remaining = 0;
             } else {
+                // 0xB5 isolato: il byte corrente si rianalizza da IDLE.
                 s_state = ST_IDLE;
+                i--;
             }
             break;
 

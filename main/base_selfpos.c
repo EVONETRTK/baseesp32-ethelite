@@ -13,6 +13,8 @@
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/idf_additions.h"
+#include "esp_heap_caps.h"
 #include "freertos/semphr.h"
 #include "freertos/message_buffer.h"
 
@@ -51,7 +53,14 @@ typedef struct {
     double toe, toc, f0, f1, f2, tgd;
     double M0, deln, e, sqrtA, OMG0, i0, omg, OMGd, idot;
     double cuc, cus, crc, crs, cic, cis;
+    double t_dec;   // tempo GPS assoluto (s) della decodifica, 0 = prima del primo RAWX
 } eph_t;
+
+// Eta' massima di un'effemeride (dalla decodifica): sat_pos() controlla solo
+// |t - toe| dentro la settimana, quindi un'effemeride rimasta in RAM da
+// esattamente 7 giorni prima passava il controllo con il satellite a
+// migliaia di km dalla posizione vera.
+#define EPH_MAX_AGE_S (6 * 3600.0)
 
 typedef struct {
     const eph_t *e;
@@ -88,6 +97,7 @@ static bool s_x_ok;
 static float *s_se, *s_sn, *s_su; // campioni della finestra (PSRAM)
 static float *s_sort;
 static app_settings_t *s_cfg;     // PSRAM: troppo grande per lo stack del task
+static double s_now_abs;          // tempo GPS assoluto dell'ultimo RAWX (settimana * 604800 + tow)
 
 // =============================================================================
 // Bit
@@ -210,6 +220,7 @@ static void decode_lnav(int sv, const uint32_t *words)
         return;
     }
     e.valid = (svh == 0);
+    e.t_dec = s_now_abs;
     s_gps[sv] = e;
 }
 
@@ -298,6 +309,7 @@ static void decode_inav(int sv, const uint32_t *words)
         return;
     }
     e.valid = (health == 0);
+    e.t_dec = s_now_abs;
     s_gal[sv] = e;
 }
 
@@ -671,6 +683,19 @@ static void close_window(void)
     reset_window();
 }
 
+// Effemeride sana e decodificata da meno di EPH_MAX_AGE_S. Quelle decodificate
+// prima del primo RAWX (tempo ancora ignoto) prendono il tempo di adesso.
+static bool eph_usable(eph_t *e)
+{
+    if (!e->valid) {
+        return false;
+    }
+    if (e->t_dec <= 0) {
+        e->t_dec = s_now_abs;
+    }
+    return s_now_abs - e->t_dec <= EPH_MAX_AGE_S;
+}
+
 static void process_rawx(const uint8_t *p, size_t len)
 {
     if (len < 16) {
@@ -682,6 +707,8 @@ static void process_rawx(const uint8_t *p, size_t len)
     if ((size_t) (16 + 32 * nm) > len) {
         return;
     }
+    // Tempo assoluto (settimana GPS @8) per l'eta' delle effemeridi.
+    s_now_abs = ((uint32_t) p[8] | ((uint32_t) p[9] << 8)) * 604800.0 + tow;
     // Una soluzione ogni ~5 s anche se la registrazione dei dati grezzi chiede 1 s.
     if (s_last_tow >= 0 && fabs(dt_wrap(tow - s_last_tow)) < 4.5) {
         return;
@@ -690,10 +717,10 @@ static void process_rawx(const uint8_t *p, size_t len)
 
     int ng = 0, ne = 0;
     for (int i = 1; i <= GPS_N; i++) {
-        ng += s_gps[i].valid;
+        ng += eph_usable(&s_gps[i]);
     }
     for (int i = 1; i <= GAL_N; i++) {
-        ne += s_gal[i].valid;
+        ne += eph_usable(&s_gal[i]);
     }
     int nobs = 0;
     for (int k = 0; k < nm && nobs < MAX_OBS; k++) {
@@ -710,7 +737,7 @@ static void process_rawx(const uint8_t *p, size_t len)
             e = &s_gal[sv];
             gal = true;
         }
-        if (!e || !e->valid) {
+        if (!e || !eph_usable((eph_t *) e)) {
             continue;
         }
         double pr;
@@ -884,7 +911,9 @@ void base_selfpos_start(bool ublox_base, bool fixed_coords_etrf2000)
     s_st.state = BASE_SELFPOS_WAIT_SATS;
     s_st.threshold_m = 5.0f;
     // 6 KB: solo variabili semplici sullo stack, tutto il resto e' statico.
-    if (xTaskCreate(selfpos_task, "base_selfpos", 6144, NULL, 3, NULL) != pdPASS) {
+    // Stack in PSRAM (RAM interna scarsa): il task non scrive mai in flash/NVS.
+    if (xTaskCreateWithCaps(selfpos_task, "base_selfpos", 6144, NULL, 3, NULL, MALLOC_CAP_SPIRAM) != pdPASS &&
+        xTaskCreate(selfpos_task, "base_selfpos", 6144, NULL, 3, NULL) != pdPASS) {
         s_st.state = BASE_SELFPOS_OFF;
         return;
     }

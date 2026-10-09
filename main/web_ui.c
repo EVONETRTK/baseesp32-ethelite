@@ -40,9 +40,11 @@
 #include "geo_convert.h"
 #include "ppp_log.h"
 #include "fw_archive.h"
+#include "gnss_io.h"
 
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -51,12 +53,15 @@
 #include "cJSON.h"
 #include "mbedtls/base64.h"
 #include "esp_random.h"
+#include "esp_heap_caps.h"
 #include "nvs.h"
 #include "mbedtls/sha256.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+
+#include "lwip/sockets.h"
 
 static const char *TAG = "web_ui";
 
@@ -85,10 +90,12 @@ extern const uint8_t access_html_start[] asm("_binary_access_html_start");
 extern const uint8_t access_html_end[]   asm("_binary_access_html_end");
 
 // HTTP Basic Auth, utente fisso "admin" + codice impostabile dalla UI
-// stessa (settings.admin_code). Un codice vuoto disabilita la protezione
-// (usato anche come stato transitorio, es. subito dopo un flash pulito
-// prima che venga letta la configurazione - non dovrebbe capitare visto
-// che apply_defaults() imposta sempre un codice di default).
+// stessa (settings.admin_code). Un codice vuoto (configurazione corrotta o
+// importata) non apre piu' il pannello a tutti: vale quello di fabbrica
+// "1234" (revisione del 09/10/2026).
+#define ADMIN_CODE_FACTORY "1234"
+#define ADMIN_CODE_MIN_LEN 4
+
 static void peek_admin_code(const app_settings_t *s, void *ctx)
 {
     strlcpy((char *) ctx, s->admin_code, sizeof(s->admin_code));
@@ -100,34 +107,145 @@ static void admin_code_get(char out[33])
 {
     out[0] = '\0';
     settings_peek(peek_admin_code, out);
+    if (out[0] == '\0') {
+        strlcpy(out, ADMIN_CODE_FACTORY, 33);
+    }
 }
 
-static bool check_auth(httpd_req_t *req, const char *admin_code)
-{
-    if (admin_code[0] == '\0') {
-        return true;
-    }
+// Esito del controllo Basic Auth: nessuna credenziale inviata (prima
+// richiesta del browser, non conta come tentativo), giusta o sbagliata.
+typedef enum { AUTH_NONE, AUTH_OK, AUTH_WRONG } auth_result_t;
 
+static auth_result_t check_auth(httpd_req_t *req, const char *admin_code)
+{
     char auth_hdr[128];
-    if (httpd_req_get_hdr_value_str(req, "Authorization", auth_hdr, sizeof(auth_hdr)) != ESP_OK) {
-        return false;
+    esp_err_t e = httpd_req_get_hdr_value_str(req, "Authorization", auth_hdr, sizeof(auth_hdr));
+    if (e == ESP_ERR_NOT_FOUND) {
+        return AUTH_NONE;
     }
-    if (strncmp(auth_hdr, "Basic ", 6) != 0) {
-        return false;
+    if (e != ESP_OK || strncmp(auth_hdr, "Basic ", 6) != 0) {
+        return AUTH_WRONG;
     }
 
     unsigned char decoded[96];
     size_t decoded_len = 0;
     if (mbedtls_base64_decode(decoded, sizeof(decoded) - 1, &decoded_len,
                                (const unsigned char *) auth_hdr + 6, strlen(auth_hdr + 6)) != 0) {
-        return false;
+        return AUTH_WRONG;
     }
     decoded[decoded_len] = '\0';
 
     char expected[128];
     snprintf(expected, sizeof(expected), "admin:%s", admin_code);
 
-    return strcmp((const char *) decoded, expected) == 0;
+    return strcmp((const char *) decoded, expected) == 0 ? AUTH_OK : AUTH_WRONG;
+}
+
+// Tentativi sbagliati per indirizzo del client: dopo AUTH_FREE_TRIES errori
+// di fila quell'indirizzo riceve subito 429 per un tempo che raddoppia a ogni
+// errore (1 s, 2 s, 4 s... fino a 5 minuti). Prima nessun freno: un codice
+// di 4 cifre si indovinava in pochi minuti dalla rete locale o dall'AP
+// (revisione del 09/10/2026). Niente attese dentro il server web (unico
+// task): si risponde subito. Usata solo dal task del server web.
+#define AUTH_FREE_TRIES 5
+#define AUTH_MAX_BLOCK_S 300
+#define AUTH_SLOTS 8
+
+static struct {
+    uint32_t ip;
+    uint8_t fails;
+    int64_t until_us;
+} s_auth_fail[AUTH_SLOTS];
+
+static uint32_t client_ip_key(httpd_req_t *req)
+{
+    struct sockaddr_storage addr;
+    socklen_t len = sizeof(addr);
+    if (getpeername(httpd_req_to_sockfd(req), (struct sockaddr *) &addr, &len) != 0) {
+        return 0;
+    }
+    if (addr.ss_family == AF_INET) {
+        return ((struct sockaddr_in *) &addr)->sin_addr.s_addr;
+    }
+    if (addr.ss_family == AF_INET6) {
+        // IPv4 mappato in IPv6 o IPv6 vero: ultimi 4 byte come chiave.
+        uint32_t k;
+        memcpy(&k, &((struct sockaddr_in6 *) &addr)->sin6_addr.s6_addr[12], sizeof(k));
+        return k;
+    }
+    return 0;
+}
+
+static int auth_slot(uint32_t ip, bool create)
+{
+    int oldest = 0;
+    for (int i = 0; i < AUTH_SLOTS; i++) {
+        if (s_auth_fail[i].fails && s_auth_fail[i].ip == ip) {
+            return i;
+        }
+        if (s_auth_fail[i].until_us < s_auth_fail[oldest].until_us ||
+            (s_auth_fail[i].fails == 0 && s_auth_fail[oldest].fails != 0)) {
+            oldest = i;
+        }
+    }
+    if (!create) {
+        return -1;
+    }
+    s_auth_fail[oldest].ip = ip;
+    s_auth_fail[oldest].fails = 0;
+    s_auth_fail[oldest].until_us = 0;
+    return oldest;
+}
+
+// Secondi di attesa ancora da fare per questo client (0 = puo' riprovare).
+static int auth_blocked_s(uint32_t ip)
+{
+    int i = auth_slot(ip, false);
+    if (i < 0) {
+        return 0;
+    }
+    int64_t left = s_auth_fail[i].until_us - esp_timer_get_time();
+    return left > 0 ? (int) (left / 1000000) + 1 : 0;
+}
+
+static void auth_note_fail(uint32_t ip)
+{
+    int i = auth_slot(ip, true);
+    if (s_auth_fail[i].fails < 255) {
+        s_auth_fail[i].fails++;
+    }
+    if (s_auth_fail[i].fails >= AUTH_FREE_TRIES) {
+        int shift = s_auth_fail[i].fails - AUTH_FREE_TRIES;
+        int wait_s = shift > 8 ? AUTH_MAX_BLOCK_S : (1 << shift);
+        if (wait_s > AUTH_MAX_BLOCK_S) {
+            wait_s = AUTH_MAX_BLOCK_S;
+        }
+        s_auth_fail[i].until_us = esp_timer_get_time() + (int64_t) wait_s * 1000000;
+        ESP_LOGW(TAG, "%u tentativi di accesso sbagliati di fila: attesa di %d s per quell'indirizzo",
+                 (unsigned) s_auth_fail[i].fails, wait_s);
+    }
+}
+
+static void auth_note_ok(uint32_t ip)
+{
+    int i = auth_slot(ip, false);
+    if (i >= 0) {
+        s_auth_fail[i].fails = 0;
+        s_auth_fail[i].until_us = 0;
+    }
+}
+
+static esp_err_t send_too_many(httpd_req_t *req, int wait_s)
+{
+    char ra[12];
+    snprintf(ra, sizeof(ra), "%d", wait_s);
+    httpd_resp_set_status(req, "429 Too Many Requests");
+    httpd_resp_set_hdr(req, "Retry-After", ra);
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    char msg[120];
+    snprintf(msg, sizeof(msg), "Troppi tentativi con la password sbagliata: riprova tra %d secondi.", wait_s);
+    httpd_resp_sendstr(req, msg);
+    return ESP_FAIL;
 }
 
 // Cookie di sessione: il popup Basic Auth del browser non viene ricordato
@@ -140,12 +258,15 @@ static bool check_auth(httpd_req_t *req, const char *admin_code)
 #define AUTH_COOKIE_NAME "evonetrtk_auth"
 #define AUTH_COOKIE_MAX_AGE_S (30 * 24 * 3600)
 
-// Valore del cookie: SHA-256 di (valore casuale della base + password),
-// troncato a 32 cifre esadecimali. Prima il cookie conteneva la password in
-// chiaro: chi leggeva i cookie del browser la vedeva (collaudo del
-// 06/10/2026). Cambia da solo quando cambia la password. Il valore casuale e'
-// generato una volta e salvato in NVS ("auth"/"salt"), uguale tra i riavvii.
-static void auth_token(const char *admin_code, char out[33])
+// Valore del cookie: "<ora di emissione in esadecimale>.<firma>", con la
+// firma = SHA-256 di (valore casuale della base + password + ora di
+// emissione), troncato a 32 cifre esadecimali. Prima il cookie conteneva la
+// password in chiaro (collaudo del 06/10/2026), poi una firma senza ora che
+// valeva per sempre: dal 09/10/2026 la base rifiuta i cookie piu' vecchi di
+// 30 giorni (quando l'ora e' nota). Cambia da solo quando cambia la
+// password. Il valore casuale e' generato una volta e salvato in NVS
+// ("auth"/"salt"), uguale tra i riavvii.
+static void auth_token(const char *admin_code, int64_t issued, char out[33])
 {
     static uint8_t salt[16];
     static bool salt_ok;
@@ -168,6 +289,7 @@ static void auth_token(const char *admin_code, char out[33])
     mbedtls_sha256_starts(&c, 0);
     mbedtls_sha256_update(&c, salt, sizeof(salt));
     mbedtls_sha256_update(&c, (const uint8_t *) admin_code, strlen(admin_code));
+    mbedtls_sha256_update(&c, (const uint8_t *) &issued, sizeof(issued));
     mbedtls_sha256_finish(&c, hash);
     mbedtls_sha256_free(&c);
     for (int i = 0; i < 16; i++) {
@@ -175,20 +297,62 @@ static void auth_token(const char *admin_code, char out[33])
     }
 }
 
+// Ora "valida" per le scadenze dei cookie: 0 finche' l'NTP non ha sincronizzato.
+static int64_t auth_now(void)
+{
+    time_t t = time(NULL);
+    return (time_sync_is_valid() && t > 1700000000) ? (int64_t) t : 0;
+}
+
 static bool check_auth_cookie(httpd_req_t *req, const char *admin_code)
 {
-    if (admin_code[0] == '\0') {
-        return true;
-    }
-    char cookie_hdr[160];
+    char cookie_hdr[320];
     if (httpd_req_get_hdr_value_str(req, "Cookie", cookie_hdr, sizeof(cookie_hdr)) != ESP_OK) {
         return false;
     }
+    // Cerca "evonetrtk_auth=" all'inizio o dopo "; " (non dentro un altro nome).
+    const char *p = cookie_hdr;
+    const char *v = NULL;
+    while ((p = strstr(p, AUTH_COOKIE_NAME "=")) != NULL) {
+        if (p == cookie_hdr || p[-1] == ' ' || p[-1] == ';') {
+            v = p + strlen(AUTH_COOKIE_NAME "=");
+            break;
+        }
+        p++;
+    }
+    if (!v) {
+        return false;
+    }
+    char val[64];
+    size_t n = strcspn(v, ";");
+    if (n >= sizeof(val)) {
+        return false;
+    }
+    memcpy(val, v, n);
+    val[n] = '\0';
+    char *dot = strchr(val, '.');
+    if (!dot || strlen(dot + 1) != 32) {
+        return false; // formato vecchio (senza ora): si ripassa dalla password una volta
+    }
+    *dot = '\0';
+    char *end = NULL;
+    int64_t issued = (int64_t) strtoll(val, &end, 16);
+    if (!end || *end != '\0') {
+        return false;
+    }
     char token[33];
-    auth_token(admin_code, token);
-    char expected[64];
-    snprintf(expected, sizeof(expected), AUTH_COOKIE_NAME "=%s", token);
-    return strstr(cookie_hdr, expected) != NULL;
+    auth_token(admin_code, issued, token);
+    if (strcmp(token, dot + 1) != 0) {
+        return false;
+    }
+    int64_t now = auth_now();
+    if (now) {
+        // Emesso senza ora valida (prima dell'NTP), troppo vecchio o "dal futuro".
+        if (issued == 0 || now - issued > AUTH_COOKIE_MAX_AGE_S || issued > now + 86400) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // Comandi (POST) mandati da un'altra pagina web aperta nello stesso browser
@@ -212,8 +376,59 @@ static bool origin_ok(httpd_req_t *req)
     return o && strcasecmp(o + 3, host) == 0;
 }
 
+static void peek_ap_ssid(const app_settings_t *s, void *ctx)
+{
+    strlcpy((char *) ctx, s->ap_ssid, sizeof(s->ap_ssid));
+}
+
+// DNS rebinding: una pagina web qualunque puo' far puntare un proprio nome
+// all'IP della base e da quel momento il browser la tratta come "stessa
+// origine" (Origin e Host coincidono, il controllo sopra non basta): con la
+// password di fabbrica avrebbe il controllo completo. Il trucco richiede
+// sempre un NOME: si accettano quindi solo indirizzi IP scritti come numeri
+// (della base, dell'AP 192.168.4.1, della VPN, o pubblici con l'inoltro
+// delle porte del router) e il nome mDNS della base (<nome AP>.local).
+// Senza Host (HTTP/1.0, strumenti) decide solo l'autenticazione.
+static bool host_ok(httpd_req_t *req)
+{
+    char host[96];
+    esp_err_t e = httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host));
+    if (e == ESP_ERR_NOT_FOUND) {
+        return true;
+    }
+    if (e != ESP_OK) {
+        return false;
+    }
+    if (host[0] == '[') {
+        return true; // IPv6 scritto come numero
+    }
+    char *colon = strchr(host, ':');
+    if (colon) {
+        *colon = '\0'; // porta
+    }
+    size_t len = strlen(host);
+    if (len > 0 && host[len - 1] == '.') {
+        host[--len] = '\0';
+    }
+    if (len > 0 && strspn(host, "0123456789.") == len) {
+        return true; // IPv4 scritto come numero
+    }
+    char name[40];
+    char expect[48];
+    name[0] = '\0';
+    settings_peek(peek_ap_ssid, name);
+    snprintf(expect, sizeof(expect), "%s.local", name);
+    return name[0] && strcasecmp(host, expect) == 0;
+}
+
 static esp_err_t require_auth(httpd_req_t *req)
 {
+    if (!host_ok(req)) {
+        ESP_LOGW(TAG, "Richiesta %s rifiutata: nome dell'indirizzo sconosciuto (possibile DNS rebinding)", req->uri);
+        httpd_resp_send_err(req, HTTPD_403_FORBIDDEN,
+                            "Indirizzo non riconosciuto: apri il pannello con l'indirizzo IP della base o con il suo nome .local.");
+        return ESP_FAIL;
+    }
     if (req->method == HTTP_POST && !origin_ok(req)) {
         ESP_LOGW(TAG, "Comando %s rifiutato: inviato da un'altra pagina web (Origin diverso dall'indirizzo della base)", req->uri);
         httpd_resp_send_err(req, HTTPD_403_FORBIDDEN,
@@ -241,20 +456,34 @@ static esp_err_t require_auth(httpd_req_t *req)
         return ESP_OK;
     }
 
-    if (check_auth(req, admin_code)) {
+    uint32_t ip = client_ip_key(req);
+    auth_result_t ar = check_auth(req, admin_code);
+    if (ar != AUTH_NONE) {
+        int wait_s = auth_blocked_s(ip);
+        if (wait_s > 0) {
+            return send_too_many(req, wait_s);
+        }
+    }
+    if (ar == AUTH_OK) {
+        auth_note_ok(ip);
         // Autenticato via Basic Auth: imposta anche il cookie di sessione
         // cosi' le richieste successive non lo richiedono piu'. Buffer
         // "static": il server web qui gestisce una richiesta alla volta
         // (nessun worker parallelo configurato), il valore resta valido
         // fino a quando httpd_resp_send* viene chiamato piu' avanti nello
-        // stesso handler che ha invocato questa funzione.
+        // stesso handler che ha invocato questa funzione. HttpOnly: uno
+        // script nella pagina non lo puo' leggere.
         static char cookie_val[192];
         char token[33];
-        auth_token(admin_code, token);
-        snprintf(cookie_val, sizeof(cookie_val), AUTH_COOKIE_NAME "=%s; Max-Age=%d; Path=/; SameSite=Lax",
-                 token, AUTH_COOKIE_MAX_AGE_S);
+        int64_t issued = auth_now();
+        auth_token(admin_code, issued, token);
+        snprintf(cookie_val, sizeof(cookie_val), AUTH_COOKIE_NAME "=%llx.%s; Max-Age=%d; Path=/; SameSite=Lax; HttpOnly",
+                 (unsigned long long) issued, token, AUTH_COOKIE_MAX_AGE_S);
         httpd_resp_set_hdr(req, "Set-Cookie", cookie_val);
         return ESP_OK;
+    }
+    if (ar == AUTH_WRONG) {
+        auth_note_fail(ip);
     }
 
     ESP_LOGW(TAG, "Autenticazione fallita per %s", req->uri);
@@ -280,6 +509,7 @@ static esp_err_t require_auth(httpd_req_t *req)
         "<li>password: quella impostata nella scheda Sicurezza (&quot;Codice di accesso&quot;)</li></ul>"
         "<p>Se la password e' stata cambiata da poco e il browser non la chiede piu': chiudere tutte le schede del pannello "
         "e aprirlo in una finestra in incognito, oppure cancellare i dati di questo sito nel browser.</p>"
+        "<p>Dopo 5 tentativi sbagliati di fila bisogna aspettare qualche secondo prima di riprovare (sempre di piu', fino a 5 minuti).</p>"
         "<p>Password dimenticata: pulsante BOOT premuto 5 secondi (reset di fabbrica, password 1234; si perde la configurazione).</p>"
         "<p><a href=\"/\">Riprova</a></p></body></html>");
     return ESP_FAIL;
@@ -317,6 +547,7 @@ static esp_err_t access_get_handler(httpd_req_t *req)
 
 typedef struct {
     const char *given;  // password admin reinserita
+    const char *admin;  // codice admin in vigore (quello di fabbrica se vuoto)
     bool ok;
     cJSON *out;
 } access_secrets_ctx_t;
@@ -324,12 +555,12 @@ typedef struct {
 static void peek_access_secrets(const app_settings_t *s, void *arg)
 {
     access_secrets_ctx_t *c = (access_secrets_ctx_t *) arg;
-    c->ok = s->admin_code[0] == 0 || strcmp(c->given, s->admin_code) == 0;
+    c->ok = strcmp(c->given, c->admin) == 0;
     if (!c->ok) {
         return;
     }
     cJSON *o = c->out;
-    cJSON_AddStringToObject(o, "admin_password", s->admin_code);
+    cJSON_AddStringToObject(o, "admin_password", c->admin);
     cJSON_AddStringToObject(o, "ap_password", s->ap_password);
     cJSON_AddStringToObject(o, "wifi_password", s->wifi_password);
     cJSON_AddStringToObject(o, "ntrip_username", s->ntrip_username);
@@ -357,6 +588,11 @@ static esp_err_t access_secrets_post_handler(httpd_req_t *req)
     if (require_auth(req) != ESP_OK) {
         return ESP_FAIL;
     }
+    uint32_t ip = client_ip_key(req);
+    int wait_s = auth_blocked_s(ip);
+    if (wait_s > 0) {
+        return send_too_many(req, wait_s);
+    }
     char buf[128] = {0};
     int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
     if (len <= 0 || httpd_req_recv(req, buf, len) != len) {
@@ -369,17 +605,24 @@ static esp_err_t access_secrets_post_handler(httpd_req_t *req)
         strlcpy(given, p->valuestring, sizeof(given));
     }
     cJSON_Delete(root);
-    access_secrets_ctx_t ctx = { .given = given, .ok = false, .out = cJSON_CreateObject() };
+    char admin_now[33];
+    admin_code_get(admin_now);
+    access_secrets_ctx_t ctx = { .given = given, .admin = admin_now, .ok = false, .out = cJSON_CreateObject() };
     settings_peek(peek_access_secrets, &ctx);
     memset(given, 0, sizeof(given));
     memset(buf, 0, sizeof(buf));
     if (!ctx.ok) {
         cJSON_Delete(ctx.out);
         ESP_LOGW(TAG, "Scheda di accesso: password admin errata");
-        vTaskDelay(pdMS_TO_TICKS(1000)); // rallenta i tentativi a caso
+        // Prima un'attesa di 1 s qui dentro bloccava tutto il server web:
+        // ora conta come tentativo sbagliato (risposta 429 dopo 5 di fila).
+        auth_note_fail(ip);
+        memset(admin_now, 0, sizeof(admin_now));
         httpd_resp_set_status(req, "403 Forbidden");
         return httpd_resp_sendstr(req, "{\"error\":\"password errata\"}");
     }
+    auth_note_ok(ip);
+    memset(admin_now, 0, sizeof(admin_now));
     char *json = cJSON_PrintUnformatted(ctx.out);
     cJSON_Delete(ctx.out);
     if (!json) {
@@ -619,7 +862,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
             cJSON_AddStringToObject(root, "eth_ip", ip_str);
         }
     }
-    cJSON_AddNumberToObject(root, "rtcm_bytes", status_get_rtcm_total_bytes());
+    cJSON_AddNumberToObject(root, "rtcm_bytes", (double) status_get_rtcm_total_bytes64());
     cJSON_AddNumberToObject(root, "last_rtcm_us", (double) status_get_last_rtcm_time_us());
     cJSON_AddNumberToObject(root, "last_gga_sent_us", (double) status_get_last_gga_sent_time_us());
 
@@ -648,6 +891,16 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     // Ricevitore in uso (con "automatico", quello trovato all'avvio) ed esito del riconoscimento.
     cJSON_AddStringToObject(root, "gnss_chip_effective", gnss_chip_str(gnss_detect_effective(s.gnss_chip)));
     cJSON_AddStringToObject(root, "gnss_detect_note", gnss_detect_note());
+    // Seriale del ricevitore non aperta con i pin impostati (gnss_io.c).
+    cJSON_AddStringToObject(root, "gnss_io_note", gnss_io_note());
+    {
+        // Codice di accesso ancora quello di fabbrica: il pannello lo segnala.
+        char ac[33];
+        admin_code_get(ac);
+        cJSON_AddBoolToObject(root, "admin_code_default", strcmp(ac, ADMIN_CODE_FACTORY) == 0);
+        memset(ac, 0, sizeof(ac));
+    }
+    cJSON_AddBoolToObject(root, "fw_update_running", ota_update_in_progress());
     {
         // Impostazioni salvate che valgono solo dopo il riavvio (barra nel pannello).
         char pending[192];
@@ -1245,42 +1498,215 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Errore di validazione di una richiesta (il primo trovato): la richiesta
+// viene rifiutata per intero con questo messaggio, niente salvato.
+#define VERR_SIZE 192
+
+static void verr_set(char *verr, const char *fmt, const char *key, int n)
+{
+    if (verr && verr[0] == '\0') {
+        snprintf(verr, VERR_SIZE, fmt, key, n);
+    }
+}
+
+// Testo accettabile per dst_size: non troppo lungo e senza caratteri di
+// controllo (a capo, tab...: un a capo nell'utente SMTP aggiungeva comandi
+// SMTP). Prima i testi troppo lunghi venivano troncati in silenzio: un codice
+// di accesso di 40 caratteri ne salvava 32 e l'utente restava chiuso fuori
+// (revisione del 09/10/2026).
+static bool field_text_ok(const char *key, const char *v, size_t dst_size, char *verr)
+{
+    size_t len = strlen(v);
+    if (len >= dst_size) {
+        verr_set(verr, "Campo \"%s\" troppo lungo: massimo %d caratteri. Nessuna impostazione salvata.", key, (int) dst_size - 1);
+        return false;
+    }
+    for (const unsigned char *c = (const unsigned char *) v; *c; c++) {
+        if (*c < 0x20 || *c == 0x7F) {
+            verr_set(verr, "Campo \"%s\": caratteri non ammessi (a capo o di controllo). Nessuna impostazione salvata.%.0d", key, 0);
+            return false;
+        }
+    }
+    return true;
+}
+
 // Copia il campo stringa solo se presente e non vuoto: una stringa vuota
 // nel form significa "lascia invariato", non "cancella" - evita di
 // azzerare per sbaglio una password gia' salvata quando l'utente
-// aggiorna solo un altro campo.
-static void copy_field(const cJSON *root, const char *key, char *dst, size_t dst_size)
+// aggiorna solo un altro campo. Ritorna true se il campo e' stato copiato.
+static bool copy_field(const cJSON *root, const char *key, char *dst, size_t dst_size, char *verr)
 {
     cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
-    if (item && cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
-        strncpy(dst, item->valuestring, dst_size - 1);
-        dst[dst_size - 1] = '\0';
+    if (item && cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0' &&
+        field_text_ok(key, item->valuestring, dst_size, verr)) {
+        strlcpy(dst, item->valuestring, dst_size);
+        return true;
     }
+    return false;
 }
 
 // Come copy_field, ma applica anche la stringa vuota: solo per i campi dove
 // "vuoto" ha un significato preciso (es. canale di avviso spento). Ritorna
-// true se il campo era presente nella richiesta.
-static bool copy_field_allow_empty(const cJSON *root, const char *key, char *dst, size_t dst_size)
+// true se il campo era presente nella richiesta (e valido).
+static bool copy_field_allow_empty(const cJSON *root, const char *key, char *dst, size_t dst_size, char *verr)
 {
     cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
-    if (!item || !cJSON_IsString(item) || !item->valuestring) {
+    if (!item || !cJSON_IsString(item) || !item->valuestring ||
+        !field_text_ok(key, item->valuestring, dst_size, verr)) {
         return false;
     }
-    strncpy(dst, item->valuestring, dst_size - 1);
-    dst[dst_size - 1] = '\0';
+    strlcpy(dst, item->valuestring, dst_size);
+    return true;
+}
+
+// GPIO utilizzabili per ricevitore, LED e display sulla LilyGO T-ETH-Elite
+// (ESP32-S3). Esclusi: 0, 3, 45, 46 (pin di avvio: 0 e' anche il pulsante
+// BOOT), 19-20 (USB, console), 22-25 (non esistono sull'S3), 26-37 (flash e
+// PSRAM ottale: usarli manda in crash), quelli dell'Ethernet W5500 saldata
+// sulla scheda (14, 21, 45, 47, 48) e della microSD (9-12), piu' quelli
+// impostati in menuconfig per modem, LED di rete e pulsante. Prima si
+// accettava qualunque numero da -1 a 255: un GPIO 22 per la seriale del
+// ricevitore mandava la base in riavvio continuo (revisione del 09/10/2026).
+static bool pin_allowed(int pin)
+{
+    if (pin == -1) {
+        return true;
+    }
+    if (pin < 0 || pin > 48 || pin == 0 || pin == 3 || pin == 19 || pin == 20 ||
+        (pin >= 22 && pin <= 37) || pin == 45 || pin == 46) {
+        return false;
+    }
+    static const int board_pins[] = { 9, 10, 11, 12, 14, 21, 47, 48 };
+    for (size_t i = 0; i < sizeof(board_pins) / sizeof(board_pins[0]); i++) {
+        if (pin == board_pins[i]) {
+            return false;
+        }
+    }
+    const int cfg_pins[] = {
+#ifdef CONFIG_BASEESP32_CELLULAR_UART_TX_PIN
+        CONFIG_BASEESP32_CELLULAR_UART_TX_PIN,
+#endif
+#ifdef CONFIG_BASEESP32_CELLULAR_UART_RX_PIN
+        CONFIG_BASEESP32_CELLULAR_UART_RX_PIN,
+#endif
+#ifdef CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN
+        CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN,
+#endif
+#ifdef CONFIG_BASEESP32_CELLULAR_DTR_PIN
+        CONFIG_BASEESP32_CELLULAR_DTR_PIN,
+#endif
+#ifdef CONFIG_BASEESP32_LED_NET_PIN
+        CONFIG_BASEESP32_LED_NET_PIN,
+#endif
+#ifdef CONFIG_BASEESP32_LED_DATA_PIN
+        CONFIG_BASEESP32_LED_DATA_PIN,
+#endif
+#ifdef CONFIG_BASEESP32_RESET_BUTTON_PIN
+        CONFIG_BASEESP32_RESET_BUTTON_PIN,
+#endif
+#ifdef CONFIG_BASEESP32_SD_MISO_PIN
+        CONFIG_BASEESP32_SD_MISO_PIN, CONFIG_BASEESP32_SD_MOSI_PIN,
+        CONFIG_BASEESP32_SD_SCLK_PIN, CONFIG_BASEESP32_SD_CS_PIN,
+#endif
+#ifdef CONFIG_BASEESP32_ETH_SPI_MISO_PIN
+        CONFIG_BASEESP32_ETH_SPI_MISO_PIN, CONFIG_BASEESP32_ETH_SPI_MOSI_PIN,
+        CONFIG_BASEESP32_ETH_SPI_SCLK_PIN, CONFIG_BASEESP32_ETH_SPI_CS_PIN,
+        CONFIG_BASEESP32_ETH_SPI_INT_PIN,
+#endif
+        -1,
+    };
+    for (size_t i = 0; i < sizeof(cfg_pins) / sizeof(cfg_pins[0]); i++) {
+        if (cfg_pins[i] >= 0 && pin == cfg_pins[i]) {
+            return false;
+        }
+    }
     return true;
 }
 
 // Campo numerico di pin/GPIO: -1 = non usato, valido anche come "assente"
 // esplicito dal form (a differenza delle stringhe, qui il valore va
-// sempre applicato se presente, incluso -1).
-static void copy_pin_field(const cJSON *root, const char *key, int *dst)
+// sempre applicato se presente, incluso -1). Ritorna true se presente.
+static bool copy_pin_field(const cJSON *root, const char *key, int *dst, char *verr)
 {
     cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
-    if (item && cJSON_IsNumber(item) && item->valueint >= -1 && item->valueint < 256) {
-        *dst = item->valueint;
+    if (!item || !cJSON_IsNumber(item)) {
+        return false;
     }
+    if (item->valuedouble != (double) item->valueint || !pin_allowed(item->valueint)) {
+        verr_set(verr, "Campo \"%s\": GPIO %d non utilizzabile su questa scheda (riservato a flash/PSRAM, USB, Ethernet, "
+                       "microSD, modem o pin di avvio). Nessuna impostazione salvata.", key, item->valueint);
+        return true;
+    }
+    *dst = item->valueint;
+    return true;
+}
+
+// Stesso GPIO usato da due funzioni attive (seriale del ricevitore, display
+// I2C, LED): errore. Solo i pin davvero in uso con le scelte attuali.
+typedef struct {
+    const char *name;
+    int pin;
+} pin_use_t;
+
+static bool pins_conflict(const app_settings_t *s, char *verr)
+{
+    pin_use_t used[8];
+    int n = 0;
+    if (!s->gnss_i2c) {
+        used[n++] = (pin_use_t){ "TX seriale ricevitore", s->gnss_uart_tx_pin };
+        used[n++] = (pin_use_t){ "RX seriale ricevitore", s->gnss_uart_rx_pin };
+    }
+    used[n++] = (pin_use_t){ "SDA display/I2C", s->oled_sda_pin };
+    used[n++] = (pin_use_t){ "SCL display/I2C", s->oled_scl_pin };
+    if (s->rgb_led_mode == RGB_LED_WS2812) {
+        used[n++] = (pin_use_t){ "LED WS2812", s->rgb_led_ws2812_pin };
+    } else if (s->rgb_led_mode == RGB_LED_PWM3) {
+        used[n++] = (pin_use_t){ "LED rosso", s->rgb_led_pwm_r_pin };
+        used[n++] = (pin_use_t){ "LED verde", s->rgb_led_pwm_g_pin };
+        used[n++] = (pin_use_t){ "LED blu", s->rgb_led_pwm_b_pin };
+    }
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            if (used[i].pin >= 0 && used[i].pin == used[j].pin) {
+                if (verr && verr[0] == '\0') {
+                    snprintf(verr, VERR_SIZE, "GPIO %d usato due volte (%s e %s). Nessuna impostazione salvata.",
+                             used[i].pin, used[i].name, used[j].name);
+                }
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Numero WhatsApp: solo "+" iniziale e cifre (spazi, punti, trattini tolti).
+// Con uno spazio l'indirizzo di CallMeBot non era valido e l'invio mandava
+// la base in crash (revisione del 09/10/2026). Vuoto = canale spento.
+static bool clean_phone_number(const char *in, char *out, size_t out_size)
+{
+    size_t n = 0, digits = 0;
+    for (const char *c = in; *c; c++) {
+        if (*c >= '0' && *c <= '9') {
+            if (n + 1 >= out_size) {
+                return false;
+            }
+            out[n++] = *c;
+            digits++;
+        } else if (*c == '+' && n == 0) {
+            out[n++] = *c;
+        } else if (!(*c == ' ' || *c == '-' || *c == '.' || *c == '/' || *c == '(' || *c == ')')) {
+            return false;
+        }
+    }
+    out[n] = '\0';
+    return n == 0 || digits >= 6;
+}
+
+// Testo fatto solo dei caratteri ammessi (codici USSD, numeri, chiavi):
+// finisce tra virgolette in un comando AT del modem o in un URL.
+static bool only_chars(const char *v, const char *allowed)
+{
+    return strspn(v, allowed) == strlen(v);
 }
 
 static esp_err_t settings_post_handler(httpd_req_t *req)
@@ -1325,6 +1751,10 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     xSemaphoreTake(s_settings_edit_mutex, portMAX_DELAY);
     app_settings_t s;
     settings_get_into(&s); // senza la copia temporanea di settings_get() (2,4 KB di stack in meno)
+    // Primo errore di validazione: la richiesta viene rifiutata per intero
+    // (400 con il motivo) invece di salvare valori troncati o pericolosi.
+    char verr[VERR_SIZE] = "";
+    const network_mode_t old_network_mode = s.network_mode;
 
     // wifi_ssid passa da safe_utf8_to_raw_ssid_bytes() (vedi commento sopra
     // la sua definizione) invece del semplice copy_field(): puo' arrivare
@@ -1334,11 +1764,17 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     {
         cJSON *ssid_item = cJSON_GetObjectItemCaseSensitive(root, "wifi_ssid");
         if (ssid_item && cJSON_IsString(ssid_item) && ssid_item->valuestring[0] != '\0') {
-            safe_utf8_to_raw_ssid_bytes(ssid_item->valuestring, s.wifi_ssid, sizeof(s.wifi_ssid));
+            char raw[sizeof(s.wifi_ssid) + 8];
+            safe_utf8_to_raw_ssid_bytes(ssid_item->valuestring, raw, sizeof(raw));
+            if (field_text_ok("wifi_ssid", raw, sizeof(s.wifi_ssid), verr)) {
+                strlcpy(s.wifi_ssid, raw, sizeof(s.wifi_ssid));
+            }
         }
     }
-    copy_field(root, "wifi_password", s.wifi_password, sizeof(s.wifi_password));
-    copy_field(root, "cellular_apn", s.cellular_apn, sizeof(s.cellular_apn));
+    // Password WiFi: al massimo 63 caratteri (limite WPA2; la 64a veniva
+    // tagliata dal driver).
+    copy_field(root, "wifi_password", s.wifi_password, sizeof(s.wifi_password) - 1, verr);
+    copy_field(root, "cellular_apn", s.cellular_apn, sizeof(s.cellular_apn), verr);
     // Credito della SIM (sim_tools.c): campi che si possono anche svuotare.
     {
         // Solo gli operatori del menu del pannello (prima qualunque testo,
@@ -1355,7 +1791,10 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             }
         }
     }
-    copy_field_allow_empty(root, "remote_url", s.remote_url, sizeof(s.remote_url));
+    if (copy_field_allow_empty(root, "remote_url", s.remote_url, sizeof(s.remote_url), verr) && s.remote_url[0] &&
+        ((strncmp(s.remote_url, "https://", 8) != 0 && strncmp(s.remote_url, "http://", 7) != 0) || strchr(s.remote_url, ' '))) {
+        verr_set(verr, "Campo \"%s\": l'indirizzo deve iniziare con https:// e non contenere spazi.%.0d", "remote_url", 0);
+    }
     {
         cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "vpn_enable");
         if (it && cJSON_IsBool(it)) {
@@ -1374,16 +1813,20 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             s.vpn_port = (uint16_t) it->valueint;
         }
     }
-    copy_field_allow_empty(root, "vpn_address", s.vpn_address, sizeof(s.vpn_address));
-    copy_field_allow_empty(root, "vpn_peer_public_key", s.vpn_peer_public_key, sizeof(s.vpn_peer_public_key));
-    copy_field_allow_empty(root, "vpn_endpoint", s.vpn_endpoint, sizeof(s.vpn_endpoint));
+    copy_field_allow_empty(root, "vpn_address", s.vpn_address, sizeof(s.vpn_address), verr);
+    copy_field_allow_empty(root, "vpn_peer_public_key", s.vpn_peer_public_key, sizeof(s.vpn_peer_public_key), verr);
+    copy_field_allow_empty(root, "vpn_endpoint", s.vpn_endpoint, sizeof(s.vpn_endpoint), verr);
     {
         cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "remote_interval_min");
         if (it && cJSON_IsNumber(it) && it->valueint >= 0 && it->valueint <= 1440) {
             s.remote_interval_min = (uint16_t) it->valueint;
         }
     }
-    copy_field_allow_empty(root, "sim_credit_code", s.sim_credit_code, sizeof(s.sim_credit_code));
+    // Codice del credito: finisce tra virgolette nel comando AT del modem.
+    if (copy_field_allow_empty(root, "sim_credit_code", s.sim_credit_code, sizeof(s.sim_credit_code), verr) &&
+        !only_chars(s.sim_credit_code, "0123456789*#+")) {
+        verr_set(verr, "Campo \"%s\": solo cifre, * e # (es. *123#).%.0d", "sim_credit_code", 0);
+    }
     {
         // Numero: cifre, + iniziale e spazi; ICCID: solo cifre (e la F finale
         // di alcune SIM), spazi e trattini tolti.
@@ -1414,8 +1857,11 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             strlcpy(s.sim_iccid_cfg, tmp, sizeof(s.sim_iccid_cfg));
         }
     }
-    copy_field_allow_empty(root, "sim_credit_sms_number", s.sim_credit_sms_number, sizeof(s.sim_credit_sms_number));
-    copy_field_allow_empty(root, "sim_credit_sms_text", s.sim_credit_sms_text, sizeof(s.sim_credit_sms_text));
+    if (copy_field_allow_empty(root, "sim_credit_sms_number", s.sim_credit_sms_number, sizeof(s.sim_credit_sms_number), verr) &&
+        !only_chars(s.sim_credit_sms_number, "+0123456789")) {
+        verr_set(verr, "Campo \"%s\": solo cifre e + iniziale, senza spazi.%.0d", "sim_credit_sms_number", 0);
+    }
+    copy_field_allow_empty(root, "sim_credit_sms_text", s.sim_credit_sms_text, sizeof(s.sim_credit_sms_text), verr);
     {
         cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "sim_credit_mode");
         if (it && cJSON_IsString(it)) {
@@ -1434,21 +1880,27 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             s.sim_credit_min_eur = (float) it->valuedouble;
         }
     }
-    copy_field(root, "ntrip_host", s.ntrip_host, sizeof(s.ntrip_host));
-    copy_field(root, "ntrip_mountpoint", s.ntrip_mountpoint, sizeof(s.ntrip_mountpoint));
-    copy_field(root, "rover_mountpoint", s.rover_mountpoint, sizeof(s.rover_mountpoint));
-    copy_field(root, "rover_username", s.rover_username, sizeof(s.rover_username));
-    copy_field(root, "rover_password", s.rover_password, sizeof(s.rover_password));
-    copy_field(root, "ntrip_password", s.ntrip_password, sizeof(s.ntrip_password));
-    copy_field(root, "ap_ssid", s.ap_ssid, sizeof(s.ap_ssid));
-    copy_field(root, "ap_password", s.ap_password, sizeof(s.ap_password));
-    copy_field(root, "admin_code", s.admin_code, sizeof(s.admin_code));
+    copy_field(root, "ntrip_host", s.ntrip_host, sizeof(s.ntrip_host), verr);
+    copy_field(root, "ntrip_mountpoint", s.ntrip_mountpoint, sizeof(s.ntrip_mountpoint), verr);
+    copy_field(root, "rover_mountpoint", s.rover_mountpoint, sizeof(s.rover_mountpoint), verr);
+    copy_field(root, "rover_username", s.rover_username, sizeof(s.rover_username), verr);
+    copy_field(root, "rover_password", s.rover_password, sizeof(s.rover_password), verr);
+    copy_field(root, "ntrip_password", s.ntrip_password, sizeof(s.ntrip_password), verr);
+    copy_field(root, "ap_ssid", s.ap_ssid, sizeof(s.ap_ssid), verr);
+    // Password AP: da 8 a 63 caratteri (WPA2). Piu' corta la rete di
+    // emergenza partiva APERTA senza dirlo (revisione del 09/10/2026).
+    if (copy_field(root, "ap_password", s.ap_password, sizeof(s.ap_password) - 1, verr) && strlen(s.ap_password) < 8) {
+        verr_set(verr, "Campo \"%s\": almeno %d caratteri (altrimenti la rete di emergenza sarebbe aperta a tutti). Nessuna impostazione salvata.", "ap_password", 8);
+    }
+    if (copy_field(root, "admin_code", s.admin_code, sizeof(s.admin_code), verr) && strlen(s.admin_code) < ADMIN_CODE_MIN_LEN) {
+        verr_set(verr, "Campo \"%s\": almeno %d caratteri. Nessuna impostazione salvata.", "admin_code", ADMIN_CODE_MIN_LEN);
+    }
     {
         // La licenza e' legata alla matricola: cambiata dopo l'attivazione,
         // la licenza non varrebbe piu' ("licenza di un'altra matricola").
         char old_serial[sizeof(s.device_serial)];
         strlcpy(old_serial, s.device_serial, sizeof(old_serial));
-        copy_field(root, "device_serial", s.device_serial, sizeof(s.device_serial));
+        copy_field(root, "device_serial", s.device_serial, sizeof(s.device_serial), verr);
         if (strcmp(old_serial, s.device_serial) != 0 && license_is_stored()) {
             xSemaphoreGive(s_settings_edit_mutex);
             cJSON_Delete(root);
@@ -1459,23 +1911,39 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             return ESP_FAIL;
         }
     }
-    copy_field(root, "ota_update_url", s.ota_update_url, sizeof(s.ota_update_url));
+    // Senza "https://" o con uno spazio il client HTTP non si creava e il
+    // controllo aggiornamenti mandava la base in crash (revisione del 09/10/2026).
+    if (copy_field(root, "ota_update_url", s.ota_update_url, sizeof(s.ota_update_url), verr) &&
+        ((strncmp(s.ota_update_url, "https://", 8) != 0 && strncmp(s.ota_update_url, "http://", 7) != 0) ||
+         strchr(s.ota_update_url, ' '))) {
+        verr_set(verr, "Campo \"%s\": l'indirizzo deve iniziare con https:// e non contenere spazi.%.0d", "ota_update_url", 0);
+    }
     // Host SMTP, destinatario email e numero WhatsApp: vuoto = canale spento
     // (vedi alerts.c), quindi si puo' salvare anche vuoto.
-    copy_field_allow_empty(root, "alert_smtp_host", s.alert_smtp_host, sizeof(s.alert_smtp_host));
-    copy_field(root, "alert_smtp_user", s.alert_smtp_user, sizeof(s.alert_smtp_user));
-    copy_field(root, "alert_smtp_password", s.alert_smtp_password, sizeof(s.alert_smtp_password));
-    copy_field_allow_empty(root, "alert_email_to", s.alert_email_to, sizeof(s.alert_email_to));
-    copy_field_allow_empty(root, "alert_whatsapp_phone", s.alert_whatsapp_phone, sizeof(s.alert_whatsapp_phone));
-    copy_field(root, "alert_whatsapp_apikey", s.alert_whatsapp_apikey, sizeof(s.alert_whatsapp_apikey));
-    copy_field(root, "ntrip_caster_server_mountpoint", s.ntrip_caster_server_mountpoint, sizeof(s.ntrip_caster_server_mountpoint));
-    copy_field(root, "ntrip_caster_server_password", s.ntrip_caster_server_password, sizeof(s.ntrip_caster_server_password));
+    copy_field_allow_empty(root, "alert_smtp_host", s.alert_smtp_host, sizeof(s.alert_smtp_host), verr);
+    copy_field(root, "alert_smtp_user", s.alert_smtp_user, sizeof(s.alert_smtp_user), verr);
+    copy_field(root, "alert_smtp_password", s.alert_smtp_password, sizeof(s.alert_smtp_password), verr);
+    copy_field_allow_empty(root, "alert_email_to", s.alert_email_to, sizeof(s.alert_email_to), verr);
+    if (copy_field_allow_empty(root, "alert_whatsapp_phone", s.alert_whatsapp_phone, sizeof(s.alert_whatsapp_phone), verr)) {
+        char ph[sizeof(s.alert_whatsapp_phone)];
+        if (clean_phone_number(s.alert_whatsapp_phone, ph, sizeof(ph))) {
+            strlcpy(s.alert_whatsapp_phone, ph, sizeof(s.alert_whatsapp_phone));
+        } else {
+            verr_set(verr, "Campo \"%s\": numero non valido (prefisso internazionale e cifre, es. 391234567890).%.0d", "alert_whatsapp_phone", 0);
+        }
+    }
+    if (copy_field(root, "alert_whatsapp_apikey", s.alert_whatsapp_apikey, sizeof(s.alert_whatsapp_apikey), verr) &&
+        !only_chars(s.alert_whatsapp_apikey, "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")) {
+        verr_set(verr, "Campo \"%s\": solo lettere e cifre, come la manda CallMeBot.%.0d", "alert_whatsapp_apikey", 0);
+    }
+    copy_field(root, "ntrip_caster_server_mountpoint", s.ntrip_caster_server_mountpoint, sizeof(s.ntrip_caster_server_mountpoint), verr);
+    copy_field(root, "ntrip_caster_server_password", s.ntrip_caster_server_password, sizeof(s.ntrip_caster_server_password), verr);
     // Utente del caster locale vuoto = rover accettati senza credenziali. Il
     // caster locale le chiede se utente O password non sono vuoti, e la
     // password vuota nel form vuol dire "non modificare": senza cancellarla
     // qui non ci sarebbe modo di togliere l'autenticazione.
     if (copy_field_allow_empty(root, "ntrip_caster_server_username", s.ntrip_caster_server_username,
-                               sizeof(s.ntrip_caster_server_username))
+                               sizeof(s.ntrip_caster_server_username), verr)
         && s.ntrip_caster_server_username[0] == '\0') {
         s.ntrip_caster_server_password[0] = '\0';
     }
@@ -1525,8 +1993,13 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         s.data_plan_mb = (uint32_t) (data_plan_gb_item->valuedouble * 1000 + 0.5);
     }
     cJSON *alert_threshold_item = cJSON_GetObjectItemCaseSensitive(root, "alert_threshold_min");
-    if (alert_threshold_item && cJSON_IsNumber(alert_threshold_item) && alert_threshold_item->valueint > 0) {
-        s.alert_threshold_min = (uint16_t) alert_threshold_item->valueint;
+    if (alert_threshold_item && cJSON_IsNumber(alert_threshold_item)) {
+        // Prima solo > 0: 65536 diventava 0 (avviso a ogni minima caduta).
+        if (alert_threshold_item->valueint >= 1 && alert_threshold_item->valueint <= 1440) {
+            s.alert_threshold_min = (uint16_t) alert_threshold_item->valueint;
+        } else {
+            verr_set(verr, "Campo \"%s\": da 1 a %d minuti.", "alert_threshold_min", 1440);
+        }
     }
     cJSON *alert_smtp_port_item = cJSON_GetObjectItemCaseSensitive(root, "alert_smtp_port");
     if (alert_smtp_port_item && cJSON_IsNumber(alert_smtp_port_item) &&
@@ -1556,17 +2029,36 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         s.base_position_mode = (strcmp(base_pos_mode_item->valuestring, "manual") == 0)
                                     ? BASE_POSITION_MANUAL : BASE_POSITION_AUTO;
     }
+    // Coordinate fisse: prima senza limiti, e un campo svuotato arrivava come
+    // 0 - la base trasmetteva ai rover una posizione assurda (1005) senza
+    // nessun errore visibile (revisione del 09/10/2026).
     cJSON *base_lat_item = cJSON_GetObjectItemCaseSensitive(root, "base_fixed_lat_deg");
     if (base_lat_item && cJSON_IsNumber(base_lat_item)) {
-        s.base_fixed_lat_deg = base_lat_item->valuedouble;
+        if (base_lat_item->valuedouble >= -90 && base_lat_item->valuedouble <= 90) {
+            s.base_fixed_lat_deg = base_lat_item->valuedouble;
+        } else {
+            verr_set(verr, "Campo \"%s\": latitudine tra -90 e %d gradi.", "base_fixed_lat_deg", 90);
+        }
     }
     cJSON *base_lon_item = cJSON_GetObjectItemCaseSensitive(root, "base_fixed_lon_deg");
     if (base_lon_item && cJSON_IsNumber(base_lon_item)) {
-        s.base_fixed_lon_deg = base_lon_item->valuedouble;
+        if (base_lon_item->valuedouble >= -180 && base_lon_item->valuedouble <= 180) {
+            s.base_fixed_lon_deg = base_lon_item->valuedouble;
+        } else {
+            verr_set(verr, "Campo \"%s\": longitudine tra -180 e %d gradi.", "base_fixed_lon_deg", 180);
+        }
     }
     cJSON *base_height_item = cJSON_GetObjectItemCaseSensitive(root, "base_fixed_height_m");
     if (base_height_item && cJSON_IsNumber(base_height_item)) {
-        s.base_fixed_height_m = base_height_item->valuedouble;
+        if (base_height_item->valuedouble >= -500 && base_height_item->valuedouble <= 9000) {
+            s.base_fixed_height_m = base_height_item->valuedouble;
+        } else {
+            verr_set(verr, "Campo \"%s\": quota tra -500 e %d m.", "base_fixed_height_m", 9000);
+        }
+    }
+    if (s.base_position_mode == BASE_POSITION_MANUAL && s.base_fixed_lat_deg == 0 && s.base_fixed_lon_deg == 0 &&
+        (base_pos_mode_item || base_lat_item || base_lon_item)) {
+        verr_set(verr, "Posizione fissa della base mancante (latitudine e longitudine a 0): inserisci le coordinate.%s%.0d", "", 0);
     }
     // Survey-in: 0 = predefinito del chip. Durata fino a 65535 s (~18 h),
     // precisione tra 1 cm e 100 m.
@@ -1586,8 +2078,12 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         s.auto_update_check_enable = cJSON_IsTrue(auto_update_enable_item);
     }
     cJSON *auto_update_interval_item = cJSON_GetObjectItemCaseSensitive(root, "auto_update_check_interval_h");
-    if (auto_update_interval_item && cJSON_IsNumber(auto_update_interval_item) && auto_update_interval_item->valueint > 0) {
-        s.auto_update_check_interval_h = (uint16_t) auto_update_interval_item->valueint;
+    if (auto_update_interval_item && cJSON_IsNumber(auto_update_interval_item)) {
+        if (auto_update_interval_item->valueint >= 1 && auto_update_interval_item->valueint <= 8760) {
+            s.auto_update_check_interval_h = (uint16_t) auto_update_interval_item->valueint;
+        } else {
+            verr_set(verr, "Campo \"%s\": da 1 a %d ore.", "auto_update_check_interval_h", 8760);
+        }
     }
 
     cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "ntrip_port");
@@ -1717,6 +2213,13 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         } else if (strcmp(net_mode_item->valuestring, "cellular") == 0) {
             s.network_mode = NETWORK_MODE_CELLULAR_ONLY;
         } else if (strcmp(net_mode_item->valuestring, "ethernet_only") == 0) {
+            // Solo Ethernet spegne la radio WiFi (anche la rete di emergenza):
+            // senza il cavo funzionante la base diventava irraggiungibile, si
+            // recuperava solo col reset di fabbrica (revisione del 09/10/2026).
+            if (old_network_mode != NETWORK_MODE_ETHERNET_ONLY && !eth_link_is_connected()) {
+                verr_set(verr, "\"Solo Ethernet\" non salvato: il cavo Ethernet non e' collegato o non ha ancora un indirizzo. "
+                               "Collegalo e verifica che funzioni, poi riprova.%s%.0d", "", 0);
+            }
             s.network_mode = NETWORK_MODE_ETHERNET_ONLY;
         } else {
             s.network_mode = NETWORK_MODE_BOTH;
@@ -1727,8 +2230,8 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     if (gnss_uart_item && cJSON_IsNumber(gnss_uart_item) && gnss_uart_item->valueint >= 0 && gnss_uart_item->valueint < 3) {
         s.gnss_uart_num = gnss_uart_item->valueint;
     }
-    copy_pin_field(root, "gnss_uart_tx_pin", &s.gnss_uart_tx_pin);
-    copy_pin_field(root, "gnss_uart_rx_pin", &s.gnss_uart_rx_pin);
+    copy_pin_field(root, "gnss_uart_tx_pin", &s.gnss_uart_tx_pin, verr);
+    copy_pin_field(root, "gnss_uart_rx_pin", &s.gnss_uart_rx_pin, verr);
     cJSON *gnss_baud_item = cJSON_GetObjectItemCaseSensitive(root, "gnss_uart_baud");
     if (gnss_baud_item && cJSON_IsNumber(gnss_baud_item) && gnss_baud_item->valueint > 0) {
         s.gnss_uart_baud = gnss_baud_item->valueint;
@@ -1748,17 +2251,17 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             s.rgb_led_mode = RGB_LED_NONE;
         }
     }
-    copy_pin_field(root, "rgb_led_ws2812_pin", &s.rgb_led_ws2812_pin);
-    copy_pin_field(root, "rgb_led_pwm_r_pin", &s.rgb_led_pwm_r_pin);
-    copy_pin_field(root, "rgb_led_pwm_g_pin", &s.rgb_led_pwm_g_pin);
-    copy_pin_field(root, "rgb_led_pwm_b_pin", &s.rgb_led_pwm_b_pin);
+    copy_pin_field(root, "rgb_led_ws2812_pin", &s.rgb_led_ws2812_pin, verr);
+    copy_pin_field(root, "rgb_led_pwm_r_pin", &s.rgb_led_pwm_r_pin, verr);
+    copy_pin_field(root, "rgb_led_pwm_g_pin", &s.rgb_led_pwm_g_pin, verr);
+    copy_pin_field(root, "rgb_led_pwm_b_pin", &s.rgb_led_pwm_b_pin, verr);
     cJSON *rgb_active_low_item = cJSON_GetObjectItemCaseSensitive(root, "rgb_led_pwm_active_low");
     if (rgb_active_low_item && cJSON_IsBool(rgb_active_low_item)) {
         s.rgb_led_pwm_active_low = cJSON_IsTrue(rgb_active_low_item);
     }
 
-    copy_pin_field(root, "oled_sda_pin", &s.oled_sda_pin);
-    copy_pin_field(root, "oled_scl_pin", &s.oled_scl_pin);
+    copy_pin_field(root, "oled_sda_pin", &s.oled_sda_pin, verr);
+    copy_pin_field(root, "oled_scl_pin", &s.oled_scl_pin, verr);
     cJSON *oled_addr_item = cJSON_GetObjectItemCaseSensitive(root, "oled_i2c_addr");
     if (oled_addr_item && cJSON_IsNumber(oled_addr_item) && oled_addr_item->valueint > 0 && oled_addr_item->valueint < 256) {
         s.oled_i2c_addr = (uint8_t) oled_addr_item->valueint;
@@ -1782,7 +2285,29 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         s.oled_flip_v = cJSON_IsTrue(oled_flip_v_item);
     }
 
+    // Pin in conflitto tra loro: solo se la richiesta tocca pin o modalita'
+    // (una configurazione salvata prima non blocca il salvataggio di altro).
+    {
+        static const char *const pin_keys[] = {
+            "gnss_uart_tx_pin", "gnss_uart_rx_pin", "gnss_link", "rgb_led_mode", "rgb_led_ws2812_pin",
+            "rgb_led_pwm_r_pin", "rgb_led_pwm_g_pin", "rgb_led_pwm_b_pin", "oled_sda_pin", "oled_scl_pin",
+        };
+        for (size_t i = 0; i < sizeof(pin_keys) / sizeof(pin_keys[0]); i++) {
+            if (cJSON_GetObjectItemCaseSensitive(root, pin_keys[i])) {
+                pins_conflict(&s, verr);
+                break;
+            }
+        }
+    }
+
     cJSON_Delete(root);
+
+    if (verr[0]) {
+        xSemaphoreGive(s_settings_edit_mutex);
+        ESP_LOGW(TAG, "Impostazioni rifiutate: %s", verr);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, verr);
+        return ESP_FAIL;
+    }
 
     esp_err_t err = settings_save(&s);
     xSemaphoreGive(s_settings_edit_mutex);
@@ -1793,6 +2318,14 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
 
     httpd_resp_sendstr(req, "{\"ok\":true}");
     return ESP_OK;
+}
+
+// Un altro aggiornamento firmware gia' in corso (ota_update.h): 409.
+static esp_err_t send_update_busy(httpd_req_t *req)
+{
+    httpd_resp_set_status(req, "409 Conflict");
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":false,\"applied\":false,\"error\":\"Un altro aggiornamento del firmware e' gia' in corso: attendi che finisca\",\"message\":\"Un altro aggiornamento del firmware e' gia' in corso: attendi che finisca\"}");
 }
 
 // Contesto per ota_read_from_http(): legge dal corpo della richiesta HTTP
@@ -1827,10 +2360,17 @@ static esp_err_t ota_upload_post_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
+    if (ota_update_in_progress()) {
+        return send_update_busy(req);
+    }
+
     ESP_LOGI(TAG, "Aggiornamento firmware ricevuto dal browser (%d byte)...", req->content_len);
 
     http_ota_ctx_t ctx = { .req = req, .remaining = req->content_len };
     esp_err_t err = ota_update_apply(ota_read_from_http, &ctx);
+    if (err == ESP_ERR_INVALID_STATE) {
+        return send_update_busy(req);
+    }
     if (err != ESP_OK) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "aggiornamento fallito, immagine non applicata");
         return ESP_FAIL;
@@ -1850,6 +2390,9 @@ static esp_err_t ota_sd_post_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
+    if (ota_update_in_progress()) {
+        return send_update_busy(req);
+    }
     char msg[96] = {0};
     bool applied = sd_update_check_and_apply(msg, sizeof(msg));
 
@@ -1939,6 +2482,9 @@ static esp_err_t fw_archive_apply_post_handler(httpd_req_t *req)
     filename[sizeof(filename) - 1] = '\0';
     cJSON_Delete(root);
 
+    if (ota_update_in_progress()) {
+        return send_update_busy(req);
+    }
     char msg[96] = {0};
     bool applied = fw_archive_apply(filename, msg, sizeof(msg));
 
@@ -2017,6 +2563,15 @@ static void wifi_test_connect_task(void *arg)
 
     free(ctx);
     vTaskDelete(NULL);
+}
+
+// Test non partito (memoria o task): "in corso" restava true per sempre e
+// net_manager smetteva di cercare la rete (revisione del 09/10/2026).
+static void wifi_test_abort_start(void)
+{
+    xSemaphoreTake(s_wifi_test_mutex, portMAX_DELAY);
+    s_wifi_test_status.running = false;
+    xSemaphoreGive(s_wifi_test_mutex);
 }
 
 static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
@@ -2124,6 +2679,7 @@ static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
 
     wifi_test_task_ctx_t *ctx = calloc(1, sizeof(wifi_test_task_ctx_t));
     if (!ctx) {
+        wifi_test_abort_start();
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria esaurita");
         return ESP_FAIL;
     }
@@ -2141,6 +2697,7 @@ static esp_err_t wifi_test_connect_post_handler(httpd_req_t *req)
     // troppo piccolo per un task che finisce per fare I/O NVS + log).
     if (xTaskCreate(wifi_test_connect_task, "wifi_test", 8192, ctx, 5, NULL) != pdPASS) {
         free(ctx);
+        wifi_test_abort_start();
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "avvio task fallito");
         return ESP_FAIL;
     }
@@ -2231,14 +2788,15 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-static esp_err_t ntrip_mountpoints_get_handler(httpd_req_t *req)
+// La lettura del sourcetable (DNS, connessione fino a 8 s, risposta) gira in
+// un task a parte con la richiesta resa asincrona, come la prova di
+// connessione: prima teneva fermo tutto il pannello per l'intera attesa con
+// un caster irraggiungibile (revisione del 09/10/2026).
+static void ntrip_mountpoints_task(void *arg)
 {
-    if (require_auth(req) != ESP_OK) {
-        return ESP_FAIL;
-    }
-
-    ntrip_mountpoint_entry_t entries[NTRIP_MOUNTPOINTS_MAX];
-    size_t n = ntrip_rover_client_fetch_mountpoints(entries, NTRIP_MOUNTPOINTS_MAX);
+    httpd_req_t *req = arg;
+    ntrip_mountpoint_entry_t *entries = calloc(NTRIP_MOUNTPOINTS_MAX, sizeof(*entries));
+    size_t n = entries ? ntrip_rover_client_fetch_mountpoints(entries, NTRIP_MOUNTPOINTS_MAX) : 0;
 
     cJSON *root = cJSON_CreateObject();
     cJSON *mountpoints = cJSON_CreateArray();
@@ -2249,18 +2807,39 @@ static esp_err_t ntrip_mountpoints_get_handler(httpd_req_t *req)
         cJSON_AddItemToArray(mountpoints, mp);
     }
     cJSON_AddItemToObject(root, "mountpoints", mountpoints);
+    free(entries);
 
     // L'albero cJSON va liberato prima dell'invio: tenerlo in memoria
     // insieme al testo e al buffer di rete sommava ~15 KB per richiesta.
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     if (!json) {
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    } else {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
+        httpd_resp_sendstr(req, json);
+        free(json);
     }
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
-    httpd_resp_sendstr(req, json);
-    free(json);
+    httpd_req_async_handler_complete(req);
+    vTaskDelete(NULL);
+}
+
+static esp_err_t ntrip_mountpoints_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    httpd_req_t *async_req = NULL;
+    if (httpd_req_async_handler_begin(req, &async_req) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "richiesta asincrona non disponibile");
+    }
+    // 7 KB: la funzione copia la configurazione sullo stack (2,4 KB) e fa DNS + socket.
+    if (xTaskCreate(ntrip_mountpoints_task, "ntrip_mp", 7168, async_req, 5, NULL) != pdPASS) {
+        httpd_resp_send_err(async_req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente, riprova");
+        httpd_req_async_handler_complete(async_req);
+        return ESP_FAIL;
+    }
     return ESP_OK;
 }
 
@@ -2549,7 +3128,9 @@ static esp_err_t ota_apply_online_post_handler(httpd_req_t *req)
     // decine di secondi, e serve poter interrogare l'avanzamento
     // (/api/ota/progress) mentre e' in corso invece di restare bloccati in
     // attesa di questa risposta HTTP fino alla fine.
-    online_update_apply_async(url);
+    if (!online_update_apply_async(url)) {
+        return send_update_busy(req);
+    }
     ESP_LOGI(TAG, "Aggiornamento online avviato in background");
 
     httpd_resp_set_type(req, "application/json");
@@ -2609,24 +3190,76 @@ static esp_err_t log_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Prova degli avvisi (email + WhatsApp): gira in un task a parte con la
+// richiesta resa asincrona, come la prova di connessione al caster. Prima
+// teneva fermo tutto il pannello per l'intero invio (TLS, fino a 10 s per
+// ogni passo SMTP piu' 15 s per WhatsApp), con la configurazione copiata
+// sullo stack del server web (revisione del 09/10/2026).
+typedef struct {
+    httpd_req_t *req;     // copia asincrona della richiesta HTTP
+    app_settings_t s;     // valori del form sopra quelli salvati
+} alerts_test_job_t;
+
+static volatile bool s_alerts_test_busy;
+
+static void alerts_test_task(void *arg)
+{
+    alerts_test_job_t *job = arg;
+    char msg[256] = {0};
+    bool ok = alerts_send_test(&job->s, msg, sizeof(msg));
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    cJSON_AddStringToObject(resp, "message", msg);
+    char *json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    httpd_resp_set_type(job->req, "application/json");
+    httpd_resp_set_hdr(job->req, "Cache-Control", "no-store, no-cache, must-revalidate");
+    httpd_resp_sendstr(job->req, json ? json : "{\"ok\":false,\"message\":\"memoria insufficiente\"}");
+    free(json);
+    httpd_req_async_handler_complete(job->req);
+
+    // Contiene le password: azzerata prima di liberarla.
+    memset(job, 0, sizeof(*job));
+    free(job);
+    s_alerts_test_busy = false;
+    vTaskDelete(NULL);
+}
+
 static esp_err_t alerts_test_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
         return ESP_FAIL;
     }
+    if (s_alerts_test_busy) {
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_sendstr(req, "{\"ok\":false,\"message\":\"Una prova degli avvisi e' gia' in corso, attendi l'esito\"}");
+    }
 
+    // Configurazione (2,4 KB) in PSRAM se c'e', non sullo stack del server web.
+    alerts_test_job_t *job = heap_caps_calloc(1, sizeof(*job), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!job) {
+        job = calloc(1, sizeof(*job));
+    }
+    if (!job) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
     // Usa i valori correnti del form (non serve averli gia' salvati, stesso
     // principio del pulsante "Connetti" del WiFi) - un campo assente/vuoto
     // nel corpo mantiene il valore gia' salvato (vedi copy_field()).
-    app_settings_t s = settings_get();
+    settings_get_into(&job->s);
+    char verr[VERR_SIZE] = "";
 
     if (req->content_len > 0) {
         if (req->content_len > 1024) {
+            free(job);
             httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo troppo grande");
             return ESP_FAIL;
         }
         char *buf = malloc(req->content_len + 1);
         if (!buf) {
+            free(job);
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria esaurita");
             return ESP_FAIL;
         }
@@ -2635,6 +3268,7 @@ static esp_err_t alerts_test_post_handler(httpd_req_t *req)
             int r = httpd_req_recv(req, buf + received, req->content_len - received);
             if (r <= 0) {
                 free(buf);
+                free(job);
                 httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "lettura corpo fallita");
                 return ESP_FAIL;
             }
@@ -2644,32 +3278,49 @@ static esp_err_t alerts_test_post_handler(httpd_req_t *req)
         cJSON *root = cJSON_Parse(buf);
         free(buf);
         if (root) {
-            copy_field(root, "alert_smtp_host", s.alert_smtp_host, sizeof(s.alert_smtp_host));
-            copy_field(root, "alert_smtp_user", s.alert_smtp_user, sizeof(s.alert_smtp_user));
-            copy_field(root, "alert_smtp_password", s.alert_smtp_password, sizeof(s.alert_smtp_password));
-            copy_field(root, "alert_email_to", s.alert_email_to, sizeof(s.alert_email_to));
-            copy_field(root, "alert_whatsapp_phone", s.alert_whatsapp_phone, sizeof(s.alert_whatsapp_phone));
-            copy_field(root, "alert_whatsapp_apikey", s.alert_whatsapp_apikey, sizeof(s.alert_whatsapp_apikey));
+            app_settings_t *s = &job->s;
+            copy_field(root, "alert_smtp_host", s->alert_smtp_host, sizeof(s->alert_smtp_host), verr);
+            copy_field(root, "alert_smtp_user", s->alert_smtp_user, sizeof(s->alert_smtp_user), verr);
+            copy_field(root, "alert_smtp_password", s->alert_smtp_password, sizeof(s->alert_smtp_password), verr);
+            copy_field(root, "alert_email_to", s->alert_email_to, sizeof(s->alert_email_to), verr);
+            if (copy_field(root, "alert_whatsapp_phone", s->alert_whatsapp_phone, sizeof(s->alert_whatsapp_phone), verr)) {
+                char ph[sizeof(s->alert_whatsapp_phone)];
+                if (clean_phone_number(s->alert_whatsapp_phone, ph, sizeof(ph))) {
+                    strlcpy(s->alert_whatsapp_phone, ph, sizeof(s->alert_whatsapp_phone));
+                } else {
+                    verr_set(verr, "Campo \"%s\": numero non valido (prefisso internazionale e cifre, es. 391234567890).%.0d", "alert_whatsapp_phone", 0);
+                }
+            }
+            copy_field(root, "alert_whatsapp_apikey", s->alert_whatsapp_apikey, sizeof(s->alert_whatsapp_apikey), verr);
             cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "alert_smtp_port");
             if (port_item && cJSON_IsNumber(port_item) && port_item->valueint > 0 && port_item->valueint <= 65535) {
-                s.alert_smtp_port = (uint16_t) port_item->valueint;
+                s->alert_smtp_port = (uint16_t) port_item->valueint;
             }
             cJSON_Delete(root);
         }
     }
+    if (verr[0]) {
+        memset(job, 0, sizeof(*job));
+        free(job);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, verr);
+        return ESP_FAIL;
+    }
 
-    char msg[256] = {0};
-    bool ok = alerts_send_test(&s, msg, sizeof(msg));
-
-    cJSON *resp = cJSON_CreateObject();
-    cJSON_AddBoolToObject(resp, "ok", ok);
-    cJSON_AddStringToObject(resp, "message", msg);
-    char *json = cJSON_PrintUnformatted(resp);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
-    httpd_resp_sendstr(req, json);
-    free(json);
-    cJSON_Delete(resp);
+    if (httpd_req_async_handler_begin(req, &job->req) != ESP_OK) {
+        memset(job, 0, sizeof(*job));
+        free(job);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "richiesta asincrona non disponibile");
+    }
+    s_alerts_test_busy = true;
+    // 10 KB come il task degli avvisi: handshake TLS (email e WhatsApp).
+    if (xTaskCreate(alerts_test_task, "alerts_test", 10240, job, 4, NULL) != pdPASS) {
+        s_alerts_test_busy = false;
+        httpd_resp_send_err(job->req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente, riprova");
+        httpd_req_async_handler_complete(job->req);
+        memset(job, 0, sizeof(*job));
+        free(job);
+        return ESP_FAIL;
+    }
     return ESP_OK;
 }
 
@@ -2707,31 +3358,10 @@ static esp_err_t ppp_log_download_get_handler(httpd_req_t *req)
     if (require_auth(req) != ESP_OK) {
         return ESP_FAIL;
     }
-    FILE *f = ppp_log_open_for_read();
-    if (!f) {
-        httpd_resp_set_status(req, "409 Conflict");
-        httpd_resp_set_type(req, "text/plain; charset=utf-8");
-        httpd_resp_sendstr(req, "Nessun log disponibile, oppure una registrazione e' ancora in corso (fermala prima di scaricare)");
-        return ESP_OK;
-    }
-
-    httpd_resp_set_type(req, "application/octet-stream");
-    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"ppp_log.rtcm3\"");
-
-    // Allocato solo durante lo scaricamento (prima 2 KB fissi).
-    char *chunk = malloc(2048);
-    size_t n;
-    esp_err_t err = chunk ? ESP_OK : ESP_FAIL;
-    while (chunk && (n = fread(chunk, 1, 2048, f)) > 0) {
-        if (httpd_resp_send_chunk(req, chunk, n) != ESP_OK) {
-            err = ESP_FAIL;
-            break;
-        }
-    }
-    free(chunk);
-    httpd_resp_send_chunk(req, NULL, 0); // chiude la risposta chunked
-    ppp_log_close_for_read(f);
-    return err;
+    // Monta e smonta la SD per ogni blocco (ppp_log.c): prima la teneva
+    // montata per tutto lo scaricamento e il ricevitore via I2C taceva. Se
+    // una registrazione e' in corso o non c'e' nessun file risponde 409.
+    return ppp_log_send_http(req);
 }
 
 static esp_err_t wifi_forget_known_post_handler(httpd_req_t *req)
@@ -3103,9 +3733,23 @@ static esp_err_t sim_action_post_handler(httpd_req_t *req)
     } else if (strcmp(a, "credit") == 0) {
         ok = sim_tools_request(SIM_ACT_CREDIT, NULL, NULL, err, sizeof(err));
     } else if (strcmp(a, "ussd") == 0 && code[0]) {
-        ok = sim_tools_request(SIM_ACT_USSD, code, NULL, err, sizeof(err));
+        // Finiscono tra virgolette nei comandi AT del modem: un " o un a capo
+        // aggiungeva comandi (revisione del 09/10/2026).
+        if (strlen(code) < 24 && only_chars(code, "0123456789*#+")) {
+            ok = sim_tools_request(SIM_ACT_USSD, code, NULL, err, sizeof(err));
+        } else {
+            snprintf(err, sizeof(err), "Codice non valido: solo cifre, * e # (es. *123#)");
+        }
     } else if (strcmp(a, "sms") == 0 && num[0] && txt[0]) {
-        ok = sim_tools_request(SIM_ACT_SMS, num, txt, err, sizeof(err));
+        bool txt_ok = strlen(txt) < 96;
+        for (const unsigned char *c = (const unsigned char *) txt; *c && txt_ok; c++) {
+            txt_ok = *c >= 0x20 && *c != 0x7F;
+        }
+        if (strlen(num) < 32 && only_chars(num, "+0123456789") && strchr(num + 1, '+') == NULL && txt_ok) {
+            ok = sim_tools_request(SIM_ACT_SMS, num, txt, err, sizeof(err));
+        } else {
+            snprintf(err, sizeof(err), "Numero (solo cifre e + iniziale) o testo (senza a capo, max 95) non validi");
+        }
     } else if (strcmp(a, "find_number") == 0) {
         // Solo + iniziale, cifre e spazi; almeno 6 cifre.
         int digits = 0;

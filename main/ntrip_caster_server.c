@@ -9,8 +9,11 @@
 #include <netinet/in.h>
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/idf_additions.h"
+#include "esp_heap_caps.h"
 #include "freertos/stream_buffer.h"
 #include "freertos/semphr.h"
 #include "mbedtls/base64.h"
@@ -35,6 +38,29 @@ static void close_client_locked(int idx)
     }
 }
 
+// Invia tutto il blocco entro deadline_us (esp_timer). Con il timeout di
+// invio del socket, send() puo' scrivere solo una parte allo scadere del
+// tempo: prima il resto veniva perso, e per i client NTRIP 2.0 (dati "a
+// blocchi") il formato si rompeva per sempre (dimensione del blocco
+// sbagliata, client che riceve solo dati illeggibili). false = client da
+// chiudere (il flusso verso di lui non e' piu' integro).
+static bool client_send_all(int sock, const void *data, size_t len, int64_t deadline_us)
+{
+    const uint8_t *p = (const uint8_t *) data;
+    size_t off = 0;
+    while (off < len) {
+        int sent = send(sock, p + off, len - off, 0);
+        if (sent <= 0) {
+            return false;
+        }
+        off += (size_t) sent;
+        if (off < len && esp_timer_get_time() > deadline_us) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static void broadcast_task(void *arg)
 {
     uint8_t buf[512];
@@ -51,25 +77,22 @@ static void broadcast_task(void *arg)
             }
             // Il socket ha un timeout di invio (impostato all'accettazione,
             // vedi sotto): un rover lento/bloccato ritarda al massimo di
-            // CLIENT_SEND_TIMEOUT_MS questo giro, non blocca gli altri
-            // client ne' il chiamante di ntrip_caster_server_feed()
-            // (che scrive solo sullo stream buffer, mai direttamente qui).
-            int sent;
+            // ~3 x CLIENT_SEND_TIMEOUT_MS questo giro, poi viene chiuso; non
+            // blocca il chiamante di ntrip_caster_server_feed() (che scrive
+            // solo sullo stream buffer, mai direttamente qui).
+            int64_t deadline = esp_timer_get_time() + 3LL * CLIENT_SEND_TIMEOUT_MS * 1000;
+            bool ok;
             if (s_client_v2[i]) {
                 char hdr[12];
                 int hl = snprintf(hdr, sizeof(hdr), "%X\r\n", (unsigned) n);
-                sent = send(s_client_socks[i], hdr, hl, 0);
-                if (sent >= 0) {
-                    sent = send(s_client_socks[i], buf, n, 0);
-                }
-                if (sent >= 0) {
-                    sent = send(s_client_socks[i], "\r\n", 2, 0);
-                }
+                ok = client_send_all(s_client_socks[i], hdr, (size_t) hl, deadline) &&
+                     client_send_all(s_client_socks[i], buf, n, deadline) &&
+                     client_send_all(s_client_socks[i], "\r\n", 2, deadline);
             } else {
-                sent = send(s_client_socks[i], buf, n, 0);
+                ok = client_send_all(s_client_socks[i], buf, n, deadline);
             }
-            if (sent < 0) {
-                ESP_LOGW(TAG, "Rover %d: invio fallito (errno %d), disconnesso", i, errno);
+            if (!ok) {
+                ESP_LOGW(TAG, "Rover %d: invio fallito o incompleto (errno %d), disconnesso", i, errno);
                 close_client_locked(i);
             }
         }
@@ -122,7 +145,20 @@ static bool handle_handshake(int sock, const app_settings_t *s, bool *out_v2)
 {
     char req[512] = {0};
     int total = 0;
+    // Limite di tempo per TUTTA la richiesta, non per ogni singola recv():
+    // prima un client che mandava un byte ogni 4 s teneva occupato questo
+    // task (e quindi impediva agli altri rover di collegarsi) per decine di
+    // minuti.
+    int64_t deadline = esp_timer_get_time() + (int64_t) CLIENT_HANDSHAKE_TIMEOUT_S * 1000000;
     while (total < (int) sizeof(req) - 1) {
+        int64_t left_us = deadline - esp_timer_get_time();
+        if (left_us <= 0) {
+            return false;
+        }
+        struct timeval tv;
+        tv.tv_sec = left_us / 1000000;
+        tv.tv_usec = left_us % 1000000;
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         int r = recv(sock, req + total, sizeof(req) - 1 - total, 0);
         if (r <= 0) {
             return false;
@@ -201,6 +237,15 @@ static bool handle_handshake(int sock, const app_settings_t *s, bool *out_v2)
     return true;
 }
 
+// Il task ha lo stack in PSRAM (xTaskCreateWithCaps): vTaskDelete(NULL) non
+// e' sicuro. Se il caster locale non puo' partire il task resta fermo.
+static void listen_fail_park(void)
+{
+    for (;;) {
+        vTaskDelay(portMAX_DELAY);
+    }
+}
+
 static void listen_task(void *arg)
 {
     // app_settings_t pesa ~1.7 KB. Con due copie intere sullo stack (questa
@@ -208,12 +253,12 @@ static void listen_task(void *arg)
     // andava in stack overflow appena attivato il caster locale: riavvii a
     // ripetizione (visto sul dispositivo). Statiche: un solo task le usa.
     static app_settings_t s;
-    s = settings_get();
+    settings_get_into(&s); // niente copia temporanea di settings_get() sullo stack
 
     int listen_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listen_sock < 0) {
         ESP_LOGE(TAG, "Creazione socket di ascolto fallita: errno %d", errno);
-        vTaskDelete(NULL);
+        listen_fail_park();
         return;
     }
     int opt = 1;
@@ -227,13 +272,13 @@ static void listen_task(void *arg)
     if (bind(listen_sock, (struct sockaddr *) &addr, sizeof(addr)) != 0) {
         ESP_LOGE(TAG, "Bind sulla porta %d fallito: errno %d", s.ntrip_caster_server_port, errno);
         close(listen_sock);
-        vTaskDelete(NULL);
+        listen_fail_park();
         return;
     }
     if (listen(listen_sock, MAX_CLIENTS) != 0) {
         ESP_LOGE(TAG, "Listen fallito: errno %d", errno);
         close(listen_sock);
-        vTaskDelete(NULL);
+        listen_fail_park();
         return;
     }
 
@@ -315,10 +360,15 @@ void ntrip_caster_server_start(void)
     s_clients_mutex = xSemaphoreCreateMutex();
     s_feed_stream = xStreamBufferCreate(4096, 1);
 
-    xTaskCreate(broadcast_task, "ntrip_cst_bc", 4096, NULL, 5, NULL);
+    // Stack in PSRAM (RAM interna scarsa): questi task non scrivono mai in flash/NVS.
+    if (xTaskCreateWithCaps(broadcast_task, "ntrip_cst_bc", 4096, NULL, 5, NULL, MALLOC_CAP_SPIRAM) != pdPASS) {
+        xTaskCreate(broadcast_task, "ntrip_cst_bc", 4096, NULL, 5, NULL);
+    }
     // 8192 (era 6144): con tabella delle sorgenti e risposte NTRIP 2.0 restavano
     // 1220 byte liberi (05/10/2026).
-    xTaskCreate(listen_task, "ntrip_cst_listen", 8192, NULL, 5, NULL);
+    if (xTaskCreateWithCaps(listen_task, "ntrip_cst_listen", 8192, NULL, 5, NULL, MALLOC_CAP_SPIRAM) != pdPASS) {
+        xTaskCreate(listen_task, "ntrip_cst_listen", 8192, NULL, 5, NULL);
+    }
 }
 
 void ntrip_caster_server_feed(const uint8_t *data, size_t len)

@@ -6,7 +6,13 @@
 
 // Inizializza il driver WiFi in modalita' station. Va chiamata dopo
 // esp_netif_init()/esp_event_loop_create_default().
+// Accende sempre anche l'AP di setup (password non valida per WPA2 = quella
+// di fabbrica, mai una rete aperta). Chiamate successive: nessun effetto.
 void wifi_link_init(void);
+
+// true dopo wifi_link_init() (false in "Solo Ethernet" finche' net_manager
+// non accende la rete di setup di emergenza).
+bool wifi_link_is_started(void);
 
 // Avvia il tentativo di connessione e blocca fino a timeout_ms o fino
 // all'ottenimento di un IP. Ritorna true se connesso.

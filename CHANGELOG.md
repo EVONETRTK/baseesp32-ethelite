@@ -8,6 +8,40 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.30.6
+
+Controllo qualita' completo del firmware (cinque revisioni indipendenti, 09/10/2026): oltre 70 correzioni.
+
+**Crash e riavvii in ciclo evitati**
+- Numero WhatsApp con spazi, indirizzo degli aggiornamenti scritto male, pin GPIO inesistenti o riservati: prima crash o riavvii in ciclo; ora il pannello rifiuta il valore con il motivo e il firmware non si blocca piu' (seriale del ricevitore con ripiego sui pin di fabbrica).
+- Controllo automatico degli aggiornamenti: lo stack traboccava (crash ogni 15 minuti con l'opzione attiva).
+- Risposte lunghe del modem scritte oltre il buffer; task degli avvisi email al limite dello stack.
+- Rover senza copertura per 30 minuti: non si riavvia piu' (il riavvio di sicurezza vale solo per la base con la rete attiva).
+
+**Base e GNSS**
+- Controllo dello spostamento dell'antenna, registrazione PPP e ora dai satelliti ora funzionano anche con le coordinate fisse (u-blox): prima il task che li accende partiva solo con il survey-in.
+- Con il caster scollegato la lettura del ricevitore non rallenta piu' (prima caster locale e controlli perdevano dati).
+- Righe NMEA con checksum controllato; misura RTK con scarto dei punti anomali e un campione al secondo anche a 5-10 Hz; misura HAS senza internet non fallisce piu'; ComNav e Bynav usano la frequenza scelta.
+
+**Rete**
+- Linea senza Internet riconosciuta (prova del caster e di server noti): passaggio alla SIM o ricollegamento; eco LCP sul PPP.
+- Ethernet verso un PC non ruba piu' il traffico Internet della SIM; SIM868 senza comandi AT in modalita' dati; credito e SMS lunghi letti per intero.
+- Timeout e keepalive sui collegamenti al caster (base e rover); caster locale senza dati rovinati con WiFi debole; reti WiFi aperte; 20 socket invece di 16.
+- "Solo Ethernet": accettato solo con il cavo collegato; se la rete via cavo non arriva, dopo 3 minuti si riaccende la rete di emergenza.
+
+**Sistema e microSD**
+- Download del log PPP e copia d'archivio del firmware a blocchi: la lettura del ricevitore via I2C non si ferma piu'.
+- Aggiornamento da microSD non riapplicato dopo un ritorno alla versione precedente; archivio firmware scritto su file temporaneo.
+- Ripristino automatico della configurazione solo dalla copia di questo ricevitore (MAC).
+- Reset di fabbrica dal pulsante: la licenza resta.
+- Log diagnostico sulla microSD a rotazione (prima si fermava dopo 200 KB); impostazioni con numero di versione.
+- Stack di cinque task (client NTRIP, caster locale, controllo dell'antenna) in PSRAM: RAM interna libera da circa 42 a circa 54 KB, minimo da 20 a 32 KB.
+
+**Pannello e sicurezza**
+- Campi troppo lunghi rifiutati invece di troncati (una password troncata chiudeva fuori dal pannello); password della rete di emergenza almeno 8 caratteri; coordinate fisse controllate.
+- Freno ai tentativi di password sbagliati; controllo dell'indirizzo con cui si apre il pannello; striscia rossa finche' la password e' quella di fabbrica; accesso valido 30 giorni.
+- Un solo aggiornamento firmware alla volta; prova degli avvisi ed elenco dei mountpoint non bloccano piu' il pannello.
+
 ## 1.30.5
 
 - **Galileo HAS nel pannello**: precisioni verificate sulle fonti (riserva del rover circa 20 cm in orizzontale e 40 cm in quota; misura della base circa 10 cm in orizzontale e 10-20 cm in quota, stima da confermare) e convergenza di oggi, da 30 a 60 minuti invece di 'alcuni minuti'.

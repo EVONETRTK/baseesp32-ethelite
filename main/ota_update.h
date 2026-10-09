@@ -18,7 +18,19 @@ typedef int (*ota_read_fn_t)(void *ctx, uint8_t *buf, size_t max_len);
 // decide quando farlo. Ritorna ESP_OK solo se l'intera immagine e' stata
 // scritta e validata - in caso di errore la partizione di avvio corrente
 // resta invariata, nessun rischio di avviare un'immagine incompleta.
+// Se un altro aggiornamento e' gia' in corso ritorna subito
+// ESP_ERR_INVALID_STATE senza toccare nulla (vedi ota_update_try_begin).
 esp_err_t ota_update_apply(ota_read_fn_t read_cb, void *ctx);
+
+// Un solo aggiornamento firmware alla volta (caricamento dal browser, da
+// microSD, dall'archivio, online e automatico): due scritture insieme sulla
+// stessa partizione la rovinavano. ota_update_try_begin() ritorna false se
+// un aggiornamento e' gia' in corso; chi la ottiene la rilascia con
+// ota_update_end(ok): con ok == true resta presa fino al riavvio (nessun
+// altro aggiornamento puo' cancellare l'immagine appena impostata).
+bool ota_update_try_begin(void);
+void ota_update_end(bool ok);
+bool ota_update_in_progress(void);
 
 // Da chiamare una volta ad ogni avvio, dopo che il firmware si e'
 // verificato funzionante (es. AP+web server avviati con successo):

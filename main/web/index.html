@@ -306,6 +306,10 @@
   <span>⚠️ <b>Modifiche salvate ma non ancora attive</b>: <span id="restart-banner-what"></span>. Il ricevitore usa ancora i valori di prima finché non si riavvia.</span>
   <button type="button" class="action" id="restart-banner-btn" style="margin-left:auto">🔄 Riavvia ora</button>
 </div>
+<div id="admin-default-banner" style="display:none; background:#fee2e2; color:#7f1d1d; border:2px solid #f87171; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .8rem; align-items:center; gap:.6rem; flex-wrap:wrap">
+  <span>🔓 <b>La password del pannello è ancora quella di fabbrica (1234)</b>: chi si collega alla rete della base può cambiare tutto. Cambiala adesso.</span>
+  <button type="button" class="action" id="admin-default-btn" style="margin-left:auto">🔒 Cambia password</button>
+</div>
 <form id="cfg-form">
 
 <div id="page-status" class="page active">
@@ -632,6 +636,7 @@
         <option value="l76k" data-mode="rover">Quectel L76K dello shield (solo prove rover, niente RTK)</option>
       </select>
       <small class="hint" id="gnss-detect-note"></small>
+      <small id="gnss-io-note" style="display:none; color:#dc2626; font-weight:600"></small>
     </label>
     <label>Collegamento
       <select name="gnss_link">
@@ -1835,7 +1840,21 @@ function updateRestartBanner(s) {
   const bar = document.getElementById('restart-banner');
   bar.style.display = s.pending_restart ? 'flex' : 'none';
   document.getElementById('restart-banner-what').textContent = s.pending_restart || '';
+  // Codice di accesso di fabbrica: barra rossa finche' non si cambia.
+  document.getElementById('admin-default-banner').style.display = s.admin_code_default ? 'flex' : 'none';
+  // Seriale del ricevitore non aperta con i pin impostati (accanto al ricevitore).
+  const ioNote = document.getElementById('gnss-io-note');
+  ioNote.textContent = s.gnss_io_note ? '⛔ ' + s.gnss_io_note : '';
+  ioNote.style.display = s.gnss_io_note ? '' : 'none';
 }
+document.getElementById('admin-default-btn').addEventListener('click', () => {
+  goToPage('page-firmware');
+  const el = document.getElementById('cfg-form').elements['admin_code'];
+  if (el) {
+    el.scrollIntoView({ block: 'center' });
+    el.focus();
+  }
+});
 document.getElementById('restart-banner-btn').addEventListener('click', async () => {
   if (!confirm('Riavviare la base adesso? Per circa mezzo minuto non manda correzioni.')) return;
   document.getElementById('restart-banner-what').textContent = 'riavvio in corso, la pagina si ricarica da sola tra circa 25 secondi';
@@ -2139,14 +2158,15 @@ document.getElementById('alert-test-btn').addEventListener('click', async () => 
         alert_whatsapp_apikey: f.alert_whatsapp_apikey.value,
       }),
     });
-    const s = await r.json();
+    // 400 (campo non valido, es. numero WhatsApp) e 409 (prova gia' in corso): il motivo della base.
+    const s = await readJson(r);
     msg.style.color = s.ok ? '#16a34a' : '#dc2626';
     msg.style.fontWeight = '600';
     msg.textContent = s.message || (s.ok ? 'Riuscito' : 'Fallito');
   } catch (e) {
     msg.style.color = '#dc2626';
     msg.style.fontWeight = '600';
-    msg.textContent = 'Errore di comunicazione col dispositivo';
+    msg.textContent = errText(e, 'Errore di comunicazione col dispositivo');
   }
 });
 
@@ -3484,6 +3504,22 @@ function updateSimcomWarn() {
 }
 document.getElementById('cfg-form').elements['cellular_module'].addEventListener('change', updateSimcomWarn);
 
+const FIELD_MAXLEN = {
+  admin_code: 32, ap_password: 63, wifi_password: 63, ap_ssid: 32, ntrip_host: 63, ntrip_mountpoint: 32,
+  ntrip_password: 63, rover_mountpoint: 32, rover_username: 32, rover_password: 63, cellular_apn: 63,
+  device_serial: 32, ota_update_url: 127, alert_smtp_host: 63, alert_smtp_user: 63, alert_smtp_password: 63,
+  alert_email_to: 63, alert_whatsapp_phone: 23, alert_whatsapp_apikey: 15, ntrip_caster_server_mountpoint: 32,
+  ntrip_caster_server_username: 32, ntrip_caster_server_password: 63, sim_credit_code: 23,
+  sim_credit_sms_number: 15, sim_credit_sms_text: 23, remote_url: 95, vpn_address: 15,
+  vpn_peer_public_key: 47, vpn_endpoint: 63,
+};
+const FIELD_MINLEN = { admin_code: 4, ap_password: 8 };
+(function () {
+  const f = document.getElementById('cfg-form');
+  Object.entries(FIELD_MAXLEN).forEach(([n, m]) => { const el = f.elements[n]; if (el) el.maxLength = m; });
+  Object.entries(FIELD_MINLEN).forEach(([n, m]) => { const el = f.elements[n]; if (el) el.minLength = m; });
+})();
+
 function typedFieldValue(f, name) {
   const el = f.elements[name];
   if (!el) return undefined;
@@ -3495,7 +3531,9 @@ function typedFieldValue(f, name) {
     const v = String(el.value).replace(',', '.');
     return (v === '' || (el.validity && el.validity.badInput) || isNaN(Number(v))) ? undefined : Number(v);
   }
-  if (NUMBER_FIELDS.has(name)) return Number(el.value);
+  // Vuoto = non inviato (Number('') vale 0: un pin svuotato diventava GPIO0,
+  // le coordinate svuotate 0,0).
+  if (NUMBER_FIELDS.has(name)) return String(el.value).trim() === '' ? undefined : Number(el.value);
   return el.value;
 }
 
@@ -3573,6 +3611,25 @@ async function saveFieldset(names, btn, msgEl) {
     }
   }
 
+  // Testi troppo corti (codice di accesso, password AP): la base li rifiuterebbe.
+  for (const name of names) {
+    const el = f.elements[name];
+    const min = FIELD_MINLEN[name];
+    if (el && min && el.value !== '' && el.value.length < min) {
+      msgEl.textContent = 'Errore: servono almeno ' + min + ' caratteri' + (name === 'ap_password' ? ' (altrimenti la rete di emergenza sarebbe aperta a tutti)' : '');
+      msgEl.style.color = '#dc2626';
+      return;
+    }
+  }
+
+  // Solo Ethernet spegne anche la rete di emergenza: senza cavo funzionante
+  // la base resterebbe irraggiungibile (la base lo rifiuta senza cavo).
+  if (names.includes('network_mode') && f.elements['network_mode'].value === 'ethernet_only' &&
+      !(lastStatus && lastStatus.network_mode === 'ethernet_only') &&
+      !confirm('"Solo Ethernet" spegne la radio WiFi, compresa la rete di emergenza: se l\'Ethernet non funziona perdi ogni accesso e serve il reset di fabbrica. Il cavo Ethernet è collegato e funziona?')) {
+    return;
+  }
+
   // Togliere l'utente del caster interno lo apre a chiunque sulla rete (e
   // cancella anche la password): solo con conferma esplicita.
   if (names.includes('ntrip_caster_server_username')) {
@@ -3602,6 +3659,7 @@ async function saveFieldset(names, btn, msgEl) {
     const el = f.elements[name];
     if (!el) continue;
     const value = typedFieldValue(f, name);
+    if (value === undefined) continue;
     if (el.type === 'password' && value === '') continue;
     data[name] = value;
   }
@@ -3680,6 +3738,7 @@ document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
   const data = Object.fromEntries(new FormData(f).entries());
   for (const name of Object.keys(data)) {
     data[name] = typedFieldValue(f, name);
+    if (data[name] === undefined) delete data[name];
   }
   for (const name of BOOL_CHECKBOX_FIELDS) {
     data[name] = f.elements[name] ? f.elements[name].checked : false;
@@ -3729,6 +3788,8 @@ document.getElementById('fw-upload-btn').addEventListener('click', () => {
   xhr.addEventListener('load', () => {
     if (xhr.status >= 200 && xhr.status < 300) {
       progress.textContent = 'Aggiornamento applicato, riavvio in corso... la pagina potrebbe non rispondere per qualche secondo.';
+    } else if (xhr.status === 409) {
+      progress.textContent = 'Un altro aggiornamento del firmware è già in corso: attendi che finisca.';
     } else {
       progress.textContent = 'Errore: aggiornamento non applicato (immagine non valida o scrittura fallita). Il firmware attuale resta attivo, puoi ritentare.';
     }
@@ -5074,13 +5135,15 @@ document.getElementById('fw-online-btn').addEventListener('click', async () => {
       return;
     }
     msg.textContent = 'Avvio download...';
-    await fetch('/api/ota/apply-online', {
+    const ra = await fetch('/api/ota/apply-online', {
       method: 'POST',
       body: JSON.stringify({ url: s.url }),
     });
+    // 409: un altro aggiornamento e' gia' in corso (doppio clic o automatico).
+    if (!ra.ok) throw await httpError(ra);
     pollOtaProgress(s.version);
   } catch (e) {
-    msg.textContent = 'Errore di comunicazione col dispositivo';
+    msg.textContent = errText(e, 'Errore di comunicazione col dispositivo');
   }
 });
 

@@ -56,6 +56,11 @@ bool cellular_link_get_imei(char *out, size_t out_size);
 // AT+CNUM lo restituisce anche in un'altra base. number: solo cifre e +
 // iniziale. false se la SIM non lo accetta.
 bool cellular_link_write_number(const char *number);
+
+// Codice USSD: solo cifre, '*', '#', '+'. Numeri: '+' facoltativo e 3-20
+// cifre; testo SMS senza caratteri di controllo. Altrimenti false (finirebbero
+// dentro un comando AT). Con il collegamento dati attivo senza CMUX (SIM868)
+// i comandi SIM falliscono subito invece di aspettare il timeout.
 bool cellular_link_ussd(const char *code, char *out, size_t out_size);
 bool cellular_link_send_sms(const char *number, const char *text);
 bool cellular_link_read_sms(char *out, size_t out_size);

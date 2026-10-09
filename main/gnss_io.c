@@ -2,7 +2,10 @@
 #include "i2c_shared_bus.h"
 #include "sd_mutex.h"
 
+#include <stdio.h>
 #include <string.h>
+
+#include "sdkconfig.h"
 
 #include "driver/uart.h"
 #include "driver/i2c_master.h"
@@ -51,7 +54,15 @@ static void i2c_recover(const char *what, esp_err_t err)
     if (s_err_streak++ == 0) {
         s_err_streak_start_us = esp_timer_get_time();
     }
-    ESP_LOGW(TAG, "I2C %s fallita (%s): reset del bus", what, esp_err_to_name(err));
+    // Ricevitore staccato o guasto: prima ~18 avvisi e reset del bus al
+    // secondo per sempre (log in memoria cancellato in pochi secondi, display
+    // e LED sullo stesso bus disturbati). Ora i primi errori si scrivono
+    // tutti, poi uno ogni 100, e dopo 10 di fila si riprova ogni 2 s (pausa
+    // in i2c_poll_task, a lucchetto della SD gia' rilasciato).
+    if (s_err_streak <= 5 || s_err_streak % 100 == 0) {
+        ESP_LOGW(TAG, "I2C %s fallita (%s): reset del bus%s", what, esp_err_to_name(err),
+                 s_err_streak == 5 ? " (avvisi successivi solo ogni 100 errori)" : "");
+    }
     i2c_master_bus_reset(s_bus);
     vTaskDelay(pdMS_TO_TICKS(50));
 }
@@ -129,6 +140,9 @@ static void i2c_poll_task(void *arg)
         if (err != ESP_OK) {
             i2c_recover("lettura byte pronti", err); // col lucchetto ancora preso: il reset del bus agita le linee I2C
             sd_mutex_give();
+            if (s_err_streak > 10) {
+                vTaskDelay(pdMS_TO_TICKS(2000)); // ricevitore assente: niente reset a raffica sul bus condiviso
+            }
             continue;
         }
         i2c_note_ok();
@@ -189,22 +203,66 @@ static bool i2c_init(const app_settings_t *settings)
     return true;
 }
 
-static void uart_init(const app_settings_t *settings)
-{
-    s_uart_num = (uart_port_t) settings->gnss_uart_num;
+// Seriale aperta (s_uart_ok) e, se no, perche' (pannello/log).
+static bool s_uart_ok;
+static char s_note[96];
 
+static bool uart_try(int num, int tx, int rx, int baud)
+{
     uart_config_t uart_config = {
-        .baud_rate = settings->gnss_uart_baud,
+        .baud_rate = baud,
         .data_bits = UART_DATA_8_BITS,
         .parity    = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
     };
-    ESP_ERROR_CHECK(uart_driver_install(s_uart_num, UART_RX_BUF_SIZE * 2, UART_RX_BUF_SIZE * 2, 0, NULL, 0));
-    ESP_ERROR_CHECK(uart_param_config(s_uart_num, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(s_uart_num, settings->gnss_uart_tx_pin, settings->gnss_uart_rx_pin,
-                                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    esp_err_t err = uart_driver_install((uart_port_t) num, UART_RX_BUF_SIZE * 2, UART_RX_BUF_SIZE * 2, 0, NULL, 0);
+    if (err == ESP_OK) {
+        err = uart_param_config((uart_port_t) num, &uart_config);
+        if (err == ESP_OK) {
+            err = uart_set_pin((uart_port_t) num, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+        }
+        if (err != ESP_OK) {
+            uart_driver_delete((uart_port_t) num);
+        }
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Seriale del ricevitore non apribile (UART%d, TX=%d RX=%d, %d baud): %s",
+                 num, tx, rx, baud, esp_err_to_name(err));
+        return false;
+    }
+    s_uart_num = (uart_port_t) num;
+    return true;
+}
+
+// Mai ESP_ERROR_CHECK qui: con pin o porta non validi nelle impostazioni
+// (scheda Hardware) l'abort faceva ripartire il firmware a ogni avvio, senza
+// pannello per correggerli. Si ripiega sulla seriale di fabbrica della
+// scheda; se fallisce anche quella il ricevitore resta scollegato ma il resto
+// (rete, pannello) funziona.
+static void uart_init(const app_settings_t *settings)
+{
+    s_uart_ok = uart_try(settings->gnss_uart_num, settings->gnss_uart_tx_pin, settings->gnss_uart_rx_pin,
+                         settings->gnss_uart_baud);
+    if (s_uart_ok) {
+        return;
+    }
+    snprintf(s_note, sizeof(s_note), "seriale impostata non valida (UART%d TX=%d RX=%d): uso quella di fabbrica",
+             settings->gnss_uart_num, settings->gnss_uart_tx_pin, settings->gnss_uart_rx_pin);
+    ESP_LOGE(TAG, "Ricevitore: %s", s_note);
+    s_uart_ok = uart_try(CONFIG_BASEESP32_GNSS_UART_NUM, CONFIG_BASEESP32_GNSS_UART_TX_PIN,
+                         CONFIG_BASEESP32_GNSS_UART_RX_PIN, settings->gnss_uart_baud >= 1200 ? settings->gnss_uart_baud
+                                                                                            : CONFIG_BASEESP32_GNSS_UART_BAUD);
+    if (!s_uart_ok) {
+        snprintf(s_note, sizeof(s_note), "seriale del ricevitore non apribile: controlla porta e pin (scheda Hardware)");
+        ESP_LOGE(TAG, "Ricevitore: %s", s_note);
+    }
+}
+
+const char *gnss_io_note(void)
+{
+    return s_note;
 }
 
 void gnss_io_init(const app_settings_t *settings)
@@ -232,6 +290,12 @@ int gnss_io_read(uint8_t *buf, size_t len, TickType_t timeout)
     if (s_i2c) {
         return (int) xStreamBufferReceive(s_i2c_rx, buf, len, timeout);
     }
+    if (!s_uart_ok) {
+        // Seriale non aperta: si attende come una lettura vuota, senza far
+        // girare a vuoto il task che legge (e senza errori del driver a ogni giro).
+        vTaskDelay(timeout > 0 ? timeout : 1);
+        return 0;
+    }
     return uart_read_bytes(s_uart_num, buf, len, timeout);
 }
 
@@ -240,6 +304,9 @@ int gnss_io_write(const void *data, size_t len)
     if (s_i2c) {
         // In coda: la scrittura vera la fa i2c_poll_task, entro ~20 ms.
         return (int) xStreamBufferSend(s_i2c_tx, data, len, pdMS_TO_TICKS(500));
+    }
+    if (!s_uart_ok) {
+        return -1;
     }
     return uart_write_bytes(s_uart_num, data, len);
 }

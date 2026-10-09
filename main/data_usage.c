@@ -1,6 +1,7 @@
 #include "data_usage.h"
 #include "status.h"
 #include "sim_plan.h"
+#include "eth_link.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -90,7 +91,9 @@ static void roll_period(void)
 void data_usage_add(uint32_t bytes, bool sent)
 {
     net_status_t net = status_get_net();
-    if (net == NET_STATUS_NONE || bytes == 0) {
+    // Con la sola Ethernet (status_get_net() = NONE) il traffico prima non
+    // veniva contato: va con quello della rete fissa (WiFi), non della SIM.
+    if (bytes == 0 || (net == NET_STATUS_NONE && !eth_link_is_connected())) {
         return;
     }
     uint64_t b = (uint64_t) bytes + (sent ? HEADER_BYTES : 0);

@@ -7,12 +7,58 @@
 
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "freertos/FreeRTOS.h"
 
 static const char *TAG = "ota_update";
 
 #define OTA_BUF_SIZE 4096
 
+// Aggiornamento in corso (vedi ota_update.h). Sezione critica breve: chiamato
+// da task diversi (server web, aggiornamento online/automatico, avvio).
+static portMUX_TYPE s_busy_mux = portMUX_INITIALIZER_UNLOCKED;
+static volatile bool s_busy;
+
+bool ota_update_try_begin(void)
+{
+    bool ok;
+    portENTER_CRITICAL(&s_busy_mux);
+    ok = !s_busy;
+    if (ok) {
+        s_busy = true;
+    }
+    portEXIT_CRITICAL(&s_busy_mux);
+    return ok;
+}
+
+void ota_update_end(bool ok)
+{
+    if (ok) {
+        return; // immagine nuova impostata: resta occupato fino al riavvio
+    }
+    portENTER_CRITICAL(&s_busy_mux);
+    s_busy = false;
+    portEXIT_CRITICAL(&s_busy_mux);
+}
+
+bool ota_update_in_progress(void)
+{
+    return s_busy;
+}
+
+static esp_err_t ota_update_apply_locked(ota_read_fn_t read_cb, void *ctx);
+
 esp_err_t ota_update_apply(ota_read_fn_t read_cb, void *ctx)
+{
+    if (!ota_update_try_begin()) {
+        ESP_LOGW(TAG, "Aggiornamento rifiutato: un altro aggiornamento firmware e' gia' in corso");
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t err = ota_update_apply_locked(read_cb, ctx);
+    ota_update_end(err == ESP_OK);
+    return err;
+}
+
+static esp_err_t ota_update_apply_locked(ota_read_fn_t read_cb, void *ctx)
 {
     // Best-effort, non blocca l'aggiornamento se la SD non e' disponibile
     // (vedi fw_archive.h) - salva il firmware ATTUALE prima che questa

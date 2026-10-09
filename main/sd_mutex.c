@@ -54,3 +54,17 @@ bool sd_mutex_try_take(TickType_t ticks)
 {
     return xSemaphoreTakeRecursive(s_sd_mutex, ticks) == pdTRUE;
 }
+
+// Task che ha la SD montata e lo ha segnalato (vedi sd_mutex.h). Scritto e
+// letto solo con sd_mutex preso.
+static TaskHandle_t s_mount_owner;
+
+void sd_mount_note(bool mounted)
+{
+    s_mount_owner = mounted ? xTaskGetCurrentTaskHandle() : NULL;
+}
+
+bool sd_mounted_by_me(void)
+{
+    return s_mount_owner != NULL && s_mount_owner == xTaskGetCurrentTaskHandle();
+}

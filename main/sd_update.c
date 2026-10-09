@@ -10,7 +10,10 @@
 #include <string.h>
 
 #include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
 
+#include "nvs.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_vfs_fat.h"
@@ -27,6 +30,7 @@ static const char *TAG = "sd_update";
 
 #define MOUNT_POINT "/sdcard"
 #define SD_UPDATE_TIMEOUT_MS 15000
+#define SDUPD_NVS_NS "sdupd" // ultima versione installata da microSD
 
 // Esito dell'ultimo controllo (boot automatico o pulsante manuale), letto
 // dalla UI web (scheda Stato) - protetto da mutex per via del campo
@@ -138,6 +142,7 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
         return false;
     }
     ESP_LOGI(TAG, "Scheda SD montata correttamente");
+    sd_mount_note(true); // ota_update_apply -> fw_archive_save_current la riusa (vedi sd_mutex.h)
     s_last_card_present = true;
 
     uint64_t total_bytes = 0, free_bytes = 0;
@@ -185,6 +190,29 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
         goto cleanup;
     }
 
+    // Stessa versione gia' installata da questa SD, ma qui gira ancora quella
+    // vecchia: il bootloader l'ha annullata (crash o blocco prima della
+    // conferma). Reinstallarla faceva un ciclo infinito aggiornamento ->
+    // crash -> ritorno -> aggiornamento, con la base sempre ferma.
+    {
+        char last[32] = {0};
+        size_t last_len = sizeof(last);
+        nvs_handle_t h;
+        if (nvs_open(SDUPD_NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+            if (nvs_get_str(h, "ver", last, &last_len) != ESP_OK) {
+                last[0] = '\0';
+            }
+            nvs_close(h);
+        }
+        if (last[0] && strcmp(last, sd_version) == 0) {
+            ESP_LOGW(TAG, "La versione %s era gia' stata installata da microSD ed e' stata annullata dal ritorno "
+                          "automatico alla versione precedente: non la reinstallo", sd_version);
+            SET_MSG("Versione %s gia' installata e annullata dal ritorno automatico: non reinstallata "
+                    "(sostituisci firmware.bin con una versione corretta)", sd_version);
+            goto cleanup;
+        }
+    }
+
     FILE *bf = fopen(MOUNT_POINT "/firmware.bin", "rb");
     if (!bf) {
         SET_MSG("firmware.bin non trovato sulla scheda SD");
@@ -200,7 +228,22 @@ static bool sd_update_check_and_apply_impl(char *out_msg, size_t out_msg_size)
         goto cleanup;
     }
 
-    rename(MOUNT_POINT "/firmware.bin", MOUNT_POINT "/firmware.bin.applied");
+    // Versione installata da questa SD: se il bootloader la annulla, al
+    // prossimo avvio non viene reinstallata (vedi sopra).
+    {
+        nvs_handle_t h;
+        if (nvs_open(SDUPD_NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+            nvs_set_str(h, "ver", sd_version);
+            nvs_commit(h);
+            nvs_close(h);
+        }
+    }
+    // Su FAT rename() fallisce se la destinazione esiste gia' (il .applied
+    // di un aggiornamento precedente): firmware.bin restava sulla scheda.
+    unlink(MOUNT_POINT "/firmware.bin.applied");
+    if (rename(MOUNT_POINT "/firmware.bin", MOUNT_POINT "/firmware.bin.applied") != 0) {
+        ESP_LOGW(TAG, "firmware.bin non rinominato in firmware.bin.applied (errno %d): resta sulla scheda", errno);
+    }
     SET_MSG("Aggiornato a versione %s, riavvio...", sd_version);
     applied = true;
 
@@ -208,6 +251,7 @@ cleanup:
     if (root) {
         cJSON_Delete(root);
     }
+    sd_mount_note(false);
     esp_vfs_fat_sdcard_unmount(MOUNT_POINT, card);
     spi_bus_free((spi_host_device_t) host.slot);
     sd_mutex_give();
@@ -287,7 +331,11 @@ bool sd_update_check_and_apply_timeout(char *out_msg, size_t out_msg_size, uint3
     }
     ctx->done = xSemaphoreCreateBinary();
 
-    if (xTaskCreate(sd_update_task, "sd_update", 4096, ctx, 5, NULL) != pdPASS) {
+    // 6144 (era 4096): dal 09/10/2026 l'archiviazione del firmware attuale
+    // dentro ota_update_apply() lavora davvero sulla SD gia' montata da
+    // questo task (prima falliva subito, vedi sd_mutex.h), con il suo elenco
+    // dei file e le operazioni FAT sullo stesso stack.
+    if (xTaskCreate(sd_update_task, "sd_update", 6144, ctx, 5, NULL) != pdPASS) {
         vSemaphoreDelete(ctx->done);
         free(ctx);
         if (out_msg) {
@@ -306,10 +354,15 @@ bool sd_update_check_and_apply_timeout(char *out_msg, size_t out_msg_size, uint3
         if (!finished) {
             ESP_LOGE(TAG, "Timeout (%lu ms) durante il controllo della scheda SD - il tentativo continua in background "
                           "(se aggiorna il firmware, la base si riavvia da sola)", (unsigned long) timeout_ms);
+            // Di solito e' un aggiornamento ancora in scrittura (cancellazione
+            // e scrittura di 2 MB superano spesso i 15 s del pannello): il
+            // vecchio messaggio ("non risponde, verifica contatti e riprova")
+            // invitava a togliere la scheda nel mezzo.
             if (out_msg) {
-                snprintf(out_msg, out_msg_size, "La scheda SD non risponde (timeout) - verifica contatti/formato e riprova");
+                snprintf(out_msg, out_msg_size, "Controllo della microSD ancora in corso: non togliere la scheda. "
+                                                "Se c'e' un aggiornamento la base si riavvia da sola");
             }
-            set_status(false, "La scheda SD non risponde (timeout)", 0, 0);
+            set_status(true, "Controllo della microSD ancora in corso (non togliere la scheda)", 0, 0);
             return false; // ctx e ctx->done li libera il task orfano, vedi sd_update_task
         }
         // Finito proprio allo scadere: il segnale arriva subito.

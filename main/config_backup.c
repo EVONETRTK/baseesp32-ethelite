@@ -12,6 +12,7 @@
 #include "esp_attr.h"
 #include "esp_timer.h"
 #include "esp_system.h"
+#include "esp_mac.h"
 #include "sys_stats.h"
 #include "nvs.h"
 #include "esp_vfs_fat.h"
@@ -28,6 +29,20 @@ static const char *TAG = "config_backup";
 #define BACKUP_FILE  BACKUP_DIR "/settings.bin"
 #define BACKUP_TMP   BACKUP_DIR "/settings.tmp"
 #define GOOD_FILE    BACKUP_DIR "/settings_good.bin"
+#define GOOD_TMP     BACKUP_DIR "/settings_good.tmp"
+
+// In coda a ogni copia sulla microSD (09/10/2026): MAC del chip che l'ha
+// scritta. Il ripristino automatico (configurazione assente, riavvii a catena)
+// avviene solo se la copia e' di questo ricevitore: una microSD presa da
+// un'altra base gli dava matricola, mountpoint, password e chiavi VPN di
+// quella (due basi sulla stessa mountpoint). Le copie scritte prima, senza
+// questa coda, si riconoscono dalla matricola di fabbrica (MAC).
+#define TRAILER_MAGIC 0x434D4243u // "CBMC"
+typedef struct {
+    uint32_t magic;
+    uint8_t mac[6];
+    uint8_t pad[2];
+} backup_trailer_t;
 
 // Protezione dai riavvii a catena (vedi config_backup.h).
 #define GUARD_MAGIC        0x47524444u
@@ -40,13 +55,13 @@ typedef struct {
 } guard_rtc_t;
 static RTC_NOINIT_ATTR guard_rtc_t s_guard;
 static int64_t s_good_due_us = GOOD_AFTER_US; // 0 = gia' scritta
-static char s_guard_note[96];
-#define BLOB_MAX     2816 // >= sizeof(stored_cfg_t) (~2,4 KB con la VPN, 1.19.113), con margine per i campi futuri
+static char s_guard_note[160];
+#define BLOB_MAX     2816 // >= sizeof(stored_cfg_t) (~2,4 KB con la VPN, 1.19.113) + coda, con margine per i campi futuri
 
 static volatile bool s_requested;
 static sdmmc_card_t *s_card;
 static uint8_t s_blob[BLOB_MAX]; // statico: mai sullo stack (vedi settings.c)
-_Static_assert(BLOB_MAX >= sizeof(app_settings_t) + 8, "BLOB_MAX troppo piccolo per la configurazione");
+_Static_assert(BLOB_MAX >= sizeof(app_settings_t) + 8 + sizeof(backup_trailer_t), "BLOB_MAX troppo piccolo per la configurazione");
 
 // Stesso schema di montaggio degli altri moduli SD (diag_log.c, ppp_log.c):
 // sd_mutex preso qui e rilasciato in unmount_sd().
@@ -99,10 +114,14 @@ void config_backup_request(void)
 
 static void write_file(const char *path, const char *tmp_path)
 {
-    size_t len = settings_export_blob(s_blob, sizeof(s_blob));
+    size_t len = settings_export_blob(s_blob, sizeof(s_blob) - sizeof(backup_trailer_t));
     if (len == 0) {
         return; // niente in NVS (default di fabbrica): non sovrascrivere una copia buona
     }
+    backup_trailer_t tr = { .magic = TRAILER_MAGIC };
+    esp_read_mac(tr.mac, ESP_MAC_WIFI_STA);
+    memcpy(s_blob + len, &tr, sizeof(tr));
+    len += sizeof(tr);
     if (!mount_sd()) {
         ESP_LOGW(TAG, "microSD non disponibile, copia della configurazione rimandata al prossimo giro");
         s_requested = true;
@@ -129,6 +148,42 @@ static void write_file(const char *path, const char *tmp_path)
     }
 }
 
+// Legge una copia in s_blob (SD gia' montata). Se il file principale manca
+// prova il temporaneo: write_file() lo rinomina solo dopo averlo chiuso
+// senza errori, quindi se esiste e' completo (corrente mancata tra unlink e
+// rename).
+static size_t read_copy(const char *path, const char *tmp_path)
+{
+    size_t len = 0;
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        f = fopen(tmp_path, "rb");
+    }
+    if (f) {
+        len = fread(s_blob, 1, sizeof(s_blob), f);
+        fclose(f);
+    }
+    return len;
+}
+
+// true se la copia in s_blob (len byte) e' di questo ricevitore; toglie la
+// coda dal conteggio dei byte. Vedi backup_trailer_t.
+static bool copy_is_mine(size_t *len)
+{
+    if (*len >= sizeof(backup_trailer_t)) {
+        backup_trailer_t tr;
+        memcpy(&tr, s_blob + *len - sizeof(tr), sizeof(tr));
+        if (tr.magic == TRAILER_MAGIC) {
+            *len -= sizeof(tr);
+            uint8_t mac[6] = {0};
+            esp_read_mac(mac, ESP_MAC_WIFI_STA);
+            return memcmp(mac, tr.mac, sizeof(mac)) == 0;
+        }
+    }
+    // Copia scritta prima della coda: matricola di fabbrica (dal MAC).
+    return settings_blob_serial_is_this_chip(s_blob, *len);
+}
+
 bool config_backup_restore_if_missing(void)
 {
     if (settings_loaded_from_nvs()) {
@@ -151,15 +206,17 @@ bool config_backup_restore_if_missing(void)
         ESP_LOGW(TAG, "Configurazione assente e microSD non disponibile: restano i valori di fabbrica");
         return false;
     }
-    size_t len = 0;
-    FILE *f = fopen(BACKUP_FILE, "rb");
-    if (f) {
-        len = fread(s_blob, 1, sizeof(s_blob), f);
-        fclose(f);
-    }
+    size_t len = read_copy(BACKUP_FILE, BACKUP_TMP);
     unmount_sd();
     if (len == 0) {
         ESP_LOGW(TAG, "Configurazione assente e nessuna copia sulla microSD: restano i valori di fabbrica");
+        return false;
+    }
+    if (!copy_is_mine(&len)) {
+        snprintf(s_guard_note, sizeof(s_guard_note),
+                 "La copia della configurazione sulla microSD e' di un altro ricevitore: non ripristinata "
+                 "(restano i valori di fabbrica)");
+        ESP_LOGW(TAG, "%s", s_guard_note);
         return false;
     }
     if (settings_import_blob(s_blob, len, false) != ESP_OK) {
@@ -190,7 +247,7 @@ void config_backup_service(void)
     }
     if (s_good_due_us > 0 && up >= s_good_due_us) {
         s_good_due_us = 0;
-        write_file(GOOD_FILE, BACKUP_DIR "/settings_good.tmp");
+        write_file(GOOD_FILE, GOOD_TMP);
     }
 }
 
@@ -215,15 +272,17 @@ void config_backup_crash_guard(void)
         ESP_LOGE(TAG, "Riavvii a catena, ma microSD non disponibile: configurazione buona non ripristinabile");
         return;
     }
-    size_t len = 0;
-    FILE *f = fopen(GOOD_FILE, "rb");
-    if (f) {
-        len = fread(s_blob, 1, sizeof(s_blob), f);
-        fclose(f);
-    }
+    size_t len = read_copy(GOOD_FILE, GOOD_TMP);
     unmount_sd();
     if (len == 0) {
         ESP_LOGE(TAG, "Riavvii a catena, ma nessuna configurazione buona sulla microSD");
+        return;
+    }
+    if (!copy_is_mine(&len)) {
+        snprintf(s_guard_note, sizeof(s_guard_note),
+                 "%d riavvii per guasto di fila, ma la configurazione buona sulla microSD e' di un altro "
+                 "ricevitore: non ripristinata", GUARD_MAX_FAULTS);
+        ESP_LOGE(TAG, "%s", s_guard_note);
         return;
     }
     if (settings_import_blob(s_blob, len, false) != ESP_OK) {

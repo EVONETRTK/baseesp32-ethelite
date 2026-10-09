@@ -46,7 +46,20 @@ static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id
 
 void eth_link_init(void)
 {
-    esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_ETH();
+    // Priorita' di instradamento piu' bassa del PPP (20): con quella di
+    // default (50) la rete predefinita diventava l'Ethernet appena inserito
+    // il cavo, anche senza indirizzo o gateway, e con Internet dalla SIM
+    // caster, DNS, VPN e aggiornamenti uscivano dal cavo e fallivano (es.
+    // rover con cavo verso il PC dell'autosterzo). Resta sopra l'AP (10) e
+    // sotto il WiFi station (100); con Internet dal cavo net_manager non
+    // accende proprio il cellulare (vedi eth_link_has_gateway()).
+    esp_netif_inherent_config_t eth_base = ESP_NETIF_INHERENT_DEFAULT_ETH();
+    eth_base.route_prio = 15;
+    esp_netif_config_t netif_cfg = {
+        .base = &eth_base,
+        .driver = NULL,
+        .stack = ESP_NETIF_NETSTACK_DEFAULT_ETH,
+    };
     s_eth_netif = esp_netif_new(&netif_cfg);
     if (!s_eth_netif) {
         ESP_LOGE(TAG, "Creazione netif Ethernet fallita");
@@ -127,6 +140,15 @@ bool eth_link_is_connected(void)
     return s_connected;
 }
 
+bool eth_link_has_gateway(void)
+{
+    if (!s_connected || !s_eth_netif) {
+        return false;
+    }
+    esp_netif_ip_info_t ip;
+    return esp_netif_get_ip_info(s_eth_netif, &ip) == ESP_OK && ip.ip.addr != 0 && ip.gw.addr != 0;
+}
+
 esp_netif_t *eth_link_get_netif(void)
 {
     return s_eth_netif;
@@ -136,6 +158,7 @@ esp_netif_t *eth_link_get_netif(void)
 
 void eth_link_init(void) { }
 bool eth_link_is_connected(void) { return false; }
+bool eth_link_has_gateway(void) { return false; }
 esp_netif_t *eth_link_get_netif(void) { return NULL; }
 
 #endif

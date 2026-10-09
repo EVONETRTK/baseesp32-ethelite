@@ -7,6 +7,7 @@
 #include "status.h"
 
 #include <string.h>
+#include <stdlib.h>
 #include <strings.h>
 #include <stdio.h>
 
@@ -15,6 +16,7 @@
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
 #include "esp_crt_bundle.h"
+#include "esp_heap_caps.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -128,6 +130,15 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 
 #define MAX_REDIRECTS 3
 
+// Buffer grandi (URL firmati fino a 1,5 KB): in PSRAM se c'e', altrimenti
+// RAM interna. Mai sullo stack: il task dell'aggiornamento online e quello
+// automatico andavano vicini all'overflow (revisione del 09/10/2026).
+static void *ou_alloc(size_t n)
+{
+    void *p = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    return p ? p : malloc(n);
+}
+
 // Esegue una richiesta seguendo manualmente fino a MAX_REDIRECTS
 // redirect (header Location) - il redirect automatico di
 // esp_http_client si e' dimostrato inaffidabile su hardware reale verso
@@ -145,16 +156,30 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 // Se body_buf non e' NULL, vi copia il corpo della risposta finale.
 // out_final_url (se non NULL) riceve l'URL della risposta finale. Ritorna
 // lo status HTTP finale, o <0 in caso di errore di rete.
+// URL corrente e contesto (con l'header Location) allocati, non sullo stack:
+// insieme facevano oltre 3 KB e il task dell'aggiornamento automatico andava
+// in overflow (revisione del 09/10/2026).
 static int http_fetch_following_redirects(const char *url, bool minimal_range,
                                            char *out_final_url, size_t out_final_url_size,
                                            char *body_buf, size_t body_buf_size)
 {
-    char current_url[MAX_URL_LEN];
-    strncpy(current_url, url, sizeof(current_url) - 1);
-    current_url[sizeof(current_url) - 1] = '\0';
+    char *current_url = ou_alloc(MAX_URL_LEN);
+    http_download_ctx_t *ctx = ou_alloc(sizeof(*ctx));
+    if (!current_url || !ctx) {
+        free(current_url);
+        free(ctx);
+        ESP_LOGE(TAG, "Memoria insufficiente per la richiesta di aggiornamento");
+        return -1;
+    }
+    strncpy(current_url, url, MAX_URL_LEN - 1);
+    current_url[MAX_URL_LEN - 1] = '\0';
+    int result = -1;
 
     for (int hop = 0; hop < MAX_REDIRECTS; hop++) {
-        http_download_ctx_t ctx = { .buf = body_buf, .size = body_buf_size, .used = 0 };
+        ctx->buf = body_buf;
+        ctx->size = body_buf_size;
+        ctx->used = 0;
+        ctx->location[0] = '\0';
         if (body_buf) {
             body_buf[0] = '\0';
         }
@@ -163,7 +188,7 @@ static int http_fetch_following_redirects(const char *url, bool minimal_range,
             .url = current_url,
             .method = HTTP_METHOD_GET,
             .event_handler = http_event_handler,
-            .user_data = &ctx,
+            .user_data = ctx,
             .crt_bundle_attach = esp_crt_bundle_attach,
             .timeout_ms = 10000,
             .disable_auto_redirect = true,
@@ -174,6 +199,13 @@ static int http_fetch_following_redirects(const char *url, bool minimal_range,
                  current_url, strlen(current_url) > 100 ? "..." : "");
 
         esp_http_client_handle_t client = esp_http_client_init(&config);
+        // NULL con un indirizzo malformato (senza "https://", con spazi, un
+        // redirect relativo) o senza memoria: le chiamate sotto lo
+        // dereferenziavano e la base andava in crash (revisione del 09/10/2026).
+        if (!client) {
+            ESP_LOGW(TAG, "Indirizzo non valido o memoria insufficiente: %.100s", current_url);
+            break;
+        }
         // Il CDN di GitHub Releases risponde a volte con corpo compresso
         // (gzip) anche senza che il client lo richieda - esp_http_client
         // non lo decomprime da solo, risultato: byte ricevuti coerenti
@@ -196,21 +228,25 @@ static int http_fetch_following_redirects(const char *url, bool minimal_range,
         // quanti hop, redirect trovati o no).
         ESP_LOGI(TAG, "Hop %d esito: err=%s status=%d content_len=%lld location=%s",
                  hop + 1, esp_err_to_name(err), status, (long long) content_len,
-                 ctx.location[0] ? ctx.location : "(assente)");
+                 ctx->location[0] ? ctx->location : "(assente)");
 
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "Richiesta a %s fallita: %s", current_url, esp_err_to_name(err));
-            return -1;
+            break;
         }
 
         if (status >= 300 && status < 400) {
-            if (ctx.location[0] == '\0') {
+            if (ctx->location[0] == '\0') {
                 ESP_LOGW(TAG, "Redirect (status %d) senza header Location", status);
-                return status;
+                result = status;
+                break;
             }
-            strncpy(current_url, ctx.location, sizeof(current_url) - 1);
-            current_url[sizeof(current_url) - 1] = '\0';
+            strncpy(current_url, ctx->location, MAX_URL_LEN - 1);
+            current_url[MAX_URL_LEN - 1] = '\0';
             ESP_LOGI(TAG, "Redirect (hop %d) -> %s", hop + 1, current_url);
+            if (hop == MAX_REDIRECTS - 1) {
+                ESP_LOGW(TAG, "Troppi redirect (>%d) per %s", MAX_REDIRECTS, url);
+            }
             continue;
         }
 
@@ -218,11 +254,20 @@ static int http_fetch_following_redirects(const char *url, bool minimal_range,
             strncpy(out_final_url, current_url, out_final_url_size - 1);
             out_final_url[out_final_url_size - 1] = '\0';
         }
-        return status;
+        result = status;
+        break;
     }
 
-    ESP_LOGW(TAG, "Troppi redirect (>%d) per %s", MAX_REDIRECTS, url);
-    return -1;
+    free(current_url);
+    free(ctx);
+    return result;
+}
+
+#define MANIFEST_SIZE 512
+
+static void peek_update_url(const app_settings_t *s, void *ctx)
+{
+    strlcpy((char *) ctx, s->ota_update_url, sizeof(s->ota_update_url));
 }
 
 bool online_update_check(char *out_version, size_t out_version_size,
@@ -231,14 +276,26 @@ bool online_update_check(char *out_version, size_t out_version_size,
 {
 #define SET_MSG(...) do { if (out_msg) snprintf(out_msg, out_msg_size, __VA_ARGS__); } while (0)
 
-    app_settings_t settings = settings_get();
-    if (strlen(settings.ota_update_url) == 0) {
+    // Solo l'indirizzo, non tutta la configurazione (2,4 KB) sullo stack del
+    // chiamante (server web o task dell'aggiornamento automatico); manifest
+    // allocato per lo stesso motivo.
+    char update_url[sizeof(((app_settings_t *) 0)->ota_update_url)];
+    settings_peek(peek_update_url, update_url);
+    if (strlen(update_url) == 0) {
         SET_MSG("Nessun indirizzo di aggiornamento online configurato");
         return false;
     }
+    if (strncmp(update_url, "https://", 8) != 0 && strncmp(update_url, "http://", 7) != 0) {
+        SET_MSG("Indirizzo di aggiornamento non valido: deve iniziare con https://");
+        return false;
+    }
 
-    char manifest[512] = {0};
-    int status = http_fetch_following_redirects(settings.ota_update_url, false, NULL, 0, manifest, sizeof(manifest));
+    char *manifest = calloc(1, MANIFEST_SIZE);
+    if (!manifest) {
+        SET_MSG("Memoria insufficiente, riprova");
+        return false;
+    }
+    int status = http_fetch_following_redirects(update_url, false, NULL, 0, manifest, MANIFEST_SIZE);
     ESP_LOGI(TAG, "Esito finale: status=%d, %d byte ricevuti", status, (int) strlen(manifest));
 
     // Non ci si affida allo status HTTP come unico segnale di successo:
@@ -252,6 +309,7 @@ bool online_update_check(char *out_version, size_t out_version_size,
     if (strlen(manifest) == 0) {
         ESP_LOGW(TAG, "Controllo aggiornamenti fallito: nessun contenuto ricevuto (status=%d)", status);
         SET_MSG("Impossibile raggiungere l'indirizzo di aggiornamento configurato");
+        free(manifest);
         return false;
     }
 
@@ -259,8 +317,10 @@ bool online_update_check(char *out_version, size_t out_version_size,
     if (!root) {
         ESP_LOGW(TAG, "Risposta non valida (status=%d): %.100s", status, manifest);
         SET_MSG("Risposta non valida (JSON) dal server di aggiornamento");
+        free(manifest);
         return false;
     }
+    free(manifest);
 
     cJSON *ver_item = cJSON_GetObjectItemCaseSensitive(root, "version");
     if (!ver_item || !cJSON_IsString(ver_item)) {
@@ -317,7 +377,9 @@ static esp_err_t ota_http_client_init_cb(esp_http_client_handle_t http_client)
 bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg_size)
 {
 #define SET_MSG(...) do { if (out_msg) snprintf(out_msg, out_msg_size, __VA_ARGS__); } while (0)
-#define FAIL(...) do { SET_MSG(__VA_ARGS__); progress_finish(false, out_msg); return false; } while (0)
+#define FAIL(...) do { free(resolved_url); SET_MSG(__VA_ARGS__); progress_finish(false, out_msg); return false; } while (0)
+
+    char *resolved_url = NULL; // allocato sotto (vedi ou_alloc)
 
     // Best-effort, non blocca l'aggiornamento se la SD non e' disponibile
     // (vedi fw_archive.h) - questo percorso (esp_https_ota diretto) non
@@ -342,8 +404,12 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
     // restituire uno status non valido pur avendo risposto correttamente)
     // - un errore di trasporto (return -1) resta l'unico segnale di
     // fallimento affidabile qui.
-    char resolved_url[MAX_URL_LEN];
-    int status = http_fetch_following_redirects(firmware_url, true, resolved_url, sizeof(resolved_url), NULL, 0);
+    resolved_url = ou_alloc(MAX_URL_LEN);
+    if (!resolved_url) {
+        FAIL("Memoria insufficiente per l'aggiornamento");
+    }
+    resolved_url[0] = '\0';
+    int status = http_fetch_following_redirects(firmware_url, true, resolved_url, MAX_URL_LEN, NULL, 0);
     if (status < 0) {
         ESP_LOGW(TAG, "Impossibile risolvere l'URL del firmware: errore di trasporto");
         FAIL("Indirizzo del firmware non raggiungibile");
@@ -405,6 +471,7 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
         FAIL("Aggiornamento fallito, immagine ricevuta non valida");
     }
 
+    free(resolved_url);
     SET_MSG("Aggiornamento scaricato e applicato, riavvio...");
     progress_finish(true, out_msg);
     return true;
@@ -419,6 +486,7 @@ static void online_update_apply_task(void *arg)
     char msg[96] = {0};
     bool ok = online_update_apply(url, msg, sizeof(msg));
     free(url);
+    ota_update_end(ok); // preso in online_update_apply_async()
     if (ok) {
         ESP_LOGI(TAG, "Firmware aggiornato online, riavvio in corso");
         sys_stats_note_restart_reason("aggiornamento firmware online");
@@ -428,15 +496,24 @@ static void online_update_apply_task(void *arg)
     vTaskDelete(NULL);
 }
 
-void online_update_apply_async(const char *firmware_url)
+bool online_update_apply_async(const char *firmware_url)
 {
+    // Un solo aggiornamento alla volta: un doppio clic, o l'automatico
+    // durante un caricamento dal browser, avviava due scritture sulla stessa
+    // partizione (revisione del 09/10/2026). Rilasciato dal task alla fine.
+    if (!ota_update_try_begin()) {
+        ESP_LOGW(TAG, "Aggiornamento online non avviato: un altro aggiornamento e' gia' in corso");
+        return false;
+    }
     char *url_copy = strdup(firmware_url ? firmware_url : "");
     // Stack allineato a quello gia' necessario per lo stesso lavoro (TLS +
     // scrittura flash) quando girava dentro il task del server web (vedi
     // web_ui_start(), stack_size 10240 con la stessa motivazione).
-    if (xTaskCreate(online_update_apply_task, "ota_apply", 10240, url_copy, tskIDLE_PRIORITY + 5, NULL) != pdPASS) {
+    if (!url_copy || xTaskCreate(online_update_apply_task, "ota_apply", 10240, url_copy, tskIDLE_PRIORITY + 5, NULL) != pdPASS) {
         free(url_copy);
+        ota_update_end(false);
         progress_reset();
         progress_finish(false, "Impossibile avviare il task di aggiornamento");
     }
+    return true;
 }

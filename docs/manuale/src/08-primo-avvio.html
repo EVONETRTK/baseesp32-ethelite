@@ -40,7 +40,9 @@
 
 <h3>La password del pannello</h3>
 
-<p>Si cambia dalla scheda <em>Manutenzione</em>, riquadro <em>Sicurezza</em>, campo <strong>Codice di accesso a questa pagina</strong>. L'utente resta sempre <code>admin</code>. Il pannello chiede conferma prima di salvare, perché una password sbagliata chiude fuori dal pannello.</p>
+<p>Si cambia dalla scheda <em>Manutenzione</em>, riquadro <em>Sicurezza</em>, campo <strong>Codice di accesso a questa pagina</strong>. L'utente resta sempre <code>admin</code>. Il pannello chiede conferma prima di salvare, perché una password sbagliata chiude fuori dal pannello. La password va da 4 a 32 caratteri; finché resta quella di fabbrica <code>1234</code>, in cima al pannello compare una striscia rossa con il pulsante per cambiarla.</p>
+
+<p>Dopo 5 password sbagliate di fila dallo stesso computer o telefono, il pannello rifiuta i tentativi per qualche secondo, poi per tempi via via più lunghi (fino a 5 minuti): è una protezione contro chi prova a indovinarla. L'accesso resta valido per 30 giorni, poi il browser chiede di nuovo la password. Il pannello si apre con l'indirizzo IP del ricevitore o con il nome <em>EVONETRTK-matricola</em>.local; con altri nomi (per esempio un indirizzo dinamico del router) le richieste vengono rifiutate.</p>
 
 <p>Dopo il primo accesso il browser resta autorizzato per <strong>30 giorni</strong>. Cambiando la password, i browser autorizzati con quella vecchia vengono respinti e mostrano una pagina <em>Accesso negato</em> che spiega come rientrare con la password nuova.</p>
 
@@ -48,7 +50,7 @@
 
 <h3>Password dimenticata</h3>
 
-<p>Se la password del pannello è stata dimenticata, l'unico modo per rientrare è il <strong>ripristino di fabbrica</strong>: con il ricevitore acceso, tenete premuto il pulsante <strong>BOOT</strong> della scheda per <strong>5 secondi</strong>. Il ricevitore cancella <strong>tutta</strong> la configurazione (reti, caster, coordinate, avvisi, password) e riparte con i valori di fabbrica. Per questo conviene avere sempre una copia della configurazione: si ricarica dalla scheda <em>Manutenzione</em> e la configurazione torna com'era. Il ripristino cancella però anche la <strong>licenza</strong>: il ricevitore torna «da attivare» e serve un <strong>codice di attivazione nuovo</strong>, da chiedere all'assistenza EVONETRTK indicando la matricola (capitolo <a data-cap="Risoluzione dei problemi"></a>).</p>
+<p>Se la password del pannello è stata dimenticata, l'unico modo per rientrare è il <strong>ripristino di fabbrica</strong>: con il ricevitore acceso, tenete premuto il pulsante <strong>BOOT</strong> della scheda per <strong>5 secondi</strong>. Il ricevitore cancella <strong>tutta</strong> la configurazione (reti, caster, coordinate, avvisi, password) e riparte con i valori di fabbrica. Per questo conviene avere sempre una copia della configurazione: si ricarica dalla scheda <em>Manutenzione</em> e la configurazione torna com'era. La <strong>licenza</strong> invece resta: non serve riattivare il ricevitore.</p>
 
 <h3>La matricola</h3>
 
@@ -110,7 +112,7 @@
 <ul>
   <li>Primo accesso: rete <strong>EVONETRTK-</strong><em>matricola</em>, password <code>baseesp32setup</code>, <code>http://192.168.4.1</code>, utente <code>admin</code>, password <code>1234</code>; cambiare subito entrambe le password.</li>
   <li>Configurazione nell'ordine: password, rete, licenza, modalità, modulo GNSS, caster, posizione, SIM, avvisi, copia della configurazione, scheda di accesso.</li>
-  <li>Password dimenticata: pulsante BOOT per 5 secondi, poi ricaricare la copia della configurazione e riattivare la licenza con un codice nuovo.</li>
+  <li>Password dimenticata: pulsante BOOT per 5 secondi, poi ricaricare la copia della configurazione (la licenza resta).</li>
   <li>La scheda di accesso è riservata e va ristampata a ogni cambio.</li>
   <li>Ogni riquadro ha il suo Salva; la barra gialla indica le modifiche che aspettano il riavvio.</li>
 </ul>

@@ -242,9 +242,24 @@ void gnss_nmea_reader_task(void *arg)
                 continue;
             }
 
+            // Una riga comincia sempre da '$' (NMEA) o '#' (log ASCII
+            // Unicore/ComNav/Bynav): qui si riparte da capo. Un byte non
+            // stampabile (frame binario, es. RXM-RAWX rimasto acceso dalla
+            // base) scarta quanto raccolto. Prima i byte binari restavano in
+            // testa alla riga e la frase NMEA successiva veniva persa.
+            if (c == '$' || c == '#') {
+                line_len = 0;
+            } else if (c != '\n' && c != '\r' && ((uint8_t) c < 0x20 || (uint8_t) c > 0x7E)) {
+                line_len = 0;
+                continue;
+            }
+
             if (c == '\n') {
-                if (line_len > 6 && line[0] == '$') {
-                    line[line_len] = '\0';
+                line[line_len] = '\0';
+                // Checksum NMEA: righe incollate o con byte persi (seriale in
+                // overflow) non vanno ne' ad AgOpenGPS ne' al caster ne' alla
+                // misura della posizione base.
+                if (line_len > 6 && line[0] == '$' && nmea_checksum_ok(line)) {
                     if (s_has_fallback) {
                         has_fallback_line(line, &line_len);
                     }
@@ -263,7 +278,6 @@ void gnss_nmea_reader_task(void *arg)
                         gnss_signal_parse_gsv(line);
                     }
                 } else if (line_len > 10 && line[0] == '#') {
-                    line[line_len] = '\0';
                     handle_bynav_line(line);
                     gnss_unicore_note_line(line);
                     gnss_comnav_note_line(line);

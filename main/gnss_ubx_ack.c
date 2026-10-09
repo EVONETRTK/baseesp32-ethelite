@@ -37,11 +37,12 @@ typedef enum {
 static ubx_frame_state_t s_state = ST_IDLE;
 static uint8_t s_class, s_id;
 static uint16_t s_len, s_payload_idx;
-// 220 byte: capiente per UBX-MON-VER (swVersion[30]+hwVersion[10]+fino a
-// diverse righe di estensione[30] l'una) - usato solo per diagnostica
-// (log del contenuto), non serve per il percorso ACK/NAK vero e proprio
-// che guarda solo i primi 2 byte.
-static uint8_t s_payload[220];
+// 400 byte: UBX-MON-VER = swVersion[30]+hwVersion[10]+righe di estensione
+// da 30 byte l'una. Con 220 (6 estensioni) un modulo con 7 o piu' righe
+// (es. "NAVIC" in piu', firmware recenti / ZED-X20P) vedeva scartato tutto il
+// frame: modello mai letto, segnali dello X20P mai configurati. 400 = 12
+// estensioni. Il percorso ACK/NAK guarda solo i primi 2 byte.
+static uint8_t s_payload[400];
 static uint8_t s_ck_a, s_calc_ck_a, s_calc_ck_b;
 
 // Finestra di attesa risposta (vedi gnss_ubx_ack_arm()): scritto dal task

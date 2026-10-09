@@ -159,7 +159,11 @@ static mon_prev_t s_mon_prev[MON_MAX_TASKS];
 static UBaseType_t s_mon_prev_n;
 
 // Battiti dei task principali (vedi sys_stats.h): ultimo istante e limite.
-static volatile int64_t s_hb_last_us[HB_COUNT];
+// Sotto spinlock: un int64 copiato in due meta' da un altro core poteva
+// arrivare spezzato (istante sbagliato di ~71 minuti) e far scattare un
+// falso "task bloccato" con riavvio (09/10/2026).
+static int64_t s_hb_last_us[HB_COUNT];
+static portMUX_TYPE s_hb_lock = portMUX_INITIALIZER_UNLOCKED;
 static const struct { const char *name; int64_t limit_us; } s_hb_info[HB_COUNT] = {
     [HB_NET]    = { "rete (net_manager)",  10LL * 60 * 1000000 },
     [HB_NTRIP]  = { "client NTRIP",          5LL * 60 * 1000000 },
@@ -172,7 +176,10 @@ static volatile uint32_t s_hb_frozen; // prova: battiti ignorati (sys_stats_test
 void sys_stats_heartbeat(heartbeat_t which)
 {
     if (which < HB_COUNT && !(s_hb_frozen & (1u << which))) {
-        s_hb_last_us[which] = esp_timer_get_time();
+        int64_t now = esp_timer_get_time();
+        portENTER_CRITICAL(&s_hb_lock);
+        s_hb_last_us[which] = now;
+        portEXIT_CRITICAL(&s_hb_lock);
     }
 }
 
@@ -260,7 +267,9 @@ static void sys_monitor_task(void *arg)
         safety_restart_check(now);
         // Task bloccati senza crash (vedi sys_stats_heartbeat).
         for (int h = 0; h < HB_COUNT; h++) {
+            portENTER_CRITICAL(&s_hb_lock);
             int64_t last = s_hb_last_us[h];
+            portEXIT_CRITICAL(&s_hb_lock);
             if (last > 0 && now - last > s_hb_info[h].limit_us) {
                 char why[96];
                 snprintf(why, sizeof(why), "task bloccato: %s, fermo da %lld s",
@@ -415,6 +424,7 @@ void sys_stats_monitor_start(void)
 #include "status.h"
 #include "gnss_fix.h"
 #include "boot_guard.h"
+#include "eth_link.h"
 
 #define RESTART_MAGIC 0x52535452u
 
@@ -582,8 +592,18 @@ static void safety_restart_check(int64_t now)
             receiver_silent_restart("nessun dato NMEA dal ricevitore da 10 minuti");
         }
     }
+    // Caster scollegato da 30 minuti: solo sulla base e solo con la rete su
+    // (09/10/2026). Sul rover un riavvio interrompeva l'uscita NMEA verso la
+    // guida e riconfigurava il ricevitore (convergenza HAS persa) proprio in
+    // un campo senza copertura, dove riavviare non serve. Anche sulla base,
+    // senza rete il riavvio non riporta il caster e fermava per tutto
+    // l'avvio il caster locale per i rover in LAN.
+    if (status_get_active_rover()) {
+        return;
+    }
+    bool net_up = status_get_net() != NET_STATUS_NONE || eth_link_is_connected();
     ntrip_conn_status_t nt = status_ntrip_get();
-    if (nt.connect_count > 0 && !nt.connected && nt.last_disconnect_us > 0 &&
+    if (net_up && nt.connect_count > 0 && !nt.connected && nt.last_disconnect_us > 0 &&
         now - nt.last_disconnect_us > GUARD_CASTER_DOWN_US) {
         snprintf(why, sizeof(why), "caster scollegato da 30 minuti (%.50s)", nt.last_error);
         sys_stats_restart_with_reason(why);

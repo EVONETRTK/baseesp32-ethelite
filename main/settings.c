@@ -33,10 +33,27 @@ static const char *TAG = "settings";
 // e' garantita, quindi il merge parziale e' sicuro.
 #define CFG_MAGIC     0x62733032u // "bs02"
 
+// Versione della disposizione dei campi (09/10/2026). La sola dimensione non
+// basta: app_settings_t e' allineata a 8 byte (contiene dei double), quindi
+// un campo piccolo aggiunto in fondo puo' finire nei byte di riempimento
+// finali della versione precedente - stessa dimensione, nessun "blob di una
+// versione precedente" riconosciuto, e il campo nuovo letto a 0 invece del
+// suo valore predefinito. Il numero sta nei 4 byte di riempimento che c'erano
+// gia' tra magic e s (sempre a 0 nei blob salvati finora, vedi s_save_buf
+// statica): il formato e il magic "bs02" non cambiano, quindi i firmware
+// precedenti continuano a leggere i blob nuovi (ritorno a una versione
+// precedente dall'archivio) e questo legge i vecchi come layout 0.
+// REGOLA: aggiungendo in fondo ad app_settings_t un campo con valore
+// predefinito diverso da 0, incrementare SETTINGS_LAYOUT e aggiungere in
+// settings_init() "if (layout < N) s_settings.campo = predefinito;".
+#define SETTINGS_LAYOUT 1 // 1 = campi fino a nmea_rate_hz (1.30.x)
+
 typedef struct {
     uint32_t magic;
+    uint32_t layout; // SETTINGS_LAYOUT di chi ha salvato (0 = prima di questo campo)
     app_settings_t s;
 } stored_cfg_t;
+_Static_assert(offsetof(stored_cfg_t, s) == 8, "stored_cfg_t: s deve restare a 8 byte (formato dei blob salvati)");
 
 static app_settings_t s_settings;
 static bool s_loaded_from_nvs; // false = default di fabbrica (nessuna configurazione valida in NVS)
@@ -55,6 +72,7 @@ static bool s_loaded_from_nvs; // false = default di fabbrica (nessuna configura
 // campi) attenuavano senza risolvere alla radice. Il mutex qui sotto
 // rende atomica ogni lettura/scrittura dell'intera struct condivisa.
 static SemaphoreHandle_t s_settings_mutex;
+static SemaphoreHandle_t s_save_mutex; // salvataggi in NVS e s_save_buf (vedi settings_save)
 
 // Stessi 3 byte finali del MAC gia' usati per il suffisso dell'SSID
 // dell'AP di setup (es. "EVONETRTK-893428" -> "893428") - stesso numero
@@ -185,6 +203,12 @@ void settings_init(void)
     if (!s_settings_mutex) {
         s_settings_mutex = xSemaphoreCreateMutex();
     }
+    // Anche quello dei salvataggi (prima creato al primo uso: due task che
+    // salvavano insieme per la prima volta potevano crearne due e scrivere
+    // insieme in s_save_buf).
+    if (!s_save_mutex) {
+        s_save_mutex = xSemaphoreCreateMutex();
+    }
 
     ESP_LOGI(TAG, "sizeof(app_settings_t) di questo firmware = %u byte", (unsigned) sizeof(app_settings_t));
 
@@ -231,7 +255,11 @@ void settings_init(void)
     uint32_t magic;
     memcpy(&magic, buf, sizeof(magic));
 
-    if (err == ESP_OK && magic == CFG_MAGIC) {
+    // Blob troncato (piu' corto dell'intestazione): stored_size - header_size
+    // sotto andrebbe sotto zero e il memcpy leggerebbe oltre il buffer.
+    if (err == ESP_OK && magic == CFG_MAGIC && stored_size >= offsetof(stored_cfg_t, s)) {
+        uint32_t layout;
+        memcpy(&layout, buf + offsetof(stored_cfg_t, layout), sizeof(layout));
         // offsetof(stored_cfg_t, s), NON sizeof(magic): stored_cfg_t contiene
         // dei "double" (base_fixed_lat_deg e affini, dentro app_settings_t),
         // che richiedono allineamento a 8 byte - il compilatore inserisce 4
@@ -289,6 +317,20 @@ void settings_init(void)
         if (s_settings.ap_password[0] == '\0') {
             ESP_LOGW(TAG, "Password rete AP salvata vuota, uso il default di fabbrica");
             strncpy(s_settings.ap_password, "baseesp32setup", sizeof(s_settings.ap_password) - 1);
+        }
+        // Codice del pannello vuoto (blob corrotto o importato): il pannello
+        // sarebbe aperto a chiunque sia sulla rete. Torna quello di fabbrica.
+        if (s_settings.admin_code[0] == '\0') {
+            ESP_LOGW(TAG, "Codice del pannello salvato vuoto: rimesso quello di fabbrica (1234), da cambiare");
+            strncpy(s_settings.admin_code, "1234", sizeof(s_settings.admin_code) - 1);
+        }
+        // Migrazioni per disposizione dei campi (vedi SETTINGS_LAYOUT): per
+        // ora nessuna (layout 1 = tutti i campi della 1.30.x, gia' presenti
+        // nei blob layout 0). Esempio per il prossimo campo:
+        //   if (layout < 2) s_settings.campo_nuovo = valore_predefinito;
+        if (layout != SETTINGS_LAYOUT) {
+            ESP_LOGI(TAG, "Configurazione salvata con disposizione dei campi %u (questo firmware: %u)",
+                     (unsigned) layout, (unsigned) SETTINGS_LAYOUT);
         }
         // Rete di sicurezza indipendente dal magic/dalla dimensione sopra:
         // un valore fuori range qui manderebbe in crash il boot (ESP_ERROR_CHECK
@@ -402,8 +444,8 @@ app_settings_t settings_get(void)
 // prima erano sullo stack del chiamante (~4 KB in tutto). Il 02/10/2026 un
 // task con stack piccolo e' andato in crash DURANTE la scrittura e la
 // configurazione e' andata persa del tutto (base ripartita con i default).
+// (s_save_mutex e' dichiarato in alto, creato in settings_init.)
 static stored_cfg_t s_save_buf;
-static SemaphoreHandle_t s_save_mutex;
 
 esp_err_t settings_save(const app_settings_t *s)
 {
@@ -429,6 +471,7 @@ esp_err_t settings_save(const app_settings_t *s)
     // scritture concorrenti) e non da s_settings: evita qualunque finestra
     // di rischio tra il rilascio del mutex sopra e questa riga.
     s_save_buf.magic = CFG_MAGIC;
+    s_save_buf.layout = SETTINGS_LAYOUT;
     s_save_buf.s = *s;
 
     nvs_handle_t h;
@@ -548,15 +591,21 @@ esp_err_t settings_import_blob(const void *blob, size_t len, bool keep_identity)
 {
     uint32_t magic;
     size_t header = offsetof(stored_cfg_t, s);
-    if (len < header + 64 || len > sizeof(stored_cfg_t)) {
+    if (len < header + 64) {
         return ESP_ERR_INVALID_SIZE;
+    }
+    // Copia di un firmware piu' recente (configurazione piu' lunga): si
+    // tengono i campi che questo firmware conosce, come fa settings_init()
+    // con un blob piu' lungo in NVS. Prima veniva rifiutata, e dopo un ritorno
+    // a una versione precedente dall'archivio nessuna copia era ripristinabile.
+    if (len > sizeof(stored_cfg_t)) {
+        ESP_LOGW(TAG, "Configurazione da un firmware piu' recente (%u byte): tengo i primi %u",
+                 (unsigned) len, (unsigned) sizeof(stored_cfg_t));
+        len = sizeof(stored_cfg_t);
     }
     memcpy(&magic, blob, sizeof(magic));
     if (magic != CFG_MAGIC) {
         return ESP_ERR_INVALID_ARG;
-    }
-    if (!s_save_mutex) {
-        s_save_mutex = xSemaphoreCreateMutex();
     }
     xSemaphoreTake(s_save_mutex, portMAX_DELAY);
     memset(&s_save_buf, 0, sizeof(s_save_buf));
@@ -595,6 +644,71 @@ esp_err_t settings_import_blob(const void *blob, size_t len, bool keep_identity)
     return err;
 }
 
+bool settings_blob_serial_is_this_chip(const void *blob, size_t len)
+{
+    size_t off = offsetof(stored_cfg_t, s) + offsetof(app_settings_t, device_serial);
+    size_t sz = sizeof(((app_settings_t *) 0)->device_serial);
+    if (len < off + sz) {
+        return false;
+    }
+    char saved[sizeof(((app_settings_t *) 0)->device_serial)];
+    memcpy(saved, (const uint8_t *) blob + off, sz);
+    saved[sz - 1] = '\0';
+    char mine[16];
+    format_mac_serial(mine, sizeof(mine));
+    return strcmp(saved, mine) == 0;
+}
+
+// Reset di fabbrica che conserva la licenza (09/10/2026): nvs_flash_erase()
+// cancellava anche il namespace "license" (chiave del ricevitore e licenza
+// firmata) e il ricevitore tornava "da attivare", senza Pacchetto Base fino a
+// una nuova attivazione dal server. Qui si cancellano uno per uno tutti gli
+// altri namespace presenti (anche quelli di ESP-IDF: WiFi, calibrazione PHY),
+// cercati nella NVS invece che da un elenco fisso, cosi' un modulo nuovo non
+// viene dimenticato.
+#define LICENSE_NVS_NS "license" // come NVS_NS in license.c
+#define ERASE_MAX_NS   32
+
+esp_err_t settings_factory_erase_keep_license(void)
+{
+    static char names[ERASE_MAX_NS][NVS_NS_NAME_MAX_SIZE]; // statico: mai sullo stack del chiamante
+    int n = 0;
+    nvs_iterator_t it = NULL;
+    esp_err_t res = nvs_entry_find(NVS_DEFAULT_PART_NAME, NULL, NVS_TYPE_ANY, &it);
+    while (res == ESP_OK) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        bool seen = strcmp(info.namespace_name, LICENSE_NVS_NS) == 0;
+        for (int i = 0; i < n && !seen; i++) {
+            seen = strcmp(names[i], info.namespace_name) == 0;
+        }
+        if (!seen && n < ERASE_MAX_NS) {
+            strlcpy(names[n++], info.namespace_name, sizeof(names[0]));
+        }
+        res = nvs_entry_next(&it);
+    }
+    nvs_release_iterator(it);
+
+    esp_err_t err = ESP_OK;
+    for (int i = 0; i < n; i++) {
+        nvs_handle_t h;
+        esp_err_t e = nvs_open(names[i], NVS_READWRITE, &h);
+        if (e == ESP_OK) {
+            e = nvs_erase_all(h);
+            if (e == ESP_OK) {
+                e = nvs_commit(h);
+            }
+            nvs_close(h);
+        }
+        ESP_LOGW(TAG, "Reset di fabbrica: namespace \"%s\" cancellato (%s)", names[i], esp_err_to_name(e));
+        if (e != ESP_OK) {
+            err = e;
+        }
+    }
+    ESP_LOGW(TAG, "Reset di fabbrica: %d namespace cancellati, licenza e chiave del ricevitore conservate", n);
+    return err;
+}
+
 // --- accesso senza copie -----------------------------------------------------
 // Ogni copia di app_settings_t costa ~2,1 KB (sullo stack o statica). Queste
 // due funzioni lavorano direttamente sulla configurazione in memoria, sotto
@@ -626,6 +740,7 @@ esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx)
     fn(&s_settings, ctx);
     s_generation++;
     s_save_buf.magic = CFG_MAGIC;
+    s_save_buf.layout = SETTINGS_LAYOUT;
     s_save_buf.s = s_settings;
     xSemaphoreGive(s_settings_mutex);
 

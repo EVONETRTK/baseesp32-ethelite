@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/stream_buffer.h"
+#include "freertos/idf_additions.h"
 
 #include "esp_log.h"
 #include "esp_heap_caps.h"
@@ -78,6 +79,15 @@ static void gnss_uart_init(const app_settings_t *settings)
 // Un frame RTCM3 valido (CRC gia' verificato da base_stream_demux.c): va al
 // caster e agli altri consumatori. base_monitor_feed() e' pensata per essere
 // veloce/non bloccante (non fa I/O), per non rallentare il task.
+// Stack in PSRAM: la RAM interna e' poca e frammentata (blocco libero piu'
+// grande ~8 KB). Vale solo per task che non scrivono mai in flash/NVS.
+static void task_create_psram(TaskFunction_t fn, const char *name, uint32_t stack, void *arg, UBaseType_t prio)
+{
+    if (xTaskCreateWithCaps(fn, name, stack, arg, prio, NULL, MALLOC_CAP_SPIRAM) != pdPASS) {
+        xTaskCreate(fn, name, stack, arg, prio, NULL);
+    }
+}
+
 static void base_forward_rtcm_frame(const uint8_t *frame, size_t len)
 {
     status_note_rtcm_bytes((uint32_t) len);
@@ -86,8 +96,12 @@ static void base_forward_rtcm_frame(const uint8_t *frame, size_t len)
     ntrip_caster_server_feed(frame, len);
     ppp_log_feed(frame, len);
     // Senza attivazione il client NTRIP non parte: niente coda che si riempie.
-    if (license_has(LIC_BASE)) {
-        xStreamBufferSend(rtcm_stream, frame, len, pdMS_TO_TICKS(1000));
+    // Mai attese qui: con il caster remoto irraggiungibile nessuno svuota la
+    // coda, e l'attesa di 1 s per frame fermava la lettura del ricevitore
+    // (UART in overflow, caster interno e controlli senza dati). Il frame
+    // entra solo intero, altrimenti si scarta: mai mezzi frame al caster.
+    if (license_has(LIC_BASE) && xStreamBufferSpacesAvailable(rtcm_stream) >= len) {
+        xStreamBufferSend(rtcm_stream, frame, len, 0);
     }
 }
 
@@ -238,13 +252,20 @@ void app_main(void)
     //
     // Attesa fino a 90 s (prima 15: con una scheda lenta l'aggiornamento
     // finiva dopo, la partizione nuova restava impostata e il firmware nuovo
-    // partiva a sorpresa al primo riavvio, anche giorni dopo), ma sempre
-    // 10 s prima che scatti il salvavita dell'avvio. Se l'attesa scade e
+    // partiva a sorpresa al primo riavvio, anche giorni dopo), ma lasciando
+    // SD_BOOT_REST_MS al resto dell'avvio prima che scatti il salvavita:
+    // riconoscimento e configurazione del ricevitore possono durare 20-30 s
+    // (Unicore: cambio del gruppo di segnali, 5 s di attesa). Con i soli 10 s
+    // di prima, se l'attesa scadeva con l'aggiornamento ancora in scrittura,
+    // il salvavita poteva far ripartire la scheda a meta' scrittura; cosi'
+    // l'avvio arriva a boot_guard_done() e la scrittura finisce in pace. Se
     // l'aggiornamento poi riesce, riavvia il task dell'SD (sd_update.c).
+#define SD_BOOT_REST_MS 45000
     char sd_msg[96] = {0};
     boot_guard_stage(BOOT_STAGE_SD_UPDATE);
     uint32_t sd_wait_ms = boot_guard_remaining_ms();
-    sd_wait_ms = sd_wait_ms > 100000 ? 90000 : (sd_wait_ms > 25000 ? sd_wait_ms - 10000 : 15000);
+    sd_wait_ms = sd_wait_ms > 90000 + SD_BOOT_REST_MS ? 90000
+               : (sd_wait_ms > 15000 + SD_BOOT_REST_MS ? sd_wait_ms - SD_BOOT_REST_MS : 15000);
     if (sd_update_check_and_apply_timeout(sd_msg, sizeof(sd_msg), sd_wait_ms)) {
         ESP_LOGI(TAG, "Firmware aggiornato da microSD all'avvio, riavvio in corso: %s", sd_msg);
         sys_stats_note_restart_reason("aggiornamento firmware da microSD all'avvio");
@@ -339,13 +360,13 @@ void app_main(void)
         if (!license_has(LIC_ROVER) && !(base_measure_is_active() && license_has(LIC_BASE))) {
             ESP_LOGW(TAG, "Pacchetto Rover non compreso nella licenza: nessuna correzione dal caster (Manutenzione -> Licenza)");
         } else if (!base_measure_is_has()) {
-            xTaskCreate(ntrip_rover_client_task, "ntrip_rover", 8192,
-                        (void *)(intptr_t) s_gnss_uart_num, 5, NULL);
+            task_create_psram(ntrip_rover_client_task, "ntrip_rover", 8192,
+                              (void *)(intptr_t) s_gnss_uart_num, 5);
         }
         base_measure_start_if_active(); // misura della posizione base in corso
     } else {
         if (license_has(LIC_BASE)) {
-            xTaskCreate(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5, NULL);
+            task_create_psram(ntrip_client_task, "ntrip_client", 8192, rtcm_stream, 5);
         } else {
             ESP_LOGW(TAG, "Pacchetto Base non compreso nella licenza: nessun invio al caster (Manutenzione -> Licenza)");
         }

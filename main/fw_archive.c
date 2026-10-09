@@ -21,6 +21,8 @@
 #include "driver/sdspi_host.h"
 #include "driver/spi_common.h"
 #include "sdmmc_cmd.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "fw_archive";
 
@@ -40,9 +42,20 @@ static bool s_sd_mounted;
 // sd_mutex.h per il motivo (contesa reale con altri moduli, confermata
 // su hardware: l'archiviazione all'avvio falliva sistematicamente
 // prima di questo mutex, scontrandosi con diag_log).
+static int s_borrow_depth; // montaggi annidati che riusano quello gia' attivo (con sd_mutex preso)
+static bool s_copy_busy;   // copia della partizione in corso (vedi fw_archive_save_current)
+
 static bool mount_sd(void)
 {
     sd_mutex_take();
+    // SD gia' montata da questo stesso task (sd_update.c, o fw_archive_apply
+    // qui sotto) e ora ota_update_apply() chiama fw_archive_save_current():
+    // si riusa il montaggio esistente. Prima il secondo spi_bus_initialize
+    // falliva e la versione uscente non veniva mai archiviata.
+    if (sd_mounted_by_me()) {
+        s_borrow_depth++;
+        return true;
+    }
 
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
     host.slot = SPI3_HOST;
@@ -78,14 +91,21 @@ static bool mount_sd(void)
         return false;
     }
     s_sd_mounted = true;
+    sd_mount_note(true);
     return true;
 }
 
 static void unmount_sd(void)
 {
+    if (s_borrow_depth > 0) {
+        s_borrow_depth--;
+        sd_mutex_give(); // il montaggio resta a chi l'ha fatto
+        return;
+    }
     if (!s_sd_mounted) {
         return;
     }
+    sd_mount_note(false);
     esp_vfs_fat_sdcard_unmount(MOUNT_POINT, s_card);
     spi_bus_free(SPI3_HOST);
     s_sd_mounted = false;
@@ -168,20 +188,40 @@ void fw_archive_save_current(void)
     // vedi main.c - non solo prima di un aggiornamento) non serve
     // riscrivere l'intera partizione ad ogni riavvio: inutile usura della
     // SD nel tempo su un dispositivo che puo' restare acceso mesi in campo.
-    FILE *existing = fopen(path, "rb");
-    if (existing) {
-        fclose(existing);
+    // Solo se completo (dimensione dell'intera partizione): una copia troncata
+    // da un calo di corrente (lasciata dalle versioni precedenti) veniva
+    // considerata buona per sempre e il ripristino poi falliva.
+    // Copia gia' in corso in un altro task (avvio + aggiornamento dal
+    // pannello): ora la SD si smonta tra un tratto e l'altro, quindi le due
+    // copie si alternerebbero sullo stesso .tmp. Letto e scritto con sd_mutex.
+    if (s_copy_busy) {
+        ESP_LOGW(TAG, "Archiviazione gia' in corso in un altro task: saltata");
         unmount_sd();
         return;
+    }
+    struct stat st;
+    if (stat(path, &st) == 0) {
+        if ((size_t) st.st_size == running->size) {
+            unmount_sd();
+            return;
+        }
+        ESP_LOGW(TAG, "Copia archiviata %s incompleta (%ld byte): la rifaccio", path, (long) st.st_size);
     }
 
+    // Scrittura su un file temporaneo (non ".bin", quindi ignorato dall'elenco)
+    // e rinomina solo a copia completata: se manca la corrente a meta' non
+    // resta un "vX.bin" troncato.
+    char tmp_path[64];
+    snprintf(tmp_path, sizeof(tmp_path), "%s/v%s.tmp", ARCHIVE_DIR, FIRMWARE_VERSION);
+    unlink(tmp_path);
     errno = 0;
-    FILE *f = fopen(path, "wb");
+    FILE *f = fopen(tmp_path, "wb");
     if (!f) {
-        ESP_LOGW(TAG, "Impossibile creare %s, archiviazione saltata (errno=%d: %s)", path, errno, strerror(errno));
+        ESP_LOGW(TAG, "Impossibile creare %s, archiviazione saltata (errno=%d: %s)", tmp_path, errno, strerror(errno));
         unmount_sd();
         return;
     }
+    s_copy_busy = true;
 
     // Copia l'intera dimensione della partizione (non solo l'immagine
     // effettiva, che richiederebbe analizzare l'header per la dimensione
@@ -192,23 +232,50 @@ void fw_archive_save_current(void)
     const size_t buf_size = 4096;
     uint8_t *buf = malloc(buf_size);
     bool ok = buf != NULL;
-    for (size_t off = 0; ok && off < running->size; off += buf_size) {
-        size_t chunk = running->size - off < buf_size ? running->size - off : buf_size;
-        if (esp_partition_read(running, off, buf, chunk) != ESP_OK) {
-            ok = false;
-            break;
+    // A tratti da 128 KB, smontando la SD tra un tratto e l'altro (09/10/2026):
+    // con la SD montata il ricevitore via I2C e' fermo (vedi gnss_io.c), e
+    // la copia intera di 2 MB lo teneva muto per decine di secondi (30 s dopo
+    // il primo avvio di ogni versione e prima di ogni aggiornamento). Se la SD
+    // e' di un altro montaggio di questo task (annidato, vedi mount_sd) non si
+    // smonta: la tiene chi l'ha montata.
+    const size_t seg_size = 128 * 1024;
+    size_t off = 0;
+    while (ok && off < running->size) {
+        size_t seg_end = running->size - off < seg_size ? running->size : off + seg_size;
+        for (; ok && off < seg_end; off += buf_size) {
+            size_t chunk = seg_end - off < buf_size ? seg_end - off : buf_size;
+            if (esp_partition_read(running, off, buf, chunk) != ESP_OK || fwrite(buf, 1, chunk, f) != chunk) {
+                ok = false;
+            }
         }
-        if (fwrite(buf, 1, chunk, f) != chunk) {
-            ok = false;
-            break;
+        if (ok && off < running->size && s_borrow_depth == 0) {
+            ok = fclose(f) == 0;
+            f = NULL;
+            unmount_sd();
+            vTaskDelay(pdMS_TO_TICKS(100)); // spazio all'I2C del ricevitore
+            if (!mount_sd()) {
+                ESP_LOGW(TAG, "SD non piu' disponibile durante l'archiviazione: saltata");
+                free(buf);
+                s_copy_busy = false;
+                return; // resta solo il .tmp, ricreato da capo al prossimo tentativo
+            }
+            f = ok ? fopen(tmp_path, "ab") : NULL;
+            ok = ok && f != NULL;
         }
     }
-    fclose(f);
+    if (f) {
+        ok = (fclose(f) == 0) && ok;
+    }
     free(buf);
+    s_copy_busy = false; // SD montata da qui in poi: sotto sd_mutex
 
+    if (ok) {
+        unlink(path); // eventuale copia incompleta precedente
+        ok = rename(tmp_path, path) == 0;
+    }
     if (!ok) {
         ESP_LOGW(TAG, "Copia della partizione fallita, rimuovo il file incompleto");
-        unlink(path);
+        unlink(tmp_path);
         unmount_sd();
         return;
     }

@@ -62,3 +62,15 @@ esp_err_t sd_mount_retry(const char *base_path, const sdmmc_host_t *host,
 // prova il clock della SD (GPIO10) e' collegato a una linea I2C tramite l'HAT
 // del ricevitore, quindi i due non possono lavorare nello stesso momento.
 bool sd_mutex_try_take(TickType_t ticks);
+
+// SD gia' montata dallo stesso task (09/10/2026). Il mutex ricorsivo da solo
+// non bastava: il secondo montaggio annidato (fw_archive_save_current dentro
+// ota_update_apply, chiamato da sd_update.c o fw_archive_apply con la SD gia'
+// montata) falliva sempre su spi_bus_initialize (bus gia' in uso) e
+// l'archiviazione della versione uscente veniva saltata. Chi monta la SD e
+// poi chiama codice che puo' montarla di nuovo la segna con
+// sd_mount_note(true) dopo il montaggio e sd_mount_note(false) prima dello
+// smontaggio (con sd_mutex preso); chi monta in modo annidato controlla
+// sd_mounted_by_me() e in quel caso riusa il montaggio esistente.
+void sd_mount_note(bool mounted);
+bool sd_mounted_by_me(void);

@@ -42,6 +42,12 @@ void gnss_fix_init(void);
 // chiamante e' gnss_nmea_reader).
 void gnss_fix_parse_gga(const char *line);
 
+// true se la riga NMEA ("$...*hh", senza CR/LF) ha il checksum giusto. Una
+// riga senza checksum o troncata e' falsa: con byte persi sulla seriale due
+// righe si incollano o una cifra sparisce, e la posizione sarebbe sbagliata
+// (fino a chilometri nella media della misura della base).
+bool nmea_checksum_ok(const char *line);
+
 // Copia lo stato corrente del fix. Puo' essere chiamata da qualunque task
 // (es. il server web).
 gnss_fix_status_t gnss_fix_get_status(void);

@@ -502,3 +502,14 @@ uint8_t settings_nmea_rate_hz(void);
 // di setup di questo dispositivo (configurazione presa da un'altra base).
 size_t settings_export_blob(void *out, size_t out_size);
 esp_err_t settings_import_blob(const void *blob, size_t len, bool keep_identity);
+
+// true se la matricola salvata nel blob e' quella di fabbrica di questo chip
+// (3 byte finali del MAC, come settings_device_serial_from_mac). Usata da
+// config_backup.c per le copie sulla microSD senza il MAC registrato.
+bool settings_blob_serial_is_this_chip(const void *blob, size_t len);
+
+// Reset di fabbrica che CONSERVA il namespace "license" (chiave del
+// ricevitore e licenza): cancella con nvs_erase_all tutti gli altri
+// namespace presenti nella NVS, che resta inizializzata. Serve un riavvio
+// subito dopo. Usata dal pulsante di reset (reset_button.c).
+esp_err_t settings_factory_erase_keep_license(void);
