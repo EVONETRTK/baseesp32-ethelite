@@ -19,6 +19,7 @@
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "nvs.h"
+#include "nvs_flash.h"
 #include "cJSON.h"
 #include "mbedtls/pk.h"
 #include "mbedtls/ecp.h"
@@ -31,6 +32,117 @@
 static const char *TAG = "license";
 
 #define NVS_NS          "license"
+#define LIC_PART        "nvs_lic"   // partizione NVS dedicata (partitions.csv dal 10/10/2026)
+
+// Licenza e chiave del ricevitore in una partizione NVS a parte: cosi' ne'
+// il reset di fabbrica ne' la cancellazione della NVS principale (piena o di
+// versione incompatibile) le toccano. Sulle schede con la tabella delle
+// partizioni vecchia (aggiornate via OTA, senza flash USB) la partizione non
+// c'e' e si continua a usare la NVS principale: s_part resta NULL.
+static const char *s_part;
+
+static esp_err_t lic_open(nvs_open_mode_t mode, nvs_handle_t *h)
+{
+    return s_part ? nvs_open_from_partition(s_part, NVS_NS, mode, h) : nvs_open(NVS_NS, mode, h);
+}
+
+// Copia una voce del namespace "license" dalla NVS principale a quella dedicata.
+static bool lic_copy_entry(nvs_handle_t from, nvs_handle_t to, const nvs_entry_info_t *e)
+{
+    switch (e->type) {
+    case NVS_TYPE_U8:  { uint8_t v;  return nvs_get_u8(from, e->key, &v) == ESP_OK && nvs_set_u8(to, e->key, v) == ESP_OK; }
+    case NVS_TYPE_I8:  { int8_t v;   return nvs_get_i8(from, e->key, &v) == ESP_OK && nvs_set_i8(to, e->key, v) == ESP_OK; }
+    case NVS_TYPE_U16: { uint16_t v; return nvs_get_u16(from, e->key, &v) == ESP_OK && nvs_set_u16(to, e->key, v) == ESP_OK; }
+    case NVS_TYPE_I16: { int16_t v;  return nvs_get_i16(from, e->key, &v) == ESP_OK && nvs_set_i16(to, e->key, v) == ESP_OK; }
+    case NVS_TYPE_U32: { uint32_t v; return nvs_get_u32(from, e->key, &v) == ESP_OK && nvs_set_u32(to, e->key, v) == ESP_OK; }
+    case NVS_TYPE_I32: { int32_t v;  return nvs_get_i32(from, e->key, &v) == ESP_OK && nvs_set_i32(to, e->key, v) == ESP_OK; }
+    case NVS_TYPE_U64: { uint64_t v; return nvs_get_u64(from, e->key, &v) == ESP_OK && nvs_set_u64(to, e->key, v) == ESP_OK; }
+    case NVS_TYPE_I64: { int64_t v;  return nvs_get_i64(from, e->key, &v) == ESP_OK && nvs_set_i64(to, e->key, v) == ESP_OK; }
+    case NVS_TYPE_STR:
+    case NVS_TYPE_BLOB: {
+        size_t len = 0;
+        bool str = e->type == NVS_TYPE_STR;
+        if ((str ? nvs_get_str(from, e->key, NULL, &len) : nvs_get_blob(from, e->key, NULL, &len)) != ESP_OK) {
+            return false;
+        }
+        void *buf = heap_caps_malloc(len ? len : 1, MALLOC_CAP_SPIRAM);
+        if (!buf) {
+            buf = malloc(len ? len : 1);
+        }
+        if (!buf) {
+            return false;
+        }
+        bool ok = str ? (nvs_get_str(from, e->key, buf, &len) == ESP_OK && nvs_set_str(to, e->key, buf) == ESP_OK)
+                      : (nvs_get_blob(from, e->key, buf, &len) == ESP_OK && nvs_set_blob(to, e->key, buf, len) == ESP_OK);
+        free(buf);
+        return ok;
+    }
+    default:
+        return false;
+    }
+}
+
+// Prima volta con la partizione dedicata: ci copia la licenza dalla NVS
+// principale. La copia vecchia resta (serve se il bootloader torna a un
+// firmware precedente, che legge solo quella).
+static void lic_migrate(void)
+{
+    nvs_iterator_t it = NULL;
+    if (nvs_entry_find(LIC_PART, NVS_NS, NVS_TYPE_ANY, &it) == ESP_OK) {
+        nvs_release_iterator(it);
+        return; // gia' popolata
+    }
+    if (nvs_entry_find(NVS_DEFAULT_PART_NAME, NVS_NS, NVS_TYPE_ANY, &it) != ESP_OK) {
+        return; // niente da copiare (ricevitore mai attivato)
+    }
+    nvs_handle_t from, to;
+    if (nvs_open(NVS_NS, NVS_READONLY, &from) != ESP_OK) {
+        nvs_release_iterator(it);
+        return;
+    }
+    if (nvs_open_from_partition(LIC_PART, NVS_NS, NVS_READWRITE, &to) != ESP_OK) {
+        nvs_close(from);
+        nvs_release_iterator(it);
+        return;
+    }
+    int copied = 0, failed = 0;
+    esp_err_t e = ESP_OK;
+    while (e == ESP_OK) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        if (lic_copy_entry(from, to, &info)) {
+            copied++;
+        } else {
+            failed++;
+        }
+        e = nvs_entry_next(&it);
+    }
+    nvs_release_iterator(it);
+    nvs_commit(to);
+    nvs_close(to);
+    nvs_close(from);
+    ESP_LOGW(TAG, "Licenza copiata nella partizione dedicata: %d voci (%d non copiate)", copied, failed);
+}
+
+static void lic_storage_init(void)
+{
+    esp_err_t e = nvs_flash_init_partition(LIC_PART);
+    if (e == ESP_ERR_NOT_FOUND) {
+        ESP_LOGI(TAG, "Tabella delle partizioni vecchia: licenza nella NVS principale");
+        return;
+    }
+    if (e == ESP_ERR_NVS_NO_FREE_PAGES || e == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGE(TAG, "Partizione della licenza illeggibile (%s): cancellata", esp_err_to_name(e));
+        nvs_flash_erase_partition(LIC_PART);
+        e = nvs_flash_init_partition(LIC_PART);
+    }
+    if (e != ESP_OK) {
+        ESP_LOGE(TAG, "Partizione della licenza non disponibile (%s): uso la NVS principale", esp_err_to_name(e));
+        return;
+    }
+    s_part = LIC_PART;
+    lic_migrate();
+}
 #define DEFAULT_SERVER  "https://rtk.evo-net.it/api/device/v1/"
 #define LIC_MAX         1536   // JSON della licenza
 #define SIG_MAX         80     // firma ECDSA P-256 DER (max 72)
@@ -166,7 +278,7 @@ static bool nvs_get_blob_alloc(nvs_handle_t h, const char *key, uint8_t **out, s
 static bool load_or_create_device_key(void)
 {
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
+    if (lic_open(NVS_READWRITE, &h) != ESP_OK) {
         return false;
     }
     uint8_t *der = NULL;
@@ -340,7 +452,7 @@ static bool parse_license(const uint8_t *data, size_t len, const uint8_t *sig, s
 static void load_times(void)
 {
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) {
+    if (lic_open(NVS_READONLY, &h) != ESP_OK) {
         return; // namespace mai creato: nessun valore salvato
     }
     int64_t v = 0;
@@ -362,7 +474,7 @@ static bool load_stored(lic_t *out, char *why, size_t why_size)
 {
     nvs_handle_t h;
     memset(out, 0, sizeof(*out));
-    if (nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) {
+    if (lic_open(NVS_READONLY, &h) != ESP_OK) {
         snprintf(why, why_size, "nessuna licenza");
         return false;
     }
@@ -427,7 +539,7 @@ static bool store(const uint8_t *lic, size_t lic_len, const uint8_t *sig, size_t
     memcpy(pack + 3 + kl + sig_len, lic, lic_len);
     nvs_handle_t h;
     bool ok = false;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+    if (lic_open(NVS_READWRITE, &h) == ESP_OK) {
         ok = nvs_set_blob(h, "pack", pack, n) == ESP_OK && nvs_commit(h) == ESP_OK;
         if (ok) {
             nvs_erase_key(h, "lic"); // formato vecchio, non piu' usato
@@ -454,7 +566,7 @@ static void store_last_time(int64_t t)
         return;
     }
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+    if (lic_open(NVS_READWRITE, &h) == ESP_OK) {
         int64_t cur = 0;
         if (nvs_get_i64(h, "lasttime", &cur) == ESP_OK && cur >= t) {
             t = cur; // nella NVS c'e' gia' un'ora piu' recente
@@ -475,7 +587,7 @@ static void reset_last_time(int64_t t)
     ESP_LOGW(TAG, "Ultima ora salvata (%lld) nel futuro rispetto al server: riportata a %lld",
              (long long) s_last_time, (long long) t);
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+    if (lic_open(NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_i64(h, "lasttime", t);
         nvs_commit(h);
         nvs_close(h);
@@ -486,7 +598,7 @@ static void reset_last_time(int64_t t)
 static void store_contact(int64_t t)
 {
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+    if (lic_open(NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_i64(h, "contact", t);
         nvs_commit(h);
         nvs_close(h);
@@ -873,6 +985,7 @@ static void boot_task(void *arg)
 
 void license_init(void)
 {
+    lic_storage_init();
     s_mutex = xSemaphoreCreateMutex();
     uint8_t mac[6];
     esp_efuse_mac_get_default(mac);
@@ -1142,7 +1255,7 @@ bool license_set_server(const char *url, char *err, size_t err_size)
         return false;
     }
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
+    if (lic_open(NVS_READWRITE, &h) != ESP_OK) {
         snprintf(err, err_size, "NVS non disponibile");
         return false;
     }
@@ -1166,7 +1279,7 @@ bool license_forget(char *err, size_t err_size)
         return false;
     }
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
+    if (lic_open(NVS_READWRITE, &h) != ESP_OK) {
         s_busy = false;
         snprintf(err, err_size, "NVS non disponibile");
         return false;

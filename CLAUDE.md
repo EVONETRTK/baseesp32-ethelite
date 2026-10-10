@@ -29,3 +29,7 @@ Servono solo zig (`C:\Users\Utente\tools\zig-windows-x86_64-0.13.0\zig.exe`, opp
 6. Niente dati privati nelle prove (indirizzi, matricole, password): coordinate di punti generici.
 7. **Fuzzing** (`powershell -ExecutionPolicy Bypass -File tests\host\fuzz.ps1 [-Secondi 300] [-Solo nome]`, separato da run.ps1 perché lento): milioni di input rovinati a caso sui lettori di dati (NMEA, RTCM, UBX, log Unicore, risposte del caster e del modem); gli errori finiscono in `tests/host/fuzz/crash/` con file e riga. Lanciarlo dopo ogni modifica a un lettore di dati e prima delle release importanti (almeno 5 minuti per bersaglio).
 8. Un errore trovato dal fuzzing diventa una prova in `test_*.c` (`ESEGUI_BUG` finché non è corretto); `fuzz.ps1 -Solo nome -Riproduci file.bin` lo riproduce, `-Riduci file.bin` accorcia l'input.
+
+## Tabella delle partizioni
+
+Dal firmware 1.31.0 la flash ha partizioni firmware da 4 MB e la licenza in una partizione a parte (`docs/partizioni.md`). Le schede aggiornate solo via OTA hanno ancora la tabella vecchia (2 x 2 MB): **finché ne esistono, ogni firmware deve stare sotto 2 MB** (0x200000 byte). La compilazione non lo controlla più: prima di ogni release verificare la dimensione di `build/baseesp32-ethelite.bin`. Il firmware deve continuare a funzionare con entrambe le tabelle.

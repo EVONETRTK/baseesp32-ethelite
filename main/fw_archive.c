@@ -17,6 +17,7 @@
 #include "esp_system.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
+#include "esp_image_format.h"
 #include "esp_vfs_fat.h"
 #include "driver/sdspi_host.h"
 #include "driver/spi_common.h"
@@ -181,6 +182,17 @@ void fw_archive_save_current(void)
         return;
     }
 
+    // Solo l'immagine, non tutta la partizione: dal 10/10/2026 le partizioni
+    // sono da 4 MB e il firmware ne occupa circa la meta'.
+    size_t img_len = running->size;
+    {
+        esp_partition_pos_t pos = { .offset = running->address, .size = running->size };
+        esp_image_metadata_t md = { 0 };
+        if (esp_image_get_metadata(&pos, &md) == ESP_OK && md.image_len > 0 && md.image_len <= running->size) {
+            img_len = md.image_len;
+        }
+    }
+
     char path[64];
     snprintf(path, sizeof(path), "%s/v%s.bin", ARCHIVE_DIR, FIRMWARE_VERSION);
 
@@ -201,7 +213,7 @@ void fw_archive_save_current(void)
     }
     struct stat st;
     if (stat(path, &st) == 0) {
-        if ((size_t) st.st_size == running->size) {
+        if ((size_t) st.st_size == img_len || (size_t) st.st_size == running->size) {
             unmount_sd();
             return;
         }
@@ -240,15 +252,15 @@ void fw_archive_save_current(void)
     // smonta: la tiene chi l'ha montata.
     const size_t seg_size = 128 * 1024;
     size_t off = 0;
-    while (ok && off < running->size) {
-        size_t seg_end = running->size - off < seg_size ? running->size : off + seg_size;
+    while (ok && off < img_len) {
+        size_t seg_end = img_len - off < seg_size ? img_len : off + seg_size;
         for (; ok && off < seg_end; off += buf_size) {
             size_t chunk = seg_end - off < buf_size ? seg_end - off : buf_size;
             if (esp_partition_read(running, off, buf, chunk) != ESP_OK || fwrite(buf, 1, chunk, f) != chunk) {
                 ok = false;
             }
         }
-        if (ok && off < running->size && s_borrow_depth == 0) {
+        if (ok && off < img_len && s_borrow_depth == 0) {
             ok = fclose(f) == 0;
             f = NULL;
             unmount_sd();

@@ -8,6 +8,13 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.31.0
+
+- **Nuova tabella delle partizioni** (flash da 16 MB): firmware A e B da 4 MB invece di 2 (prima il firmware era al 94% dello spazio), impostazioni da 64 KB invece di 24, e **licenza in una partizione a parte** (`nvs_lic`) che ne' il reset di fabbrica ne' la cancellazione delle impostazioni toccano. Circa 7,9 MB restano liberi. Vedi docs/partizioni.md.
+- La tabella si cambia **solo via USB**, una volta per ricevitore (procedura in docs/partizioni.md, conserva impostazioni e licenza). Il firmware funziona anche con la tabella vecchia: le basi aggiornate via internet restano come prima.
+- Al primo avvio con la tabella nuova la licenza viene copiata nella partizione dedicata.
+- Archivio firmware sulla microSD: copia solo l'immagine, non tutta la partizione.
+
 ## 1.30.7
 
 Prime prove automatiche sul PC (tests/host, 125 prove) e fuzzing (milioni di dati rovinati a caso su 13 lettori di dati): corretti i 6 difetti trovati.
