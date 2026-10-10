@@ -43,7 +43,11 @@ static void broadcast_to_netif(esp_netif_t *netif, const char *line, size_t len,
     dest.sin_port = htons(port);
     dest.sin_addr.s_addr = bcast_addr;
 
-    sendto(s_sock, line, len, 0, (struct sockaddr *) &dest, sizeof(dest));
+    // Mai in attesa: con la radio occupata (WiFi condiviso col Bluetooth) un
+    // invio bloccante fermava il lettore NMEA, poi la lettura I2C, e lo ZED
+    // scartava le frasi (prova del 10/10/2026). L'UDP non garantisce comunque
+    // la consegna: la riga si salta.
+    sendto(s_sock, line, len, MSG_DONTWAIT, (struct sockaddr *) &dest, sizeof(dest));
 }
 
 static void peek_port(const app_settings_t *s, void *ctx)

@@ -3961,6 +3961,25 @@ static esp_err_t diag_gnss_pins_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Uso della CPU per task in un secondo (diag_pins.c).
+static esp_err_t diag_tasks_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    cJSON *root = cJSON_CreateObject();
+    diag_tasks(root);
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    return ESP_OK;
+}
+
 static esp_err_t diag_download_get_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -4051,6 +4070,7 @@ void web_ui_start(void)
     httpd_uri_t sim_sms_uri    = { .uri = "/api/sim/sms",    .method = HTTP_GET,  .handler = sim_sms_get_handler };
     httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
     httpd_uri_t diag_pins_uri  = { .uri = "/api/diag/gnss_pins", .method = HTTP_GET, .handler = diag_gnss_pins_get_handler };
+    httpd_uri_t diag_tasks_uri = { .uri = "/api/diag/tasks",    .method = HTTP_GET, .handler = diag_tasks_get_handler };
     httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
     httpd_uri_t base_measure_uri = { .uri = "/api/base/measure", .method = HTTP_POST, .handler = base_measure_post_handler };
     httpd_uri_t ota_upload_uri = { .uri = "/api/ota/upload",    .method = HTTP_POST, .handler = ota_upload_post_handler };
@@ -4099,6 +4119,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &base_measure_uri);
     httpd_register_uri_handler(server, &diag_list_uri);
     httpd_register_uri_handler(server, &diag_pins_uri);
+    httpd_register_uri_handler(server, &diag_tasks_uri);
     httpd_register_uri_handler(server, &sim_action_uri);
     httpd_register_uri_handler(server, &sim_sms_uri);
     httpd_register_uri_handler(server, &cfg_export_uri);

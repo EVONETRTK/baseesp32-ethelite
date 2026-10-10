@@ -162,6 +162,12 @@ static void advertise(void)
     memset(&adv, 0, sizeof(adv));
     adv.conn_mode = BLE_GAP_CONN_MODE_UND;
     adv.disc_mode = BLE_GAP_DISC_MODE_GEN;
+    // Annuncio ogni 0,5-1 s (unita' da 0,625 ms) invece dei 30-60 ms di
+    // fabbrica: WiFi e Bluetooth si dividono la stessa radio, e l'annuncio
+    // frequente rallentava il WiFi (prova del 10/10/2026). Il telefono trova
+    // il ricevitore lo stesso in un paio di secondi.
+    adv.itvl_min = 800;
+    adv.itvl_max = 1600;
     rc = ble_gap_adv_start(s_own_addr_type, NULL, BLE_HS_FOREVER, &adv, gap_event, NULL);
     if (rc != 0 && rc != BLE_HS_EALREADY) {
         ESP_LOGW(TAG, "Annuncio Bluetooth non avviato (%d)", rc);

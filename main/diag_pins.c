@@ -1,6 +1,7 @@
 #include "diag_pins.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "driver/gpio.h"
@@ -158,4 +159,64 @@ void diag_pins_gnss(cJSON *root, int tx_pin, int rx_pin)
             cJSON_AddNumberToObject(scan, k, edges[p]);
         }
     }
+}
+
+// --- Uso della CPU per task (GET /api/diag/tasks) ---------------------------
+// Due letture di uxTaskGetSystemState() a 1 s di distanza: per ogni task la
+// quota di tempo usata nel secondo, il core, la priorita' e lo stack libero.
+// Serve a capire chi rallenta la lettura del ricevitore (trovato il
+// 10/10/2026: con il Bluetooth acceso lo ZED scartava le frasi).
+#include "esp_heap_caps.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#define TASKS_MAX 48
+
+void diag_tasks(cJSON *root)
+{
+    TaskStatus_t *a = heap_caps_calloc(TASKS_MAX, sizeof(TaskStatus_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    TaskStatus_t *b = heap_caps_calloc(TASKS_MAX, sizeof(TaskStatus_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!a || !b) {
+        free(a);
+        free(b);
+        cJSON_AddStringToObject(root, "error", "memoria insufficiente");
+        return;
+    }
+    uint32_t r0, l0, m0, e0, w0, r1, l1, m1, e1, w1;
+    gnss_io_i2c_stats(&r0, &l0, &m0, &e0, &w0);
+    configRUN_TIME_COUNTER_TYPE ta = 0, tb = 0;
+    UBaseType_t na = uxTaskGetSystemState(a, TASKS_MAX, &ta);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    UBaseType_t nb = uxTaskGetSystemState(b, TASKS_MAX, &tb);
+    gnss_io_i2c_stats(&r1, &l1, &m1, &e1, &w1);
+    cJSON *i2c = cJSON_AddObjectToObject(root, "gnss_i2c");
+    cJSON_AddNumberToObject(i2c, "rx_bytes_per_s", r1 - r0);
+    cJSON_AddNumberToObject(i2c, "lost_bytes_per_s", l1 - l0);
+    cJSON_AddNumberToObject(i2c, "lost_total", l1);
+    cJSON_AddNumberToObject(i2c, "avail_max", m1);
+    cJSON_AddNumberToObject(i2c, "errors_total", e1);
+    cJSON_AddNumberToObject(i2c, "sd_waits_per_s", w1 - w0);
+    double total = (double) (tb - ta);
+    cJSON_AddNumberToObject(root, "window_ms", 1000);
+    cJSON *arr = cJSON_AddArrayToObject(root, "tasks");
+    for (UBaseType_t i = 0; i < nb; i++) {
+        configRUN_TIME_COUNTER_TYPE prev = 0;
+        for (UBaseType_t j = 0; j < na; j++) {
+            if (a[j].xHandle == b[i].xHandle) {
+                prev = a[j].ulRunTimeCounter;
+                break;
+            }
+        }
+        double pct = total > 0 ? 100.0 * (double) (b[i].ulRunTimeCounter - prev) / total : 0;
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddStringToObject(o, "name", b[i].pcTaskName);
+        // Tempo totale = somma dei due core: 50% = un core intero.
+        cJSON_AddNumberToObject(o, "cpu_pct", (double) (int) (pct * 10 + 0.5) / 10);
+        cJSON_AddNumberToObject(o, "prio", b[i].uxCurrentPriority);
+        cJSON_AddNumberToObject(o, "core", xTaskGetCoreID(b[i].xHandle) == tskNO_AFFINITY ? -1 : (int) xTaskGetCoreID(b[i].xHandle));
+        cJSON_AddNumberToObject(o, "stack_free", b[i].usStackHighWaterMark);
+        cJSON_AddItemToArray(arr, o);
+    }
+    free(a);
+    free(b);
 }

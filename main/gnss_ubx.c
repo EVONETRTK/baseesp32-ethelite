@@ -237,6 +237,27 @@ static void configure_x20p_signals(uart_port_t uart_num)
     s_x20p_signals_done = true;
 }
 
+// Ricevitore su I2C: le altre porte (USB, UART1, UART2) non arrivano
+// all'ESP32, niente NMEA ne' RTCM in uscita su di esse. Lo ZED ha un solo
+// serbatoio per le uscite di tutte le porte, e le frasi NMEA ferme sulla USB
+// scollegata (10 al secondo di fabbrica) o su una UART senza nessuno in
+// ascolto lo riempivano: lo ZED scartava anche quelle dell'I2C
+// ("$GNTXT,...,txbuf alloc", rover a meta' dati il 10/10/2026). Sulla Syneda
+// uRTK6 la UART1 esce inoltre sul MISO della microSD (GPIO9). L'UBX resta
+// acceso: u-center via USB continua a funzionare.
+static void mute_other_ports(uart_port_t uart_num)
+{
+    const ubx_cfg_kv32_t kvs_other[] = {
+        { 0x10780002, 0 },    // CFG-USBOUTPROT-NMEA
+        { 0x10780004, 0 },    // CFG-USBOUTPROT-RTCM3X
+        { 0x10740002, 0 },    // CFG-UART1OUTPROT-NMEA
+        { 0x10740004, 0 },    // CFG-UART1OUTPROT-RTCM3X
+        { 0x10760002, 0 },    // CFG-UART2OUTPROT-NMEA
+        { 0x10760004, 0 },    // CFG-UART2OUTPROT-RTCM3X
+    };
+    ubx_valset_group(uart_num, "ALTRE PORTE mute", kvs_other, sizeof(kvs_other) / sizeof(kvs_other[0]));
+}
+
 esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
 {
     bool i2c = gnss_io_is_i2c();
@@ -301,6 +322,9 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     kvs[n++] = (ubx_cfg_kv32_t) { 0x2091036e - port_off, s.rtcm_1124_enable ? 1u : 0u }; // TYPE1124 (BeiDou MSM4)
     kvs[n++] = (ubx_cfg_kv32_t) { 0x209102d7 - port_off, s.rtcm_1127_enable ? 1u : 0u }; // TYPE1127 (BeiDou MSM7)
     ubx_valset_group(uart_num, "MESSAGGI RTCM", kvs, n);
+    if (i2c) {
+        mute_other_ports(uart_num);
+    }
 
     if (s.base_position_mode == BASE_POSITION_MANUAL) {
         // Posizione fissa nota (CFG-TMODE-MODE = 2, coordinate LLH): niente
@@ -616,6 +640,8 @@ esp_err_t gnss_ubx_configure_rover(uart_port_t uart_num)
             { 0x209100bf, 0 },    // CFG-MSGOUT-NMEA_ID_GSA_I2C
         };
         ubx_valset_group(uart_num, "I2C", kvs_i2c, sizeof(kvs_i2c) / sizeof(kvs_i2c[0]));
+
+        mute_other_ports(uart_num);
         return ESP_OK;
     }
 

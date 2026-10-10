@@ -27,9 +27,12 @@ static const char *TAG = "gnss_io";
 #define I2C_POLL_IDLE_MS    20
 #define I2C_READ_CHUNK      256
 #define I2C_WRITE_CHUNK     256
-// 100 kHz invece di 400: piu' tollerante con cavi/pull-up dell'HAT, e
-// comunque ~10 KB/s, molto piu' del flusso RTCM3 di una base (1-2 KB/s).
-#define I2C_SPEED_HZ        100000
+// 400 kHz (fast mode, quella dello ZED; il display sullo stesso bus la usa
+// gia'). A 100 kHz (~9 KB/s) il rover a 10 Hz con NMEA ad alta precisione,
+// GSV e RTCM MSM7 in ingresso saturava il bus: lo ZED scartava le frasi
+// ("$GNTXT,...,txbuf alloc", 7 GGA su 100 in 10 s, satelliti a meta';
+// prova del 10/10/2026 col caster ALTAMURA).
+#define I2C_SPEED_HZ        400000
 // Il ricevitore tiene basso il clock (clock stretching) mentre elabora un
 // comando: con l'attesa di default l'ESP32 lo scambia per un errore. Valore
 // alto apposta, il driver lo limita da solo al massimo supportato.
@@ -82,6 +85,20 @@ static void i2c_note_ok(void)
 // (con I2C e' il master a dover chiedere i dati, il ricevitore non li
 // "spinge" come su seriale). Tutto da un solo task: niente scritture e
 // letture intrecciate da task diversi.
+// Contatori per la diagnosi (/api/diag/tasks): byte letti, byte persi col
+// buffer verso il lettore pieno, massimo dei byte in attesa dichiarati dal
+// ricevitore, letture fallite, attese per la microSD.
+static volatile uint32_t s_st_rx, s_st_lost, s_st_avail_max, s_st_err, s_st_sd_wait;
+
+void gnss_io_i2c_stats(uint32_t *rx, uint32_t *lost, uint32_t *avail_max, uint32_t *err, uint32_t *sd_wait)
+{
+    *rx = s_st_rx;
+    *lost = s_st_lost;
+    *avail_max = s_st_avail_max;
+    *err = s_st_err;
+    *sd_wait = s_st_sd_wait;
+}
+
 static void i2c_poll_task(void *arg)
 {
     uint8_t buf[I2C_READ_CHUNK > I2C_WRITE_CHUNK ? I2C_READ_CHUNK : I2C_WRITE_CHUNK];
@@ -99,6 +116,7 @@ static void i2c_poll_task(void *arg)
         // tutti i moduli che montano la SD; durante le brevi pause il
         // ricevitore tiene i dati nel suo buffer.
         if (!sd_mutex_try_take(0)) {
+            s_st_sd_wait++;
             vTaskDelay(pdMS_TO_TICKS(I2C_POLL_IDLE_MS));
             continue;
         }
@@ -147,6 +165,9 @@ static void i2c_poll_task(void *arg)
         }
         i2c_note_ok();
         uint16_t avail = (uint16_t) ((avail_be[0] << 8) | avail_be[1]);
+        if (avail != 0xFFFF && avail > s_st_avail_max) {
+            s_st_avail_max = avail;
+        }
         if (avail != 0 && avail != 0xFFFF) {
             size_t n = avail < I2C_READ_CHUNK ? avail : I2C_READ_CHUNK;
             reg = UBX_I2C_REG_STREAM;
@@ -161,8 +182,11 @@ static void i2c_poll_task(void *arg)
                 err = i2c_master_transmit_receive(s_dev, &reg, 1, buf, n, 400);
             }
             if (err == ESP_OK) {
-                xStreamBufferSend(s_i2c_rx, buf, n, pdMS_TO_TICKS(100));
+                size_t sent = xStreamBufferSend(s_i2c_rx, buf, n, pdMS_TO_TICKS(100));
+                s_st_rx += n;
+                s_st_lost += n - sent;
             } else {
+                s_st_err++;
                 i2c_recover("lettura dati", err);
             }
             did_work = true;

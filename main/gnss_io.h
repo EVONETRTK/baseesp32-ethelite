@@ -28,3 +28,7 @@ int gnss_io_read(uint8_t *buf, size_t len, TickType_t timeout);
 
 // Come uart_write_bytes(): ritorna i byte accettati (-1 su errore).
 int gnss_io_write(const void *data, size_t len);
+
+// Contatori della lettura I2C dall'avvio (diagnosi): byte letti, persi,
+// massimo in attesa nel ricevitore, letture fallite, attese per la microSD.
+void gnss_io_i2c_stats(uint32_t *rx, uint32_t *lost, uint32_t *avail_max, uint32_t *err, uint32_t *sd_wait);

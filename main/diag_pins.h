@@ -9,3 +9,6 @@
 // seriale. Serve a capire dove si perde il segnale quando il ricevitore non
 // risponde in seriale (trovato il 10/10/2026 con la Syneda uRTK6).
 void diag_pins_gnss(cJSON *root, int tx_pin, int rx_pin);
+
+// Uso della CPU di ogni task in un secondo (GET /api/diag/tasks).
+void diag_tasks(cJSON *root);

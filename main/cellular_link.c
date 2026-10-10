@@ -211,6 +211,10 @@ bool cellular_link_init(void)
     // li' risultato difettoso) usato per un primo test sullo slot di
     // questa scheda diversa - vedi README.
     esp_modem_dce_device_t dce_device = s_is_sim868 ? ESP_MODEM_DCE_SIM800 : ESP_MODEM_DCE_SIM7600;
+    // Senza modem nello slot la linea RX resta bassa e il driver scrive
+    // "uart_terminal: Rx Break" ogni mezzo secondo, riempiendo il registro
+    // (visto il 10/10/2026 con il SIM868 impostato ma non montato).
+    esp_log_level_set("uart_terminal", ESP_LOG_ERROR);
     s_dce = esp_modem_new_dev(dce_device, &dte_config, &dce_config, s_ppp_netif);
     if (!s_dce) {
         ESP_LOGE(TAG, "Inizializzazione modem %s fallita (nuovo tentativo al prossimo collegamento)",
