@@ -15,6 +15,8 @@ Tre funzioni nuove per il rover (Pacchetto Rover, nessun extra):
 - **Base piu' vicina automatica** (casella nel client NTRIP del rover, spenta di fabbrica): il rover legge dalla tabella del caster la posizione delle basi e si collega alla piu' vicina; cambia solo con almeno 5 km di vantaggio, dopo 30 s senza RTK, mai in RTK fisso o float. Base in uso e distanza nel pannello e sul display. Logica in base_auto.c con prove sul PC; tabella letta fino a 32 basi.
 - **Uscita NMEA via Bluetooth Low Energy** (casella nell'uscita dati, spenta di fabbrica, vale dopo il riavvio): servizio Nordic UART, nome della rete di setup, per app come SW Maps (non per quelle che richiedono il Bluetooth classico, che il chip non ha). Con l'uscita spenta la memoria del Bluetooth viene restituita all'avvio.
 - Correzione: le caselle Riserva Galileo HAS, INS e prua dalla doppia antenna del K922 non si salvavano (inviate come testo).
+- **RAM interna**: il Bluetooth occupa ~16 KB di RAM interna anche spento (codice suo e della convivenza WiFi/BT, non restituibile sull'ESP32-S3: esp_bt_mem_release ne restituisce solo ~1,3 KB). Recuperati spostando in flash il codice WiFi ottimizzato (CONFIG_ESP_WIFI_IRAM_OPT e RX_IRAM_OPT spenti): RAM interna totale 299 KB, libera ~60 KB, minimo ~38 KB (prima 31 KB). Velocita' del pannello invariata.
+- Pannello: allarme RTK, base automatica e Bluetooth letti da /api/signals (prima dallo stato, dove non ci sono: striscia dell'allarme mai visibile); riquadro Bluetooth nel riepilogo della scheda Stato; diagnosi della memoria del Bluetooth in /api/signals.
 
 ## 1.31.0
 

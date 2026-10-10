@@ -47,6 +47,8 @@ static uint8_t s_own_addr_type;
 static MessageBufferHandle_t s_queue;
 static char *s_tx_buf; // in PSRAM: niente copie grandi sugli stack
 static uint32_t s_dropped; // frasi scartate (coda o buffer NimBLE pieni)
+static int s_mem_release_result = -1;  // esito di esp_bt_mem_release (-1 = non chiamata)
+static int s_mem_released_bytes;       // RAM interna restituita all'heap
 
 static void advertise(void);
 
@@ -247,6 +249,8 @@ void nmea_ble_boot(bool will_start)
     size_t free_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     esp_err_t err = esp_bt_mem_release(ESP_BT_MODE_BLE);
     s_mem_released = true;
+    s_mem_release_result = (int) err;
+    s_mem_released_bytes = (int) (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) - free_before);
     if (err == ESP_OK) {
         ESP_LOGI(TAG, "Uscita Bluetooth spenta: restituiti %d byte di RAM interna",
                  (int) (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) - free_before));
@@ -351,4 +355,10 @@ const char *nmea_ble_state_str(nmea_ble_state_t st)
 bool nmea_ble_client_connected(void)
 {
     return s_state == NMEA_BLE_ON && s_connected;
+}
+
+void nmea_ble_mem_info(int *result, int *released_bytes)
+{
+    *result = s_mem_release_result;
+    *released_bytes = s_mem_released_bytes;
 }

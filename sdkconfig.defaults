@@ -210,3 +210,11 @@ CONFIG_BT_CTRL_BLE_MAX_ACT=2
 # le scritture in flash (salvataggi, aggiornamenti) il Bluetooth puo' perdere
 # qualche evento o la connessione; il telefono si ricollega.
 CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY=y
+
+# Codice di ricezione del WiFi nella flash invece che nella RAM interna
+# (1.32.0): il Bluetooth occupa ~16 KB di RAM interna anche quando e' spento
+# (codice suo e della convivenza WiFi/BT, non restituibile sull'ESP32-S3).
+# Cosi' la RAM si recupera; la velocita' del WiFi in ricezione cala un po',
+# ininfluente per le correzioni RTK (pochi KB/s).
+# CONFIG_ESP_WIFI_RX_IRAM_OPT is not set
+# CONFIG_ESP_WIFI_IRAM_OPT is not set

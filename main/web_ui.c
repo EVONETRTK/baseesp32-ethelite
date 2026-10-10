@@ -1461,6 +1461,12 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
     // Uscita NMEA via Bluetooth LE (nmea_ble.c): "attivo"/"spento"/"errore".
     cJSON_AddStringToObject(root, "ble_nmea", nmea_ble_state_str(nmea_ble_state()));
     cJSON_AddBoolToObject(root, "ble_nmea_client", nmea_ble_client_connected());
+    {
+        int rel_res, rel_bytes;
+        nmea_ble_mem_info(&rel_res, &rel_bytes);
+        cJSON_AddNumberToObject(root, "ble_mem_release_result", rel_res);
+        cJSON_AddNumberToObject(root, "ble_mem_released_bytes", rel_bytes);
+    }
 
     int8_t wifi_rssi;
     if (wifi_link_get_rssi(&wifi_rssi)) {

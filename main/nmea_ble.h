@@ -35,3 +35,6 @@ void nmea_ble_send(const char *line, size_t len);
 nmea_ble_state_t nmea_ble_state(void);
 const char *nmea_ble_state_str(nmea_ble_state_t st); // "attivo"/"spento"/"errore"
 bool nmea_ble_client_connected(void);
+
+// Esito della restituzione della memoria del Bluetooth all'avvio (diagnosi).
+void nmea_ble_mem_info(int *result, int *released_bytes);
