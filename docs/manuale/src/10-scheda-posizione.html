@@ -159,9 +159,14 @@
   <tr><td>Host del caster, Porta</td><td colspan="2">Indirizzo e porta del caster, per esempio <code>rtk.evo-net.it</code> e <code>2101</code>. Senza <code>http://</code> e senza barra finale: il pannello segnala gli errori di scrittura.</td></tr>
   <tr><td>Mountpoint</td><td><em>Mountpoint su cui inviare</em>: il nome della base sul caster.</td><td><em>Mountpoint da cui ricevere</em>, per esempio <code>AGRI_MSM4</code>; <strong>Cerca mountpoint disponibili</strong> mostra l'elenco del caster.</td></tr>
   <tr><td>Credenziali</td><td><em>Password sorgente</em> della mountpoint, fornita dal gestore del caster.</td><td><em>Utente</em> e <em>Password</em> del cliente.</td></tr>
+  <tr><td>Base più vicina</td><td>—</td><td>Casella <strong>Scegli da solo la base piu' vicina</strong>, spenta di fabbrica: vedi sotto.</td></tr>
 </table>
 
 <p>Il pulsante <strong>Prova connessione al caster</strong> verifica subito i valori scritti, anche prima di salvarli: in base come sorgente, in rover come cliente. I campi password lasciati vuoti non cancellano quella salvata.</p>
+
+<p><span class="pubblico tecnico">Solo rover</span> Con la casella <strong>Scegli da solo la base piu' vicina</strong> il rover legge l'elenco delle basi del caster, con la loro posizione, e si collega alla base più vicina al trattore. Il mountpoint scritto nel campo <em>Mountpoint da cui ricevere</em> resta la base di partenza e quella di riserva: si usa quando l'elenco non si riesce a leggere, quando il rover non ha ancora la sua posizione o quando la base scelta non risponde. Le basi senza posizione nell'elenco vengono ignorate. Utente e password restano gli stessi.</p>
+
+<p>Per non perdere il fix in mezzo al campo, il rover <strong>non cambia mai base mentre è in RTK</strong> (fisso o float): la cambia solo all'accensione, appena attivata la casella, oppure quando è senza RTK da almeno 30 secondi, e solo se un'altra base è più vicina di almeno 5 km. L'elenco del caster si ricontrolla al massimo ogni 10 minuti. Sotto la casella il pannello mostra la base in uso e la distanza, per esempio <em>Base in uso: AGRI_MSM4 (12,4 km)</em>; con il display montato, la stessa base compare nell'ultima riga della schermata del rover. Ogni cambio di base, con la distanza, è scritto nel log. Vale subito dopo <strong>💾 Salva</strong>, senza riavvio.</p>
 
 <h2>Riserva Galileo HAS</h2>
 
@@ -191,10 +196,14 @@
 
 <figure>
   <img class="schermata" src="img/riq-uscita-guida.png" alt="Riquadro Uscita dati per software di guida">
-  <figcaption><b>Figura 0.</b> L'uscita della posizione verso AgOpenGPS o altri software di guida.</figcaption>
+  <figcaption><b>Figura 0.</b> L'uscita della posizione verso AgOpenGPS o altri software di guida, e verso il telefono in Bluetooth.</figcaption>
 </figure>
 
 <p><span class="pubblico tecnico">Solo rover</span> La <strong>Porta UDP broadcast NMEA</strong> (predefinita 9999, la porta di AgIO) su cui il rover trasmette le frasi NMEA del modulo a tablet e computer di bordo, su tutte le reti attive; vale subito. Il campo <strong>Posizioni al secondo</strong> (1, 5 o 10; 10 per l'autosterzo) sceglie la frequenza di GGA, RMC e VTG con i moduli u-blox e Unicore e vale dopo il riavvio; con il ComNav K922 escono 1 posizione al secondo, o 5 con l'INS attivo (solo la frase GGA, più la GPHDT con la prua dalla doppia antenna). Le 5 e 10 posizioni al secondo richiedono l'extra <strong>Autosterzo</strong> della licenza: senza, il ricevitore resta a 1 al secondo. Il funzionamento è descritto nel capitolo <a data-cap="Installare il ricevitore sul trattore"></a>, la configurazione di AgOpenGPS nel capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>.</p>
+
+<p><span class="pubblico tecnico">Solo rover</span> Il campo <strong>Allarme RTK perso dopo (secondi, 0 = spento)</strong> decide dopo quanti secondi senza RTK fisso il ricevitore avvisa: il display lampeggia «RTK PERSO» e in cima alla scheda <em>Stato</em> compare una striscia rossa. Vale subito, senza riavvio. Il valore di fabbrica è 5; si può scegliere da 0 a 600 secondi, e con 0 l'allarme è spento. L'allarme scatta solo se il trattore era già in RTK fisso, e si spegne da solo quando l'RTK fisso torna.</p>
+
+<p><span class="pubblico tecnico">Solo rover</span> La casella <strong>Uscita della posizione via Bluetooth (BLE)</strong> manda le stesse frasi NMEA anche a un telefono o tablet collegato in Bluetooth Low Energy, insieme all'uscita in rete. È spenta di fabbrica e vale dopo il riavvio. Funziona con le app che supportano i ricevitori BLE (per esempio <strong>SW Maps</strong>), non con quelle che richiedono il Bluetooth classico. Sotto la casella si legge lo stato di questo avvio: <strong>acceso, telefono collegato</strong>, <strong>acceso, nessun telefono</strong> oppure <strong>spento</strong>. Se il Bluetooth non riesce a partire per mancanza di memoria lo stato lo dice e il resto del ricevitore funziona normalmente. Come collegare il telefono è spiegato nel capitolo <a data-cap="Installare il ricevitore sul trattore"></a>.</p>
 
 <h2>Moduli con IMU e doppia antenna</h2>
 

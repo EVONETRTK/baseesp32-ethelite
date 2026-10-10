@@ -6,6 +6,9 @@
 #include "nmea_udp_broadcast.h"
 #include "gnss_signal.h"
 #include "gnss_fix.h"
+#include "rtk_alarm.h"
+#include "base_measure.h"
+#include "esp_log.h"
 #include "gnss_ubx_ack.h"
 #include "gnss_unicore.h"
 #include "gnss_comnav.h"
@@ -25,6 +28,8 @@
 #include "driver/uart.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+static const char *TAG = "nmea_reader";
 
 #define READ_BUF_SIZE 256
 // 128 bastava per le sole righe NMEA; le righe ASCII Bynav #INSPVAXA (lat/
@@ -227,6 +232,62 @@ static void has_fallback_line(char *line, size_t *len)
     }
 }
 
+// Allarme "RTK perso" (rtk_alarm.c): aggiornato da questo task a ogni giro
+// (al massimo ogni 100 ms, anche senza dati dal ricevitore), letto dal
+// display e dal server web con gnss_nmea_reader_rtk_alarm().
+static rtk_alarm_t s_rtk_alarm;
+static rtk_alarm_out_t s_rtk_alarm_out = { .quality = RTK_ALARM_NO_DATA };
+static portMUX_TYPE s_rtk_alarm_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t s_rtk_alarm_s;
+static uint32_t s_rtk_alarm_gen = UINT32_MAX;
+
+static void peek_rtk_alarm(const app_settings_t *s, void *ctx)
+{
+    uint32_t n = s->rtk_lost_alarm_s;
+    *(uint32_t *) ctx = n > RTK_ALARM_MAX_S ? RTK_ALARM_MAX_S : n;
+}
+
+static void rtk_alarm_tick(void)
+{
+    // Con i dati a 5-10 Hz gnss_io_read() torna molto spesso: un passo ogni
+    // 100 ms basta (l'allarme conta secondi).
+    static int64_t last_us;
+    int64_t now = esp_timer_get_time();
+    if (now - last_us < 100000) {
+        return;
+    }
+    last_us = now;
+    uint32_t gen = settings_generation();
+    if (gen != s_rtk_alarm_gen) { // impostazioni salvate: rilegge i secondi
+        s_rtk_alarm_gen = gen;
+        settings_peek(peek_rtk_alarm, &s_rtk_alarm_s);
+    }
+    gnss_fix_status_t fix = gnss_fix_get_status();
+    int q = (fix.valid && now - fix.last_update_us < RTK_ALARM_NO_DATA_US) ? (int) fix.quality : RTK_ALARM_NO_DATA;
+    // Durante la misura della posizione con RTK la base gira come rover per
+    // qualche minuto: li' l'allarme del trattore non ha senso.
+    uint32_t n = base_measure_is_active() ? 0 : s_rtk_alarm_s;
+    rtk_alarm_out_t out = rtk_alarm_step(&s_rtk_alarm, q, now, n);
+    if (out.active != s_rtk_alarm_out.active) {
+        if (out.active) {
+            ESP_LOGW(TAG, "RTK perso da %u s (ora %s)", (unsigned) out.lost_s, rtk_alarm_quality_label(q));
+        } else {
+            ESP_LOGI(TAG, "RTK fisso di nuovo: allarme spento");
+        }
+    }
+    portENTER_CRITICAL(&s_rtk_alarm_lock);
+    s_rtk_alarm_out = out;
+    portEXIT_CRITICAL(&s_rtk_alarm_lock);
+}
+
+rtk_alarm_out_t gnss_nmea_reader_rtk_alarm(void)
+{
+    portENTER_CRITICAL(&s_rtk_alarm_lock);
+    rtk_alarm_out_t out = s_rtk_alarm_out;
+    portEXIT_CRITICAL(&s_rtk_alarm_lock);
+    return out;
+}
+
 void gnss_nmea_reader_task(void *arg)
 {
     (void) arg; // porta verso il ricevitore gestita da gnss_io (seriale o I2C)
@@ -234,9 +295,11 @@ void gnss_nmea_reader_task(void *arg)
     char line[LINE_BUF_SIZE];
     size_t line_len = 0;
     settings_peek(peek_has, &s_has_fallback);
+    rtk_alarm_reset(&s_rtk_alarm);
 
     while (1) {
         sys_stats_heartbeat(HB_GNSS);
+        rtk_alarm_tick();
         int n = gnss_io_read(read_buf, sizeof(read_buf), pdMS_TO_TICKS(100));
         for (int i = 0; i < n; i++) {
             char c = (char) read_buf[i];

@@ -7,6 +7,8 @@
 #include "cellular_link.h"
 #include "font8x8_basic.h"
 #include "i2c_shared_bus.h"
+#include "gnss_nmea_reader.h"
+#include "ntrip_rover_client.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -118,6 +120,32 @@ static void fb_draw_text(int x, int y, const char *text)
         fb_draw_char(cx, y, *p);
         cx += 8;
     }
+}
+
+// Testo a dimensione doppia (16x16 per carattere, max 8 caratteri per riga):
+// per l'allarme, leggibile da lontano in cabina.
+static void fb_draw_text_2x(int x, int y, const char *text)
+{
+    for (const char *p = text; *p; p++, x += 16) {
+        if ((unsigned char) *p > 0x7F) {
+            continue;
+        }
+        const uint8_t *glyph = font8x8_basic[(unsigned char) *p];
+        for (int col = 0; col < 8; col++) {
+            for (int row = 0; row < 8; row++) {
+                if (glyph[col] & (1 << row)) {
+                    fb_fill_rect(x + col * 2, y + row * 2, 2, 2);
+                }
+            }
+        }
+    }
+}
+
+// Testo centrato in orizzontale (caratteri da 8 o 16 pixel).
+static int center_x(const char *text, int char_w)
+{
+    int w = (int) strlen(text) * char_w;
+    return w >= OLED_W ? 0 : (OLED_W - w) / 2;
 }
 
 // "Tacche di segnale" in stile telefono: num_bars colonne di altezza
@@ -306,7 +334,22 @@ static void screen_status(void)
     snprintf(line, sizeof(line), "RTCM %llu B", (unsigned long long) status_get_rtcm_total_bytes64());
     fb_draw_text(0, 32, line);
 
-    format_uptime(line, sizeof(line));
+    // Rover: base in uso (e distanza, se nota) al posto del tempo di
+    // accensione, che a chi guida serve meno. 16 caratteri per riga.
+    ntrip_rover_auto_status_t ab = { 0 };
+    if (c.rover) {
+        ntrip_rover_client_auto_status(&ab);
+    }
+    if (c.rover && ab.mountpoint[0]) {
+        char km[8] = "";
+        if (ab.distance_km >= 0) {
+            int d = ab.distance_km < 999 ? (int) (ab.distance_km + 0.5) : 999;
+            snprintf(km, sizeof(km), " %dkm", d);
+        }
+        snprintf(line, sizeof(line), "%.*s%s", (int) (16 - strlen(km)), ab.mountpoint, km);
+    } else {
+        format_uptime(line, sizeof(line));
+    }
     fb_draw_text(0, 48, line);
 }
 
@@ -418,6 +461,25 @@ static void screen_address(void)
     fb_draw_text(0, 48, "192.168.4.1");
 }
 
+// Allarme "RTK perso" del rover (rtk_alarm.c): schermata intera che
+// lampeggia (immagine invertita ogni mezzo secondo), con la qualita'
+// attuale e da quanti secondi manca l'RTK fisso.
+static void screen_rtk_lost(const rtk_alarm_out_t *al, bool inverted)
+{
+    fb_draw_text_2x(center_x("RTK", 16), 2, "RTK");
+    fb_draw_text_2x(center_x("PERSO", 16), 20, "PERSO");
+    const char *q = rtk_alarm_quality_label(al->quality);
+    fb_draw_text(center_x(q, 8), 42, q);
+    char line[17];
+    snprintf(line, sizeof(line), "DA %lu s", (unsigned long) al->lost_s);
+    fb_draw_text(center_x(line, 8), 54, line);
+    if (inverted) {
+        for (size_t i = 0; i < sizeof(s_fb); i++) {
+            s_fb[i] ^= 0xFF;
+        }
+    }
+}
+
 static void oled_task(void *arg)
 {
     fb_clear();
@@ -426,13 +488,22 @@ static void oled_task(void *arg)
     vTaskDelay(pdMS_TO_TICKS(2500));
 
     int screen = 0;
+    bool blink = false;
     while (1) {
         fb_clear();
-        switch (screen) {
-        case 0: screen_status(); break;
-        case 1: screen_gnss(); break;
-        case 2: screen_signals(); break;
-        default: screen_address(); break;
+        rtk_alarm_out_t al = gnss_nmea_reader_rtk_alarm();
+        if (al.active) {
+            // Allarme: al posto delle schermate a rotazione, lampeggio ogni 0,5 s.
+            screen_rtk_lost(&al, blink);
+            blink = !blink;
+        } else {
+            switch (screen) {
+            case 0: screen_status(); break;
+            case 1: screen_gnss(); break;
+            case 2: screen_signals(); break;
+            default: screen_address(); break;
+            }
+            screen = (screen + 1) % 4;
         }
         // Come gnss_io.c: niente I2C mentre la microSD e' montata (sulla base di
         // prova il clock della SD e' collegato a una linea I2C). Si salta un giro.
@@ -443,8 +514,14 @@ static void oled_task(void *arg)
                 ESP_LOGW(TAG, "Scrittura I2C verso OLED fallita (display scollegato?)");
             }
         }
-        screen = (screen + 1) % 4;
-        vTaskDelay(pdMS_TO_TICKS(2500));
+        if (al.active) {
+            vTaskDelay(pdMS_TO_TICKS(500));
+            continue;
+        }
+        // 2,5 s per schermata, ma l'allarme appena acceso si mostra entro 0,25 s.
+        for (int i = 0; i < 10 && !gnss_nmea_reader_rtk_alarm().active; i++) {
+            vTaskDelay(pdMS_TO_TICKS(250));
+        }
     }
 }
 

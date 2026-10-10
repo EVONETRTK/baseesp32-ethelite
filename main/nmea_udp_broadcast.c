@@ -1,4 +1,5 @@
 #include "nmea_udp_broadcast.h"
+#include "nmea_ble.h"
 #include "settings.h"
 #include "wifi_link.h"
 #include "eth_link.h"
@@ -52,6 +53,10 @@ static void peek_port(const app_settings_t *s, void *ctx)
 
 void nmea_udp_broadcast_send(const char *line, size_t len)
 {
+    // Stesse frasi anche al telefono via Bluetooth LE, se collegato (coda
+    // non bloccante, vedi nmea_ble.c); prima del controllo del socket UDP.
+    nmea_ble_send(line, len);
+
     if (s_sock < 0) {
         return;
     }

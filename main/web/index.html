@@ -236,6 +236,12 @@
   .status-verdict.warn { background:#fffbeb; border-color:#fcd34d; color:#78350f; }
   .status-verdict.bad { background:#fef2f2; border-color:#fca5a5; color:#7f1d1d; }
   .status-verdict:empty { display:none; }
+  /* Allarme "RTK perso" del rover: striscia rossa in cima alla scheda Stato */
+  .rtk-lost-banner { background:#dc2626; color:#fff; border-radius:10px; padding:.7rem 1rem; margin-bottom:.8rem; animation:rtk-lost-blink 1s steps(2, start) infinite; }
+  .rtk-lost-banner .rl-head { font-size:1.3rem; font-weight:800; }
+  .rtk-lost-banner .rl-sub { font-size:.9rem; margin-top:.2rem; }
+  @keyframes rtk-lost-blink { to { background:#991b1b; } }
+  @media (prefers-reduced-motion: reduce) { .rtk-lost-banner { animation:none; } }
 
   /* Grafico dei satelliti: scorre in orizzontale quando i satelliti sono tanti */
   /* I fieldset di default non si stringono sotto la larghezza del contenuto:
@@ -313,6 +319,7 @@
 <form id="cfg-form">
 
 <div id="page-status" class="page active">
+  <div id="rtk-lost-banner" class="rtk-lost-banner" style="display:none"></div>
   <div id="status-verdict" class="status-verdict"></div>
   <div id="summary-cards" class="summary-cards"></div>
   <div id="measure-banner" style="display:none; background:#dbeafe; color:#1e3a8a; border:2px solid #60a5fa; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
@@ -1004,6 +1011,15 @@
     <label data-mode="rover">Mountpoint da cui ricevere<input autocomplete="off" name="rover_mountpoint"></label>
     <button type="button" class="action secondary" id="ntrip-mp-scan-btn" style="margin-top:.4rem" data-mode="rover">Cerca mountpoint disponibili</button>
     <div id="ntrip-mp-results" style="margin-top:.4rem" data-mode="rover"></div>
+    <label data-mode="rover" style="display:flex; align-items:center; gap:.5rem; margin-top:.6rem">
+      <input name="rover_auto_base" type="checkbox" style="width:auto; margin:0"> Scegli da solo la base piu' vicina
+    </label>
+    <small class="hint" data-mode="rover">
+      Il rover legge l'elenco delle basi del caster e si collega a quella piu' vicina. Cambia base solo quando il
+      trattore non e' in RTK, per non perdere il fix in mezzo al campo. Il mountpoint scritto sopra resta la base di
+      partenza e quella di riserva.
+    </small>
+    <div id="rover-auto-base-state" class="hint" data-mode="rover" style="margin-top:.3rem; font-weight:600"></div>
     <label data-mode="rover">Utente<input autocomplete="off" name="rover_username"></label>
     <label data-mode="rover">Password<input autocomplete="new-password" name="rover_password" type="password" placeholder="lascia vuoto per non modificare"></label>
     <button type="button" class="action secondary" id="ntrip-test-btn" style="margin-top:.6rem">Prova connessione al caster</button>
@@ -1017,7 +1033,7 @@
     </small>
 
     <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_host,ntrip_port,ntrip_mountpoint,ntrip_password,rover_mountpoint,rover_username,rover_password">💾 Salva</button>
+      <button type="button" class="action fieldset-save-btn" data-fields="ntrip_host,ntrip_port,ntrip_mountpoint,ntrip_password,rover_mountpoint,rover_auto_base,rover_username,rover_password">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset>
@@ -1110,6 +1126,18 @@
       <button type="button" class="action fieldset-save-btn" data-fields="nmea_udp_port">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
+    <label style="display:flex; align-items:center; gap:.5rem; margin-top:.8rem">
+      <input name="ble_nmea_enable" type="checkbox" style="width:auto; margin:0"> Uscita della posizione via Bluetooth (BLE)
+    </label>
+    <small class="hint">
+      Bluetooth Low Energy: funziona con le app che supportano i ricevitori BLE (per esempio SW Maps), non con quelle
+      che richiedono il Bluetooth classico. Vale dopo il riavvio.
+    </small>
+    <div id="ble-nmea-state" class="hint" style="margin-top:.3rem; font-weight:600"></div>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="ble_nmea_enable" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
     <label style="margin-top:.8rem" data-lic="nmea_fast">Posizioni al secondo
       <select name="nmea_rate_hz">
         <option value="1">1 (solo per vedere la posizione)</option>
@@ -1125,6 +1153,16 @@
     </small>
     <div class="fieldset-save-row">
       <button type="button" class="action fieldset-save-btn" data-fields="nmea_rate_hz" data-reboot="1">💾 Salva</button>
+      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
+    </div>
+    <label style="margin-top:.8rem">Allarme RTK perso dopo (secondi, 0 = spento)<input name="rtk_lost_alarm_s" type="number" min="0" max="600" step="1"></label>
+    <small class="hint">
+      Se il trattore era in RTK fisso e lo perde (float, DGPS, niente fix o nessun dato dal ricevitore) per
+      piu' di questi secondi, il display lampeggia "RTK PERSO" e in cima alla scheda Stato compare una striscia rossa.
+      Si spegne da solo quando torna l'RTK fisso. Valore di fabbrica 5; da 0 a 600.
+    </small>
+    <div class="fieldset-save-row">
+      <button type="button" class="action fieldset-save-btn" data-fields="rtk_lost_alarm_s">💾 Salva</button>
       <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
     </div>
   </fieldset></div>
@@ -2277,6 +2315,9 @@ async function loadStatusOnce() {
     updateModeBadge(activeDeviceMode, s.device_mode === 'rover' ? 'rover' : 'base', s.ap_ssid);
     updateModeVisibility();
     update1005Banner(s);
+    updateRtkLostBanner(s);
+    updateRoverAutoBase(s);
+    updateBleNmea(s);
     updateSummaryCards(s);
     updateRestartBanner(s);
     {
@@ -2410,9 +2451,12 @@ async function loadStatusOnce() {
       f.ntrip_port.value = s.ntrip_port || '';
       f.ntrip_mountpoint.value = s.ntrip_mountpoint || '';
       f.rover_mountpoint.value = s.rover_mountpoint || '';
+      f.rover_auto_base.checked = !!s.rover_auto_base;
       f.rover_username.value = s.rover_username || '';
       f.nmea_udp_port.value = s.nmea_udp_port || '';
       f.nmea_rate_hz.value = String(s.nmea_rate_hz || 1);
+      f.rtk_lost_alarm_s.value = s.rtk_lost_alarm_s ?? 5;
+      f.ble_nmea_enable.checked = !!s.ble_nmea_enable;
       f.gnss_chip.value = s.gnss_chip || 'ublox';
       f.device_mode.value = s.device_mode || 'base';
       gnssChipEffective = s.gnss_chip_effective || '';
@@ -3476,7 +3520,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 // mantenere in due posti.
 const NUMBER_FIELDS = new Set([
   'remote_interval_min', 'vpn_port', 'data_plan_gb', 'sim_credit_every_days', 'sim_credit_hour', 'sim_credit_min_eur', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
-  'ntrip_port', 'nmea_udp_port', 'nmea_rate_hz', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
+  'ntrip_port', 'nmea_udp_port', 'nmea_rate_hz', 'rtk_lost_alarm_s', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
   'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
   'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
   'alert_smtp_port', 'base_drift_threshold_m', 'ntrip_caster_server_port', 'base_fixed_lat_deg',
@@ -3491,7 +3535,10 @@ const BOOL_CHECKBOX_FIELDS = new Set([
   'rtcm_1005_enable', 'rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1230_enable',
   'rtcm_1019_enable', 'rtcm_1020_enable', 'rtcm_1074_enable', 'rtcm_1077_enable',
   'rtcm_1084_enable', 'rtcm_1087_enable', 'rtcm_1094_enable', 'rtcm_1097_enable',
-  'rtcm_1124_enable', 'rtcm_1127_enable',
+  'rtcm_1124_enable', 'rtcm_1127_enable', 'rover_auto_base',
+  // mancavano: inviate come "on" e ignorate dal ricevitore (trovato il 10/10/2026)
+  'rover_has_fallback', 'comnav_ins_enable', 'comnav_heading_enable',
+  'ble_nmea_enable',
 ]);
 
 // Legge dal form il valore gia' tipizzato correttamente per il JSON che si
@@ -4744,7 +4791,10 @@ function updateStatusVerdict(s) {
       why1005 = (document.getElementById('no-1005-reason') || {}).textContent || '';
     }
     if (s.selfpos_alarm) bad.push("L'antenna della base sembra spostata.");
-  } else if (lastSignals && sig.gnss_fix_valid !== undefined) {
+  } else {
+    if (s.rtk_alarm_active) bad.unshift('RTK perso da ' + (s.rtk_alarm_lost_s || 0) + ' s: il trattore non è più in RTK fisso.');
+  }
+  if (rover && lastSignals && sig.gnss_fix_valid !== undefined) {
     const q = sig.gnss_fix_quality;
     if (q === 5) warn.push('RTK float: precisione decimetrica, il fix RTK fisso non è ancora arrivato.');
     else if (q === 2) warn.push('Nessun fix RTK: posizione con correzioni approssimate (DGPS o HAS), precisione di decimetri.');
@@ -4785,6 +4835,62 @@ function updateStatusVerdict(s) {
     const ul = box.querySelector('ul');
     all.slice(1).forEach((t) => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
   }
+}
+
+// Allarme "RTK perso" del rover (impostazione rtk_lost_alarm_s, scheda
+// Posizione e correzioni): striscia rossa in cima alla scheda Stato.
+const RTK_LOST_QUALITY = {
+  'FLOAT': 'RTK float (decimetri)', 'DGPS': 'DGPS o HAS (decimetri)', 'NO FIX': 'nessun fix',
+  'NO DATI': 'nessun dato dal ricevitore', 'AUTONOMA': 'posizione autonoma (metri)', 'STIMATA': 'posizione stimata',
+};
+
+// Scelta automatica della base piu' vicina (impostazione rover_auto_base,
+// riquadro del client NTRIP): base in uso e distanza.
+function updateRoverAutoBase(s) {
+  const el = document.getElementById('rover-auto-base-state');
+  if (!el) return;
+  if (activeDeviceMode !== 'rover' || !s.rover_auto_base_active) {
+    el.textContent = '';
+    return;
+  }
+  const mp = s.rover_base_in_use || '';
+  const km = typeof s.rover_base_distance_km === 'number' ? s.rover_base_distance_km : -1;
+  if (!mp) {
+    el.textContent = 'Base in uso: in attesa del primo collegamento';
+  } else if (km >= 0) {
+    el.textContent = 'Base in uso: ' + mp + ' (' + km.toLocaleString('it-IT', { maximumFractionDigits: 1 }) + ' km)';
+  } else {
+    el.textContent = 'Base in uso: ' + mp + ' (distanza non ancora nota: serve la posizione del rover e le coordinate della base nel caster)';
+  }
+}
+
+// Uscita NMEA via Bluetooth LE (impostazione ble_nmea_enable, riquadro
+// "Uscita dati per software di guida"): stato di questo avvio.
+function updateBleNmea(s) {
+  const el = document.getElementById('ble-nmea-state');
+  if (!el) return;
+  if (s.ble_nmea === 'attivo') {
+    el.textContent = 'Bluetooth: ' + (s.ble_nmea_client ? 'acceso, telefono collegato' : 'acceso, nessun telefono');
+  } else if (s.ble_nmea === 'errore') {
+    el.textContent = 'Bluetooth: non avviato (memoria insufficiente), il resto funziona';
+  } else {
+    el.textContent = 'Bluetooth: spento';
+  }
+}
+
+function updateRtkLostBanner(s) {
+  const box = document.getElementById('rtk-lost-banner');
+  if (!box) return;
+  if (activeDeviceMode !== 'rover' || !s.rtk_alarm_active) {
+    box.style.display = 'none';
+    return;
+  }
+  const q = RTK_LOST_QUALITY[s.rtk_alarm_quality_str] || s.rtk_alarm_quality_str || '';
+  box.innerHTML = '<div class="rl-head"></div><div class="rl-sub"></div>';
+  box.querySelector('.rl-head').textContent = '🚨 RTK PERSO da ' + (s.rtk_alarm_lost_s || 0) + ' s';
+  box.querySelector('.rl-sub').textContent = 'Ora: ' + q + '. La guida automatica non ha più la precisione di pochi centimetri: ' +
+    "controlla il Collegamento NTRIP qui sotto e il cielo sopra l'antenna.";
+  box.style.display = '';
 }
 
 function update1005Banner(s) {

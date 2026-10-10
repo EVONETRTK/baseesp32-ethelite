@@ -8,6 +8,8 @@
 #include "rtcm3_stats.h"
 #include "data_usage.h"
 #include "ntrip_reply.h"
+#include "gnss_fix.h"
+#include "base_auto.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -19,6 +21,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "driver/uart.h"
 #include "mbedtls/base64.h"
@@ -367,20 +370,57 @@ static char *next_field_semicolon(char **cursor)
     return start;
 }
 
+// Numero decimale di un campo della riga STR (latitudine o longitudine):
+// false se vuoto o con altro dopo il numero.
+static bool parse_coord_field(const char *f, double *out)
+{
+    if (!f) {
+        return false;
+    }
+    char *end = NULL;
+    double v = strtod(f, &end);
+    if (end == f) {
+        return false;
+    }
+    while (*end == ' ') {
+        end++;
+    }
+    if (*end != '\0') {
+        return false;
+    }
+    *out = v;
+    return true;
+}
+
+// Solo host e porta del caster, senza copiare tutta la configurazione
+// (oltre 2 KB) sullo stack di chi chiama (task del rover o del pannello).
+typedef struct {
+    char host[sizeof(((app_settings_t *) 0)->ntrip_host)];
+    uint16_t port;
+} caster_addr_t;
+
+static void peek_caster_addr(const app_settings_t *s, void *ctx)
+{
+    caster_addr_t *a = ctx;
+    strlcpy(a->host, s->ntrip_host, sizeof(a->host));
+    a->port = s->ntrip_port;
+}
+
 size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_t max_count)
 {
-    app_settings_t settings = settings_get();
+    caster_addr_t caster;
+    settings_peek(peek_caster_addr, &caster);
 
     char port_str[8];
-    snprintf(port_str, sizeof(port_str), "%u", settings.ntrip_port);
+    snprintf(port_str, sizeof(port_str), "%u", caster.port);
 
     struct addrinfo hints = {
         .ai_family = AF_INET,
         .ai_socktype = SOCK_STREAM,
     };
     struct addrinfo *res = NULL;
-    if (getaddrinfo(settings.ntrip_host, port_str, &hints, &res) != 0 || res == NULL) {
-        ESP_LOGW(TAG, "Sourcetable: DNS lookup fallita per %s", settings.ntrip_host);
+    if (getaddrinfo(caster.host, port_str, &hints, &res) != 0 || res == NULL) {
+        ESP_LOGW(TAG, "Sourcetable: DNS lookup fallita per %s", caster.host);
         return 0;
     }
 
@@ -401,7 +441,7 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     if (net_connect_timeout(sock, res->ai_addr, res->ai_addrlen, 8) != 0) {
-        ESP_LOGW(TAG, "Sourcetable: connessione a %s:%d fallita: errno %d", settings.ntrip_host, settings.ntrip_port, errno);
+        ESP_LOGW(TAG, "Sourcetable: connessione a %s:%u fallita: errno %d", caster.host, (unsigned) caster.port, errno);
         net_close_now(sock);
         freeaddrinfo(res);
         return 0;
@@ -415,7 +455,7 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     char req[160];
     int req_len = snprintf(req, sizeof(req),
                            "GET / HTTP/1.1\r\nHost: %s:%u\r\nUser-Agent: NTRIP baseesp32/1.0\r\nConnection: close\r\n\r\n",
-                           settings.ntrip_host, (unsigned) settings.ntrip_port);
+                           caster.host, (unsigned) caster.port);
     if (req_len < 0 || req_len >= (int) sizeof(req) || send(sock, req, req_len, 0) != req_len) {
         net_close_now(sock);
         return 0;
@@ -426,9 +466,13 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     // riempie il buffer, non ci si ferma al primo recv() come nel resto di
     // questo file (li' basta l'intestazione di risposta, qui serve il
     // corpo intero).
-    // Allocato solo per questa lettura (prima 4 KB fissi in RAM).
-    const size_t buf_size = 4096;
-    char *buf = malloc(buf_size);
+    // Allocato solo per questa lettura, in PSRAM se c'e' (RAM interna
+    // scarsa): 8 KB per stare nelle 32 righe STR di una rete regionale.
+    const size_t buf_size = 8192;
+    char *buf = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!buf) {
+        buf = malloc(buf_size);
+    }
     if (!buf) {
         net_close_now(sock);
         return 0;
@@ -465,14 +509,30 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
         next_field_semicolon(&field_cursor); // "STR"
         char *name = next_field_semicolon(&field_cursor);
         char *desc = next_field_semicolon(&field_cursor);
-        if (name && name[0] != '\0') {
-            strncpy(out[count].name, name, sizeof(out[count].name) - 1);
-            out[count].name[sizeof(out[count].name) - 1] = '\0';
+        // Nome piu' lungo di rover_mountpoint: troncato porterebbe a un
+        // mountpoint che non esiste, si salta.
+        if (name && name[0] != '\0' && strlen(name) < sizeof(out[count].name)) {
+            strlcpy(out[count].name, name, sizeof(out[count].name));
             if (desc) {
                 strncpy(out[count].description, desc, sizeof(out[count].description) - 1);
                 out[count].description[sizeof(out[count].description) - 1] = '\0';
             } else {
                 out[count].description[0] = '\0';
+            }
+            // Campi 4-9: formato, dettagli, portante, costellazioni, rete,
+            // nazione; poi latitudine e longitudine (gradi decimali).
+            for (int k = 0; k < 6; k++) {
+                next_field_semicolon(&field_cursor);
+            }
+            char *lat = next_field_semicolon(&field_cursor);
+            char *lon = next_field_semicolon(&field_cursor);
+            double la = 0, lo = 0;
+            if (parse_coord_field(lat, &la) && parse_coord_field(lon, &lo)) {
+                out[count].lat_deg = la;
+                out[count].lon_deg = lo;
+            } else {
+                out[count].lat_deg = 0; // 0/0: "senza coordinate" per base_auto.c
+                out[count].lon_deg = 0;
             }
             count++;
         }
@@ -503,6 +563,222 @@ static void feed_rtcm(const uint8_t *data, int n)
     status_note_rtcm_bytes((uint32_t) n);
 }
 
+// --- Scelta automatica della base piu' vicina (rover_auto_base) -------------
+// La decisione e' in base_auto.c (prove sul PC); qui la tabella delle
+// sorgenti, la qualita' del fix e il cambio di collegamento. Stato usato
+// solo da ntrip_rover_client_task, tranne la copia s_auto_pub (mutex).
+typedef struct {
+    bool enabled;
+    bool first;               // scelta iniziale da fare (avvio o casella appena attivata)
+    int64_t last_check_us;    // ultima lettura della tabella (0 = mai)
+    int64_t last_rtk_us;      // ultimo istante in RTK fisso/float (o inizio collegamento)
+    int64_t last_tick_us;
+    uint32_t gen;             // settings_generation() dell'ultima lettura
+    char current[33];         // mountpoint da usare
+    char fallback[33];        // rover_mountpoint delle impostazioni (base iniziale e ripiego)
+    bool have_pos;            // ultima posizione valida del rover
+    double lat_deg, lon_deg;
+    int quality;              // ultima qualita' della GGA (-1 nessun dato recente)
+} rover_auto_t;
+
+static rover_auto_t s_auto = { .first = true, .quality = -1 };
+
+static struct {
+    bool enabled;
+    bool chosen;
+    char mountpoint[33];
+    bool has_coords;          // coordinate della base in uso note (dalla tabella)
+    double lat_deg, lon_deg;
+} s_auto_pub;
+static SemaphoreHandle_t s_auto_mutex;
+
+typedef struct {
+    bool enabled;
+    char mountpoint[33];
+} auto_cfg_t;
+
+static void peek_auto_cfg(const app_settings_t *s, void *ctx)
+{
+    auto_cfg_t *c = ctx;
+    c->enabled = s->rover_auto_base;
+    strlcpy(c->mountpoint, s->rover_mountpoint, sizeof(c->mountpoint));
+}
+
+// Aggiorna la copia per pannello e display. coords: posizione della base in
+// uso (NULL = sconosciuta, si tiene quella gia' nota se la base e' la stessa).
+static void auto_publish(bool chosen, const base_auto_entry_t *coords)
+{
+    if (!s_auto_mutex) {
+        return;
+    }
+    xSemaphoreTake(s_auto_mutex, portMAX_DELAY);
+    bool same = strcmp(s_auto_pub.mountpoint, s_auto.current) == 0;
+    s_auto_pub.enabled = s_auto.enabled;
+    s_auto_pub.chosen = chosen;
+    strlcpy(s_auto_pub.mountpoint, s_auto.current, sizeof(s_auto_pub.mountpoint));
+    if (coords) {
+        s_auto_pub.has_coords = true;
+        s_auto_pub.lat_deg = coords->lat_deg;
+        s_auto_pub.lon_deg = coords->lon_deg;
+    } else if (!same) {
+        s_auto_pub.has_coords = false;
+    }
+    xSemaphoreGive(s_auto_mutex);
+}
+
+void ntrip_rover_client_auto_status(ntrip_rover_auto_status_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->distance_km = -1;
+    if (!s_auto_mutex) {
+        return;
+    }
+    xSemaphoreTake(s_auto_mutex, portMAX_DELAY);
+    out->enabled = s_auto_pub.enabled;
+    out->chosen = s_auto_pub.chosen;
+    strlcpy(out->mountpoint, s_auto_pub.mountpoint, sizeof(out->mountpoint));
+    bool has = s_auto_pub.has_coords;
+    double blat = s_auto_pub.lat_deg;
+    double blon = s_auto_pub.lon_deg;
+    xSemaphoreGive(s_auto_mutex);
+    gnss_fix_status_t fix = gnss_fix_get_status();
+    if (has && fix.valid && fix.has_position && base_auto_coords_valid(fix.lat_deg, fix.lon_deg)) {
+        out->distance_km = base_auto_distance_km(fix.lat_deg, fix.lon_deg, blat, blon);
+    }
+}
+
+// Rilegge casella e base iniziale. Non chiude mai il collegamento in corso
+// (si perderebbe il fix): casella attivata o base iniziale cambiata fanno
+// solo ripetere subito la scelta, che in RTK non cambia base; casella
+// spenta: rover_mountpoint al prossimo collegamento.
+static void auto_read_settings(void)
+{
+    auto_cfg_t c;
+    settings_peek(peek_auto_cfg, &c);
+    s_auto.gen = settings_generation();
+    if (c.enabled && !s_auto.enabled) {
+        // Casella appena attivata (o avvio): tabella letta subito.
+        ESP_LOGI(TAG, "Scelta automatica della base attiva (base iniziale %s)", c.mountpoint);
+        s_auto.first = true;
+        s_auto.last_check_us = 0;
+    }
+    if (strcmp(c.mountpoint, s_auto.fallback) != 0) {
+        strlcpy(s_auto.fallback, c.mountpoint, sizeof(s_auto.fallback));
+        s_auto.first = true;
+        s_auto.last_check_us = 0;
+    }
+    if (s_auto.current[0] == '\0') {
+        strlcpy(s_auto.current, c.mountpoint, sizeof(s_auto.current));
+    }
+    bool was = s_auto.enabled;
+    s_auto.enabled = c.enabled;
+    if (was != c.enabled) {
+        auto_publish(s_auto_pub.chosen, NULL);
+    }
+}
+
+// Qualita' del fix e ultima posizione valida (al massimo una volta al secondo).
+static void auto_sample(int64_t now)
+{
+    if (s_auto.last_tick_us != 0 && now - s_auto.last_tick_us < 1000000) {
+        return;
+    }
+    s_auto.last_tick_us = now;
+    gnss_fix_status_t fix = gnss_fix_get_status();
+    // GGA vecchia di oltre 5 s: ricevitore muto, nessun dato.
+    int q = (fix.valid && now - fix.last_update_us < 5000000) ? (int) fix.quality : -1;
+    s_auto.quality = q;
+    if (q == GNSS_FIX_RTK_FIXED || q == GNSS_FIX_RTK_FLOAT) {
+        s_auto.last_rtk_us = now;
+    }
+    if (q >= 1 && q <= 6 && fix.has_position && base_auto_coords_valid(fix.lat_deg, fix.lon_deg)) {
+        s_auto.have_pos = true;
+        s_auto.lat_deg = fix.lat_deg;
+        s_auto.lon_deg = fix.lon_deg;
+    }
+}
+
+// Legge la tabella e decide, se e' il momento. Ritorna true se il rover
+// deve passare a un'altra base (s_auto.current gia' aggiornato).
+static bool auto_check(int64_t now)
+{
+    if (!s_auto.enabled || !s_auto.have_pos) {
+        return false; // senza posizione resta la base iniziale
+    }
+    if (!s_auto.first) {
+        if (s_auto.last_check_us != 0 && now - s_auto.last_check_us < (int64_t) BASE_AUTO_CHECK_S * 1000000) {
+            return false; // tabella letta da meno di 10 minuti
+        }
+        // In RTK o senza RTK da poco: niente cambio possibile, inutile
+        // scaricare la tabella (traffico sulla SIM).
+        if (s_auto.quality == GNSS_FIX_RTK_FIXED || s_auto.quality == GNSS_FIX_RTK_FLOAT ||
+            now - s_auto.last_rtk_us < (int64_t) BASE_AUTO_NO_RTK_S * 1000000) {
+            return false;
+        }
+    }
+    s_auto.last_check_us = now;
+    bool first = s_auto.first;
+    s_auto.first = false;
+
+    // Elenchi in PSRAM se c'e' (32 voci, circa 4 KB + 2 KB): RAM interna scarsa.
+    const uint32_t caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    ntrip_mountpoint_entry_t *mps = heap_caps_calloc(NTRIP_MOUNTPOINTS_MAX, sizeof(*mps), caps);
+    if (!mps) {
+        mps = calloc(NTRIP_MOUNTPOINTS_MAX, sizeof(*mps));
+    }
+    base_auto_entry_t *list = heap_caps_calloc(NTRIP_MOUNTPOINTS_MAX, sizeof(*list), caps);
+    if (!list) {
+        list = calloc(NTRIP_MOUNTPOINTS_MAX, sizeof(*list));
+    }
+    if (!mps || !list) {
+        free(mps);
+        free(list);
+        ESP_LOGW(TAG, "Base automatica: memoria insufficiente, resta %s", s_auto.current);
+        return false;
+    }
+    size_t n = ntrip_rover_client_fetch_mountpoints(mps, NTRIP_MOUNTPOINTS_MAX);
+    for (size_t i = 0; i < n; i++) {
+        strlcpy(list[i].name, mps[i].name, sizeof(list[i].name));
+        list[i].lat_deg = mps[i].lat_deg;
+        list[i].lon_deg = mps[i].lon_deg;
+    }
+    free(mps);
+    if (n == 0) {
+        free(list);
+        ESP_LOGW(TAG, "Base automatica: tabella delle sorgenti non letta, resta %s", s_auto.current);
+        return false;
+    }
+
+    uint32_t no_rtk_s = (uint32_t) ((now - s_auto.last_rtk_us) / 1000000);
+    base_auto_result_t r = base_auto_choose(list, n, s_auto.have_pos, s_auto.lat_deg, s_auto.lon_deg,
+                                            s_auto.current, s_auto.quality, no_rtk_s, first);
+    bool change = r.change;
+    if (change) {
+        if (r.current_km >= 0) {
+            ESP_LOGI(TAG, "Base automatica: %s -> %s (%.1f km, prima %.1f km)", s_auto.current, r.mountpoint,
+                     r.nearest_km, r.current_km);
+        } else {
+            ESP_LOGI(TAG, "Base automatica: %s -> %s (%.1f km; base precedente senza coordinate in tabella)",
+                     s_auto.current, r.mountpoint, r.nearest_km);
+        }
+        strlcpy(s_auto.current, r.mountpoint, sizeof(s_auto.current));
+        auto_publish(true, &list[r.nearest]);
+    } else {
+        if (r.nearest >= 0) {
+            ESP_LOGI(TAG, "Base automatica: resta %s (%s; piu' vicina %s a %.1f km, %d basi con coordinate)",
+                     s_auto.current, base_auto_reason_str(r.reason), list[r.nearest].name, r.nearest_km, r.candidates);
+        } else {
+            ESP_LOGI(TAG, "Base automatica: resta %s (%s)", s_auto.current, base_auto_reason_str(r.reason));
+        }
+        auto_publish(r.current >= 0, r.current >= 0 ? &list[r.current] : NULL);
+    }
+    free(list);
+    return change;
+}
+
+// Copia delle impostazioni del task: statica, non sullo stack (oltre 2 KB).
+static app_settings_t s_task_cfg;
+
 void ntrip_rover_client_task(void *arg)
 {
     (void) arg; // porta verso il ricevitore gestita da gnss_io (seriale o I2C)
@@ -511,14 +787,39 @@ void ntrip_rover_client_task(void *arg)
     if (!s_sock_mutex) {
         s_sock_mutex = xSemaphoreCreateMutex();
     }
+    if (!s_auto_mutex) {
+        s_auto_mutex = xSemaphoreCreateMutex();
+    }
 
     while (1) {
         sys_stats_heartbeat(HB_NTRIP);
         net_wait_ready(30000);
-        app_settings_t settings = settings_get();
+        settings_get_into(&s_task_cfg);
+        auto_read_settings();
+        if (s_auto.enabled) {
+            int64_t now = esp_timer_get_time();
+            auto_sample(now);
+            if (s_auto.first && !s_auto.have_pos) {
+                // Nessuna posizione per scegliere: base iniziale (ripiego).
+                strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
+            }
+            auto_check(now);
+            // Credenziali del rover invariate, cambia solo il mountpoint.
+            strlcpy(s_task_cfg.rover_mountpoint, s_auto.current, sizeof(s_task_cfg.rover_mountpoint));
+        } else {
+            strlcpy(s_auto.current, s_task_cfg.rover_mountpoint, sizeof(s_auto.current));
+            auto_publish(false, NULL);
+        }
         size_t extra_len = 0;
-        int sock = ntrip_rover_connect(&settings, net_buf, sizeof(net_buf), &extra_len);
+        int sock = ntrip_rover_connect(&s_task_cfg, net_buf, sizeof(net_buf), &extra_len);
         if (sock < 0) {
+            if (s_auto.enabled && strcmp(s_auto.current, s_auto.fallback) != 0) {
+                // La base scelta non risponde o rifiuta: si torna alla base
+                // iniziale; la tabella si riguarda al prossimo controllo.
+                ESP_LOGW(TAG, "Base automatica: collegamento a %s fallito, ripiego su %s", s_auto.current, s_auto.fallback);
+                strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
+                auto_publish(false, NULL);
+            }
             // Attesa crescente (5, 10, 20... fino a 120 s): con password o
             // mountpoint sbagliati il rover riprovava ogni 5 s all'infinito,
             // 12 volte al minuto, e un caster vero puo' bloccare indirizzo o
@@ -537,6 +838,9 @@ void ntrip_rover_client_task(void *arg)
             continue;
         }
         s_retry_ms = 5000;
+        // Il conto "senza RTK" riparte dal collegamento: la base nuova ha
+        // 30 s per dare il fix prima di un altro cambio.
+        s_auto.last_rtk_us = esp_timer_get_time();
         if (extra_len > 0) {
             feed_rtcm(net_buf, (int) extra_len); // RTCM arrivato insieme alla risposta
         }
@@ -556,6 +860,25 @@ void ntrip_rover_client_task(void *arg)
                 ESP_LOGW(TAG, "recv fallita, riconnessione: errno %d", errno);
                 char msg[128];
                 snprintf(msg, sizeof(msg), "Ricezione dati fallita, riconnessione (errno %d)", errno);
+                status_ntrip_note_disconnected(msg);
+                break;
+            }
+            // Scelta automatica della base: controllo leggero a ogni giro
+            // (qualita' al massimo una volta al secondo, tabella al massimo
+            // ogni 10 minuti e solo fuori dall'RTK). Impostazioni rilette
+            // solo quando cambiano (casella attivata: controllo subito).
+            int64_t now = esp_timer_get_time();
+            if (settings_generation() != s_auto.gen) {
+                auto_read_settings();
+            }
+            bool switch_base = false;
+            if (s_auto.enabled) {
+                auto_sample(now);
+                switch_base = auto_check(now);
+            }
+            if (switch_base) {
+                char msg[96];
+                snprintf(msg, sizeof(msg), "Cambio base: collegamento a %.40s", s_auto.current);
                 status_ntrip_note_disconnected(msg);
                 break;
             }

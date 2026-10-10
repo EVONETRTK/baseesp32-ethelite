@@ -90,7 +90,7 @@
 
 <figure>
   <img class="schermata" src="img/rover-uscita-guida.png" alt="Riquadro Uscita dati per software di guida">
-  <figcaption><b>Figura 11.</b> Il riquadro <em>Uscita dati per software di guida</em>, con la porta UDP e le posizioni al secondo.</figcaption>
+  <figcaption><b>Figura 11.</b> Il riquadro <em>Uscita dati per software di guida</em>, con la porta UDP, il Bluetooth e le posizioni al secondo.</figcaption>
 </figure>
 
 <h3>Posizioni al secondo</h3>
@@ -113,7 +113,21 @@
 
 <div class="box nota"><span class="box-titolo">Nota</span>La scelta vale dopo il riavvio. Dieci posizioni al secondo sono state verificate sull'uscita del ricevitore con il modulo u-blox ZED-F9P; con alcune combinazioni di modulo e costellazioni il modulo può calcolare meno posizioni di quelle richieste. Controllate in AgIO la frequenza che arriva davvero.</div>
 
-<p>Il ricevitore non ha un'uscita seriale (RS-232) né Bluetooth per i display: si collega solo in rete, WiFi o cavo. I display che accettano solo una porta seriale vanno collegati con il loro ricevitore e le correzioni EVONETRTK (capitolo <a data-cap="Collegare il trattore"></a>, strada A).</p>
+<h3>Telefono o tablet via Bluetooth</h3>
+
+<p>In modo rover il ricevitore può mandare la posizione anche a un telefono o a un tablet in <strong>Bluetooth Low Energy</strong> (BLE), per esempio per le mappe o per misurare i confini di un campo:</p>
+
+<ol>
+  <li>nella scheda <em>Posizione e correzioni</em>, riquadro <em>Uscita dati per software di guida</em>, spuntate <strong>Uscita della posizione via Bluetooth (BLE)</strong> e premete <strong>🔄 Salva e riavvia</strong> (con il solo <strong>💾 Salva</strong>, usate poi <strong>🔄 Riavvia ora</strong> nella barra gialla): la casella vale dopo il riavvio;</li>
+  <li>sul telefono accendete il Bluetooth e aprite l'app; non serve abbinare il ricevitore nelle impostazioni del telefono;</li>
+  <li>nell'app scegliete un ricevitore esterno di tipo <strong>Bluetooth LE</strong> (o BLE) e selezionate <strong>EVONETRTK-123456</strong>: il nome è lo stesso della rete WiFi di configurazione del vostro ricevitore.</li>
+</ol>
+
+<p>Dopo pochi secondi l'app mostra la posizione e la qualità del fix; nel pannello, sotto la casella, lo stato diventa <strong>acceso, telefono collegato</strong>. Si collega un telefono alla volta; quando si scollega, il ricevitore torna visibile per un altro. L'uscita in rete verso AgOpenGPS continua a funzionare insieme al Bluetooth.</p>
+
+<div class="box avviso"><span class="box-titolo">Solo Bluetooth Low Energy</span>Il ricevitore non ha il Bluetooth classico. Funziona con le app che supportano i ricevitori BLE (per esempio <strong>SW Maps</strong>); le app e i display che accettano solo il Bluetooth classico (profilo seriale SPP) non vedono il ricevitore. Per AgOpenGPS usate sempre la rete, WiFi o cavo.</div>
+
+<p>Il ricevitore non ha un'uscita seriale (RS-232) né Bluetooth classico per i display: i display si collegano solo in rete, WiFi o cavo. I display che accettano solo una porta seriale vanno collegati con il loro ricevitore e le correzioni EVONETRTK (capitolo <a data-cap="Collegare il trattore"></a>, strada A).</p>
 
 <h2>Prova in campo prima della stagione</h2>
 

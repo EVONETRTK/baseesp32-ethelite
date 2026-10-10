@@ -23,6 +23,7 @@ typedef struct {
     bool rover_has_fallback;
     network_mode_t network_mode;
     uint8_t nmea_rate_hz;
+    bool ble_nmea_enable;
     int oled_sda_pin, oled_scl_pin;
     uint8_t oled_i2c_addr;
     oled_controller_t oled_controller;
@@ -62,6 +63,7 @@ static void pick(const app_settings_t *s, restart_fields_t *o)
     o->rover_has_fallback = s->rover_has_fallback;
     o->network_mode = s->network_mode;
     o->nmea_rate_hz = s->nmea_rate_hz;
+    o->ble_nmea_enable = s->ble_nmea_enable;
     o->oled_sda_pin = s->oled_sda_pin;
     o->oled_scl_pin = s->oled_scl_pin;
     o->oled_i2c_addr = s->oled_i2c_addr;
@@ -125,6 +127,7 @@ void pending_restart_describe(const app_settings_t *s, char *out, size_t out_siz
     }
     if (n.rover_has_fallback != b->rover_has_fallback) add(out, out_size, "riserva Galileo HAS");
     if (n.nmea_rate_hz != b->nmea_rate_hz) add(out, out_size, "posizioni al secondo");
+    if (n.ble_nmea_enable != b->ble_nmea_enable) add(out, out_size, "uscita Bluetooth");
     if (n.oled_sda_pin != b->oled_sda_pin || n.oled_scl_pin != b->oled_scl_pin || n.oled_i2c_addr != b->oled_i2c_addr ||
         n.oled_controller != b->oled_controller || n.oled_flip_h != b->oled_flip_h || n.oled_flip_v != b->oled_flip_v) {
         add(out, out_size, "display OLED");

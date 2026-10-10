@@ -9,5 +9,6 @@ void nmea_udp_broadcast_init(void);
 // Invia una riga NMEA (senza CR/LF) in broadcast UDP sulla porta
 // configurata (settings.nmea_udp_port), su tutte le interfacce attive
 // (AP di setup, WiFi station, Ethernet) - utile per software come
-// AgOpenGPS/AgIO che ricevono la posizione GPS via rete locale.
+// AgOpenGPS/AgIO che ricevono la posizione GPS via rete locale. La stessa
+// riga va anche al telefono via Bluetooth LE (nmea_ble_send()).
 void nmea_udp_broadcast_send(const char *line, size_t len);

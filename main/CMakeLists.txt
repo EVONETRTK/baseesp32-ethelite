@@ -40,8 +40,11 @@ idf_component_register(
         "i2c_shared_bus.c"
         "gnss_signal.c"
         "gnss_fix.c"
+        "rtk_alarm.c"
+        "base_auto.c"
         "gnss_nmea_reader.c"
         "nmea_udp_broadcast.c"
+        "nmea_ble.c"
         "ntrip_rover_client.c"
         "status_led.c"
         "rgb_led.c"
@@ -65,7 +68,7 @@ idf_component_register(
     INCLUDE_DIRS "."
     EMBED_TXTFILES "web/index.html" "web/access.html"
     EMBED_FILES "web/icon192.png"
-    REQUIRES nvs_flash esp_wifi esp_netif esp_event driver json esp_http_server esp_modem mbedtls esp_timer esp_eth led_strip esp_driver_i2c app_update fatfs sdmmc esp_driver_sdspi esp_http_client esp_https_ota mdns esp_driver_tsens esp-tls esp_wireguard bootloader_support
+    REQUIRES nvs_flash esp_wifi esp_netif esp_event driver json esp_http_server esp_modem mbedtls esp_timer esp_eth led_strip esp_driver_i2c app_update fatfs sdmmc esp_driver_sdspi esp_http_client esp_https_ota mdns esp_driver_tsens esp-tls esp_wireguard bootloader_support bt
 )
 
 # Motivo e indirizzo dei crash salvati in memoria RTC (sys_stats.c).

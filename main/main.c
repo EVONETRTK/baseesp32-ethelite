@@ -35,6 +35,7 @@
 #include "base_stream_demux.h"
 #include "gnss_fix.h"
 #include "nmea_udp_broadcast.h"
+#include "nmea_ble.h"
 #include "gnss_nmea_reader.h"
 #include "ntrip_client.h"
 #include "ntrip_rover_client.h"
@@ -222,6 +223,10 @@ void app_main(void)
         boot_guard_stage(BOOT_STAGE_LICENSE);
         license_init(); // funzioni concesse in questo avvio (fisse fino al riavvio)
         status_set_active_rover(s_boot_cfg.device_mode == DEVICE_MODE_ROVER);
+        // Uscita NMEA via Bluetooth LE: solo rover con la casella accesa.
+        // Altrimenti la RAM riservata al Bluetooth torna subito all'heap,
+        // prima che rete e server web se la contendano.
+        nmea_ble_boot(s_boot_cfg.device_mode == DEVICE_MODE_ROVER && s_boot_cfg.ble_nmea_enable);
         boot_guard_stage(BOOT_STAGE_GNSS_PROBE);
         s_gnss_i2c_found = gnss_i2c_probe(s_boot_cfg.oled_sda_pin, s_boot_cfg.oled_scl_pin);
     }
@@ -322,8 +327,8 @@ void app_main(void)
         // satelliti per la UI (vedi gnss_nmea_reader.c). Il client NTRIP
         // scrive solo l'RTCM3 ricevuto verso il GNSS, non tocca piu' la
         // UART in lettura. Niente Bluetooth Classic su questa scheda
-        // (ESP32-S3 non lo supporta, solo BLE non implementata qui): su
-        // iOS/qualunque piattaforma resta il broadcast UDP via WiFi/Ethernet.
+        // (ESP32-S3 non lo supporta): le stesse frasi vanno anche al
+        // telefono via Bluetooth LE se acceso (nmea_ble.c, avviato sotto).
         // Stack alzato a 4608 (era 4096) quando e' stato aggiunto il parsing
         // delle righe #INSPVAXA/#HEADINGA Bynav (buffer riga passato da 128
         // a 320 byte per non troncarle, vedi gnss_nmea_reader.c) - margine
@@ -334,6 +339,12 @@ void app_main(void)
         // (collaudo del rover del 05/10/2026).
         xTaskCreate(gnss_nmea_reader_task, "nmea_reader", 6144,
                     (void *)(intptr_t) s_gnss_uart_num, 6, NULL);
+        if (settings_p->ble_nmea_enable) {
+            // Dal task main (stack interno: l'avvio del controller legge la
+            // calibrazione della radio dalla flash). Se fallisce, lo stato
+            // lo dice e il resto continua.
+            nmea_ble_start(settings_p->ap_ssid);
+        }
     } else {
         rtcm3_1005_init();
         // Prima del task di lettura, che le passa il flusso grezzo.

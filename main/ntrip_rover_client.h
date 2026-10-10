@@ -10,9 +10,26 @@
 typedef struct {
     char name[33];        // es. "AGRI_MSM4"
     char description[65]; // es. "Agricoltura standard (MSM4)"
+    double lat_deg;       // posizione della base (campi 10 e 11 della riga STR);
+    double lon_deg;       // entrambe 0 se mancano o non sono numeri
 } ntrip_mountpoint_entry_t;
 
-#define NTRIP_MOUNTPOINTS_MAX 16
+// 32 (prima 16): con la scelta automatica della base piu' vicina serve
+// l'elenco intero delle basi di una rete regionale.
+#define NTRIP_MOUNTPOINTS_MAX 32
+
+// Scelta automatica della base piu' vicina (impostazione rover_auto_base,
+// logica in base_auto.c): stato per il pannello e il display.
+typedef struct {
+    bool enabled;         // casella attiva
+    bool chosen;          // base in uso scelta in base alla tabella (non il ripiego)
+    char mountpoint[33];  // base in uso (vuoto se il rover non si e' ancora collegato)
+    double distance_km;   // distanza dalla base in uso, -1 se sconosciuta
+} ntrip_rover_auto_status_t;
+
+// Copia lo stato della scelta automatica; la distanza e' calcolata
+// dall'ultima posizione valida del rover. Da qualunque task.
+void ntrip_rover_client_auto_status(ntrip_rover_auto_status_t *out);
 
 // Si collega a settings->ntrip_host:ntrip_port (nessuna autenticazione,
 // il sourcetable NTRIP e' sempre pubblico per definizione del protocollo)

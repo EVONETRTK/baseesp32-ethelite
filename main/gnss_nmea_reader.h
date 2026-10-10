@@ -1,5 +1,7 @@
 #pragma once
 
+#include "rtk_alarm.h"
+
 // Task attivo in modalita' rover: legge lo stream NMEA emesso dal GNSS
 // sulla UART indicata, lo ricompone in righe complete (bufferizzando tra
 // una lettura e l'altra, a differenza della vecchia extract_gga() che
@@ -21,3 +23,8 @@ void gnss_nmea_reader_task(void *arg);
 // corretta fuori dall'RTK (HAS), "autonoma" = senza correzioni; negli
 // ultimi due casi le posizioni sono convertite in ETRF2000.
 const char *gnss_nmea_reader_has_state(void);
+
+// Allarme "RTK perso" del rover (impostazione rtk_lost_alarm_s, vedi
+// rtk_alarm.h): copia dell'ultimo stato, da qualunque task. Fuori dal modo
+// rover (task non avviato) resta spento, qualita' RTK_ALARM_NO_DATA.
+rtk_alarm_out_t gnss_nmea_reader_rtk_alarm(void);

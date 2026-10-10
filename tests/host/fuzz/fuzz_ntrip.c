@@ -1,7 +1,8 @@
 // Fuzzing della lettura delle risposte del caster NTRIP:
 //   main/ntrip_rover_client.c: read_reply_header (intestazione, dati RTCM
 //     arrivati insieme, "chunked"), prova di connessione del pannello,
-//     tabella delle sorgenti (STR;...), GGA verso il caster;
+//     tabella delle sorgenti (STR;... con le coordinate, poi la scelta
+//     della base piu' vicina di base_auto.c), GGA verso il caster;
 //   main/ntrip_client.c (base): risposta all'handshake SOURCE;
 //   main/ntrip_reply.h: spiegazione dei rifiuti.
 // I socket sono finti (stub in fuzz/stub/sys/socket.h): recv() restituisce
@@ -9,7 +10,7 @@
 // Input: [opzioni][risposta del caster]. Opzioni: bit 0-2 funzione provata,
 // bit 3 campi delle impostazioni lunghi al massimo, bit 4 recv a pezzi da
 // 1..8 byte, bit 5 send che fallisce.
-// SORGENTI: ntrip_client.c rtcm3_stats.c
+// SORGENTI: ntrip_client.c rtcm3_stats.c base_auto.c
 #include "motore.h"
 #include "aiuti.h"
 #include "../../../main/ntrip_rover_client.c"
@@ -87,6 +88,9 @@ int mbedtls_base64_encode(unsigned char *dst, size_t dlen, size_t *olen, const u
 // --- altri sostituti --------------------------------------------------------------------
 static app_settings_t g_set;
 app_settings_t settings_get(void) { return g_set; }
+void settings_get_into(app_settings_t *out) { *out = g_set; }
+void settings_peek(void (*fn)(const app_settings_t *s, void *ctx), void *ctx) { fn(&g_set, ctx); }
+gnss_fix_status_t gnss_fix_get_status(void) { gnss_fix_status_t s; memset(&s, 0, sizeof(s)); return s; }
 uint32_t settings_generation(void) { return 1; }
 void status_ntrip_note_connected(void) {}
 void status_ntrip_note_disconnected(const char *reason) { FUZZ_VERIFICA(strlen(reason) < 300); }
@@ -196,10 +200,22 @@ void bersaglio_esegui(const uint8_t *d, size_t n)
         ntrip_mountpoint_entry_t *out = (ntrip_mountpoint_entry_t *) fuzz_buffer(max * sizeof(ntrip_mountpoint_entry_t));
         size_t got = ntrip_rover_client_fetch_mountpoints(out, max);
         FUZZ_VERIFICA(got <= max);
+        base_auto_entry_t *list = (base_auto_entry_t *) fuzz_buffer((got ? got : 1) * sizeof(base_auto_entry_t));
         for (size_t i = 0; i < got; i++) {
             FUZZ_VERIFICA(strlen(out[i].name) < sizeof(out[i].name));
             FUZZ_VERIFICA(strlen(out[i].description) < sizeof(out[i].description));
+            memcpy(list[i].name, out[i].name, sizeof(list[i].name));
+            list[i].lat_deg = out[i].lat_deg;
+            list[i].lon_deg = out[i].lon_deg;
         }
+        // Scelta della base piu' vicina sulla tabella letta (rover vicino
+        // alle coordinate dei semi; qualita', attesa e primo collegamento
+        // dai bit delle opzioni).
+        base_auto_result_t r = base_auto_choose(list, got, true, 41.05, 16.55, g_set.rover_mountpoint,
+                                                (g_opz >> 4) & 7, (g_opz & 64) ? 100 : 0, (g_opz & 128) != 0);
+        FUZZ_VERIFICA(strlen(r.mountpoint) < sizeof(r.mountpoint));
+        FUZZ_VERIFICA(r.candidates <= (int) got);
+        FUZZ_VERIFICA(!r.change || (r.nearest >= 0 && r.nearest < (int) got && r.nearest_km >= 0));
         break;
     }
     case 3: // base: handshake SOURCE

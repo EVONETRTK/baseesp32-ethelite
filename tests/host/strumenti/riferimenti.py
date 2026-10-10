@@ -318,3 +318,25 @@ for (lat, lon, h, ep) in [(-(33 + 52.1234567 / 60), -(70 + 38.7654321 / 60), 12.
                           (41.0 + 0.5 / 60, 16.5, 450.0, 2026.5)]:
     la2, lo2, h2 = itrf2020_to_etrf2000(lat, lon, h, ep)
     print("in %.12f %.12f %.4f -> %.12f %.12f %.4f" % (lat, lon, h, la2, lo2, h2))
+
+# ---------------------------------------------------------------------------
+# Distanze rover-base (base_auto.c usa l'haversine): qui la formula di
+# Vincenty per la sfera (atan2), algebricamente diversa, stesso raggio medio.
+
+print("== Distanze basi")
+R_KM = 6371.0088
+
+
+def dist_vincenty_sfera(lat1, lon1, lat2, lon2):
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dl = math.radians(lon2 - lon1)
+    num = math.hypot(math.cos(p2) * math.sin(dl),
+                     math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl))
+    den = math.sin(p1) * math.sin(p2) + math.cos(p1) * math.cos(p2) * math.cos(dl)
+    return R_KM * math.atan2(num, den)
+
+
+for (a, b, c, d) in [(41.0, 16.5, 41.1, 16.6), (40.0, 15.0, 41.0, 15.0), (45.0, 9.0, 45.0, 10.0),
+                     (45.4642, 9.19, 41.9028, 12.4964), (-33.5, -70.6, -33.5, -70.6),
+                     (44.0, 11.0, 44.0 + 0.045, 11.0)]:
+    print("dist %.4f %.4f -> %.4f %.4f = %.6f km" % (a, b, c, d, dist_vincenty_sfera(a, b, c, d)))

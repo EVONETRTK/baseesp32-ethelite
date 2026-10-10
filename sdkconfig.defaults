@@ -181,3 +181,32 @@ CONFIG_LWIP_SNTP_MAX_SERVERS=2
 # oltre i 512 byte del buffer e anche in CMUX, dove arrivano divise in piu'
 # frame. Senza, credito e lettura degli SMS fallivano (cellular_link.c).
 CONFIG_ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED=y
+
+# Bluetooth Low Energy per l'uscita NMEA verso le app del telefono (1.32.0,
+# nmea_ble.c, servizio "Nordic UART"): solo NimBLE (molto piu' leggero di
+# Bluedroid), solo periferica, una connessione, niente accoppiamento. La
+# memoria dinamica di NimBLE va nella PSRAM. Il controller usa comunque un
+# po' di RAM interna: quando l'uscita BLE e' spenta (o in base) il firmware
+# la restituisce all'avvio con esp_bt_mem_release().
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_SECURITY_ENABLE=n
+CONFIG_BT_NIMBLE_NVS_PERSIST=n
+CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT=n
+CONFIG_BT_NIMBLE_LOG_LEVEL_WARNING=y
+CONFIG_BT_NIMBLE_GAP_DEVICE_NAME_MAX_LEN=32
+# Attivita' del controller: annuncio + una connessione (828 byte ciascuna).
+CONFIG_BT_CTRL_BLE_MAX_ACT=2
+# Codice del controller in flash invece che in IRAM: la IRAM e la RAM dati
+# sono la stessa memoria, e con il controller in IRAM ogni ricevitore (anche
+# con il Bluetooth spento, anche le basi) perdeva ~23 KB di RAM interna
+# contro ~7,5 KB cosi' (misurato dalla mappa il 10/10/2026). Prezzo: durante
+# le scritture in flash (salvataggi, aggiornamenti) il Bluetooth puo' perdere
+# qualche evento o la connessione; il telefono si ricollega.
+CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY=y

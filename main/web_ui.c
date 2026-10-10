@@ -29,6 +29,7 @@
 #include "wifi_link.h"
 #include "eth_link.h"
 #include "ntrip_rover_client.h"
+#include "nmea_ble.h"
 #include "ntrip_client.h"
 #include "cellular_link.h"
 #include "alerts.h"
@@ -1026,6 +1027,9 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddBoolToObject(root, "rover_has_fallback", s.rover_has_fallback);
         cJSON_AddNumberToObject(root, "nmea_rate_hz", (s.nmea_rate_hz == 5 || s.nmea_rate_hz == 10) ? s.nmea_rate_hz : 1);
         cJSON_AddStringToObject(root, "rover_has_state", gnss_nmea_reader_has_state());
+        cJSON_AddNumberToObject(root, "rtk_lost_alarm_s", s.rtk_lost_alarm_s);
+        cJSON_AddBoolToObject(root, "rover_auto_base", s.rover_auto_base);
+        cJSON_AddBoolToObject(root, "ble_nmea_enable", s.ble_nmea_enable);
         cJSON_AddStringToObject(root, "vpn_address", s.vpn_address);
         cJSON_AddStringToObject(root, "vpn_peer_public_key", s.vpn_peer_public_key);
         cJSON_AddStringToObject(root, "vpn_endpoint", s.vpn_endpoint);
@@ -1435,6 +1439,28 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
         double fix_age_s = (esp_timer_get_time() - fix.last_update_us) / 1e6;
         cJSON_AddNumberToObject(root, "gnss_fix_age_s", fix_age_s);
     }
+    {
+        // Allarme "RTK perso" del rover (rtk_alarm.c; spento fuori dal rover).
+        rtk_alarm_out_t al = gnss_nmea_reader_rtk_alarm();
+        cJSON_AddBoolToObject(root, "rtk_alarm_active", al.active);
+        cJSON_AddNumberToObject(root, "rtk_alarm_lost_s", al.lost_s);
+        cJSON_AddNumberToObject(root, "rtk_alarm_quality", al.quality);
+        cJSON_AddStringToObject(root, "rtk_alarm_quality_str", rtk_alarm_quality_label(al.quality));
+    }
+    {
+        // Scelta automatica della base piu' vicina (rover): base in uso e
+        // distanza dall'ultima posizione (-1 = sconosciuta).
+        ntrip_rover_auto_status_t ab;
+        ntrip_rover_client_auto_status(&ab);
+        cJSON_AddBoolToObject(root, "rover_auto_base_active", ab.enabled);
+        cJSON_AddBoolToObject(root, "rover_auto_base_chosen", ab.chosen);
+        cJSON_AddStringToObject(root, "rover_base_in_use", ab.mountpoint);
+        cJSON_AddNumberToObject(root, "rover_base_distance_km",
+                                ab.distance_km >= 0 ? (double) (int64_t) (ab.distance_km * 10 + 0.5) / 10 : -1);
+    }
+    // Uscita NMEA via Bluetooth LE (nmea_ble.c): "attivo"/"spento"/"errore".
+    cJSON_AddStringToObject(root, "ble_nmea", nmea_ble_state_str(nmea_ble_state()));
+    cJSON_AddBoolToObject(root, "ble_nmea_client", nmea_ble_client_connected());
 
     int8_t wifi_rssi;
     if (wifi_link_get_rssi(&wifi_rssi)) {
@@ -1816,6 +1842,32 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         it = cJSON_GetObjectItemCaseSensitive(root, "nmea_rate_hz");
         if (it && cJSON_IsNumber(it) && (it->valueint == 1 || it->valueint == 5 || it->valueint == 10)) {
             s.nmea_rate_hz = (uint8_t) it->valueint;
+        }
+        it = cJSON_GetObjectItemCaseSensitive(root, "rtk_lost_alarm_s");
+        if (it && cJSON_IsNumber(it)) {
+            if (it->valuedouble >= 0 && it->valuedouble <= RTK_ALARM_MAX_S && it->valuedouble == (double) it->valueint) {
+                s.rtk_lost_alarm_s = (uint16_t) it->valueint;
+            } else {
+                verr_set(verr, "Campo \"%s\": da 0 (spento) a %d secondi, numero intero.", "rtk_lost_alarm_s", RTK_ALARM_MAX_S);
+            }
+        }
+        // Scelta automatica della base piu' vicina (rover, base_auto.c).
+        it = cJSON_GetObjectItemCaseSensitive(root, "rover_auto_base");
+        if (it) {
+            if (cJSON_IsBool(it)) {
+                s.rover_auto_base = cJSON_IsTrue(it);
+            } else {
+                verr_set(verr, "Campo \"%s\": vero o falso (casella).%.0d", "rover_auto_base", 0);
+            }
+        }
+        // Uscita NMEA via Bluetooth LE (rover, nmea_ble.c): vale dopo il riavvio.
+        it = cJSON_GetObjectItemCaseSensitive(root, "ble_nmea_enable");
+        if (it) {
+            if (cJSON_IsBool(it)) {
+                s.ble_nmea_enable = cJSON_IsTrue(it);
+            } else {
+                verr_set(verr, "Campo \"%s\": vero o falso (casella).%.0d", "ble_nmea_enable", 0);
+            }
         }
         it = cJSON_GetObjectItemCaseSensitive(root, "vpn_port");
         if (it && cJSON_IsNumber(it) && it->valueint > 0 && it->valueint <= 65535) {
@@ -2804,7 +2856,11 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
 static void ntrip_mountpoints_task(void *arg)
 {
     httpd_req_t *req = arg;
-    ntrip_mountpoint_entry_t *entries = calloc(NTRIP_MOUNTPOINTS_MAX, sizeof(*entries));
+    // In PSRAM se c'e' (32 voci, circa 4 KB): RAM interna scarsa.
+    ntrip_mountpoint_entry_t *entries = heap_caps_calloc(NTRIP_MOUNTPOINTS_MAX, sizeof(*entries), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!entries) {
+        entries = calloc(NTRIP_MOUNTPOINTS_MAX, sizeof(*entries));
+    }
     size_t n = entries ? ntrip_rover_client_fetch_mountpoints(entries, NTRIP_MOUNTPOINTS_MAX) : 0;
 
     cJSON *root = cJSON_CreateObject();

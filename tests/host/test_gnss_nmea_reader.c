@@ -3,6 +3,7 @@
 #include "prove.h"
 #include "../../main/etrf.c"
 #include "../../main/nmea_etrf.c"
+#include "../../main/rtk_alarm.c"
 #include "../../main/gnss_nmea_reader.c"
 
 #include <stdio.h>
@@ -16,11 +17,14 @@ void time_sync_from_gnss(int year, int month, int day, int hour, int min, int se
     s_ora[0] = year; s_ora[1] = month; s_ora[2] = day; s_ora[3] = hour; s_ora[4] = min; s_ora[5] = sec;
 }
 bool time_sync_wants_gnss(void) { return true; }
+bool base_measure_is_active(void) { return false; }
 int gnss_io_read(uint8_t *buf, size_t len, TickType_t timeout) { (void) buf; (void) len; (void) timeout; return 0; }
 void sys_stats_heartbeat(heartbeat_t which) { (void) which; }
 void nmea_udp_broadcast_send(const char *line, size_t len) { (void) line; (void) len; }
 bool gnss_ubx_ack_feed_byte(uint8_t c) { (void) c; return false; }
 void gnss_fix_parse_gga(const char *line) { (void) line; }
+gnss_fix_status_t gnss_fix_get_status(void) { gnss_fix_status_t s = { 0 }; return s; }
+uint32_t settings_generation(void) { return 1; }
 bool nmea_checksum_ok(const char *line) { (void) line; return true; }
 void gnss_signal_parse_gsv(const char *line) { (void) line; }
 void ntrip_rover_client_forward_gga(const char *line, size_t len) { (void) line; (void) len; }

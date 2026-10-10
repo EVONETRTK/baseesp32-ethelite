@@ -32,4 +32,4 @@ Servono solo zig (`C:\Users\Utente\tools\zig-windows-x86_64-0.13.0\zig.exe`, opp
 
 ## Tabella delle partizioni
 
-Dal firmware 1.31.0 la flash ha partizioni firmware da 4 MB e la licenza in una partizione a parte (`docs/partizioni.md`). Le schede aggiornate solo via OTA hanno ancora la tabella vecchia (2 x 2 MB): **finché ne esistono, ogni firmware deve stare sotto 2 MB** (0x200000 byte). La compilazione non lo controlla più: prima di ogni release verificare la dimensione di `build/baseesp32-ethelite.bin`. Il firmware deve continuare a funzionare con entrambe le tabelle.
+Dal firmware 1.31.0 la flash ha partizioni firmware da 4 MB e la licenza in una partizione a parte (`docs/partizioni.md`). Il 10/10/2026 l'unico ricevitore con la tabella vecchia (la base di prova) e' stato aggiornato via USB: il limite dei 2 MB per il firmware non vale piu'. Il firmware continua comunque a funzionare con entrambe le tabelle (licenza nella NVS principale se manca `nvs_lic`). I ricevitori nuovi vanno flashati con `idf.py flash` (tabella nuova).

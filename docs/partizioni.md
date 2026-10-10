@@ -18,7 +18,7 @@ Fino alla 1.30.7 la tabella era: nvs 24 KB, otadata, phy_init, ota_0 e ota_1 da 
 
 - La tabella delle partizioni **non si cambia via OTA**: serve il cavo USB, una volta sola per ricevitore.
 - Il firmware funziona con **entrambe** le tabelle: se `nvs_lic` non esiste, la licenza resta nella NVS principale come prima (`license.c`, `lic_storage_init`). Con la tabella nuova, al primo avvio la licenza viene copiata in `nvs_lic` (la copia vecchia resta, serve se il bootloader torna a un firmware precedente).
-- **REGOLA**: finché esistono ricevitori con la tabella vecchia, ogni firmware deve stare sotto **2 MB** (0x200000 byte). La compilazione controlla solo la partizione più piccola della tabella nuova (4 MB): prima di ogni release controllare la dimensione di `build/baseesp32-ethelite.bin`.
+- Il 10/10/2026 l'unico ricevitore con la tabella vecchia (base di prova) e' stato aggiornato via USB: il firmware puo' superare i 2 MB. Un ricevitore con la tabella vecchia che ricevesse via OTA un firmware oltre i 2 MB lo rifiuterebbe (l'aggiornamento fallisce, la versione in uso resta): va prima aggiornato via USB.
 
 ## Procedura via USB (ricevitore già in uso)
 

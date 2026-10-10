@@ -8,6 +8,14 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.32.0
+
+Tre funzioni nuove per il rover (Pacchetto Rover, nessun extra):
+- **Allarme RTK perso**: se il rover era in RTK fisso e lo perde per piu' di N secondi (predefinito 5, 0 = spento, fino a 600), il display mostra RTK PERSO lampeggiante con la qualita' attuale e i secondi, e la scheda Stato una striscia rossa e la prima voce rossa nel giudizio. Mai durante la misura della posizione della base. Logica in rtk_alarm.c con prove sul PC.
+- **Base piu' vicina automatica** (casella nel client NTRIP del rover, spenta di fabbrica): il rover legge dalla tabella del caster la posizione delle basi e si collega alla piu' vicina; cambia solo con almeno 5 km di vantaggio, dopo 30 s senza RTK, mai in RTK fisso o float. Base in uso e distanza nel pannello e sul display. Logica in base_auto.c con prove sul PC; tabella letta fino a 32 basi.
+- **Uscita NMEA via Bluetooth Low Energy** (casella nell'uscita dati, spenta di fabbrica, vale dopo il riavvio): servizio Nordic UART, nome della rete di setup, per app come SW Maps (non per quelle che richiedono il Bluetooth classico, che il chip non ha). Con l'uscita spenta la memoria del Bluetooth viene restituita all'avvio.
+- Correzione: le caselle Riserva Galileo HAS, INS e prua dalla doppia antenna del K922 non si salvavano (inviate come testo).
+
 ## 1.31.0
 
 - **Nuova tabella delle partizioni** (flash da 16 MB): firmware A e B da 4 MB invece di 2 (prima il firmware era al 94% dello spazio), impostazioni da 64 KB invece di 24, e **licenza in una partizione a parte** (`nvs_lic`) che ne' il reset di fabbrica ne' la cancellazione delle impostazioni toccano. Circa 7,9 MB restano liberi. Vedi docs/partizioni.md.

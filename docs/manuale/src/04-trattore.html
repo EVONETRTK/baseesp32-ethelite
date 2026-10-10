@@ -62,6 +62,8 @@
 
 <p>Non serve attivare nessuna opzione per la GGA: il ricevitore EVONETRTK comunica da solo la sua posizione al caster ogni 10 secondi.</p>
 
+<p>Se il caster offre le basi una per una invece di un mountpoint di rete, il ricevitore EVONETRTK può scegliere da solo <strong>la base più vicina</strong>: nello stesso riquadro spuntate <strong>Scegli da solo la base piu' vicina</strong> e salvate. Il mountpoint scritto resta la base di partenza e quella di riserva. Per non perdere il fix in mezzo al campo il ricevitore cambia base solo quando il trattore non è in RTK da almeno 30 secondi, e solo se l'altra base è più vicina di almeno 5 km. La base in uso e la sua distanza si leggono sotto la casella (capitolo <a data-cap="Scheda Posizione e correzioni"></a>).</p>
+
 <div class="box nota"><span class="box-titolo">Nota</span>Base e rover hanno dati di accesso separati: se lo stesso ricevitore viene usato prima come base e poi come rover, ognuno dei due modi conserva i suoi.</div>
 
 <h3>Passare la posizione alla guida</h3>
@@ -71,7 +73,7 @@
 
 <p>Il ricevitore EVONETRTK trasmette la posizione precisa in rete, via WiFi o cavo, nel formato standard NMEA. Il caso più comune è <strong>AgOpenGPS</strong> su un tablet, che riceve i dati sulla rete WiFi del ricevitore senza fili né abbinamenti: la configurazione è spiegata nel capitolo <a data-cap="AgOpenGPS con il ricevitore EVONETRTK"></a>.</p>
 
-<div class="box nota"><span class="box-titolo">Nota</span>Il ricevitore invia i dati in rete (WiFi o cavo), non in Bluetooth. Per questo funziona con qualsiasi tablet o computer, Android, Windows o iPad, senza abbinamenti.</div>
+<div class="box nota"><span class="box-titolo">Nota</span>Il ricevitore invia i dati in rete (WiFi o cavo): per questo funziona con qualsiasi tablet o computer, Android, Windows o iPad, senza abbinamenti. In più, se serve, può mandare la posizione a un telefono in Bluetooth Low Energy, per le app che supportano i ricevitori BLE (capitolo <a data-cap="Installare il ricevitore sul trattore"></a>).</div>
 
 <h3>La riserva Galileo HAS</h3>
 
@@ -82,6 +84,8 @@
 <h2>Dopo il collegamento</h2>
 
 <p>Se i dati sono giusti, entro pochi secondi le correzioni arrivano e il rover passa da <strong>GPS</strong> (posizione autonoma) a <strong>RTK float</strong> e poi a <strong>RTK fisso</strong>, di solito in meno di un minuto con il cielo libero. Sul display del trattore spesso compare anche l'<strong>età delle correzioni</strong> in secondi; nel pannello del ricevitore EVONETRTK i riquadri <strong>Caster</strong> e <strong>Fix</strong> diventano verdi.</p>
+
+<p><strong>Se l'RTK si perde durante il lavoro</strong> (strada B): quando il trattore era in RTK fisso e per più di 5 secondi non lo è più, il display del ricevitore EVONETRTK lampeggia <strong>RTK PERSO</strong>, con la posizione che ha in quel momento (FLOAT, DGPS, NO FIX, oppure NO DATI se dal modulo non arriva nulla) e da quanti secondi. Nel pannello compare una striscia rossa in cima alla scheda <em>Stato</em>. In quel momento la posizione non ha più la precisione di pochi centimetri: con la guida assistita o l'autosterzo state pronti a guidare a mano. L'avviso si spegne da solo quando torna l'RTK fisso. I secondi si cambiano nel campo <strong>Allarme RTK perso dopo</strong> (scheda <em>Posizione e correzioni</em>), dove 0 spegne l'allarme.</p>
 
 <table class="divisibile">
   <tr><th>Cosa vedete</th><th>Cosa controllare</th></tr>

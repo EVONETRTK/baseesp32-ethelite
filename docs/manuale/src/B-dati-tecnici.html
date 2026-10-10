@@ -12,6 +12,7 @@
   <tr><td>Modulo GNSS</td><td>Intercambiabile: vedi l'appendice <a data-cap="Ricevitori e chip supportati"></a></td></tr>
   <tr><td>Collegamento al modulo GNSS</td><td>I2C (u-blox, indirizzo 0x42) o seriale UART (fino a 460800 baud)</td></tr>
   <tr><td>WiFi</td><td>2,4 GHz, rete propria di configurazione sempre attiva (tranne con la connessione «Solo Ethernet») e collegamento a una rete esterna contemporaneamente</td></tr>
+  <tr><td>Bluetooth</td><td>Solo Bluetooth Low Energy (2,4 GHz), niente Bluetooth classico; usato solo dall'uscita della posizione del rover, spento di fabbrica</td></tr>
   <tr><td>Ethernet</td><td>10/100 Mbit/s (chip W5500), indirizzo da DHCP; alimentazione PoE sullo stesso cavo</td></tr>
   <tr><td>Rete mobile</td><td>Opzionale: modem SIM7600 Mini PCIe nello shield LTE; SIM attiva senza PIN</td></tr>
   <tr><td>Memoria esterna</td><td>microSD in FAT32 (consigliate da 8 a 32 GB; le più grandi vanno formattate in FAT32 dal pannello)</td></tr>
@@ -27,8 +28,10 @@
   <tr><td>Correzioni</td><td>RTCM 3.3, messaggi selezionabili singolarmente (appendice <a data-cap="Messaggi RTCM 3"></a>)</td></tr>
   <tr><td>Collegamento al caster</td><td>NTRIP: server (base) e client (rover), porta predefinita 2101</td></tr>
   <tr><td>Posizione al caster (rover)</td><td>GGA ogni 10 secondi</td></tr>
+  <tr><td>Scelta della base (rover)</td><td>Mountpoint scritto, oppure la base più vicina scelta da sola dall'elenco del caster (coordinate delle righe STR): cambio solo senza RTK da almeno 30 s e con una base più vicina di almeno 5 km, elenco ricontrollato al massimo ogni 10 minuti</td></tr>
   <tr><td>Caster locale (base)</td><td>Per i rover sulla stessa rete, porta predefinita 2101, con utente e password</td></tr>
   <tr><td>Uscita verso il software di guida (rover)</td><td>NMEA in broadcast UDP su tutte le reti attive, porta predefinita 9999; GGA, RMC e VTG a 1 Hz, oppure a 5 o 10 Hz con l'extra Autosterzo della licenza (u-blox, Unicore), GSV a 1 Hz; con il ComNav K922 solo GGA, a 1 Hz oppure a 5 Hz con l'INS attivo, e HDT con la prua dalla doppia antenna (extra IMU e doppia antenna)</td></tr>
+  <tr><td>Uscita verso le app del telefono (rover)</td><td>Bluetooth Low Energy, servizio «Nordic UART» (NUS): le stesse frasi NMEA dell'uscita in rete, come notifiche; nome annunciato uguale alla rete di configurazione (EVONETRTK-123456); un telefono alla volta, senza abbinamento; vale dopo il riavvio</td></tr>
   <tr><td>Posizione della base</td><td>Survey-in, coordinate fisse, misura con RTK, misura con Galileo HAS; sistema della rete ETRF2000</td></tr>
   <tr><td>Dati grezzi</td><td>Registrazione su microSD (u-blox RAWX/SFRBX o RTCM3) per il calcolo PPP</td></tr>
   <tr><td>Riserva senza RTK (rover)</td><td>Galileo HAS con i moduli Unicore (ComNav K922 da verificare), convertito in ETRF2000; circa 20 cm in orizzontale e 40 cm in quota dopo 30–60 minuti</td></tr>

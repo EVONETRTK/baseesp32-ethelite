@@ -9,7 +9,7 @@
 // Input: [opzioni][flusso]. Opzioni: bit 0 controlli ricalcolati (checksum
 // NMEA, CRC32 ASCII, UBX), bit 1 riserva HAS attiva, bit 2 RTCM recente
 // (RTK valido), bit 3 finestra UBX aperta, bit 4 ora non ancora sincronizzata.
-// SORGENTI: gnss_fix.c gnss_signal.c gnss_ubx_ack.c gnss_unicore.c gnss_comnav.c nmea_etrf.c etrf.c
+// SORGENTI: gnss_fix.c rtk_alarm.c gnss_signal.c gnss_ubx_ack.c gnss_unicore.c gnss_comnav.c nmea_etrf.c etrf.c
 #include "motore.h"
 #include "aiuti.h"
 #include "stub_gnss.h"
@@ -36,7 +36,9 @@ int gnss_io_read(uint8_t *buf, size_t len, TickType_t timeout)
 }
 
 void sys_stats_heartbeat(heartbeat_t which) { (void) which; }
+uint32_t settings_generation(void) { return 1; }
 bool time_sync_wants_gnss(void) { return (g_opz & 16) != 0; }
+bool base_measure_is_active(void) { return false; }
 static volatile int g_ora_letta; // i valori si usano: il compilatore non salta le letture
 void time_sync_from_gnss(int year, int month, int day, int hour, int min, int sec)
 {

@@ -439,6 +439,21 @@ typedef struct {
     // AgOpenGPS servono 5-10 Hz e velocita'/direzione. 0 = 1 (come prima);
     // valori ammessi 1, 5, 10. Vedi settings_nmea_rate_hz().
     uint8_t nmea_rate_hz;
+
+    // Rover (1.32.0): allarme "RTK perso" (rtk_alarm.c). Secondi senza RTK
+    // fisso, dopo esserci stato, prima di avvisare su display e pannello;
+    // 0 = spento, 0-600. Predefinito 5 (migrazione: SETTINGS_LAYOUT 2).
+    uint16_t rtk_lost_alarm_s;
+
+    // Rover: scelta automatica della base piu' vicina (base_auto.c) dalla
+    // tabella delle sorgenti del caster. rover_mountpoint resta la base
+    // iniziale e il ripiego. Spenta di fabbrica (0: nessuna migrazione).
+    bool rover_auto_base;
+
+    // Rover (1.32.0): uscita delle frasi NMEA via Bluetooth Low Energy per
+    // le app del telefono (nmea_ble.c, servizio "Nordic UART"). Vale dopo il
+    // riavvio. Spenta di fabbrica (0: nessuna migrazione).
+    bool ble_nmea_enable;
 } app_settings_t;
 
 // Segna ssid/password come rete WiFi funzionante (verificata, non solo

@@ -46,7 +46,7 @@ static const char *TAG = "settings";
 // REGOLA: aggiungendo in fondo ad app_settings_t un campo con valore
 // predefinito diverso da 0, incrementare SETTINGS_LAYOUT e aggiungere in
 // settings_init() "if (layout < N) s_settings.campo = predefinito;".
-#define SETTINGS_LAYOUT 1 // 1 = campi fino a nmea_rate_hz (1.30.x)
+#define SETTINGS_LAYOUT 2 // 1 = campi fino a nmea_rate_hz (1.30.x), 2 = rtk_lost_alarm_s
 
 typedef struct {
     uint32_t magic;
@@ -126,6 +126,8 @@ static void apply_defaults(void)
     // 9999: la porta su cui AgIO (AgOpenGPS) ascolta la posizione in UDP
     // (UDP.designer.cs della 6.8.6: Bind(IPAddress.Any, 9999)). 1.27.2; prima 5005.
     s_settings.nmea_udp_port = 9999;
+    // Allarme "RTK perso" del rover dopo 5 s senza RTK fisso (rtk_alarm.c).
+    s_settings.rtk_lost_alarm_s = 5;
 
     s_settings.gnss_uart_num = CONFIG_BASEESP32_GNSS_UART_NUM;
     s_settings.gnss_uart_tx_pin = CONFIG_BASEESP32_GNSS_UART_TX_PIN;
@@ -324,10 +326,10 @@ void settings_init(void)
             ESP_LOGW(TAG, "Codice del pannello salvato vuoto: rimesso quello di fabbrica (1234), da cambiare");
             strncpy(s_settings.admin_code, "1234", sizeof(s_settings.admin_code) - 1);
         }
-        // Migrazioni per disposizione dei campi (vedi SETTINGS_LAYOUT): per
-        // ora nessuna (layout 1 = tutti i campi della 1.30.x, gia' presenti
-        // nei blob layout 0). Esempio per il prossimo campo:
-        //   if (layout < 2) s_settings.campo_nuovo = valore_predefinito;
+        // Migrazioni per disposizione dei campi (vedi SETTINGS_LAYOUT): il
+        // layout 1 ha tutti i campi della 1.30.x (gia' presenti nei blob
+        // layout 0). Per il prossimo campo: if (layout < N) s_settings.campo = valore;
+        if (layout < 2) s_settings.rtk_lost_alarm_s = 5;
         if (layout != SETTINGS_LAYOUT) {
             ESP_LOGI(TAG, "Configurazione salvata con disposizione dei campi %u (questo firmware: %u)",
                      (unsigned) layout, (unsigned) SETTINGS_LAYOUT);
