@@ -2315,9 +2315,6 @@ async function loadStatusOnce() {
     updateModeBadge(activeDeviceMode, s.device_mode === 'rover' ? 'rover' : 'base', s.ap_ssid);
     updateModeVisibility();
     update1005Banner(s);
-    updateRtkLostBanner(s);
-    updateRoverAutoBase(s);
-    updateBleNmea(s);
     updateSummaryCards(s);
     updateRestartBanner(s);
     {
@@ -3449,6 +3446,10 @@ async function loadSignalsOnce() {
     const s = await readJson(await fetchWithTimeout('/api/signals', 8000));
     updateNtripFlow(s);
     lastSignals = s;
+    // Questi tre stati arrivano solo da /api/signals (non da /api/status).
+    updateRtkLostBanner(s);
+    updateRoverAutoBase(s);
+    updateBleNmea(s);
     drawSatChart(s.satellites || []);
     updateSatCount(s.satellites || []);
     setSignalBar('st-wifi-sig-bar', 'st-wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
@@ -4700,6 +4701,14 @@ function updateSummaryCards(s) {
     cards.push(sumCard('l', '📱 LTE', b.n ? b.cls : (s.net === 'cellulare' ? 'bad' : 'warn'), b.n ? '<span class="sc-bars">' + b.bars + '</span> ' + b.word : 'Nessun segnale',
       (b.n ? sig.cellular_rssi_dbm + ' dBm · ' : '') + (sig.cellular_operator || 'non registrato') + (sig.cellular_tech ? ' · ' + sig.cellular_tech : '') + (s.net === 'cellulare' ? ' · in uso' : ''), 'page-sim'));
   }
+  // Bluetooth LE (uscita NMEA verso il telefono): solo se acceso o in errore.
+  const bleSt = (lastSignals || {}).ble_nmea;
+  if (bleSt === 'attivo' || bleSt === 'errore') {
+    const tel = !!(lastSignals || {}).ble_nmea_client;
+    cards.push(sumCard('b', '🔵 Bluetooth', bleSt === 'errore' ? 'bad' : (tel ? 'ok' : 'warn'),
+      bleSt === 'errore' ? 'Non avviato' : (tel ? 'Telefono collegato' : 'In attesa'),
+      bleSt === 'errore' ? 'memoria insufficiente' : (tel ? 'posizioni inviate' : 'nessun telefono collegato'), 'page-gnss'));
+  }
   if (s.eth_connected) {
     cards.push(sumCard('e', '🔌 Ethernet', 'ok', 'Collegata', ethInUse ? 'in uso' : '', 'page-network'));
   }
@@ -4792,7 +4801,7 @@ function updateStatusVerdict(s) {
     }
     if (s.selfpos_alarm) bad.push("L'antenna della base sembra spostata.");
   } else {
-    if (s.rtk_alarm_active) bad.unshift('RTK perso da ' + (s.rtk_alarm_lost_s || 0) + ' s: il trattore non è più in RTK fisso.');
+    if (sig.rtk_alarm_active) bad.unshift('RTK perso da ' + (sig.rtk_alarm_lost_s || 0) + ' s: il trattore non è più in RTK fisso.');
   }
   if (rover && lastSignals && sig.gnss_fix_valid !== undefined) {
     const q = sig.gnss_fix_quality;
