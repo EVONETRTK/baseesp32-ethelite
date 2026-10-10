@@ -1019,6 +1019,11 @@
       trattore non e' in RTK, per non perdere il fix in mezzo al campo. Il mountpoint scritto sopra resta la base di
       partenza e quella di riserva.
     </small>
+    <small class="hint" data-mode="rover">
+      Sotto compare la verifica della base in uso: distanza (dalla posizione che la base trasmette) e correzioni
+      ricevute. Avvisa se la base e' troppo lontana o manda correzioni incomplete, le cause piu' comuni di un rover
+      che resta in float.
+    </small>
     <div id="rover-auto-base-state" class="hint" data-mode="rover" style="margin-top:.3rem; font-weight:600"></div>
     <label data-mode="rover">Utente<input autocomplete="off" name="rover_username"></label>
     <label data-mode="rover">Password<input autocomplete="new-password" name="rover_password" type="password" placeholder="lascia vuoto per non modificare"></label>
@@ -4803,6 +4808,9 @@ function updateStatusVerdict(s) {
   } else {
     if (sig.rtk_alarm_active) bad.unshift('RTK perso da ' + (sig.rtk_alarm_lost_s || 0) + ' s: il trattore non è più in RTK fisso.');
   }
+  if (rover) {
+    for (const x of roverBaseIssues(sig)) (x.bad ? bad : warn).push(x.t);
+  }
   if (rover && lastSignals && sig.gnss_fix_valid !== undefined) {
     const q = sig.gnss_fix_quality;
     if (q === 5) warn.push('RTK float: precisione decimetrica, il fix RTK fisso non è ancora arrivato.');
@@ -4855,21 +4863,59 @@ const RTK_LOST_QUALITY = {
 
 // Scelta automatica della base piu' vicina (impostazione rover_auto_base,
 // riquadro del client NTRIP): base in uso e distanza.
+// Verifica della base del rover (base_check.c, /api/signals
+// rover_base_check): i problemi della base in uso, in parole semplici.
+// bad = il fix RTK e' molto difficile; altrimenti arriva tardi o non tiene.
+function roverBaseIssues(sig) {
+  const c = sig && sig.rover_base_check;
+  if (!c || !c.active || !c.connected || c.warming) return [];
+  const mp = sig.rover_base_in_use || 'in uso';
+  const km = typeof sig.rover_base_distance_km === 'number' ? sig.rover_base_distance_km : -1;
+  const kmTxt = km >= 0 ? km.toLocaleString('it-IT', { maximumFractionDigits: 0 }) + ' km' : '';
+  const has = (k) => (c.issues || []).includes(k);
+  const out = [];
+  if (has('nessun_dato')) {
+    out.push({ bad: true, t: 'La base ' + mp + ' non manda correzioni da oltre un minuto.' });
+    return out;
+  }
+  if (has('senza_posizione')) out.push({ bad: true, t: 'La base ' + mp + ' non trasmette la sua posizione (messaggio 1005/1006): il ricevitore non può fare RTK. Scegli un’altra base.' });
+  if (has('troppo_lontana')) out.push({ bad: true, t: 'La base ' + mp + ' è a ' + kmTxt + ': troppo lontana per l’RTK (oltre 60 km). Scegli una base più vicina.' });
+  else if (has('lontana')) out.push({ bad: false, t: 'La base ' + mp + ' è a ' + kmTxt + ': il fix RTK sarà lento o instabile (meglio entro 35 km).' });
+  if (has('solo_vecchi')) out.push({ bad: false, t: 'La base ' + mp + ' manda solo messaggi RTCM vecchi (' + (c.systems || []).join(' e ') + ', senza MSM): il fix arriva a fatica. Meglio una base con messaggi MSM.' });
+  else if (has('poche_costellazioni')) out.push({ bad: false, t: 'La base ' + mp + ' manda correzioni solo per ' + (c.systems || []).join(' e ') + ': con meno di 3 costellazioni il fix è più difficile.' });
+  return out;
+}
+
 function updateRoverAutoBase(s) {
   const el = document.getElementById('rover-auto-base-state');
   if (!el) return;
-  if (activeDeviceMode !== 'rover' || !s.rover_auto_base_active) {
+  if (activeDeviceMode !== 'rover') {
     el.textContent = '';
     return;
   }
+  const c = s.rover_base_check || {};
   const mp = s.rover_base_in_use || '';
   const km = typeof s.rover_base_distance_km === 'number' ? s.rover_base_distance_km : -1;
-  if (!mp) {
+  if (!mp || !c.active) {
     el.textContent = 'Base in uso: in attesa del primo collegamento';
-  } else if (km >= 0) {
-    el.textContent = 'Base in uso: ' + mp + ' (' + km.toLocaleString('it-IT', { maximumFractionDigits: 1 }) + ' km)';
+    return;
+  }
+  let line = 'Base in uso: ' + mp;
+  if (km >= 0) line += ', ' + km.toLocaleString('it-IT', { maximumFractionDigits: 1 }) + ' km';
+  if (s.rover_auto_base_active) line += ' (scelta automatica)';
+  if (!c.connected) {
+    el.textContent = line + ' · non collegata al caster';
+    return;
+  }
+  if (c.warming) {
+    el.textContent = line + ' · verifica delle correzioni in corso…';
+    return;
+  }
+  const issues = roverBaseIssues(s);
+  if (!issues.length) {
+    el.textContent = '✅ ' + line + ' · correzioni complete (' + (c.systems || []).join(', ') + ')';
   } else {
-    el.textContent = 'Base in uso: ' + mp + ' (distanza non ancora nota: serve la posizione del rover e le coordinate della base nel caster)';
+    el.textContent = (issues.some((x) => x.bad) ? '❌ ' : '⚠️ ') + line + ' · ' + issues.map((x) => x.t).join(' ');
   }
 }
 

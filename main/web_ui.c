@@ -58,6 +58,7 @@
 #include "nvs.h"
 #include "mbedtls/sha256.h"
 
+#include "diag_pins.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -1455,8 +1456,33 @@ static esp_err_t signals_get_handler(httpd_req_t *req)
         cJSON_AddBoolToObject(root, "rover_auto_base_active", ab.enabled);
         cJSON_AddBoolToObject(root, "rover_auto_base_chosen", ab.chosen);
         cJSON_AddStringToObject(root, "rover_base_in_use", ab.mountpoint);
-        cJSON_AddNumberToObject(root, "rover_base_distance_km",
-                                ab.distance_km >= 0 ? (double) (int64_t) (ab.distance_km * 10 + 0.5) / 10 : -1);
+        // Verifica della base (base_check.c): la distanza preferita e' quella
+        // dalla posizione che la base trasmette (1005/1006).
+        ntrip_rover_base_check_t bc;
+        ntrip_rover_client_base_check(&bc);
+        double km = bc.distance_km >= 0 ? bc.distance_km : ab.distance_km;
+        cJSON_AddNumberToObject(root, "rover_base_distance_km", km >= 0 ? (double) (int64_t) (km * 10 + 0.5) / 10 : -1);
+        cJSON *chk = cJSON_AddObjectToObject(root, "rover_base_check");
+        cJSON_AddBoolToObject(chk, "active", bc.active);
+        cJSON_AddBoolToObject(chk, "connected", bc.connected);
+        cJSON_AddBoolToObject(chk, "warming", bc.warming);
+        cJSON_AddStringToObject(chk, "level", base_check_level_str(bc.check.level));
+        cJSON_AddStringToObject(chk, "distance_src", bc.base_pos_from_rtcm ? "rtcm" : (km >= 0 ? "tabella" : ""));
+        cJSON *iss = cJSON_AddArrayToObject(chk, "issues");
+        for (int i = 0; i < 32; i++) {
+            const char *code = base_check_issue_code(1u << i);
+            if (code && (bc.check.issues & (1u << i))) {
+                cJSON_AddItemToArray(iss, cJSON_CreateString(code));
+            }
+        }
+        cJSON *sys = cJSON_AddArrayToObject(chk, "systems");
+        for (int i = 0; i < BASE_CHECK_SYSTEMS; i++) {
+            if (bc.check.systems & (1u << i)) {
+                cJSON_AddItemToArray(sys, cJSON_CreateString(base_check_system_name((uint8_t) (1u << i))));
+            }
+        }
+        cJSON_AddBoolToObject(chk, "msm", bc.check.msm_systems != 0);
+        cJSON_AddBoolToObject(chk, "base_position", bc.check.has_position);
     }
     // Uscita NMEA via Bluetooth LE (nmea_ble.c): "attivo"/"spento"/"errore".
     cJSON_AddStringToObject(root, "ble_nmea", nmea_ble_state_str(nmea_ble_state()));
@@ -3902,6 +3928,39 @@ static esp_err_t diag_list_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+typedef struct {
+    int tx, rx;
+} gnss_pins_t;
+
+static void peek_gnss_pins(const app_settings_t *s, void *ctx)
+{
+    gnss_pins_t *p = (gnss_pins_t *) ctx;
+    p->tx = s->gnss_uart_tx_pin;
+    p->rx = s->gnss_uart_rx_pin;
+}
+
+// Diagnosi della seriale del ricevitore (diag_pins.c): instradamento reale
+// dei pin e commutazioni viste durante una raffica di prova.
+static esp_err_t diag_gnss_pins_get_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    gnss_pins_t pins = { -1, -1 };
+    settings_peek(peek_gnss_pins, &pins);
+    cJSON *root = cJSON_CreateObject();
+    diag_pins_gnss(root, pins.tx, pins.rx);
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente");
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+    free(json);
+    return ESP_OK;
+}
+
 static esp_err_t diag_download_get_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -3991,6 +4050,7 @@ void web_ui_start(void)
     httpd_uri_t rawlog_dl_uri     = { .uri = "/api/rawlog/download", .method = HTTP_GET, .handler = rawlog_download_get_handler };
     httpd_uri_t sim_sms_uri    = { .uri = "/api/sim/sms",    .method = HTTP_GET,  .handler = sim_sms_get_handler };
     httpd_uri_t diag_list_uri  = { .uri = "/api/diag/list",     .method = HTTP_GET, .handler = diag_list_get_handler };
+    httpd_uri_t diag_pins_uri  = { .uri = "/api/diag/gnss_pins", .method = HTTP_GET, .handler = diag_gnss_pins_get_handler };
     httpd_uri_t diag_dl_uri    = { .uri = "/api/diag/download", .method = HTTP_GET, .handler = diag_download_get_handler };
     httpd_uri_t base_measure_uri = { .uri = "/api/base/measure", .method = HTTP_POST, .handler = base_measure_post_handler };
     httpd_uri_t ota_upload_uri = { .uri = "/api/ota/upload",    .method = HTTP_POST, .handler = ota_upload_post_handler };
@@ -4038,6 +4098,7 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &reboot_uri);
     httpd_register_uri_handler(server, &base_measure_uri);
     httpd_register_uri_handler(server, &diag_list_uri);
+    httpd_register_uri_handler(server, &diag_pins_uri);
     httpd_register_uri_handler(server, &sim_action_uri);
     httpd_register_uri_handler(server, &sim_sms_uri);
     httpd_register_uri_handler(server, &cfg_export_uri);

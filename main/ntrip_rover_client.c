@@ -10,6 +10,9 @@
 #include "ntrip_reply.h"
 #include "gnss_fix.h"
 #include "base_auto.h"
+#include "base_check.h"
+#include "rtcm3_1005.h"
+#include "geo_convert.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -554,11 +557,142 @@ static void set_active_sock(int sock)
     xSemaphoreGive(s_sock_mutex);
 }
 
+// --- Verifica della base (base_check.c) -----------------------------------
+// Tipi RTCM arrivati negli ultimi CHECK_RECENT_US (dai contatori di
+// rtcm3_stats: un tipo e' "recente" se i suoi byte sono cresciuti) e
+// posizione della base dal suo 1005/1006, convertita in lat/lon.
+#define CHECK_RECENT_US (60LL * 1000000) // la 1005/1006 arriva di solito ogni 10-30 s
+#define CHECK_TYPES_MAX 48
+
+typedef struct {
+    uint16_t type;
+    uint32_t bytes;
+    int64_t seen_us; // 0 = non visto con il collegamento attuale
+} check_seen_t;
+
+static SemaphoreHandle_t s_chk_mutex;
+static check_seen_t s_seen[CHECK_TYPES_MAX];
+static size_t s_seen_n;
+static int64_t s_seen_scan_us;
+static int64_t s_conn_us; // inizio del collegamento attuale (0 = mai)
+static bool s_base_pos_valid;
+static double s_base_lat_deg, s_base_lon_deg;
+static rtcm3_stat_entry_t s_stat_buf[CHECK_TYPES_MAX]; // solo il task del rover
+
+// Nuovo collegamento (anche verso un'altra base): niente di quanto visto
+// prima vale per la base nuova. I byte restano, per riconoscere i nuovi.
+static void check_reset(void)
+{
+    if (!s_chk_mutex) {
+        return;
+    }
+    xSemaphoreTake(s_chk_mutex, portMAX_DELAY);
+    for (size_t i = 0; i < s_seen_n; i++) {
+        s_seen[i].seen_us = 0;
+    }
+    s_base_pos_valid = false;
+    s_conn_us = esp_timer_get_time();
+    xSemaphoreGive(s_chk_mutex);
+    rtcm3_1005_init();
+}
+
+static void check_track(const uint8_t *data, int n)
+{
+    if (!s_chk_mutex) {
+        return;
+    }
+    rtcm3_position_t pos;
+    if (rtcm3_1005_feed(data, (size_t) n, &pos)) {
+        double lat, lon, h;
+        geo_ecef_to_llh(pos.ecef_x_m, pos.ecef_y_m, pos.ecef_z_m, &lat, &lon, &h);
+        if (base_auto_coords_valid(lat, lon)) {
+            xSemaphoreTake(s_chk_mutex, portMAX_DELAY);
+            s_base_pos_valid = true;
+            s_base_lat_deg = lat;
+            s_base_lon_deg = lon;
+            xSemaphoreGive(s_chk_mutex);
+        }
+    }
+    int64_t now = esp_timer_get_time();
+    if (s_seen_scan_us != 0 && now - s_seen_scan_us < 2000000) {
+        return; // contatori riletti al massimo ogni 2 s
+    }
+    s_seen_scan_us = now;
+    size_t k = rtcm3_stats_get(s_stat_buf, CHECK_TYPES_MAX);
+    xSemaphoreTake(s_chk_mutex, portMAX_DELAY);
+    for (size_t i = 0; i < k; i++) {
+        size_t j = 0;
+        while (j < s_seen_n && s_seen[j].type != s_stat_buf[i].msg_type) {
+            j++;
+        }
+        if (j == s_seen_n) {
+            if (s_seen_n == CHECK_TYPES_MAX) {
+                continue;
+            }
+            s_seen[j].type = s_stat_buf[i].msg_type;
+            s_seen[j].bytes = 0;
+            s_seen[j].seen_us = 0;
+            s_seen_n++;
+        }
+        if (s_stat_buf[i].bytes != s_seen[j].bytes) {
+            s_seen[j].bytes = s_stat_buf[i].bytes;
+            s_seen[j].seen_us = now;
+        }
+    }
+    xSemaphoreGive(s_chk_mutex);
+}
+
+void ntrip_rover_client_base_check(ntrip_rover_base_check_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->distance_km = -1;
+    if (!s_chk_mutex) {
+        out->check = base_check_eval(NULL, 0, -1);
+        return;
+    }
+    out->active = true;
+    out->connected = s_sock >= 0;
+    int64_t now = esp_timer_get_time();
+    uint16_t types[CHECK_TYPES_MAX];
+    size_t nt = 0;
+    xSemaphoreTake(s_chk_mutex, portMAX_DELAY);
+    for (size_t i = 0; i < s_seen_n; i++) {
+        if (s_seen[i].seen_us != 0 && now - s_seen[i].seen_us < CHECK_RECENT_US) {
+            types[nt++] = s_seen[i].type;
+        }
+    }
+    // Primo minuto di un collegamento: non tutti i messaggi sono ancora
+    // arrivati (la 1005/1006 ogni 10-30 s), il giudizio aspetta.
+    out->warming = s_conn_us == 0 || now - s_conn_us < CHECK_RECENT_US;
+    bool has_pos = s_base_pos_valid;
+    double blat = s_base_lat_deg, blon = s_base_lon_deg;
+    xSemaphoreGive(s_chk_mutex);
+
+    // Distanza: dalla posizione che la base trasmette (1005/1006), se no
+    // dalle coordinate della tabella delle sorgenti (scelta automatica).
+    gnss_fix_status_t fix = gnss_fix_get_status();
+    bool rover_pos = fix.valid && fix.has_position && base_auto_coords_valid(fix.lat_deg, fix.lon_deg);
+    if (has_pos) {
+        out->base_pos_from_rtcm = true;
+        out->base_lat_deg = blat;
+        out->base_lon_deg = blon;
+        if (rover_pos) {
+            out->distance_km = base_auto_distance_km(fix.lat_deg, fix.lon_deg, blat, blon);
+        }
+    } else {
+        ntrip_rover_auto_status_t ab;
+        ntrip_rover_client_auto_status(&ab);
+        out->distance_km = ab.distance_km;
+    }
+    out->check = base_check_eval(types, nt, out->distance_km);
+}
+
 // Dati ricevuti dal caster: al ricevitore e ai contatori.
 static void feed_rtcm(const uint8_t *data, int n)
 {
     gnss_io_write((const char *) data, n);
     rtcm3_stats_feed(data, (size_t) n); // tipi RTCM ricevuti, per il pannello
+    check_track(data, n);               // verifica della base
     data_usage_add((uint32_t) n, false);
     status_note_rtcm_bytes((uint32_t) n);
 }
@@ -790,6 +924,10 @@ void ntrip_rover_client_task(void *arg)
     if (!s_auto_mutex) {
         s_auto_mutex = xSemaphoreCreateMutex();
     }
+    if (!s_chk_mutex) {
+        s_chk_mutex = xSemaphoreCreateMutex();
+        rtcm3_1005_init();
+    }
 
     while (1) {
         sys_stats_heartbeat(HB_NTRIP);
@@ -841,6 +979,7 @@ void ntrip_rover_client_task(void *arg)
         // Il conto "senza RTK" riparte dal collegamento: la base nuova ha
         // 30 s per dare il fix prima di un altro cambio.
         s_auto.last_rtk_us = esp_timer_get_time();
+        check_reset(); // base nuova: tipi e posizione da rileggere
         if (extra_len > 0) {
             feed_rtcm(net_buf, (int) extra_len); // RTCM arrivato insieme alla risposta
         }

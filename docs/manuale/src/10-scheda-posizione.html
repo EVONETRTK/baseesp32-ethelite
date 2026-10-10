@@ -166,7 +166,19 @@
 
 <p><span class="pubblico tecnico">Solo rover</span> Con la casella <strong>Scegli da solo la base piu' vicina</strong> il rover legge l'elenco delle basi del caster, con la loro posizione, e si collega alla base più vicina al trattore. Il mountpoint scritto nel campo <em>Mountpoint da cui ricevere</em> resta la base di partenza e quella di riserva: si usa quando l'elenco non si riesce a leggere, quando il rover non ha ancora la sua posizione o quando la base scelta non risponde. Le basi senza posizione nell'elenco vengono ignorate. Utente e password restano gli stessi.</p>
 
-<p>Per non perdere il fix in mezzo al campo, il rover <strong>non cambia mai base mentre è in RTK</strong> (fisso o float): la cambia solo all'accensione, appena attivata la casella, oppure quando è senza RTK da almeno 30 secondi, e solo se un'altra base è più vicina di almeno 5 km. L'elenco del caster si ricontrolla al massimo ogni 10 minuti. Sotto la casella il pannello mostra la base in uso e la distanza, per esempio <em>Base in uso: AGRI_MSM4 (12,4 km)</em>; con il display montato, la stessa base compare nell'ultima riga della schermata del rover. Ogni cambio di base, con la distanza, è scritto nel log. Vale subito dopo <strong>💾 Salva</strong>, senza riavvio.</p>
+<p>Per non perdere il fix in mezzo al campo, il rover <strong>non cambia mai base mentre è in RTK</strong> (fisso o float): la cambia solo all'accensione, appena attivata la casella, oppure quando è senza RTK da almeno 30 secondi, e solo se un'altra base è più vicina di almeno 5 km. L'elenco del caster si ricontrolla al massimo ogni 10 minuti. Sotto la casella il pannello mostra la base in uso, la distanza e la verifica delle correzioni (vedi sotto), con l’indicazione <em>(scelta automatica)</em>; con il display montato, la stessa base compare nell'ultima riga della schermata del rover. Ogni cambio di base, con la distanza, è scritto nel log. Vale subito dopo <strong>💾 Salva</strong>, senza riavvio.</p>
+
+<h3>Verifica della base</h3>
+
+<p><span class="pubblico tecnico">Solo rover</span> Sotto il campo del mountpoint il pannello controlla da solo la base da cui arrivano le correzioni. Nel primo minuto di ogni collegamento scrive <em>verifica delle correzioni in corso…</em>, perché non tutti i messaggi della base sono ancora arrivati. Poi mostra una riga come questa:</p>
+
+<ul>
+  <li><strong>✅ Base in uso: AGRI_MSM4, 12,4 km · correzioni complete (GPS, GLONASS, Galileo, BeiDou)</strong>: tutto a posto.</li>
+  <li><strong>⚠️</strong> la base è a più di <strong>35 km</strong> (il fix sarà lento o instabile), oppure manda solo <strong>messaggi RTCM vecchi</strong> (1004 e 1012, solo GPS e GLONASS, senza MSM), oppure correzioni per meno di <strong>3 costellazioni</strong>.</li>
+  <li><strong>❌</strong> la base è a più di <strong>60 km</strong>, non trasmette la sua <strong>posizione</strong> (messaggio 1005/1006, senza il quale il ricevitore non può fare RTK), oppure non manda correzioni da oltre un minuto.</li>
+</ul>
+
+<p>La distanza è calcolata dalla posizione che la base trasmette nelle correzioni (1005/1006), quindi è precisa anche quando l’elenco del caster non riporta le coordinate. Gli stessi avvisi compaiono nel giudizio in cima alla scheda <em>Stato</em>, prima del messaggio sul float: sono la causa più comune di un trattore che resta in float con le correzioni che arrivano. In quel caso scegliete con <strong>Cerca mountpoint disponibili</strong> una base più vicina o con correzioni complete (MSM per GPS, GLONASS, Galileo e BeiDou).</p>
 
 <h2>Riserva Galileo HAS</h2>
 

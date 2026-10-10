@@ -31,6 +31,23 @@ typedef struct {
 // dall'ultima posizione valida del rover. Da qualunque task.
 void ntrip_rover_client_auto_status(ntrip_rover_auto_status_t *out);
 
+// Verifica della base in uso (logica in base_check.c): tipi RTCM arrivati
+// nell'ultimo minuto, posizione della base dal suo 1005/1006 e distanza dal
+// rover. Da qualunque task.
+#include "base_check.h"
+typedef struct {
+    bool active;             // client del rover avviato (solo in modalita' rover)
+    bool connected;          // collegato al caster in questo momento
+    bool warming;            // collegamento da meno di un minuto: giudizio non ancora affidabile
+    bool base_pos_from_rtcm; // posizione della base letta dal suo 1005/1006
+    double base_lat_deg;
+    double base_lon_deg;
+    double distance_km;      // -1 se sconosciuta
+    base_check_t check;
+} ntrip_rover_base_check_t;
+
+void ntrip_rover_client_base_check(ntrip_rover_base_check_t *out);
+
 // Si collega a settings->ntrip_host:ntrip_port (nessuna autenticazione,
 // il sourcetable NTRIP e' sempre pubblico per definizione del protocollo)
 // e ne legge/analizza le righe "STR;...", riempiendo out con le mountpoint
