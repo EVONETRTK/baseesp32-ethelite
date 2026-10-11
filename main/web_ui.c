@@ -26,6 +26,7 @@
 #include "gnss_signal.h"
 #include "rtcm3_stats.h"
 #include "gnss_fix.h"
+#include "base_auto.h"
 #include "wifi_link.h"
 #include "eth_link.h"
 #include "ntrip_rover_client.h"
@@ -2895,12 +2896,40 @@ static void ntrip_mountpoints_task(void *arg)
     }
     size_t n = entries ? ntrip_rover_client_fetch_mountpoints(entries, NTRIP_MOUNTPOINTS_MAX) : 0;
 
+    // Posizione del rover, per la distanza da ogni base (verifica come in
+    // base_check.c, sui dati della tabella: il pannello li ordina e propone
+    // il migliore, la scelta resta all'utente).
+    gnss_fix_status_t fix = gnss_fix_get_status();
+    bool pos = fix.valid && fix.has_position && base_auto_coords_valid(fix.lat_deg, fix.lon_deg);
     cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "rover_position", pos);
     cJSON *mountpoints = cJSON_CreateArray();
     for (size_t i = 0; i < n; i++) {
         cJSON *mp = cJSON_CreateObject();
         cJSON_AddStringToObject(mp, "name", entries[i].name);
         cJSON_AddStringToObject(mp, "description", entries[i].description);
+        double km = -1;
+        if (pos && base_auto_coords_valid(entries[i].lat_deg, entries[i].lon_deg)) {
+            km = base_auto_distance_km(fix.lat_deg, fix.lon_deg, entries[i].lat_deg, entries[i].lon_deg);
+        }
+        cJSON_AddNumberToObject(mp, "distance_km", km >= 0 ? (double) (int64_t) (km * 10 + 0.5) / 10 : -1);
+        bool known = false;
+        base_check_t bc = base_check_from_sourcetable(entries[i].details, entries[i].navsys, km, &known);
+        cJSON_AddStringToObject(mp, "level", base_check_level_str(bc.level));
+        cJSON_AddBoolToObject(mp, "types_known", known);
+        cJSON *iss = cJSON_AddArrayToObject(mp, "issues");
+        for (int b = 0; b < 32; b++) {
+            const char *code = base_check_issue_code(1u << b);
+            if (code && (bc.issues & (1u << b)) && (1u << b) != BASE_CHECK_GLO_NO_1230) {
+                cJSON_AddItemToArray(iss, cJSON_CreateString(code));
+            }
+        }
+        cJSON *sys = cJSON_AddArrayToObject(mp, "systems");
+        for (int b = 0; b < BASE_CHECK_SYSTEMS; b++) {
+            if (bc.systems & (1u << b)) {
+                cJSON_AddItemToArray(sys, cJSON_CreateString(base_check_system_name((uint8_t) (1u << b))));
+            }
+        }
         cJSON_AddItemToArray(mountpoints, mp);
     }
     cJSON_AddItemToObject(root, "mountpoints", mountpoints);

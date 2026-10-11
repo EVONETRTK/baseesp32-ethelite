@@ -3960,13 +3960,53 @@ document.getElementById('ntrip-mp-scan-btn').addEventListener('click', async () 
       results.textContent = 'Nessuna mountpoint trovata (caster irraggiungibile o sourcetable vuoto)';
       return;
     }
+    // Ordinati dal piu' adatto (verifica della base sulla tabella del caster,
+    // base_check.c): correzioni complete prima, poi i piu' vicini. Il primo
+    // adatto e' proposto, la scelta resta all'utente (anche scrivendo a mano).
+    const rank = { ok: 0, attenzione: 1, problema: 2 };
+    // A pari giudizio: piu' vicino (al km), poi chi dichiara i messaggi, poi
+    // piu' costellazioni.
+    const kmKey = (m) => (m.distance_km >= 0 ? Math.round(m.distance_km) : 1e9);
+    mps.sort((x, y) => (rank[x.level] ?? 1) - (rank[y.level] ?? 1)
+      || kmKey(x) - kmKey(y)
+      || (y.types_known ? 1 : 0) - (x.types_known ? 1 : 0)
+      || (y.systems || []).length - (x.systems || []).length
+      || String(x.name).localeCompare(String(y.name)));
+    const best = mps[0] && mps[0].level !== 'problema' ? mps[0].name : '';
+    const current = document.getElementById('cfg-form').rover_mountpoint.value;
     results.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'hint';
+    head.textContent = 'Ordinati dal più adatto: tocca quello che vuoi usare (puoi anche scrivere un altro nome).' +
+      (s.rover_position === false ? ' Distanze non ancora note: il rover non ha una posizione.' : '');
+    results.appendChild(head);
+    const kmTxt = (km) => km.toLocaleString('it-IT', { maximumFractionDigits: km < 10 ? 1 : 0 }) + ' km';
     mps.forEach((mp) => {
+      const has = (k) => (mp.issues || []).includes(k);
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'action secondary';
       btn.style.cssText = 'display:block; width:100%; text-align:left; margin-top:.3rem; font-size:.85rem; padding:.4rem .7rem';
-      btn.textContent = mp.name + (mp.description ? '  —  ' + mp.description : '');
+      const top = document.createElement('div');
+      const parts = [mp.name];
+      if (mp.distance_km >= 0) parts.push(kmTxt(mp.distance_km));
+      if ((mp.systems || []).length) parts.push(mp.systems.join(', '));
+      top.textContent = (mp.name === best ? '⭐ ' : '') + parts.join(' · ') +
+        (mp.name === current ? ' (in uso)' : '') + (mp.description && mp.description !== mp.name ? '  —  ' + mp.description : '');
+      top.style.fontWeight = mp.name === best ? '700' : '';
+      btn.appendChild(top);
+      const notes = [];
+      if (mp.name === best) notes.push('consigliato');
+      if (has('troppo_lontana')) notes.push('❌ troppo lontano per l’RTK (oltre 60 km)');
+      else if (has('lontana')) notes.push('⚠️ lontano: fix lento o instabile (meglio entro 35 km)');
+      if (has('solo_vecchi')) notes.push('⚠️ solo messaggi RTCM vecchi, senza MSM: fix difficile');
+      else if (has('poche_costellazioni')) notes.push('⚠️ meno di 3 costellazioni');
+      if (notes.length) {
+        const sub = document.createElement('div');
+        sub.className = 'hint';
+        sub.textContent = notes.join(' · ');
+        btn.appendChild(sub);
+      }
       btn.addEventListener('click', () => {
         const f = document.getElementById('cfg-form');
         f.rover_mountpoint.value = mp.name;

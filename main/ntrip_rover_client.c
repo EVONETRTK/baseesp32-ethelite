@@ -522,11 +522,16 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
             } else {
                 out[count].description[0] = '\0';
             }
-            // Campi 4-9: formato, dettagli, portante, costellazioni, rete,
-            // nazione; poi latitudine e longitudine (gradi decimali).
-            for (int k = 0; k < 6; k++) {
-                next_field_semicolon(&field_cursor);
-            }
+            // Campi 4-9: formato, dettagli (tipi di messaggio), portante,
+            // costellazioni, rete, nazione; poi latitudine e longitudine.
+            next_field_semicolon(&field_cursor);                    // 4 formato
+            char *details = next_field_semicolon(&field_cursor);    // 5 tipi
+            next_field_semicolon(&field_cursor);                    // 6 portante
+            char *navsys = next_field_semicolon(&field_cursor);     // 7 costellazioni
+            next_field_semicolon(&field_cursor);                    // 8 rete
+            next_field_semicolon(&field_cursor);                    // 9 nazione
+            strlcpy(out[count].details, details ? details : "", sizeof(out[count].details));
+            strlcpy(out[count].navsys, navsys ? navsys : "", sizeof(out[count].navsys));
             char *lat = next_field_semicolon(&field_cursor);
             char *lon = next_field_semicolon(&field_cursor);
             double la = 0, lo = 0;

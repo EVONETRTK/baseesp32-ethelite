@@ -8,6 +8,10 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.33.0
+
+- **Mountpoint proposti**: "Cerca mountpoint disponibili" (rover) ordina l'elenco del caster dal piu' adatto e segna il consigliato con una stella; per ognuno distanza dal rover, costellazioni e avvisi (oltre 35 o 60 km, solo messaggi vecchi senza MSM, meno di 3 costellazioni). La scelta resta all'utente: si tocca quello che si vuole o si scrive un altro nome. Verifica come quella della base in uso, sui campi 5 (tipi di messaggio) e 7 (costellazioni) della tabella delle sorgenti (base_check_from_sourcetable, con prove sul PC); /api/ntrip/mountpoints restituisce anche distance_km, level, issues, systems.
+
 ## 1.32.1
 
 - **Meno carico sul WiFi**: in rete (UDP per AgOpenGPS) solo le frasi della guida (GGA, RMC, VTG, prua/INS); satelliti (GSV), GSA, GLL e messaggi di testo restano per pannello e Bluetooth. Con la 1.32.0 lo ZED manda finalmente tutte le frasi e i pacchetti UDP erano saliti a 52 al secondo (40% GSV), con WiFi e rete al 10% e 5% della CPU.

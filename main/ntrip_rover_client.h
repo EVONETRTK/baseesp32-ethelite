@@ -10,6 +10,8 @@
 typedef struct {
     char name[33];        // es. "AGRI_MSM4"
     char description[65]; // es. "Agricoltura standard (MSM4)"
+    char details[128];    // campo 5: tipi di messaggio ("1004,1005(10),..."), spesso vuoto
+    char navsys[48];      // campo 7: costellazioni ("GPS+GLO+GAL+BDS")
     double lat_deg;       // posizione della base (campi 10 e 11 della riga STR);
     double lon_deg;       // entrambe 0 se mancano o non sono numeri
 } ntrip_mountpoint_entry_t;

@@ -121,6 +121,65 @@ PROVA(nomi_e_codici)
     }
 }
 
+// Tabella delle sorgenti del caster rtk.evo-net.it (10/10/2026): campi 5 e 7.
+PROVA(tabella_base_completa)
+{
+    bool known = false;
+    base_check_t r = base_check_from_sourcetable(
+        "1004,1005,1006,1008,1012,1019,1020,1033,1042,1045,1046,1077,1087,1097,1107,1127,1230",
+        "GPS+GLO+GAL+BDS+SBAS", 0.4, &known);
+    VERIFICA(known);
+    VERIFICA_INT(r.level, BASE_CHECK_LEVEL_OK);
+    VERIFICA_INT(r.issues, 0);
+    VERIFICA_INT(r.n_systems, 5);
+}
+
+PROVA(tabella_solo_messaggi_vecchi)
+{
+    // "puglia": dichiara anche Galileo, ma manda solo 1004/1012.
+    bool known = false;
+    base_check_t r = base_check_from_sourcetable("1004,1006,1008,1012,1013,1033", "GPS+GLO+GAL", 20.0, &known);
+    VERIFICA(known);
+    VERIFICA_INT(r.level, BASE_CHECK_LEVEL_WARN);
+    VERIFICA(r.issues & BASE_CHECK_LEGACY_ONLY);
+    VERIFICA(!(r.issues & BASE_CHECK_FEW_SYSTEMS)); // 3 costellazioni dichiarate
+    VERIFICA(!(r.issues & BASE_CHECK_NO_POSITION));
+}
+
+PROVA(tabella_senza_tipi)
+{
+    // AGRI_MSM4: campo dei tipi vuoto, si giudicano costellazioni e distanza.
+    bool known = true;
+    base_check_t r = base_check_from_sourcetable("", "GPS+GLO+GAL+BDS", 12.0, &known);
+    VERIFICA(!known);
+    VERIFICA_INT(r.level, BASE_CHECK_LEVEL_OK);
+    VERIFICA_INT(r.issues, 0);
+    VERIFICA_INT(r.n_systems, 4);
+    r = base_check_from_sourcetable(NULL, "GPS", 12.0, &known);
+    VERIFICA_INT(r.level, BASE_CHECK_LEVEL_WARN);
+    VERIFICA(r.issues & BASE_CHECK_FEW_SYSTEMS);
+    r = base_check_from_sourcetable(NULL, NULL, -1, NULL);
+    VERIFICA_INT(r.level, BASE_CHECK_LEVEL_OK); // niente dati, niente giudizio
+    VERIFICA_INT(r.issues, 0);
+}
+
+PROVA(tabella_lontana_e_frequenze)
+{
+    bool known = false;
+    // Frequenze tra parentesi da ignorare; base a 640 km.
+    base_check_t r = base_check_from_sourcetable("1005(10),1077(1),1087(1),1097(1),1127(1),1230(10)",
+                                                 "GPS+GLONASS+Galileo+BeiDou", 640.0, &known);
+    VERIFICA(known);
+    VERIFICA_INT(r.level, BASE_CHECK_LEVEL_BAD);
+    VERIFICA(r.issues & BASE_CHECK_TOO_FAR);
+    VERIFICA_INT(r.n_systems, 4);
+    VERIFICA(!(r.issues & BASE_CHECK_LEGACY_ONLY));
+    r = base_check_from_sourcetable("1077(1),1087(1)", "GPS+GLO", 40.0, &known);
+    VERIFICA_INT(r.level, BASE_CHECK_LEVEL_WARN);
+    VERIFICA(r.issues & BASE_CHECK_FAR);
+    VERIFICA(r.issues & BASE_CHECK_FEW_SYSTEMS);
+}
+
 int main(void)
 {
     ESEGUI(base_completa_vicina_ok);
@@ -133,5 +192,9 @@ int main(void)
     ESEGUI(msm4_e_tipi_ripetuti);
     ESEGUI(tipi_non_osservazioni_ignorati);
     ESEGUI(nomi_e_codici);
+    ESEGUI(tabella_base_completa);
+    ESEGUI(tabella_solo_messaggi_vecchi);
+    ESEGUI(tabella_senza_tipi);
+    ESEGUI(tabella_lontana_e_frequenze);
     return prove_fine();
 }

@@ -70,3 +70,14 @@ const char *base_check_issue_code(uint32_t bit);
 
 // "ok", "attenzione", "problema".
 const char *base_check_level_str(base_check_level_t l);
+
+// Stessa verifica sui dati della tabella delle sorgenti del caster, per
+// proporre i mountpoint prima di collegarsi:
+//   details  campo 5 della riga STR, i tipi di messaggio ("1004,1005(10),...";
+//            spesso vuoto o parziale)
+//   navsys   campo 7, le costellazioni ("GPS+GLO+GAL+BDS")
+// Con i tipi sconosciuti si giudicano solo costellazioni e distanza; la
+// mancanza della 1005/1006 non si segnala (le tabelle spesso la omettono).
+// types_known dice se details conteneva almeno un tipo.
+base_check_t base_check_from_sourcetable(const char *details, const char *navsys, double distance_km,
+                                         bool *types_known);
