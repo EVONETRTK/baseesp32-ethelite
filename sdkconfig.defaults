@@ -210,6 +210,14 @@ CONFIG_BT_CTRL_BLE_MAX_ACT=2
 # le scritture in flash (salvataggi, aggiornamenti) il Bluetooth puo' perdere
 # qualche evento o la connessione; il telefono si ricollega.
 CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY=y
+# Funzioni del controller che il ricevitore non usa (manda NMEA a un telefono
+# che si collega): niente scansione di altri dispositivi ne' tabella dei
+# duplicati, niente cifratura (il servizio non usa l'accoppiamento), niente
+# modalita' di test. Meno RAM interna col Bluetooth acceso (11/10/2026).
+CONFIG_BT_CTRL_BLE_SCAN=n
+CONFIG_BT_CTRL_BLE_SCAN_DUPL=n
+CONFIG_BT_CTRL_BLE_SECURITY_ENABLE=n
+CONFIG_BT_CTRL_DTM_ENABLE=n
 
 # Codice di ricezione del WiFi nella flash invece che nella RAM interna
 # (1.32.0): il Bluetooth occupa ~16 KB di RAM interna anche quando e' spento
