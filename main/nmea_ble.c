@@ -51,6 +51,9 @@ static int s_mem_release_result = -1;  // esito di esp_bt_mem_release (-1 = non 
 static int s_mem_released_bytes;       // RAM interna restituita all'heap
 
 static void advertise(void);
+static size_t s_m_int[7], s_m_ext[7]; // misura della memoria all'avvio
+static void mem_mark(int i);
+static void mem_report(void);
 
 static int nus_access(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -265,6 +268,24 @@ void nmea_ble_boot(bool will_start)
     }
 }
 
+// Misura della memoria passo per passo (11/10/2026): RAM interna e PSRAM
+// libere dopo ogni fase dell'avvio, per sapere chi usa i ~24 KB interni.
+static void mem_mark(int i)
+{
+    s_m_int[i] = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    s_m_ext[i] = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+}
+
+static void mem_report(void)
+{
+    static const char *const fase[] = { "", "buffer", "controller init", "controller acceso", "stack NimBLE",
+                                        "servizi", "task e annuncio" };
+    for (int i = 1; i < 7; i++) {
+        ESP_LOGI(TAG, "Memoria Bluetooth, %-18s: interna %6d byte, PSRAM %7d byte", fase[i],
+                 (int) s_m_int[i - 1] - (int) s_m_int[i], (int) s_m_ext[i - 1] - (int) s_m_ext[i]);
+    }
+}
+
 void nmea_ble_start(const char *name)
 {
     if (s_mem_released || s_state != NMEA_BLE_OFF) {
@@ -272,6 +293,7 @@ void nmea_ble_start(const char *name)
     }
     s_boot_done = true; // da qui la memoria del Bluetooth non si restituisce piu'
     size_t free_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    mem_mark(0);
 
     // +2 per CR/LF aggiunti dal task di invio.
     s_tx_buf = heap_caps_malloc(BLE_LINE_MAX + 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -282,7 +304,26 @@ void nmea_ble_start(const char *name)
         return;
     }
 
-    esp_err_t err = nimble_port_init(); // controller + host; in errore libera da solo
+    mem_mark(1);
+    // Gli stessi tre passi di nimble_port_init(), separati per misurarli.
+    esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+    esp_err_t err = esp_bt_controller_init(&bt_cfg);
+    mem_mark(2);
+    if (err == ESP_OK) {
+        err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+        if (err != ESP_OK) {
+            esp_bt_controller_deinit();
+        }
+    }
+    mem_mark(3);
+    if (err == ESP_OK) {
+        err = esp_nimble_init();
+        if (err != ESP_OK) {
+            esp_bt_controller_disable();
+            esp_bt_controller_deinit();
+        }
+    }
+    mem_mark(4);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Uscita Bluetooth non avviata: %s", esp_err_to_name(err));
         s_state = NMEA_BLE_ERROR;
@@ -307,6 +348,7 @@ void nmea_ble_start(const char *name)
         return;
     }
 
+    mem_mark(5);
     // Task di NimBLE e di invio con lo stack in PSRAM (non scrivono mai in
     // flash: niente accoppiamento ne' chiavi salvate). Non si usa
     // nimble_port_freertos_init(): senza memoria per il task abortirebbe.
@@ -324,7 +366,9 @@ void nmea_ble_start(const char *name)
         s_state = NMEA_BLE_ERROR;
         return;
     }
+    mem_mark(6);
     s_state = NMEA_BLE_ON;
+    mem_report();
     ESP_LOGI(TAG, "Uscita NMEA via Bluetooth LE attiva come \"%s\" (RAM interna usata ~%d byte)",
              ble_svc_gap_device_name(), (int) (free_before - heap_caps_get_free_size(MALLOC_CAP_INTERNAL)));
 }
