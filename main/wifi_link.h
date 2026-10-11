@@ -42,6 +42,9 @@ void wifi_link_disconnect(void);
 
 bool wifi_link_is_connected(void);
 
+// Dispositivi collegati in questo momento alla rete di setup (AP).
+int wifi_link_ap_clients(void);
+
 // Netif station e AP (l'AP e' sempre valido dopo wifi_link_init(), la
 // station anche se non connessa) - usati per il broadcast UDP NMEA.
 esp_netif_t *wifi_link_get_sta_netif(void);

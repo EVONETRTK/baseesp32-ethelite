@@ -64,6 +64,15 @@ void nmea_udp_broadcast_send(const char *line, size_t len)
     if (s_sock < 0) {
         return;
     }
+    // In rete solo le frasi della guida (GGA, RMC, VTG e quelle dei
+    // ricevitori con INS/prua): satelliti (GSV), GSA, GLL e messaggi di testo
+    // erano il 40% dei pacchetti UDP (52 al secondo a 10 Hz, 11/10/2026) e
+    // AgOpenGPS non li usa. Pannello e Bluetooth li ricevono lo stesso.
+    if (len >= 6 && line[0] == '$' &&
+        (memcmp(line + 3, "GSV", 3) == 0 || memcmp(line + 3, "GSA", 3) == 0 ||
+         memcmp(line + 3, "GLL", 3) == 0 || memcmp(line + 3, "TXT", 3) == 0)) {
+        return;
+    }
 
     // Porta riletta solo quando la configurazione cambia: prima settings_get()
     // copiava tutta la configurazione (~2,4 KB) sullo stack del task che
@@ -80,7 +89,11 @@ void nmea_udp_broadcast_send(const char *line, size_t len)
     }
     uint16_t port = s_port;
 
-    broadcast_to_netif(wifi_link_get_ap_netif(), line, len, port);
+    // Rete di setup solo con qualcuno collegato (es. il tablet del trattore):
+    // altrimenti ogni frase usciva due volte dalla radio per nessuno.
+    if (wifi_link_ap_clients() > 0) {
+        broadcast_to_netif(wifi_link_get_ap_netif(), line, len, port);
+    }
     broadcast_to_netif(wifi_link_get_sta_netif(), line, len, port);
     broadcast_to_netif(eth_link_get_netif(), line, len, port);
 }

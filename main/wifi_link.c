@@ -37,6 +37,15 @@ static esp_netif_t *s_ap_netif = NULL;
 // interfaccia STA.
 static SemaphoreHandle_t s_wifi_mutex;
 
+// Dispositivi collegati alla rete di setup (AP): senza nessuno, le frasi NMEA
+// in UDP non si trasmettono anche li' (nmea_udp_broadcast.c).
+static volatile int s_ap_clients;
+
+int wifi_link_ap_clients(void)
+{
+    return s_ap_clients;
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                 int32_t event_id, void *event_data)
 {
@@ -56,7 +65,14 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         s_connected = true;
         xEventGroupSetBits(s_events, WIFI_CONNECTED_BIT);
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
+        s_ap_clients++;
         ESP_LOGI(TAG, "Client connesso all'AP di setup");
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        if (s_ap_clients > 0) {
+            s_ap_clients--;
+        }
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STOP) {
+        s_ap_clients = 0;
     }
 }
 
