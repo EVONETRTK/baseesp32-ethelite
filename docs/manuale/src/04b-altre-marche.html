@@ -123,3 +123,64 @@
 <div class="box consiglio"><span class="box-titolo">Consiglio</span>Cambiando fornitore di correzioni le linee di guida registrate possono spostarsi. Prima di lavorare su linee vecchie fate la prova del picchetto su un punto noto (capitolo <a data-cap="Installare il ricevitore sul trattore"></a>).</div>
 
 <p class="fonte">Fonti: manuale operatore John Deere OMPFP17876 (modem Mobile RTK 4G LTE) e OMPFP16382; guida a schermo del display 4640 (displaysimulator.deere.com); note di rilascio StarFire 6000 SU17 e 21-1 e StarFire 7000 22-2; guide di Centipede-RTK e RTKdata per i ricevitori StarFire. Le voci segnate <em>da verificare</em> derivano da rivenditori o da fonti contraddittorie e vanno confermate con il concessionario.</p>
+
+<h2>Trimble, Case IH e New Holland</h2>
+
+<p>I sistemi di guida <strong>Case IH (AFS)</strong> e <strong>New Holland (PLM)</strong> usano hardware Trimble: per questo sono raccolti in un'unica scheda. In tutti la prima condizione è lo <strong>sblocco RTK del ricevitore</strong>: senza, la voce RTK o NTRIP non compare nemmeno nel menu, ed è la causa più comune di «non trovo il menu».</p>
+
+<table>
+  <tr><th>Sistema</th><th>Caster esterno</th><th>Come si collega</th></tr>
+  <tr><td><strong>Trimble GFX-750, GFX-1260</strong> con NAV-500 o NAV-900</td><td>Sì</td><td>Client NTRIP nel display, con il suo modem o il WiFi verso un hotspot. Serve l'attivazione RTK sul NAV.</td></tr>
+  <tr><td><strong>Trimble XCN-1050/2050, GFX-1060</strong></td><td><em>Da verificare</em></td><td>Stesso software dei GFX: il percorso dovrebbe essere lo stesso.</td></tr>
+  <tr><td><strong>Trimble CFX-750, FmX</strong> con AG-372</td><td>Sì, con modem esterno</td><td>Il display non ha un client NTRIP: serve un modem con funzione NTRIP (per esempio il DCM-300) collegato all'ingresso delle correzioni.</td></tr>
+  <tr><td><strong>Case IH AFS Pro 700</strong>, <strong>New Holland IntelliView IV</strong>, con ricevitore 372</td><td>Sì, con modem DCM-300/Ag3000</td><td>Percorso verificato sull'AFS Pro 700; sull'IntelliView IV dovrebbe essere lo stesso (<em>da verificare</em>).</td></tr>
+  <tr><td><strong>Case IH AFS Pro 1200</strong> con Vector Pro, <strong>New Holland IntelliView 12 / PLM 1200</strong></td><td>Sì</td><td>Sorgente NTRIP nel display, tramite il modulo di connettività PCM. Percorso verificato sul Pro 1200; sui New Holland equivalenti <em>da verificare</em>.</td></tr>
+</table>
+
+<h3>Trimble GFX</h3>
+
+<ol>
+  <li>Aprite <code>Settings &gt; GNSS Configuration &gt; Corrections</code>.</li>
+  <li>Come tipo di correzione scegliete <strong>Internet RTK</strong> e come metodo di connessione <strong>NTRIP</strong>. <strong>Non</strong> scegliete <em>VRS</em> o <em>Network RTK</em>: sono legati al servizio Trimble e non si collegano a un caster esterno.</li>
+  <li>Inserite indirizzo, porta, utente e password del caster EVONETRTK, e il mountpoint. Il mountpoint si può scrivere a mano invece di sceglierlo dall'elenco.</li>
+</ol>
+
+<h3>Case IH AFS Pro 700 e New Holland IntelliView IV</h3>
+
+<ol>
+  <li>Dalla schermata principale: <strong>Toolbox</strong> → icona <strong>GPS</strong> → schermata <em>GPS Setup</em>.</li>
+  <li><strong>Correction Type</strong> = <strong>RTK</strong> (compare solo se l'RTK è attivato sul ricevitore).</li>
+  <li><strong>Correction Level</strong> = <strong>DCM-300/Ag3000</strong>.</li>
+  <li><strong>RTK Source Setup</strong> → <strong>Edit</strong>: inserite <strong>User Name</strong>, <strong>Password</strong>, <strong>Server Address</strong> e <strong>Mount Point</strong>.</li>
+</ol>
+
+<h3>Case IH AFS Pro 1200 e New Holland IntelliView 12</h3>
+
+<ol>
+  <li>Nella barra in alto: <strong>Menu</strong> → scheda <strong>GNSS &amp; Guidance</strong> → <strong>GNSS</strong> → tasto <strong>+</strong> accanto a <em>RTK</em>.</li>
+  <li><strong>Correction Source</strong> = <strong>NTRIP</strong>, <strong>Configuration</strong> = <strong>New</strong>.</li>
+  <li>Inserite <strong>User Name</strong>, <strong>Password</strong>, <strong>Server Address</strong> e <strong>Port Number</strong> (2101).</li>
+  <li>Dopo il collegamento l'elenco <strong>Mount Point</strong> si riempie con i mountpoint del caster: scegliete il vostro. Il display indica quando è collegato e riceve le correzioni.</li>
+</ol>
+
+<h3>Formato delle correzioni e mountpoint</h3>
+
+<ul>
+  <li><strong>Ricevitori recenti</strong> (NAV-900, Vector Pro): accettano i messaggi RTCM 3 moderni (MSM). Usate il mountpoint consigliato dall'assistenza EVONETRTK.</li>
+  <li><strong>Ricevitori meno recenti</strong> (AG-372, AFS 372, NH 372, FmX, CFX-750 con modem esterno): chiedete il <strong>mountpoint leggero</strong> con i messaggi RTCM 3.1 tradizionali (1004 e 1012) più 1005 e 1033, più compatibile e più leggero sulla porta seriale.</li>
+  <li>I formati <strong>CMR, CMR+ e CMRx</strong> sono proprietari Trimble: EVONETRTK manda solo RTCM 3, quindi nei menu scegliete sempre RTCM.</li>
+  <li>Non è documentato se questi display inviino la posizione (GGA) al caster: se con un mountpoint di rete le correzioni non arrivano, usate un mountpoint di <strong>una singola base</strong>, che non ha bisogno della GGA.</li>
+</ul>
+
+<h3>Problemi tipici</h3>
+
+<table>
+  <tr><th>Cosa si vede</th><th>Cosa fare</th></tr>
+  <tr><td>La voce RTK o NTRIP non c'è</td><td>Manca lo sblocco RTK sul ricevitore: chiedetelo al concessionario.</td></tr>
+  <tr><td>Non si collega al caster</td><td>Controllate il tipo di correzione (Internet RTK / NTRIP, non VRS) e le credenziali: utente, password e mountpoint distinguono maiuscole e minuscole.</td></tr>
+  <tr><td>Collegato ma niente RTK</td><td>Con una rete di basi provate un mountpoint di una singola base (GGA forse non inviata); con un ricevitore meno recente usate il mountpoint leggero.</td></tr>
+  <tr><td>Resta in Float</td><td>Controllate gli ostacoli attorno all'antenna; se non basta, riavviate il ricevitore.</td></tr>
+  <tr><td>CFX-750 o FmX: il display non vede le correzioni</td><td>Controllate che modem e display usino la stessa velocità seriale (di solito 19200 baud) e che il modem mandi RTCM 3.</td></tr>
+</table>
+
+<p class="fonte">Fonti: guide di configurazione NTRIP di Swift Navigation per Case IH AFS Pro 700 (8834-1.0) e AFS Pro 1200 (9254-1.0); guida di integrazione RTKdata per Trimble GFX e CFX-750; guide Nikon-Trimble per GFX-750 e CFX-750; schede Case IH e New Holland di ricevitori e livelli di precisione; pagina Trimble dei servizi di correzione per l'agricoltura. I manuali operatore Trimble e CNH non sono pubblici: le voci <em>da verificare</em> vanno confermate con il concessionario.</p>
