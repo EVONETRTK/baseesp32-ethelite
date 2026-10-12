@@ -184,3 +184,121 @@
 </table>
 
 <p class="fonte">Fonti: guide di configurazione NTRIP di Swift Navigation per Case IH AFS Pro 700 (8834-1.0) e AFS Pro 1200 (9254-1.0); guida di integrazione RTKdata per Trimble GFX e CFX-750; guide Nikon-Trimble per GFX-750 e CFX-750; schede Case IH e New Holland di ricevitori e livelli di precisione; pagina Trimble dei servizi di correzione per l'agricoltura. I manuali operatore Trimble e CNH non sono pubblici: le voci <em>da verificare</em> vanno confermate con il concessionario.</p>
+
+<h2>Fendt, Massey Ferguson e Valtra</h2>
+
+<p>I tre marchi del gruppo AGCO usano lo stesso sistema: ricevitore <strong>NovAtel</strong> (SMART6 o SMART7) oppure Trimble, e un <strong>modem</strong> di solito montato sul tetto, sotto il coperchio dell'antenna, con la SIM all'interno. Il terminale fa da client NTRIP.</p>
+
+<h3>Cosa serve</h3>
+
+<ul>
+  <li><strong>Sblocco RTK</strong> a pagamento dal concessionario. Su Valtra si vede che è attivo quando il livello di autorizzazione è <em>centimeter</em>.</li>
+  <li>Una <strong>SIM dati</strong>, normale o M2M, inserita nel modem dopo averne staccato il connettore; un pezzo di nastro adesivo la tiene ferma contro le vibrazioni.</li>
+  <li>Se il trattore lavorava con la radio RTK, un'<strong>antenna GSM</strong> adatta al modem.</li>
+</ul>
+
+<div class="box avviso"><span class="box-titolo">Avviso</span>Alcuni Fendt hanno un'antenna <strong>Topcon AGI-4</strong> al posto del ricevitore NovAtel: in questa configurazione una rete aperta francese ha riscontrato l'incompatibilità con il proprio caster. Verificate con il concessionario prima di contare sul collegamento a un caster esterno.</div>
+
+<h3>Impostazione sul terminale</h3>
+
+<p>La procedura è la stessa sui tre marchi; i nomi delle voci qui sotto sono indicativi e possono cambiare con la lingua e la versione del terminale.</p>
+
+<ol>
+  <li>Dalla schermata della mappa aprite le impostazioni GPS e come segnale di correzione scegliete <strong>Rete RTK</strong> (<em>RTK Network</em>).</li>
+  <li>Nel pannello <strong>GPRS</strong> o <strong>Operatore di rete</strong> inserite i dati della <strong>SIM</strong>: PIN, APN, utente e password del gestore; attivate il roaming se serve. Deve comparire la spunta verde della connessione a internet.</li>
+  <li>Nel pannello <strong>NTRIP</strong> «riagganciate» il simbolo del telefono (oppure mettetelo su <em>Off</em>): solo così i campi diventano modificabili.</li>
+  <li>Inserite i dati del caster EVONETRTK: indirizzo, porta, mountpoint, utente e password.</li>
+  <li>«Sollevate» il telefono (oppure <em>On</em>) per collegarvi: l'indicatore dei dati NTRIP deve diventare verde.</li>
+</ol>
+
+<p>I menu verificati sono quelli di Fendt VarioGuide (Varioterminal), Massey Ferguson Datatronic 5 e Valtra SmartTouch. Su FendtONE, MF Fieldstar 5 e MF Auto-Guide 3000/5000 il percorso non è documentato (<em>da verificare</em>).</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Non confondete i due gruppi di credenziali: <strong>APN, utente e password della SIM</strong> vengono dal gestore telefonico; <strong>utente e password del caster</strong> vengono da EVONETRTK. Vanno in pannelli diversi. Se la connessione era attiva allo spegnimento, alla riaccensione il modem si ricollega da solo e consuma traffico.</div>
+
+<h3>Formato delle correzioni</h3>
+
+<ul>
+  <li><strong>SMART7</strong>: accetta i messaggi RTCM 3 moderni (MSM) su più costellazioni.</li>
+  <li><strong>SMART6 e ricevitori Trimble meno recenti</strong>: il manuale VarioGuide cita RTCM 3.1, RTCM 2.3 e CMR; chiedete il <strong>mountpoint leggero</strong> con i messaggi RTCM 3.1 tradizionali.</li>
+</ul>
+
+<h2>CLAAS</h2>
+
+<p>I sistemi <strong>GPS PILOT</strong> recenti, con terminale S10 o CEMIS 1200 e ricevitore <strong>SAT 900</strong>, usano il modulo di comunicazione CLAAS con la SIM come client NTRIP, senza modem esterno. La voce si chiama <strong>RTK NET</strong>, come il servizio della casa, ma accetta i dati di un caster esterno. I sistemi più vecchi possono essere legati ai soli servizi CLAAS (<em>da verificare</em>).</p>
+
+<h3>Cosa serve</h3>
+
+<ul>
+  <li><strong>Sblocco RTK</strong>: senza, le voci RTK NET non compaiono.</li>
+  <li>Il <strong>modulo di comunicazione CLAAS</strong> (modem RTK NET). Con altri modem la schermata di configurazione sul terminale S10 non compare: si configurano da computer.</li>
+  <li>Una <strong>SIM dati</strong>; sull'S10 togliete prima il PIN con un telefono.</li>
+</ul>
+
+<h3>Impostazione sul terminale S10</h3>
+
+<ol>
+  <li>Aprite <strong>Menu → Impostazioni → Impostazioni GPS → Impostazioni modem RTK NET</strong>.</li>
+  <li>In <strong>Modifica impostazioni SIM</strong> inserite utente e password del gestore. L'APN va scritto nella forma <code>1,"IP","nome-apn"</code>, sostituendo <code>nome-apn</code> con quello del vostro gestore.</li>
+  <li>In <strong>Modifica connessione RTK NET</strong> inserite indirizzo, porta, mountpoint, utente e password del caster EVONETRTK, poi salvate.</li>
+  <li>Lo stato deve risultare attivo, con dati NTRIP ricevuti.</li>
+</ol>
+
+<h3>Impostazione sul terminale CEMIS 1200</h3>
+
+<ol>
+  <li>Inserite la SIM e aprite <strong>Impostazioni → GNSS → Tipo di correzione → RTK NET</strong> (se la voce manca, manca lo sblocco RTK).</li>
+  <li>In <strong>Scheda SIM</strong> inserite PIN, APN, utente e password del gestore, poi salvate con l'icona del dischetto.</li>
+  <li>In <strong>Connessione RTK NET</strong> inserite indirizzo, porta, mountpoint, utente e password del caster, poi salvate.</li>
+</ol>
+
+<p>I nomi delle voci sono tradotti da guide in francese e possono differire leggermente sul vostro terminale. Scrivete il mountpoint a mano, rispettando maiuscole e minuscole, invece di sceglierlo da un elenco.</p>
+
+<h3>Formato delle correzioni e problemi tipici</h3>
+
+<ul>
+  <li>Il SAT 900 riceve GPS, GLONASS, Galileo e BeiDou e accetta RTCM 3. Con disconnessioni ricorrenti su un S10, una rete aperta francese le ha risolte inviando dalla base anche i messaggi 1006, 1008, 1033 e 1230 insieme agli MSM4: se succede, segnalatelo all'assistenza EVONETRTK.</li>
+  <li>Se resta in Float: controllate ostacoli attorno all'antenna e segnale cellulare.</li>
+  <li>Le quote sono ellissoidiche: per i livellamenti serve il modello del geoide.</li>
+</ul>
+
+<p class="fonte">Fonti: guide di configurazione della rete Centipede-RTK (Chambre d'agriculture de la Somme, 2025) per Fendt VarioGuide, Massey Ferguson Datatronic 5, Valtra SmartTouch, CLAAS S10 e CLAAS CEMIS 1200; manuale Fendt VarioGuide; guida RTKdata per CLAAS GPS PILOT; schede NovAtel SMART7 e documentazione NovAtel RTCM 3; pagine Massey Ferguson MF Guide e Fendt VarioGuide. Le voci <em>da verificare</em> vanno confermate con il concessionario.</p>
+
+<h2>Ag Leader</h2>
+
+<p>Con i display <strong>InCommand</strong> (800, 1200, InCommand Go) il client NTRIP è nel display, dalla versione 3.1 del software: il display si collega al caster e passa le correzioni al ricevitore con un cavo seriale (porta AUX). Ricevitori previsti: <strong>GPS 6500</strong>, <strong>GPS 7500</strong>, ParaDyme/GeoSteer e GPS 2500. Il GPS 7000 non compare negli elenchi e il Compass non risulta avere un client NTRIP (<em>da verificare</em>).</p>
+
+<h3>Cosa serve</h3>
+
+<ul>
+  <li><strong>Sblocco RTK sul ricevitore</strong>, a pagamento una tantum. Per il display non servono sblocchi né un account AgFiniti.</li>
+  <li><strong>Internet al display via WiFi</strong>: l'hotspot del telefono, un router MiFi o il modem Ag Leader BR1-Mini.</li>
+  <li>Il <strong>cavo seriale</strong> tra la porta AUX del display e il ricevitore.</li>
+</ul>
+
+<h3>Impostazione sul display InCommand</h3>
+
+<ol>
+  <li><strong>Setup → GPS/Guidance Setup</strong> → chiave inglese accanto a <strong>Receiver</strong> → scheda <strong>General</strong>: alla voce <strong>Differential Source</strong> scegliete <strong>RTK External</strong>.</li>
+  <li>Sul ricevitore configurate l'uscita <strong>NMEA Out</strong>: da lì il display prende la posizione (GGA) da mandare al caster. Senza, i mountpoint di rete non mandano correzioni.</li>
+  <li><strong>Setup → GPS/Guidance Setup → Ag Leader NTRIP Setup</strong>: si apre <em>NTRIP Client Settings</em>. Con <strong>+</strong> create un profilo e apritelo.</li>
+  <li>Compilate i campi: <strong>Server</strong> con indirizzo e porta insieme, nella forma <code>indirizzo:2101</code>; <strong>Username</strong> e <strong>Password</strong>; <strong>Streams</strong>, cioè il mountpoint, da scegliere nell'elenco. Confermate con la spunta.</li>
+</ol>
+
+<p>Si usa una sola rete NTRIP alla volta; per passare da una base all'altra conviene salvare più profili. Con i GPS 6500 meno recenti, se l'RTK non arriva, chiedete il <strong>mountpoint leggero</strong>.</p>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Se al trattore è collegata anche una radio RTK, il riconoscimento automatico può scegliere <em>RTK</em> invece di <em>RTK External</em> e peggiorare il funzionamento: impostate la sorgente a mano. Un triangolo di avviso sul simbolo del satellite indica che il ricevitore non è in RTK fisso.</div>
+
+<h2>Raven</h2>
+
+<p>Con Raven il collegamento a un caster esterno passa quasi sempre dal <strong>concessionario</strong>. Il ricevitore <strong>RS1</strong> ha un modem cellulare integrato, ma le correzioni via rete arrivano dal servizio <strong>Slingshot</strong> di Raven: indirizzo, mountpoint e credenziali del caster non si scrivono sul display, si registrano come profilo RTK nel portale Slingshot. Sui display CR7 e CR12 non risulta un client NTRIP.</p>
+
+<h3>Le due strade</h3>
+
+<ul>
+  <li><strong>Tramite Slingshot</strong>: il concessionario sblocca l'RTK sul ricevitore (<em>Gears → Padlock</em>, con un codice acquistato) e crea nel portale Slingshot il profilo con i dati del caster EVONETRTK. Sul ricevitore restano da impostare solo i dati della SIM (<em>Cellular Settings</em>: APN, utente e password del gestore). Se il portale accetti caster europei di terze parti va chiesto al concessionario (<em>da verificare</em>).</li>
+  <li><strong>Con un modem NTRIP esterno</strong>: sull'RS1 la sorgente RTK si può impostare su <strong>Serial</strong>, per ricevere le correzioni da un modem esterno che si collega al caster e le passa in RTCM 3 sulla seriale. Il modem deve anche inviare la posizione (GGA) al caster, prendendola dall'uscita NMEA del ricevitore.</li>
+</ul>
+
+<p>Il ricevitore <strong>500S</strong> non fa RTK. Per Viper 4/4+, Cruizer II e SC1 non è documentato un client NTRIP (<em>da verificare</em>). Raven dichiara il supporto di RTCM 3 e CMR+: provate il mountpoint normale e, se l'RTK non arriva, il mountpoint leggero.</p>
+
+<p class="fonte">Fonti Ag Leader e Raven: guida di configurazione NTRIP di Swift Navigation per Ag Leader InCommand (8828-1.0); guida Centipede-RTK per InCommand (2025); articoli di supporto Ag Leader 1222 (NTRIP su InCommand) e 2109 (GPS 6500/7500 in RTK External) e blog Ag Leader; manuale Raven RS1/RS Lite (016-4010-001 rev. F) e guida operativa Raven CRX/CR7 (rev. F); pagine Raven su Slingshot. Le voci <em>da verificare</em> vanno confermate con il concessionario.</p>
