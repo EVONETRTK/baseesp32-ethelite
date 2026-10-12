@@ -1,0 +1,67 @@
+<p class="sommario-capitolo"><span class="pubblico agricoltore">Agricoltore</span> Come collegare alle correzioni EVONETRTK il ricevitore e il display che il trattore ha già, marca per marca: cosa serve, dove si inseriscono i dati del caster e cosa controllare. Per ora c'è la scheda Topcon; le altre marche si aggiungono man mano.</p>
+
+<div class="box nota"><span class="box-titolo">Nota</span>Menu, sblocchi e compatibilità cambiano da modello a modello e da una versione all'altra del software del display. Le schede di questo capitolo indicano su quale documentazione si basano: le voci segnate <em>da verificare</em> vanno confermate con il concessionario della marca prima dell'acquisto di sblocchi o modem.</div>
+
+<h2>Cosa serve con qualunque marca</h2>
+
+<p>Qualunque ricevitore agricolo RTK può usare le correzioni EVONETRTK se ha queste quattro cose:</p>
+
+<ul>
+  <li><strong>RTK sbloccato</strong> sul ricevitore e, se richiesto, sul display: molte case lo vendono come opzione a parte, da attivare con un codice o un file di licenza.</li>
+  <li><strong>Un client NTRIP</strong>, cioè la funzione che si collega a un caster via internet. Di solito si trova nel menu delle correzioni GPS con il nome <em>NTRIP</em>, <em>RTK via cellulare</em> o <em>RTK (rete)</em>.</li>
+  <li><strong>Internet sul trattore</strong>: un modem della marca con la sua SIM, oppure un modem esterno collegato al ricevitore.</li>
+  <li><strong>I dati di accesso al caster EVONETRTK</strong>: indirizzo, porta, mountpoint, utente e password (capitolo <a data-cap="Collegare il trattore"></a>).</li>
+</ul>
+
+<p>Due impostazioni contano quasi sempre:</p>
+
+<ul>
+  <li><strong>Invio della posizione (GGA)</strong>: con un mountpoint di rete come <code>AGRI_MSM4</code> va attivato, altrimenti il caster non sa quale base usare e le correzioni non arrivano.</li>
+  <li><strong>Formato delle correzioni</strong>: le basi EVONETRTK mandano i messaggi RTCM 3 moderni (MSM) per GPS, GLONASS, Galileo e BeiDou. Alcuni ricevitori più vecchi leggono solo i messaggi RTCM 3.1 tradizionali (1004 e 1012, solo GPS e GLONASS): con questi conviene un mountpoint che mandi anche quei messaggi. Chiedete all'assistenza EVONETRTK quale mountpoint usare.</li>
+</ul>
+
+<h2>Topcon</h2>
+
+<p>Le indicazioni valgono per i display della famiglia <strong>Horizon</strong> (X25, X30, X35, XD, XD+) con i ricevitori <strong>AGI-4</strong> e <strong>AGS-2</strong>. Il percorso dei menu è verificato sul manuale ufficiale del display X30 (software Horizon 3.24); sugli altri display della stessa famiglia il software è lo stesso e il percorso dovrebbe coincidere.</p>
+
+<table>
+  <tr><th>Ricevitore</th><th>RTK via NTRIP</th><th>Cosa serve</th></tr>
+  <tr><td><strong>AGS-2</strong></td><td>Sì</td><td>Opzione RTK e il dispositivo di connessione <strong>CL-55</strong> o <strong>CL-20</strong> (modem LTE). Segue GPS, GLONASS, Galileo e BeiDou.</td></tr>
+  <tr><td><strong>AGI-4</strong></td><td>Sì</td><td>Opzione RTK e un modulo di comunicazione cellulare, oppure un modem esterno. <em>Da verificare</em>: potrebbe leggere solo i messaggi RTCM 3.1 tradizionali.</td></tr>
+  <tr><td><strong>SGR-1</strong></td><td>No</td><td>Ricevitore a una sola frequenza: non arriva all'RTK centimetrico.</td></tr>
+</table>
+
+<h3>Cosa serve</h3>
+
+<ul>
+  <li><strong>Autosterzo RTK attivo sul display</strong>: su alcuni display è compreso, su altri è uno sblocco a pagamento acquistato tramite TAP Market (<em>da verificare</em> per il vostro modello).</li>
+  <li><strong>Opzione RTK sul ricevitore</strong>: si carica con un file di licenza (OAF) fornito da Topcon o dal concessionario, dal menu <code>System / GPS / Receiver</code> → <strong>Load OAF file</strong>.</li>
+  <li><strong>Un modem riconosciuto dal display</strong>: modulo cellulare Topcon, CL-55 o CL-20, oppure un modem esterno collegato al ricevitore. Il CL-20 ha anche uno slot per una SIM a scelta; se la SIM integrata di CL-20 e CL-55 si possa usare con un caster esterno va chiesto al concessionario.</li>
+  <li><strong>Una SIM dati</strong> con il suo APN.</li>
+</ul>
+
+<h3>Impostazione sul display</h3>
+
+<ol>
+  <li>Aprite <code>System / GPS / Correction</code> e alla voce <strong>Correction Source</strong> scegliete <strong>RTK (NTRIP)</strong>.</li>
+  <li>Parte una procedura guidata che cerca il modem collegato: senza un modem riconosciuto non si va avanti.</li>
+  <li>Inserite i dati della rete cellulare: <strong>GSM APN</strong> (quello della SIM) e, se il trattore lavora vicino al confine, disattivate il <strong>Cell roaming</strong> per evitare costi.</li>
+  <li>Inserite i dati del caster EVONETRTK: <strong>NTRIP Address</strong>, <strong>NTRIP Port</strong>, <strong>NTRIP Mount Point</strong>, <strong>NTRIP User Name</strong> e <strong>NTRIP Password</strong>. Su alcune versioni il mountpoint non si scrive a mano ma si sceglie dall'elenco scaricato dal caster.</li>
+  <li>Nelle opzioni della sorgente attivate <strong>GGA Output</strong> (indispensabile con i mountpoint di rete) e <strong>GLONASS</strong>.</li>
+  <li>Tornate alla schermata di lavoro e controllate che lo stato passi a <strong>RTK</strong>.</li>
+</ol>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>La voce <strong>RTK Protocol</strong> va lasciata sul formato RTCM 3. La voce <strong>Fallback</strong> abbassa la precisione richiesta per tenere inserito l'autosterzo quando l'RTK si perde: comoda, ma la guida diventa meno precisa senza che lo si noti.</div>
+
+<h3>Problemi tipici</h3>
+
+<table>
+  <tr><th>Cosa si vede</th><th>Cosa fare</th></tr>
+  <tr><td>Allarme <strong>NTRIP failure</strong></td><td>Controllate APN, copertura della rete cellulare, utente e password. Dalla scheda <em>Stato</em> del caster EVONETRTK l'assistenza vede se il trattore si è collegato.</td></tr>
+  <tr><td>Correzioni ricevute ma niente RTK</td><td>Verificate che <strong>GGA Output</strong> sia attivo. Con l'AGI-4, se resta in <em>Single</em> o <em>Float</em>, chiedete all'assistenza un mountpoint con i messaggi RTCM 3.1 tradizionali.</td></tr>
+  <tr><td>Fix lento dopo un'interruzione</td><td>Riferito da alcuni utenti con l'AGI-4: passare per un momento a EGNOS e poi tornare a RTK (NTRIP) può far ripartire il fix.</td></tr>
+  <tr><td>Il mountpoint non si può scrivere</td><td>Sceglietelo dall'elenco scaricato dal caster. Se l'elenco è vuoto, controllate indirizzo e porta.</td></tr>
+  <tr><td>Comportamenti strani dopo anni di uso</td><td>Aggiornate il firmware del ricevitore dal menu <code>System / GPS / Receiver</code>, con il pacchetto software della console.</td></tr>
+</table>
+
+<p class="fonte">Fonti: manuale del display Topcon X30 (AGA4084 rev. 2.6, Horizon 3.24); schede tecniche Topcon di AGS-2, CL-55, CL-20, X35 e Horizon OS; guida di configurazione NTRIP per Topcon Horizon pubblicata da Swift Navigation (2022). Le voci segnate <em>da verificare</em> derivano da esperienze di utenti e vanno confermate con il concessionario.</p>

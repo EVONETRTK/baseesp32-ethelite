@@ -319,3 +319,6 @@ td .tasto, th .tasto { white-space: normal; }
 /* tasto con la punteggiatura vicina (build.js, tastiConPunteggiatura): un solo blocco */
 .tasto-unito { white-space: nowrap; }
 td .tasto-unito { white-space: normal; }
+
+/* Riga delle fonti in fondo a una scheda (capitolo Ricevitori di altre marche) */
+.fonte { font-size: .85em; color: #555; margin-top: 1em; }

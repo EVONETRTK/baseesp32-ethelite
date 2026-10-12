@@ -31,6 +31,10 @@
           "file": "04-trattore.html"
         },
         {
+          "titolo": "Ricevitori di altre marche",
+          "file": "04b-altre-marche.html"
+        },
+        {
           "titolo": "Se qualcosa non va",
           "file": "05-problemi.html"
         }
