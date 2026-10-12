@@ -65,3 +65,61 @@
 </table>
 
 <p class="fonte">Fonti: manuale del display Topcon X30 (AGA4084 rev. 2.6, Horizon 3.24); schede tecniche Topcon di AGS-2, CL-55, CL-20, X35 e Horizon OS; guida di configurazione NTRIP per Topcon Horizon pubblicata da Swift Navigation (2022). Le voci segnate <em>da verificare</em> derivano da esperienze di utenti e vanno confermate con il concessionario.</p>
+
+<h2>John Deere</h2>
+
+<p>Per usare un caster di un altro fornitore John Deere prevede una strada sola: il <strong>modem John Deere Mobile RTK 4G LTE</strong>, venduto in Europa, con una SIM vostra e un fornitore di correzioni a vostra scelta. I dati del caster si inseriscono sul display. Le indicazioni seguono il manuale operatore ufficiale del modem (OMPFP17876) e la guida a schermo del display 4640.</p>
+
+<table>
+  <tr><th>Ricevitore</th><th>Con caster esterno</th><th>Note</th></tr>
+  <tr><td><strong>StarFire 3000</strong></td><td>Sì, con il modem Mobile RTK 4G</td><td>Attivazioni SF2 Ready e RTK, più la licenza Mobile RTK. Il manuale consiglia di spegnere <em>SF2 Fallback</em> per lavorare alla massima precisione.</td></tr>
+  <tr><td><strong>StarFire 6000</strong></td><td>Sì, con il modem Mobile RTK 4G</td><td>Attivazioni SF3 Ready e RTK, più la licenza Mobile RTK. In RTK usa GPS e GLONASS; niente Galileo né BeiDou.</td></tr>
+  <tr><td><strong>StarFire 7000 / 7500</strong></td><td><em>Da verificare</em></td><td>Licenza RTK permanente; secondo alcuni rivenditori la licenza Mobile RTK è compresa e serve un software recente. Le pagine John Deere sono contraddittorie: chiedete conferma al concessionario.</td></tr>
+  <tr><td><strong>Modem JDLink (MTG)</strong></td><td><em>Non documentato</em></td><td>Nelle fonti ufficiali funziona solo con il segnale John Deere Mobile RTK, cioè con la rete della casa.</td></tr>
+  <tr><td><strong>Radio RTK 900 / 450</strong></td><td>No</td><td>Sono radio per una base locale, non portano l'NTRIP.</td></tr>
+</table>
+
+<h3>Cosa serve</h3>
+
+<ul>
+  <li>Display <strong>GreenStar 3 (2630)</strong> o <strong>CommandCenter Gen4 (4240, 4640)</strong>; sul G5 il percorso non è documentato (<em>da verificare</em>).</li>
+  <li>Le attivazioni del ricevitore indicate in tabella e la <strong>licenza Mobile RTK</strong>, che sul display compare come <em>M-RTK Subscription</em> con la scadenza.</li>
+  <li>Il <strong>modem Mobile RTK 4G LTE</strong>, che usa lo stesso fissaggio e lo stesso cablaggio della radio RTK.</li>
+  <li>Una <strong>SIM in formato mini</strong> (niente adattatori) con un piano dati di almeno <strong>1 GB al mese</strong>; il PIN si può togliere dal display, il PUK no. Il traffico è di circa 2 MB all'ora.</li>
+</ul>
+
+<h3>Impostazione sul display</h3>
+
+<ol>
+  <li>Controllate le attivazioni: <code>Menu &gt; StarFire 6000 &gt; StarFire 6000 &gt; Activations</code>; deve comparire <strong>M-RTK Subscription: Yes</strong>.</li>
+  <li>Aprite <code>Menu &gt; StarFire 6000 &gt; Mobile RTK</code>. Il tasto compare solo con RTK e licenza Mobile RTK attive.</li>
+  <li>Alla voce <strong>Correction Type</strong> scegliete <strong>RTCM</strong>.</li>
+  <li>In <strong>RTK Port Configuration &gt; Configure</strong> (impostazioni seriali e NMEA) lasciate <strong>19200</strong> baud, 8 bit, nessuna parità, 1 bit di stop, e <strong>attivate la frase GGA</strong>: è obbligatoria.</li>
+  <li>Nella pagina <strong>Modem/Network Configuration</strong> inserite i dati della SIM: <strong>APN</strong>, eventuali utente e password del gestore, <strong>PIN</strong>.</li>
+  <li>Alla pagina successiva, <strong>Correction Data Settings</strong>, inserite i dati del caster EVONETRTK: <strong>IP/URL</strong>, <strong>Port</strong>, <strong>Mountpoint</strong>, <strong>User ID</strong>, <strong>Password</strong>, poi <strong>Accept</strong>.</li>
+  <li>Il collegamento è riuscito quando lo stato diventa <strong>M-RTK 3D</strong>, il modem risulta connesso e l'età delle correzioni resta entro 2 secondi.</li>
+</ol>
+
+<div class="box avviso"><span class="box-titolo">Avviso</span>La password del caster <strong>non può contenere</strong> i caratteri <code>;</code> <code>:</code> e <code>,</code>: il display la rifiuta o il collegamento non parte. Se la vostra li contiene, chiedete all'assistenza EVONETRTK di cambiarla.</div>
+
+<h3>Formato delle correzioni</h3>
+
+<p>John Deere dichiara ufficialmente i formati <strong>RTCM 2.3, 3.0, 3.1 e CMR</strong>: i messaggi RTCM 3 moderni (MSM) non sono citati, anche se alcuni rivenditori li danno per funzionanti (<em>da verificare</em>). Inoltre i ricevitori StarFire leggono le correzioni da una porta seriale lenta: un flusso troppo ricco, con tutte le costellazioni e i messaggi più completi, fa crescere l'età delle correzioni senza mai arrivare all'RTK.</p>
+
+<p>Con John Deere chiedete quindi all'assistenza EVONETRTK un <strong>mountpoint leggero</strong>, con i messaggi RTCM 3.1 tradizionali (1004 e 1012, GPS e GLONASS) più la posizione della base (1005) e i dati dell'antenna (1033).</p>
+
+<h3>Problemi tipici</h3>
+
+<table>
+  <tr><th>Cosa si vede</th><th>Cosa fare</th></tr>
+  <tr><td>LED del modem verde e rosso lampeggiante</td><td>SIM assente, PIN sbagliato o niente internet: controllate SIM, PIN e copertura.</td></tr>
+  <tr><td>LED verde, spento e rosso</td><td>La SIM chiede il PUK: va sbloccata con un telefono, non dal display.</td></tr>
+  <tr><td>Nessun dato di correzione</td><td>Controllate GGA attiva, 19200 baud, password senza caratteri vietati e licenza non in uso su un altro modem: ogni licenza vale per un solo modem alla volta.</td></tr>
+  <tr><td>Età delle correzioni che cresce sempre</td><td>Flusso troppo ricco per la porta seriale: passate al mountpoint leggero.</td></tr>
+  <tr><td>Non arriva all'RTK pieno</td><td>John Deere raccomanda di restare entro <strong>20 km</strong> da una base; la distanza si legge in <code>Diagnostics &gt; Readings &gt; MRTK</code>. Oltre 25 km il ricevitore passa a RTK-X o a SF2.</td></tr>
+  <tr><td>Manca il tasto <em>Modem and Network Configure</em></td><td>Software del ricevitore vecchio: va aggiornato dal concessionario.</td></tr>
+</table>
+
+<div class="box consiglio"><span class="box-titolo">Consiglio</span>Cambiando fornitore di correzioni le linee di guida registrate possono spostarsi. Prima di lavorare su linee vecchie fate la prova del picchetto su un punto noto (capitolo <a data-cap="Installare il ricevitore sul trattore"></a>).</div>
+
+<p class="fonte">Fonti: manuale operatore John Deere OMPFP17876 (modem Mobile RTK 4G LTE) e OMPFP16382; guida a schermo del display 4640 (displaysimulator.deere.com); note di rilascio StarFire 6000 SU17 e 21-1 e StarFire 7000 22-2; guide di Centipede-RTK e RTKdata per i ricevitori StarFire. Le voci segnate <em>da verificare</em> derivano da rivenditori o da fonti contraddittorie e vanno confermate con il concessionario.</p>
