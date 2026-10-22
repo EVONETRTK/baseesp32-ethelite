@@ -19,7 +19,10 @@ Controllo di qualita' sulla 1.35.x (basi lontane, non devono restare irraggiungi
 - **Riavvio di sicurezza della base** dopo 2 ore senza nessuna rete (WiFi, 4G, cavo), solo se la rete c'era in questo avvio: niente riavvii in serie dove la copertura non c'e'.
 - **Rover, base automatica muta**: una base in tabella che accetta il collegamento ma non manda dati (vista il 22/10/2026: AGRI_MSM4 a 0,4 km) teneva il rover senza correzioni per sempre. Dopo 2 collegamenti di fila senza un byte la base e' esclusa per un'ora e si torna alla base iniziale (base_auto_ban_*, con prove sul PC).
 - Manuale: capitolo Trattore (base piu' vicina che non manda correzioni).
-- Restano da fare (verificati, non ancora corretti): la VPN WireGuard esce solo dal WiFi, quindi con il solo 4G non si raggiunge la base da remoto; in "4G con WiFi di riserva" con il WiFi funzionante il modem senza 4G viene riavviato ogni ~16 minuti senza fine.
+- **VPN anche dal 4G**: il tunnel WireGuard era legato al WiFi (WIFI_STA_DEF), quindi con il solo 4G la base non era raggiungibile da remoto e senza WiFi avviato la VPN non partiva. Ora i pacchetti seguono le rotte di lwIP: server nella rete di casa dal WiFi, server pubblico dalla rete attiva. Alla chiusura del tunnel (a ogni cambio di rete) WireGuard rimetteva come interfaccia predefinita quella salvata all'avvio del tunnel: il traffico tornava sul WiFi con il 4G appena tornato, o finiva su un 4G appena caduto. Tolto: la sceglie ESP-IDF.
+- **"4G con WiFi di riserva", 4G non disponibile con il WiFi funzionante**: tentativi del 4G sempre piu' radi (2, 4, 8, 16, 30 minuti) e con loro i riavvii del modem, prima uno ogni ~16 minuti per sempre. Senza WiFi resta ogni 2 minuti.
+- Prova di fuzzing ntrip di nuovo compilabile (mancavano base_check.c, rtcm3_1005.c, geo_convert.c).
+- Da verificare sulla base di prova: con il traffico vero sul 4G (prima, per il ripristino dell'interfaccia di WireGuard, passava quasi tutto dal WiFi) la seriale del modem ha dato "Rx Break" e il CMUX si e' riavviato centinaia di volte, fino alla caduta del 4G. Compare anche subito dopo l'avvio, con il modem acceso da ore e riavviato 8 volte nella giornata: da ripetere dopo aver tolto corrente.
 
 ## 1.35.2
 

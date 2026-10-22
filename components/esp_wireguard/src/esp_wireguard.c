@@ -272,7 +272,12 @@ static esp_err_t tcpip_disconnect(void *arg)
     wireguardif_shutdown(ctx->netif);
     netif_remove(ctx->netif);
     wireguardif_fini(ctx->netif);
-    netif_set_default(ctx->netif_default);
+    // EVONETRTK: niente netif_set_default(ctx->netif_default). Il tunnel non
+    // diventa mai l'interfaccia predefinita (esp_wireguard_set_default non si
+    // usa), e rimettere quella salvata all'avvio del tunnel, dopo un cambio
+    // di rete, riportava il traffico sul WiFi con il 4G appena tornato o su
+    // un 4G appena caduto. L'interfaccia predefinita la sceglie ESP-IDF
+    // (priorita' delle reti).
     ctx->netif = NULL;
     return ESP_OK;
 }

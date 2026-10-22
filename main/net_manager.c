@@ -76,6 +76,7 @@ static void peek_network_mode(const app_settings_t *s, void *ctx)
 #define NET_PROBE_FAILS         3
 #define WIFI_HOLD_US            (15LL * 60 * 1000000)  // WiFi senza Internet: SIM per almeno 15 minuti
 #define CF_CELL_RETRY_US        (2LL * 60 * 1000000)   // 4G con riserva: 4G non disponibile, si riprova dopo
+#define CF_CELL_RETRY_MAX_US    (30LL * 60 * 1000000)  // idem con il WiFi funzionante: attesa massima
 #define CF_WIFI_RETRY_US        (5LL * 60 * 1000000)   // 4G con riserva: WiFi caduto, si riprova dopo
 #define CF_WIFI_RETRY_FAST_US   (30LL * 1000000)       // idem, ma con il 4G giu': nessuna rete, si riprova presto
 #define ETH_ONLY_AP_AFTER_US    (3LL * 60 * 1000000)   // "Solo Ethernet" senza rete: AP di emergenza
@@ -249,6 +250,7 @@ static void net_manager_task(void *arg)
     int cell_dead = 0;              // collegamenti cellulari "senza Internet" di fila
     int64_t eth_probe_next_us = 0;  // prossimo controllo di Internet via cavo
     int64_t cf_cell_retry_us = 0;   // "4G con WiFi di riserva": prossimo tentativo del 4G
+    int64_t cf_cell_wait_us = CF_CELL_RETRY_US; // idem: attesa crescente con il WiFi funzionante
     int64_t cf_wifi_retry_us = 0;   // idem: prossimo tentativo del WiFi caduto
     bool cf_keep_check = false;     // idem: tentativo del 4G dal WiFi in uso, il controllo continua
     bool cf_wifi_dead = false;      // idem: il controllo ha trovato il WiFi senza Internet
@@ -313,6 +315,7 @@ static void net_manager_task(void *arg)
                         cell_fail = 0;
                         cf_keep_check = false;
                         cf_wifi_dead = false;
+                        cf_cell_wait_us = CF_CELL_RETRY_US;
                         ESP_LOGI(TAG, "Rete attiva: cellulare (WiFi %s)", wifi_link_is_connected() ? "di riserva" : "assente");
                         status_set_net(NET_STATUS_CELLULAR);
                         net_check_reset(&check);
@@ -320,7 +323,17 @@ static void net_manager_task(void *arg)
                         cell_since = xTaskGetTickCount();
                         break;
                     }
-                    cf_cell_retry_us = esp_timer_get_time() + CF_CELL_RETRY_US;
+                    // Con il WiFi che porta a Internet il 4G e' solo una
+                    // preferenza: tentativi sempre piu' radi (2, 4, 8, 16, 30
+                    // minuti), e con loro i riavvii del modem (ogni 3
+                    // fallimenti). Prima, con SIM senza credito, APN sbagliato
+                    // o senza copertura, il modem si riavviava ogni ~16 minuti
+                    // per sempre. Senza WiFi resta ogni 2 minuti.
+                    if (!wifi_link_is_connected() || cf_wifi_dead) {
+                        cf_cell_wait_us = CF_CELL_RETRY_US;
+                    }
+                    cf_cell_retry_us = esp_timer_get_time() + cf_cell_wait_us;
+                    cf_cell_wait_us = cf_cell_wait_us * 2 > CF_CELL_RETRY_MAX_US ? CF_CELL_RETRY_MAX_US : cf_cell_wait_us * 2;
                     if (++cell_fail >= 3 &&
                         (!modem_reset_done || xTaskGetTickCount() - modem_reset_at >= pdMS_TO_TICKS(10 * 60 * 1000))) {
                         ESP_LOGW(TAG, "Rete cellulare: %d tentativi falliti di fila, riavvio del modem", cell_fail);
@@ -351,7 +364,7 @@ static void net_manager_task(void *arg)
                     // non arriverebbe mai.
                     if (!cf_keep_check) {
                         ESP_LOGI(TAG, "Rete attiva: WiFi (4G non disponibile, nuovo tentativo tra %d s)",
-                                 (int) (CF_CELL_RETRY_US / 1000000));
+                                 (int) ((cf_cell_retry_us - esp_timer_get_time()) / 1000000));
                         net_check_reset(&check);
                     }
                     cf_keep_check = false;

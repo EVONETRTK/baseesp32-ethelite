@@ -10,7 +10,7 @@
 // Input: [opzioni][risposta del caster]. Opzioni: bit 0-2 funzione provata,
 // bit 3 campi delle impostazioni lunghi al massimo, bit 4 recv a pezzi da
 // 1..8 byte, bit 5 send che fallisce.
-// SORGENTI: ntrip_client.c rtcm3_stats.c base_auto.c
+// SORGENTI: ntrip_client.c rtcm3_stats.c base_auto.c base_check.c rtcm3_1005.c geo_convert.c
 #include "motore.h"
 #include "aiuti.h"
 #include "../../../main/ntrip_rover_client.c"
