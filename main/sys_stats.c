@@ -5,6 +5,7 @@
 #include "settings.h"
 #include "gnss_ubx.h"
 #include "ota_update.h"
+#include "auto_update.h"
 #include "diag_log.h"
 #include "data_usage.h"
 
@@ -289,6 +290,7 @@ static void sys_monitor_task(void *arg)
             }
         }
         ota_update_confirm_tick();
+        auto_update_tick();
         data_usage_tick();
         if (n == 0 || wall <= 0) {
             continue; // array troppo piccolo: non dovrebbe succedere

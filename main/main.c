@@ -336,8 +336,11 @@ void app_main(void)
         // 6144 (era 4608): oltre alla lettura, parsing NMEA con i decimali,
         // inoltro del GGA al caster e NMEA in UDP. Restavano 420 byte liberi
         // (collaudo del rover del 05/10/2026).
-        xTaskCreate(gnss_nmea_reader_task, "nmea_reader", 6144,
-                    (void *)(intptr_t) s_gnss_uart_num, 6, NULL);
+        // Stack in PSRAM (22/10/2026): legge, analizza e inoltra, non scrive
+        // mai in flash (data_usage conta soltanto, salva sys_mon; la misura
+        // della base salva nei suoi task). 6 KB di RAM interna in meno.
+        task_create_psram(gnss_nmea_reader_task, "nmea_reader", 6144,
+                          (void *)(intptr_t) s_gnss_uart_num, 6);
         if (settings_p->ble_nmea_enable) {
             // Dal task main (stack interno: l'avvio del controller legge la
             // calibrazione della radio dalla flash). Se fallisce, lo stato
@@ -350,7 +353,9 @@ void app_main(void)
         base_selfpos_start(gnss_detect_effective(settings_p->gnss_chip) == GNSS_CHIP_UBLOX && license_has(LIC_BASE),
                            settings_p->base_position_mode == BASE_POSITION_MANUAL);
         rtcm_stream = xStreamBufferCreate(4096, 1);
-        xTaskCreate(gnss_uart_task, "gnss_uart", 5120, NULL, 10, NULL); // 5 KB: con 4 ne restavano ~600 (misurato)
+        // 5 KB: con 4 ne restavano ~600 (misurato). Stack in PSRAM: solo
+        // lettura e inoltro (code e stream), mai scritture in flash.
+        task_create_psram(gnss_uart_task, "gnss_uart", 5120, NULL, 10);
     }
 
     boot_guard_stage(BOOT_STAGE_SERVICES);

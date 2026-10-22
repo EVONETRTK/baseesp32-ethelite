@@ -8,6 +8,12 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.5
+
+- **Piu' memoria libera** (RAM interna): sul rover con l'uscita Bluetooth il minimo libero passa da ~15 KB a ~30-33 KB anche con le pagine pesanti del pannello. Il task dell'aggiornamento automatico (10 KB di stack) nasce solo quando la funzione e' accesa (auto_update_tick dal task di sorveglianza): spenta, il predefinito, restava in memoria senza fare niente. Gli stack dei task che leggono il ricevitore (nmea_reader sul rover, 6 KB; gnss_uart sulla base, 5 KB) passano in PSRAM: non scrivono mai in flash. I buffer fissi di ricezione WiFi restano a 10 (con 6, nella 1.19.86, crash del driver WiFi).
+- **Seriale del modem in tempesta di errori**: con questo modem il CMUX a volte parte "storto" (prove del 22/10/2026: 449, 2488, 2 e 149 ripartenze in quattro avvii a caldo di fila; dopo un avvio a freddo nessuna) e il 4G restava su senza portare dati per 2-5 minuti, con il rover senza correzioni anche con il WiFi disponibile. Ora cellular_link conta gli errori della seriale (esp_modem_set_error_cb) e net_manager richiude il 4G se sono piu' di 30 in 30 s: in "4G con WiFi di riserva" il traffico passa al WiFi in meno di un secondo e il 4G si riprova dopo 2 minuti; i casi contano per il riavvio del modem come il 4G senza Internet. Provato: tempesta riconosciuta in 30 s, WiFi subito, 4G pulito al tentativo dopo. Il riavvio del modem con AT+CFUN=1,1 a ogni avvio a caldo e' stato provato e scartato (non aiutava).
+- Manuale: nessuna modifica necessaria.
+
 ## 1.35.4
 
 Revisione del codice accumulato in centinaia di versioni: routine scritte piu' volte e codice rimasto inutile. Corretti i bug nati da copie che si erano separate:

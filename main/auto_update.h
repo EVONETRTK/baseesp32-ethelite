@@ -20,3 +20,7 @@
 // Va chiamata una sola volta all'avvio; non fa nulla finche' l'utente non
 // abilita esplicitamente la funzione dalla UI web.
 void auto_update_start(void);
+
+// Dal task di sorveglianza (ogni 5 s): crea il task solo quando la funzione
+// viene accesa, cosi' spenta non occupa 10 KB di RAM interna.
+void auto_update_tick(void);

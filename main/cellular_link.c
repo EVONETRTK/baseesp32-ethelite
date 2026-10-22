@@ -87,6 +87,19 @@ static void on_ppp_event(void *arg, esp_event_base_t event_base, int32_t event_i
     ESP_LOGD(TAG, "Evento stato PPP: %ld", (long) event_id);
 }
 
+// Errori della seriale del modem (Rx Break, FIFO piena...): a ognuno
+// esp_modem fa ripartire il CMUX e perde i dati in transito. Con questo
+// modem a volte il CMUX parte "storto" e ne fa decine al secondo: il 4G
+// resta su ma non porta dati per minuti (prove del 22/10/2026). net_manager
+// li conta e richiude il 4G (cellular_link_serial_errors).
+static volatile uint32_t s_serial_errors;
+
+static void on_terminal_error(esp_modem_terminal_error_t err)
+{
+    (void) err;
+    s_serial_errors++;
+}
+
 // Sequenza di accensione e pin confermati dal repository ufficiale
 // Xinyuan-LilyGO/LilyGo-Modem-Series (examples/ATdebug, utilities.h e
 // ATdebug.ino) per T-ETH-Elite + modulo SIM7600 (famiglia SIMCom intera:
@@ -367,6 +380,7 @@ bool cellular_link_init(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_GOT_IP, &on_ip_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_LOST_IP, &on_ip_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_event, NULL));
+    esp_modem_set_error_cb(s_dce, on_terminal_error);
 
     s_init_tried = true;
     s_inited = true;
@@ -484,6 +498,11 @@ void cellular_link_disconnect(void)
 bool cellular_link_is_connected(void)
 {
     return s_connected;
+}
+
+uint32_t cellular_link_serial_errors(void)
+{
+    return s_serial_errors;
 }
 
 bool cellular_link_get_signal(int *rssi_dbm)
@@ -955,6 +974,7 @@ bool cellular_link_init(void) { return false; }
 bool cellular_link_connect(void) { return false; }
 void cellular_link_disconnect(void) { }
 bool cellular_link_is_connected(void) { return false; }
+uint32_t cellular_link_serial_errors(void) { return 0; }
 bool cellular_link_get_signal(int *rssi_dbm) { return false; }
 bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_size,
                                       char *tech_out, size_t tech_out_size) { return false; }

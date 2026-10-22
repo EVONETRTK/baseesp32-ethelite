@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "modem_health.h"
 
@@ -20,6 +21,10 @@ bool cellular_link_connect(void);
 void cellular_link_disconnect(void);
 
 bool cellular_link_is_connected(void);
+
+// Errori della seriale del modem dall'avvio (ognuno fa ripartire il CMUX):
+// net_manager richiude il 4G se crescono troppo in fretta.
+uint32_t cellular_link_serial_errors(void);
 
 // Qualita' del segnale (comando AT+CSQ). rssi_dbm e' gia' convertito in
 // dBm dalla scala CSQ 0-31 (formula standard: -113 + 2*csq). Ritorna

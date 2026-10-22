@@ -234,6 +234,35 @@ static bool net_check_dead(net_check_t *c)
     return true;
 }
 
+// Errori della seriale del modem in 30 s oltre cui il 4G si richiude. In un
+// collegamento sano sono zero; con il CMUX partito "storto" decine al
+// secondo, e il 4G restava su senza portare dati per 2-5 minuti (fino al
+// timeout del PPP o al controllo di Internet), con il rover senza
+// correzioni anche con il WiFi disponibile (prove del 22/10/2026).
+#define CELL_SERIAL_ERR_WINDOW_US (30LL * 1000000)
+#define CELL_SERIAL_ERR_MAX       30
+
+static bool cell_serial_storm(int64_t now_us)
+{
+    static int64_t win_start_us;
+    static uint32_t win_base;
+    uint32_t errors = cellular_link_serial_errors();
+    if (win_start_us == 0 || now_us - win_start_us >= CELL_SERIAL_ERR_WINDOW_US) {
+        uint32_t delta = errors - win_base;
+        // Finestra vecchia (4G appena ricollegato dopo un po'): si riparte
+        // senza giudicare, gli errori del collegamento precedente non contano.
+        bool storm = win_start_us != 0 && now_us - win_start_us < 2 * CELL_SERIAL_ERR_WINDOW_US &&
+                     delta > CELL_SERIAL_ERR_MAX;
+        win_start_us = now_us;
+        win_base = errors;
+        if (storm) {
+            ESP_LOGW(TAG, "Seriale del modem instabile: %u errori in 30 s (CMUX ripartito di continuo)", (unsigned) delta);
+        }
+        return storm;
+    }
+    return false;
+}
+
 static void net_manager_task(void *arg)
 {
     active_link_t active = LINK_NONE;
@@ -515,11 +544,12 @@ static void net_manager_task(void *arg)
                 status_set_net(NET_STATUS_NONE);
                 active = LINK_NONE;
                 cf_cell_retry_us = now_us + CF_CELL_RETRY_US; // 4G con riserva: intanto il WiFi
-            } else if (net_check_dead(&check)) {
+            } else if (cell_serial_storm(now_us) || net_check_dead(&check)) {
                 // PPP "su" ma senza traffico (modem rimasto in sessione senza
-                // copertura): si richiude e si ricompone. I fallimenti
-                // contano per il riavvio del modem come quelli del collegamento.
-                ESP_LOGW(TAG, "Cellulare collegato ma senza Internet (caster irraggiungibile): richiudo e ricollego");
+                // copertura), o seriale del modem in tempesta di errori: si
+                // richiude e si ricompone. I fallimenti contano per il
+                // riavvio del modem come quelli del collegamento.
+                ESP_LOGW(TAG, "Cellulare collegato ma senza Internet o con la seriale instabile: richiudo e ricollego");
                 cellular_link_disconnect();
                 status_set_net(NET_STATUS_NONE);
                 active = LINK_NONE;

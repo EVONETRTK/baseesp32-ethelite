@@ -82,10 +82,29 @@ static void auto_update_task(void *arg)
     }
 }
 
-void auto_update_start(void)
+static bool s_started;
+
+// Il task nasce solo con l'aggiornamento automatico acceso: spento (il
+// predefinito) i suoi 10 KB di stack restavano in RAM interna senza fare
+// niente, e con Bluetooth, 4G e VPN il minimo libero scendeva a ~15 KB.
+// Acceso dal pannello: lo crea auto_update_tick() entro pochi secondi.
+void auto_update_tick(void)
 {
+    if (s_started) {
+        return;
+    }
+    auto_cfg_t c = { 0 };
+    settings_peek(peek_auto_cfg, &c);
+    if (!c.enable) {
+        return;
+    }
     // 10 KB: online_update_check() fa una richiesta HTTPS (handshake TLS)
     // con i buffer degli URL sullo stack; con 5 KB traboccava al primo
     // controllo automatico.
-    xTaskCreate(auto_update_task, "auto_update", 10240, NULL, 3, NULL);
+    s_started = xTaskCreate(auto_update_task, "auto_update", 10240, NULL, 3, NULL) == pdPASS;
+}
+
+void auto_update_start(void)
+{
+    auto_update_tick();
 }
