@@ -128,6 +128,17 @@ static void send_sourcetable(int sock, const app_settings_t *s, bool v2)
     send(sock, body, bl, 0);
 }
 
+static bool has_free_slot(void)
+{
+    bool free_slot = false;
+    xSemaphoreTake(s_clients_mutex, portMAX_DELAY);
+    for (int i = 0; i < MAX_CLIENTS && !free_slot; i++) {
+        free_slot = s_client_socks[i] < 0;
+    }
+    xSemaphoreGive(s_clients_mutex);
+    return free_slot;
+}
+
 static void send_simple(int sock, bool v2, const char *status, const char *extra)
 {
     char head[224];
@@ -152,7 +163,9 @@ static bool handle_handshake(int sock, const app_settings_t *s, bool *out_v2)
     int64_t deadline = esp_timer_get_time() + (int64_t) CLIENT_HANDSHAKE_TIMEOUT_S * 1000000;
     while (total < (int) sizeof(req) - 1) {
         int64_t left_us = deadline - esp_timer_get_time();
-        if (left_us <= 0) {
+        // Sotto il millisecondo lwIP arrotonda il timeout a 0, che vuol dire
+        // "aspetta per sempre": il task del caster locale restava fermo.
+        if (left_us < 1000) {
             return false;
         }
         struct timeval tv;
@@ -229,6 +242,16 @@ static bool handle_handshake(int sock, const app_settings_t *s, bool *out_v2)
         }
     }
 
+    // Posti pieni: si dice subito al rover, invece di "200 OK" seguito dalla
+    // chiusura (il rover credeva di essere collegato e riprovava senza sapere
+    // perche', collaudo del 22/10/2026). I posti si liberano solo in altri
+    // task e si occupano solo qui: se ora ce n'e' uno, resta libero.
+    if (!has_free_slot()) {
+        ESP_LOGW(TAG, "Troppi rover gia' collegati (max %d), nuova connessione rifiutata", MAX_CLIENTS);
+        send_simple(sock, v2, "503 Service Unavailable", NULL);
+        return false;
+    }
+
     const char *resp = v2 ? "HTTP/1.1 200 OK\r\nNtrip-Version: Ntrip/2.0\r\nServer: EVONETRTK\r\n"
                             "Content-Type: gnss/data\r\nCache-Control: no-store\r\nTransfer-Encoding: chunked\r\n"
                             "Connection: close\r\n\r\n"
@@ -290,6 +313,7 @@ static void listen_task(void *arg)
         socklen_t client_len = sizeof(client_addr);
         int client_sock = accept(listen_sock, (struct sockaddr *) &client_addr, &client_len);
         if (client_sock < 0) {
+            vTaskDelay(pdMS_TO_TICKS(100)); // un accept() che fallisse sempre non deve far girare a vuoto il task
             continue;
         }
 
@@ -380,7 +404,11 @@ void ntrip_caster_server_feed(const uint8_t *data, size_t len)
     // broadcast_task in ritardo) i byte in eccesso vengono scartati
     // invece di rallentare il chiamante (gnss_uart_task, sul percorso
     // critico verso il caster esterno).
-    xStreamBufferSend(s_feed_stream, data, len, 0);
+    // Solo frame interi: un pezzo di frame arrivava ai rover come trama
+    // rovinata (scartata dal CRC), come gia' fa main.c verso il caster.
+    if (xStreamBufferSpacesAvailable(s_feed_stream) >= len) {
+        xStreamBufferSend(s_feed_stream, data, len, 0);
+    }
 }
 
 size_t ntrip_caster_server_get_client_count(void)

@@ -18,7 +18,7 @@ typedef enum {
 typedef struct {
     bool connected;
     int64_t connected_since_us;  // 0 se non connesso
-    int64_t last_disconnect_us;  // 0 se mai disconnesso dopo un avvio pulito
+    int64_t last_disconnect_us;  // inizio dell'ultima caduta (non dell'ultimo tentativo); 0 se mai caduto dall'avvio
     uint32_t connect_count;      // quante volte si e' connesso con successo dal boot (utile per notare instabilita')
     char last_error[80];         // motivo dell'ultimo errore/disconnessione, stringa vuota se nessuno finora
 } ntrip_conn_status_t;

@@ -132,9 +132,17 @@ void status_ntrip_note_disconnected(const char *reason)
         o->reason[sizeof(o->reason) - 1] = '\0';
         s_outage_n++;
     }
+    // Inizio della caduta: solo al passaggio da collegato (o al primo
+    // fallimento dall'avvio), non a ogni tentativo fallito. Prima si
+    // aggiornava a ogni tentativo (almeno uno al minuto): il riavvio di
+    // sicurezza "caster scollegato da 30 minuti", l'avviso via email/WhatsApp
+    // e il "scollegato da" del pannello non vedevano mai una caduta lunga
+    // (revisione del 22/10/2026).
+    if (s_ntrip.connected || s_ntrip.last_disconnect_us == 0) {
+        s_ntrip.last_disconnect_us = esp_timer_get_time();
+    }
     s_ntrip.connected = false;
     s_ntrip.connected_since_us = 0;
-    s_ntrip.last_disconnect_us = esp_timer_get_time();
     if (reason) {
         strncpy(s_ntrip.last_error, reason, sizeof(s_ntrip.last_error) - 1);
         s_ntrip.last_error[sizeof(s_ntrip.last_error) - 1] = '\0';

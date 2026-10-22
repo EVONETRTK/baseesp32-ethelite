@@ -580,13 +580,36 @@ bool sys_stats_test_fault(const char *what)
     return false;
 }
 
+// Riavvii di fila per "nessun RTCM dall'avvio" (memoria RTC: sopravvive ai
+// riavvii, non a un calo di corrente; valida solo con il segno giusto).
+#define NO_RTCM_MAGIC 0x4E525443u
+static RTC_NOINIT_ATTR uint32_t s_no_rtcm_magic;
+static RTC_NOINIT_ATTR uint32_t s_no_rtcm_restarts;
+
 static void safety_restart_check(int64_t now)
 {
     char why[96];
     if (!status_get_active_rover()) {
         int64_t last = status_get_last_rtcm_time_us();
+        if (s_no_rtcm_magic != NO_RTCM_MAGIC) {
+            s_no_rtcm_magic = NO_RTCM_MAGIC;
+            s_no_rtcm_restarts = 0;
+        }
+        if (last > 0) {
+            s_no_rtcm_restarts = 0;
+        }
         if (last > 0 && now - last > GUARD_GNSS_SILENT_US) {
             receiver_silent_restart("nessun dato RTCM dal ricevitore da 10 minuti");
+        }
+        // Mai un RTCM in questo avvio, da 10 minuti: ricevitore non ancora
+        // acceso quando e' partito l'ESP (ritorno della corrente), velocita'
+        // della seriale non riconosciuta, configurazione persa. Prima nessun
+        // recupero: la base restava muta finche' qualcuno non la riavviava.
+        // Un solo riavvio di fila, poi si aspetta (ricevitore assente o
+        // guasto: niente riavvii ogni 10 minuti per sempre).
+        if (last == 0 && now > GUARD_GNSS_SILENT_US && s_no_rtcm_restarts < 1) {
+            s_no_rtcm_restarts++;
+            receiver_silent_restart("nessun dato RTCM dal ricevitore dall'avvio (10 minuti)");
         }
     } else {
         gnss_fix_status_t fx = gnss_fix_get_status();

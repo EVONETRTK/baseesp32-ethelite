@@ -448,7 +448,7 @@ static void alerts_task(void *arg)
         if (!base_pkg) {
             already_alerted = false;
         } else if (!ntrip.connected) {
-            if (ntrip.last_disconnect_us <= 0) {
+            if (ntrip.last_disconnect_us <= 0 || ntrip.connect_count == 0) {
                 // mai stato connesso dal boot: non e' una disconnessione da segnalare
             } else {
                 int down_min = (int) ((esp_timer_get_time() - ntrip.last_disconnect_us) / 1000000 / 60);

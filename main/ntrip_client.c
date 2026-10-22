@@ -7,6 +7,7 @@
 
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_system.h"
 
 #include "ntrip_client.h"
@@ -255,7 +256,7 @@ void ntrip_client_task(void *arg)
             retry_ms = changed ? 5000 : ((retry_ms * 2 > 60000) ? 60000 : retry_ms * 2);
             continue;
         }
-        retry_ms = 5000;
+        int64_t session_start_us = esp_timer_get_time();
         s_active_sock = sock;
         // Quanto accumulato durante l'handshake e' gia' vecchio: via.
         while (xStreamBufferReceive(rtcm_stream, buf, sizeof(buf), 0) > 0) {
@@ -277,6 +278,20 @@ void ntrip_client_task(void *arg)
             }
         }
         close_active_sock(sock);
-        discard_for_ms(rtcm_stream, buf, sizeof(buf), 2000);
+        if (esp_timer_get_time() - session_start_us >= 60LL * 1000000) {
+            // Sessione durata: caduta normale, si riprova quasi subito.
+            retry_ms = 5000;
+            discard_for_ms(rtcm_stream, buf, sizeof(buf), 2000);
+        } else {
+            // Il caster accetta e poi chiude subito (mountpoint ancora tenuto
+            // dalla sessione vecchia, caster che non va): attesa crescente
+            // come per i rifiuti. Prima si ricollegava ogni 2-3 s per sempre,
+            // con DNS, TCP e handshake ogni volta sulla SIM.
+            for (uint32_t waited = 0; waited < retry_ms; waited += 1000) {
+                discard_for_ms(rtcm_stream, buf, sizeof(buf), 1000);
+                sys_stats_heartbeat(HB_NTRIP);
+            }
+            retry_ms = (retry_ms * 2 > 60000) ? 60000 : retry_ms * 2;
+        }
     }
 }

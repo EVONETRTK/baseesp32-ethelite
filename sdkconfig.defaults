@@ -96,6 +96,12 @@ CONFIG_LWIP_SO_LINGER=y
 # via I2C fallivano (errori all'avvio visti sul dispositivo, 1.19.68).
 CONFIG_I2C_ISR_IRAM_SAFE=y
 
+# Stesso motivo per le seriali (ricevitore GNSS in UART, modem 4G): durante
+# le scritture in flash la FIFO di 128 byte a 115200 si riempie in ~11 ms e
+# i byte andavano persi (trame RTCM scartate dal CRC, CMUX del modem
+# rovinato). Revisione del 22/10/2026.
+CONFIG_UART_ISR_IN_IRAM=y
+
 # Settore FATFS da 512 byte (era 4096): le microSD usano sempre settori da
 # 512, e con 4096 ogni montaggio riservava ~4 KB in piu' di buffer (piu'
 # altri ~3,5 KB per ogni file aperto). Con il pannello molto usato il

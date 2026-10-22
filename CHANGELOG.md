@@ -25,6 +25,17 @@ Tolti: ppp_log_open_for_read/close_for_read (superate dal download a blocchi), i
 
 Restano doppi, di proposito per ora (toccano rete, aggiornamenti e impostazioni sulle basi gia' sul campo): montaggio della microSD (7 copie), apertura delle connessioni TCP (5), scrittura delle impostazioni in NVS (3), i due motori di aggiornamento.
 
+Controllo di qualita' in modalita' base (base di prova, 22/10/2026: 30 minuti di sorveglianza, pannello sotto carico, rover in rete sul caster locale, revisione del percorso ricevitore -> caster):
+
+- **Caster scollegato a lungo**: l'ora della caduta si aggiornava a ogni tentativo fallito (almeno uno al minuto), cosi' il riavvio di sicurezza dopo 30 minuti, l'avviso via email/WhatsApp e il "scollegato da" del pannello non vedevano mai una caduta lunga. Ora vale l'inizio della caduta (status.c). L'avviso resta solo se il caster era stato collegato in questo avvio.
+- **Nessun RTCM dall'avvio**: se il ricevitore non manda correzioni per 10 minuti fin dall'accensione (ricevitore partito dopo l'ESP al ritorno della corrente, seriale non riconosciuta) la base si riavvia una volta, insieme al ricevitore u-blox; prima restava muta finche' qualcuno non la riavviava. Un solo riavvio di fila (memoria RTC): con il ricevitore assente niente riavvii ogni 10 minuti.
+- **Caster che accetta e chiude subito**: la base si ricollegava ogni 2-3 s per sempre; ora attesa crescente fino a 60 s se la sessione dura meno di un minuto.
+- **Caster locale (rover in rete)**: oltre i 4 rover rispondeva "200 OK" e poi chiudeva; ora "503". Un tempo residuo sotto il millisecondo durante la presentazione del rover diventava "aspetta per sempre" e fermava il caster locale. Solo trame intere verso i rover (prima una trama a meta' quando il buffer era quasi pieno). Pausa se accept() fallisce.
+- **Seriali con l'interrupt in IRAM** (CONFIG_UART_ISR_IN_IRAM, come gia' l'I2C): durante le scritture in flash la FIFO della seriale si riempiva in ~11 ms e si perdevano byte del ricevitore in UART e del modem.
+- Controllo dello spostamento: una soluzione NaN restava come punto di partenza e lo bloccava fino al riavvio.
+- Provati sulla base: pannello (17 pagine, 4 pannelli insieme per 2 minuti), caster locale con 6 rover (4 serviti, 0 CRC errati; 5 e 6 con 503), 30 minuti senza cadute ne' perdite di memoria.
+- Da fare (verificati, non corretti): in posizione fissa nessuno confronta il 1005 trasmesso con le coordinate impostate; dopo un riavvio del solo ricevitore u-blox servono fino a 10 minuti (e un nuovo survey-in) prima del recupero; i dati grezzi si segnano attivi anche senza conferma del ricevitore; il controllo dello spostamento con le coordinate del survey-in prese come ETRF2000 ha uno scarto fisso di circa 0,9 m.
+
 ## 1.35.3
 
 Controllo di qualita' sulla 1.35.x (basi lontane, non devono restare irraggiungibili):

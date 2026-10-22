@@ -514,7 +514,7 @@ static int spp(double tow, int nobs, double out[3])
             if (!first) {
                 double d[3] = { sx - x[0], sy - x[1], sz - x[2] }, enu[3];
                 to_enu(geo, d, enu);
-                double el = asin(enu[2] / rho), az = atan2(enu[0], enu[1]);
+                double el = asin(fmax(-1.0, fmin(1.0, enu[2] / rho))), az = atan2(enu[0], enu[1]);
                 if (el < ELMASK_DEG * SC_PI / 180.0) {
                     continue;
                 }
@@ -561,7 +561,9 @@ static int spp(double tow, int nobs, double out[3])
             break;
         }
     }
-    if (used == 0 || sqrt(sumsq / used) > 10.0) {
+    // !(<= 10) scarta anche NaN: una soluzione NaN restava in s_x come punto
+    // di partenza e il controllo non trovava piu' niente fino al riavvio.
+    if (used == 0 || !(sqrt(sumsq / used) <= 10.0) || !isfinite(x[0]) || !isfinite(x[1]) || !isfinite(x[2])) {
         return 0;
     }
     s_x[0] = x[0];
