@@ -93,11 +93,20 @@ static void on_ppp_event(void *arg, esp_event_base_t event_base, int32_t event_i
 // resta su ma non porta dati per minuti (prove del 22/10/2026). net_manager
 // li conta e richiude il 4G (cellular_link_serial_errors).
 static volatile uint32_t s_serial_errors;
+// Per tipo: [0] FIFO o buffer pieni (la scheda non legge in tempo), [1] Rx
+// Break o errore di formato (linea a zero troppo a lungo, velocita' o
+// disturbo elettrico), [2] parita'.
+static volatile uint32_t s_serial_err_type[3];
 
 static void on_terminal_error(esp_modem_terminal_error_t err)
 {
-    (void) err;
     s_serial_errors++;
+    switch (err) {
+    case ESP_MODEM_TERMINAL_BUFFER_OVERFLOW:         s_serial_err_type[0]++; break;
+    case ESP_MODEM_TERMINAL_UNEXPECTED_CONTROL_FLOW: s_serial_err_type[1]++; break;
+    case ESP_MODEM_TERMINAL_CHECKSUM_ERROR:          s_serial_err_type[2]++; break;
+    default: break;
+    }
 }
 
 // Sequenza di accensione e pin confermati dal repository ufficiale
@@ -414,6 +423,17 @@ static bool connect_inner(void)
     xEventGroupClearBits(s_events, CELLULAR_CONNECTED_BIT);
     s_data_no_cmux = false; // qui il modem e' in modalita' comando
 
+    // GPS interno del SIM7600 (non usato dal firmware): spento a ogni
+    // collegamento. Acceso (dagli esempi LilyGO, l'impostazione resta nel
+    // modem) manda dati una volta al secondo e puo' disturbare la seriale.
+    if (!s_is_sim868) {
+        char gps[AT_RESP_MAX] = {0};
+        if (esp_modem_at(s_dce, "AT+CGPS?", gps, 2000) == ESP_OK) {
+            ESP_LOGI(TAG, "GPS del modem: %s", gps);
+        }
+        esp_modem_at(s_dce, "AT+CGPS=0", gps, 3000);
+    }
+
     int rssi_csq = 0, ber = 0;
     if (esp_modem_get_signal_quality(s_dce, &rssi_csq, &ber) == ESP_OK) {
         ESP_LOGI(TAG, "Segnale: AT+CSQ rssi=%d (99=sconosciuto/nessuna copertura) ber=%d", rssi_csq, ber);
@@ -498,6 +518,13 @@ void cellular_link_disconnect(void)
 bool cellular_link_is_connected(void)
 {
     return s_connected;
+}
+
+void cellular_link_serial_error_counts(uint32_t out[3])
+{
+    for (int i = 0; i < 3; i++) {
+        out[i] = s_serial_err_type[i];
+    }
 }
 
 uint32_t cellular_link_serial_errors(void)
@@ -975,6 +1002,7 @@ bool cellular_link_connect(void) { return false; }
 void cellular_link_disconnect(void) { }
 bool cellular_link_is_connected(void) { return false; }
 uint32_t cellular_link_serial_errors(void) { return 0; }
+void cellular_link_serial_error_counts(uint32_t out[3]) { out[0] = out[1] = out[2] = 0; }
 bool cellular_link_get_signal(int *rssi_dbm) { return false; }
 bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_size,
                                       char *tech_out, size_t tech_out_size) { return false; }

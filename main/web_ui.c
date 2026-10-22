@@ -1089,6 +1089,18 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         if (st.modem_silent) {
             cJSON_AddNumberToObject(root, "modem_silent_s", (double) ((esp_timer_get_time() - st.modem_silent_us) / 1000000));
         }
+        {
+            // Errori della seriale del modem dall'avvio, per tipo: diagnosi a
+            // distanza delle "tempeste" del CMUX (vedi cellular_link.c).
+            uint32_t se[3];
+            cellular_link_serial_error_counts(se);
+            if (se[0] || se[1] || se[2]) {
+                cJSON *e = cJSON_AddObjectToObject(root, "modem_serial_errors");
+                cJSON_AddNumberToObject(e, "overflow", se[0]);
+                cJSON_AddNumberToObject(e, "break_frame", se[1]);
+                cJSON_AddNumberToObject(e, "parity", se[2]);
+            }
+        }
         if (st.health_valid) {
             const modem_health_t *mh = &st.health;
             cJSON *m = cJSON_AddObjectToObject(root, "modem");

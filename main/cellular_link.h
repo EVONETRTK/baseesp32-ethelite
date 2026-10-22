@@ -25,6 +25,8 @@ bool cellular_link_is_connected(void);
 // Errori della seriale del modem dall'avvio (ognuno fa ripartire il CMUX):
 // net_manager richiude il 4G se crescono troppo in fretta.
 uint32_t cellular_link_serial_errors(void);
+// Stessi errori per tipo: [0] FIFO o buffer pieni, [1] Rx Break o formato, [2] parita'.
+void cellular_link_serial_error_counts(uint32_t out[3]);
 
 // Qualita' del segnale (comando AT+CSQ). rssi_dbm e' gia' convertito in
 // dBm dalla scala CSQ 0-31 (formula standard: -113 + 2*csq). Ritorna

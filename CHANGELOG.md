@@ -8,6 +8,14 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.6
+
+- **Trovata la causa dei blocchi del 4G** (CMUX che ripartiva di continuo, 4G su senza dati, modem "che non risponde", visti dal 20/10/2026): sulla linea dal modem all'ESP32 (GPIO4) arrivava un disturbo di circa 1 al secondo, tutto di tipo "Rx Break / errore di formato". Escluse una per una, con prove sulla base di prova del 22/10/2026: stato del modem dopo i riavvii a caldo (AT+CFUN=1,1 non serviva), PPS dello ZED (spento e confermato, disturbo invariato), GPS dello shield (DIP gia' su OFF), GPS interno del SIM7600 (+CGPS: 0,1, gia' spento). **Togliendo la HAT dello ZED-F9P il disturbo spariva.** Con il ricevitore in I2C le due seriali dello ZED non servono: ora sono spente (CFG-UART1-ENABLED e CFG-UART2-ENABLED a 0, gruppo "SERIALI dello ZED spente"). Con la HAT rimontata: zero errori, 4G stabile. Manuale (Hardware della base, collegamento I2C) aggiornato: per u-center si usa la USB della HAT.
+- Soglia della chiusura del 4G per errori della seriale (1.35.5) alzata da 30 a 150 in 30 s: con il disturbo di fondo di 1 al secondo la soglia di 30 chiudeva il 4G anche quando funzionava. Le tempeste vere fanno centinaia o migliaia di errori.
+- Errori della seriale del modem per tipo in /api/status (modem_serial_errors: overflow, break_frame, parity), per la diagnosi a distanza.
+- esp_modem 1.4.3 portato dentro il progetto (components/esp_modem, LEGGIMI-EVONETRTK.md): un "Rx Break" o un errore di formato non fa piu' ripartire il CMUX, che controlla gia' ogni trama e si riallinea da solo. Difesa per schede con disturbi simili.
+- Al collegamento del 4G il GPS interno del SIM7600 (non usato) viene spento con AT+CGPS=0 e il suo stato scritto nel registro.
+
 ## 1.35.5
 
 - **Piu' memoria libera** (RAM interna): sul rover con l'uscita Bluetooth il minimo libero passa da ~15 KB a ~30-33 KB anche con le pagine pesanti del pannello. Il task dell'aggiornamento automatico (10 KB di stack) nasce solo quando la funzione e' accesa (auto_update_tick dal task di sorveglianza): spenta, il predefinito, restava in memoria senza fare niente. Gli stack dei task che leggono il ricevitore (nmea_reader sul rover, 6 KB; gnss_uart sulla base, 5 KB) passano in PSRAM: non scrivono mai in flash. I buffer fissi di ricezione WiFi restano a 10 (con 6, nella 1.19.86, crash del driver WiFi).

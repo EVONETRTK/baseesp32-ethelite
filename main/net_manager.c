@@ -240,7 +240,7 @@ static bool net_check_dead(net_check_t *c)
 // timeout del PPP o al controllo di Internet), con il rover senza
 // correzioni anche con il WiFi disponibile (prove del 22/10/2026).
 #define CELL_SERIAL_ERR_WINDOW_US (30LL * 1000000)
-#define CELL_SERIAL_ERR_MAX       30
+#define CELL_SERIAL_ERR_MAX       150 // 5 al secondo: su alcune schede c'e' un disturbo di fondo di ~1 al secondo
 
 static bool cell_serial_storm(int64_t now_us)
 {
