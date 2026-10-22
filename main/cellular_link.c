@@ -6,6 +6,7 @@
 
 #include "sdkconfig.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_netif.h"
 #include "esp_event.h"
 
@@ -44,6 +45,12 @@ static volatile bool s_init_tried; // primo avvio del modem concluso (riuscito o
 // "non presente"). Con questo flag segnale e operatore vengono dalla cache
 // letta prima di entrare in modalita' dati, e i comandi SIM falliscono subito.
 static volatile bool s_data_no_cmux;
+// net_manager sta collegando, scollegando o riavviando il modem: esp_modem
+// cambia modalita' (CMUX, dati, comandi) senza il blocco dei comandi AT, e un
+// comando di un altro task (salute ogni 2 minuti, SIM, pannello, OLED) in
+// quel momento poteva far fallire il cambio. Come s_data_no_cmux: valori
+// dalla cache, comandi SIM rimandati, modem considerato presente.
+static volatile bool s_busy;
 static volatile bool s_sig_cache_ok;
 static volatile int s_sig_cache_dbm;
 static char s_op_cache[32];
@@ -105,6 +112,39 @@ static void on_ppp_event(void *arg, esp_event_base_t event_base, int32_t event_i
 // (riavvio dell'ESP con il 4G attivo): si manda l'apertura del canale di
 // controllo (SABM su DLCI 0, 3GPP 27.010 modo base) e, se risponde con un
 // frame CMUX, la chiusura del multiplexer (CLD), cosi' torna ai comandi AT.
+// "AT" sulla seriale, tries volte: true con una risposta "OK" su una riga.
+static bool probe_at(uart_port_t port, uint8_t *buf, size_t size, int tries)
+{
+    for (int i = 0; i < tries; i++) {
+        uart_flush_input(port);
+        uart_write_bytes(port, "AT\r", 3);
+        int n = uart_read_bytes(port, buf, size - 1, pdMS_TO_TICKS(400));
+        buf[n > 0 ? n : 0] = '\0';
+        if (n > 0 && strstr((const char *) buf, "OK\r") != NULL) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Risposta del modem al SABM sul canale 0: UA (accettato) o DM (rifiutato),
+// con o senza bit P/F; entrambe vogliono dire multiplexer attivo. Prima
+// bastava un byte 0xF9 qualunque, che puo' venire da disturbi sulla linea
+// di un modem spento (e allora non si accendeva).
+static bool cmux_reply(const uint8_t *b, size_t n)
+{
+    for (size_t i = 0; i + 2 < n; i++) {
+        if (b[i] != 0xF9 || (b[i + 1] != 0x03 && b[i + 1] != 0x01)) {
+            continue;
+        }
+        uint8_t c = b[i + 2] & ~0x10; // senza P/F
+        if (c == 0x63 || c == 0x0F) { // UA, DM
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool modem_already_on(void)
 {
     const uart_port_t port = CONFIG_BASEESP32_CELLULAR_UART_NUM;
@@ -123,25 +163,46 @@ static bool modem_already_on(void)
     uart_set_pin(port, CONFIG_BASEESP32_CELLULAR_UART_TX_PIN, CONFIG_BASEESP32_CELLULAR_UART_RX_PIN,
                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     static uint8_t buf[128];
-    bool on = false;
-    for (int i = 0; i < 2 && !on; i++) {
-        uart_flush_input(port);
-        uart_write_bytes(port, "AT\r", 3);
-        int n = uart_read_bytes(port, buf, sizeof(buf) - 1, pdMS_TO_TICKS(400));
-        buf[n > 0 ? n : 0] = '\0';
-        on = n > 0 && strstr((const char *) buf, "OK") != NULL;
-    }
+    bool on = probe_at(port, buf, sizeof(buf), 2);
     if (!on) {
         static const uint8_t sabm0[] = { 0xF9, 0x03, 0x3F, 0x01, 0x1C, 0xF9 };
         static const uint8_t cld[] = { 0xF9, 0x03, 0xEF, 0x05, 0xC3, 0x01, 0xF2, 0xF9 };
         uart_flush_input(port);
         uart_write_bytes(port, sabm0, sizeof(sabm0));
         int n = uart_read_bytes(port, buf, sizeof(buf), pdMS_TO_TICKS(400));
-        if (n > 0 && memchr(buf, 0xF9, (size_t) n)) {
+        if (n > 0 && cmux_reply(buf, (size_t) n)) {
             ESP_LOGI(TAG, "Modem acceso ma ancora in CMUX: chiudo il multiplexer");
             uart_write_bytes(port, cld, sizeof(cld));
             vTaskDelay(pdMS_TO_TICKS(1000));
             on = true;
+        }
+    }
+    if (!on) {
+        // Rimasto nel collegamento dati senza CMUX (SIM868, o SIM7600 che
+        // aveva rifiutato il CMUX): non risponde ne' all'AT ne' al SABM.
+        // Uscita con "+++" (un secondo di silenzio prima e dopo) e chiusura.
+        vTaskDelay(pdMS_TO_TICKS(1100));
+        uart_write_bytes(port, "+++", 3);
+        vTaskDelay(pdMS_TO_TICKS(1100));
+        if (probe_at(port, buf, sizeof(buf), 1)) {
+            ESP_LOGI(TAG, "Modem acceso in collegamento dati: tornato ai comandi, chiudo la chiamata");
+            uart_write_bytes(port, "ATH\r", 4);
+            uart_read_bytes(port, buf, sizeof(buf), pdMS_TO_TICKS(1000));
+            on = true;
+        }
+    }
+    if (!on && esp_reset_reason() != ESP_RST_POWERON) {
+        // Riavvio dell'ESP senza togliere corrente (crash, watchdog, calo di
+        // tensione) poco dopo un'accensione del modem: il SIM7600 impiega
+        // fino a 15-20 s prima di rispondere. Un impulso ora lo spegnerebbe.
+        for (int i = 0; i < 25 && !on; i++) {
+            on = probe_at(port, buf, sizeof(buf), 1);
+            if (!on) {
+                vTaskDelay(pdMS_TO_TICKS(600));
+            }
+        }
+        if (on) {
+            ESP_LOGI(TAG, "Modem in avvio da prima del riavvio: ora risponde");
         }
     }
     uart_driver_delete(port);
@@ -314,7 +375,17 @@ bool cellular_link_init(void)
 
 static bool read_operator(char *operator_out, size_t operator_out_size, char *tech_out, size_t tech_out_size);
 
+static bool connect_inner(void);
+
 bool cellular_link_connect(void)
+{
+    s_busy = true;
+    bool ok = connect_inner();
+    s_busy = false;
+    return ok;
+}
+
+static bool connect_inner(void)
 {
     // Avvio del modem fallito (es. memoria al momento dell'avvio): si
     // ritenta qui, senza un nuovo impulso di accensione. Solo dopo che il
@@ -372,6 +443,11 @@ bool cellular_link_connect(void)
     }
     if (!cmux && esp_modem_set_mode(s_dce, ESP_MODEM_MODE_DATA) != ESP_OK) {
         ESP_LOGE(TAG, "Impossibile entrare in modalita' dati (PPP) - verificare SIM/APN/segnale");
+        // esp_modem segna il CMUX gia' prima della chiamata dati: se la
+        // chiamata fallisce resta "in CMUX" e ogni tentativo successivo
+        // falliva subito, fino al riavvio del modem (3 fallimenti, al massimo
+        // uno ogni 10 minuti). Si torna ai comandi AT.
+        esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
         return false;
     }
     // Da qui, senza CMUX, la seriale porta il PPP: niente AT da altri task
@@ -397,7 +473,9 @@ bool cellular_link_connect(void)
 void cellular_link_disconnect(void)
 {
     if (s_dce) {
+        s_busy = true;
         esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+        s_busy = false;
     }
     s_data_no_cmux = false;
     s_connected = false;
@@ -413,7 +491,7 @@ bool cellular_link_get_signal(int *rssi_dbm)
     if (!s_inited || !s_dce) {
         return false;
     }
-    if (s_data_no_cmux) {
+    if (s_data_no_cmux || s_busy) {
         // Niente AT durante il PPP senza CMUX: valore letto prima del collegamento.
         *rssi_dbm = s_sig_cache_dbm;
         return s_sig_cache_ok;
@@ -451,7 +529,7 @@ bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_siz
     if (!s_inited || !s_dce || operator_out_size == 0 || tech_out_size == 0) {
         return false;
     }
-    if (s_data_no_cmux) {
+    if (s_data_no_cmux || s_busy) {
         // Niente AT durante il PPP senza CMUX: valore letto prima del collegamento.
         if (!s_op_cache_ok) {
             return false;
@@ -578,7 +656,7 @@ static bool modem_cmd(const char *cmd, const char *until, char *out, size_t out_
     if (!s_inited || !s_dce || out_size < 2) {
         return false;
     }
-    if (s_data_no_cmux) {
+    if (s_data_no_cmux || s_busy) {
         // Collegamento dati senza CMUX: il comando finirebbe nel flusso PPP.
         out[0] = '\0';
         return false;
@@ -592,7 +670,17 @@ static bool modem_cmd(const char *cmd, const char *until, char *out, size_t out_
     return err == ESP_OK && s_cmd_found;
 }
 
+static bool reset_modem_inner(void);
+
 bool cellular_link_reset_modem(void)
+{
+    s_busy = true;
+    bool ok = reset_modem_inner();
+    s_busy = false;
+    return ok;
+}
+
+static bool reset_modem_inner(void)
 {
     if (!s_inited || !s_dce) {
         return false;
@@ -621,6 +709,16 @@ bool cellular_link_reset_modem(void)
     vTaskDelay(pdMS_TO_TICKS(s_is_sim868 ? 1500 : 3000));
     gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 0);
     vTaskDelay(pdMS_TO_TICKS(10000));
+    // Se era gia' spento, l'impulso lungo l'ha ACCESO: un altro impulso lo
+    // rispegnerebbe, e cosi' a ogni recupero (ogni 10 minuti, per sempre).
+    // Prima di riaccenderlo si guarda se risponde (avvio fino a 20 s).
+    for (int i = 0; i < 20; i++) {
+        if (esp_modem_at(s_dce, "AT", resp, 500) == ESP_OK) {
+            ESP_LOGW(TAG, "Modem acceso dall'impulso lungo (era spento): nessun altro impulso");
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
     modem_power_on(s_is_sim868, s_simcom_std, false);
     return true;
 #else
@@ -634,7 +732,7 @@ bool cellular_link_modem_present(void)
     if (!s_inited || !s_dce) {
         return false;
     }
-    if (s_data_no_cmux) {
+    if (s_data_no_cmux || s_busy) {
         return true; // collegamento dati attivo: il modem c'e', ma niente AT ora
     }
     char resp[AT_RESP_MAX];

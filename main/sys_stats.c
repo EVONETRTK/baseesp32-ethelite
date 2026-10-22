@@ -518,6 +518,7 @@ const char *sys_stats_last_reset(void)
 // una base senza ricevitore collegato (prove) non si riavvia di continuo.
 #define GUARD_GNSS_SILENT_US   (10LL * 60 * 1000000)
 #define GUARD_CASTER_DOWN_US   (30LL * 60 * 1000000)
+#define GUARD_NO_NET_US        (2LL * 60 * 60 * 1000000)
 
 static void peek_chip(const app_settings_t *s, void *ctx)
 {
@@ -607,6 +608,24 @@ static void safety_restart_check(int64_t now)
         now - nt.last_disconnect_us > GUARD_CASTER_DOWN_US) {
         snprintf(why, sizeof(why), "caster scollegato da 30 minuti (%.50s)", nt.last_error);
         sys_stats_restart_with_reason(why);
+    }
+    // Nessuna rete da 2 ore dopo averla avuta in questo avvio: il recupero
+    // di WiFi e 4G (riavvio del modem ogni 10 minuti) non ce l'ha fatta, e
+    // uno stato rimasto storto nei driver (seriale del modem, esp_modem, WiFi)
+    // lo toglie solo un riavvio. Mai in un avvio senza rete fin dall'inizio:
+    // niente riavvii in serie dove la copertura non c'e' proprio. Il modem
+    // gia' acceso non viene spento dal riavvio (dalla 1.35.2).
+    static bool net_seen;
+    static int64_t no_net_since;
+    if (net_up) {
+        net_seen = true;
+        no_net_since = 0;
+    } else if (net_seen) {
+        if (no_net_since == 0) {
+            no_net_since = now;
+        } else if (now - no_net_since > GUARD_NO_NET_US) {
+            sys_stats_restart_with_reason("nessuna rete (WiFi, 4G, cavo) da 2 ore");
+        }
     }
 }
 

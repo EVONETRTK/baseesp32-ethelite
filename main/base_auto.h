@@ -70,5 +70,30 @@ bool base_auto_coords_valid(double lat_deg, double lon_deg);
 base_auto_result_t base_auto_choose(const base_auto_entry_t *list, size_t count, bool pos_valid, double lat_deg,
                                     double lon_deg, const char *current, int quality, uint32_t no_rtk_s, bool first);
 
+// Basi escluse per un po' dalla scelta: elencate nella tabella del caster ma
+// mute (collegamento accettato e nessun dato, base spenta o guasta). Senza,
+// il rover restava per sempre sulla base piu' vicina senza correzioni anche
+// con la base iniziale funzionante (collaudo del 22/10/2026).
+#define BASE_AUTO_SILENT_SESSIONS 2     // collegamenti di fila senza un byte
+#define BASE_AUTO_BAN_S           3600  // esclusione di un'ora, poi si riprova
+#define BASE_AUTO_BANS            4
+
+typedef struct {
+    char name[BASE_AUTO_NAME_LEN];
+    int64_t until_us; // 0 = posto libero
+} base_auto_ban_t;
+
+// Esclude name fino a now_us + BASE_AUTO_BAN_S (rinnova se gia' escluso;
+// a elenco pieno sostituisce l'esclusione che scade prima).
+void base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us);
+bool base_auto_banned(const base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us);
+
+// Come base_auto_choose, ma le basi escluse (bans, puo' essere NULL) non
+// sono candidate; se e' esclusa quella in uso si sceglie la piu' vicina
+// delle altre senza attese ne' isteresi (mai in RTK).
+base_auto_result_t base_auto_choose_ex(const base_auto_entry_t *list, size_t count, bool pos_valid, double lat_deg,
+                                       double lon_deg, const char *current, int quality, uint32_t no_rtk_s, bool first,
+                                       const base_auto_ban_t *bans, int64_t now_us);
+
 // Descrizione breve del motivo, per il log.
 const char *base_auto_reason_str(base_auto_reason_t r);

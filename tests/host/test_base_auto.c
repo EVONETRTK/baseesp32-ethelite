@@ -6,6 +6,7 @@
 #include "../../main/base_auto.c"
 
 #include <math.h>
+#include <stdio.h>
 
 // Gradi di latitudine per percorrere km verso nord (1 grado = 111,195080 km,
 // riferimenti.py).
@@ -216,6 +217,73 @@ PROVA(nomi_lunghi_e_pari_distanza)
     VERIFICA(strlen(base_auto_reason_str(r.reason)) > 0);
 }
 
+// Collaudo del 22/10/2026: la base piu' vicina (0,4 km) era in tabella ma
+// muta; il rover ci tornava a ogni controllo e restava senza correzioni.
+PROVA(base_muta_esclusa_per_un_ora)
+{
+    const int64_t S = 1000000;
+    base_auto_ban_t bans[BASE_AUTO_BANS];
+    memset(bans, 0, sizeof(bans));
+    base_auto_entry_t l[] = {
+        voce("MUTA", 44.0 + KM_LAT(0.4), 11.0),
+        voce("PUGLIA", 44.0 + KM_LAT(36), 11.0),
+        voce("LONTANA", 44.0 + KM_LAT(80), 11.0),
+    };
+    int64_t t = 1000 * S;
+    base_auto_ban_add(bans, "MUTA", t);
+    VERIFICA(base_auto_banned(bans, "MUTA", t + 10 * S));
+    VERIFICA(!base_auto_banned(bans, "PUGLIA", t + 10 * S));
+
+    // Dalla base iniziale, senza RTK: non si torna sulla muta.
+    base_auto_result_t r = base_auto_choose_ex(l, 3, true, 44.0, 11.0, "PUGLIA", 1, 600, false, bans, t + 600 * S);
+    VERIFICA(!r.change);
+    VERIFICA_STR(r.mountpoint, "PUGLIA");
+    VERIFICA_INT(r.reason, BASE_AUTO_KEEP_NEAREST);
+
+    // Base in uso esclusa: si passa subito alla piu' vicina delle altre,
+    // anche entro i 30 s e l'isteresi, ma mai in RTK.
+    r = base_auto_choose_ex(l, 3, true, 44.0, 11.0, "MUTA", 1, 0, false, bans, t + 10 * S);
+    VERIFICA(r.change);
+    VERIFICA_STR(r.mountpoint, "PUGLIA");
+    r = base_auto_choose_ex(l, 3, true, 44.0, 11.0, "MUTA", 4, 0, false, bans, t + 10 * S);
+    VERIFICA(!r.change);
+
+    // Solo la muta in tabella: nessun candidato, nessun cambio.
+    r = base_auto_choose_ex(l, 1, true, 44.0, 11.0, "PUGLIA", 1, 600, false, bans, t + 10 * S);
+    VERIFICA(!r.change);
+    VERIFICA_INT(r.reason, BASE_AUTO_KEEP_NO_CANDIDATES);
+
+    // Dopo un'ora si riprova.
+    int64_t dopo = t + (int64_t) BASE_AUTO_BAN_S * S + S;
+    VERIFICA(!base_auto_banned(bans, "MUTA", dopo));
+    r = base_auto_choose_ex(l, 3, true, 44.0, 11.0, "PUGLIA", 1, 600, false, bans, dopo);
+    VERIFICA(r.change);
+    VERIFICA_STR(r.mountpoint, "MUTA");
+}
+
+PROVA(elenco_delle_escluse_pieno)
+{
+    const int64_t S = 1000000;
+    base_auto_ban_t bans[BASE_AUTO_BANS];
+    memset(bans, 0, sizeof(bans));
+    char nome[8];
+    for (int i = 0; i < BASE_AUTO_BANS; i++) {
+        snprintf(nome, sizeof(nome), "B%d", i);
+        base_auto_ban_add(bans, nome, (int64_t) (i + 1) * S);
+    }
+    base_auto_ban_add(bans, "B1", 10 * S); // rinnovo: nessun posto in piu'
+    base_auto_ban_add(bans, "NUOVA", 11 * S); // prende il posto di B0, che scade prima
+    VERIFICA(base_auto_banned(bans, "NUOVA", 12 * S));
+    VERIFICA(!base_auto_banned(bans, "B0", 12 * S));
+    VERIFICA(base_auto_banned(bans, "B1", 12 * S));
+    VERIFICA(base_auto_banned(bans, "B2", 12 * S));
+    base_auto_ban_add(bans, "", 12 * S);   // ignorati
+    base_auto_ban_add(bans, NULL, 12 * S);
+    base_auto_ban_add(NULL, "X", 12 * S);
+    VERIFICA(!base_auto_banned(NULL, "X", 12 * S));
+    VERIFICA(!base_auto_banned(bans, NULL, 12 * S));
+}
+
 int main(void)
 {
     ESEGUI(distanze_note);
@@ -229,5 +297,7 @@ int main(void)
     ESEGUI(niente_cambio_in_rtk_fisso_o_float);
     ESEGUI(cambio_dopo_30_s_senza_rtk);
     ESEGUI(nomi_lunghi_e_pari_distanza);
+    ESEGUI(base_muta_esclusa_per_un_ora);
+    ESEGUI(elenco_delle_escluse_pieno);
     return prove_fine();
 }

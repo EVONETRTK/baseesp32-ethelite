@@ -718,6 +718,8 @@ typedef struct {
     bool have_pos;            // ultima posizione valida del rover
     double lat_deg, lon_deg;
     int quality;              // ultima qualita' della GGA (-1 nessun dato recente)
+    int silent;               // collegamenti di fila a current senza un byte
+    base_auto_ban_t bans[BASE_AUTO_BANS]; // basi mute, escluse per un'ora
 } rover_auto_t;
 
 static rover_auto_t s_auto = { .first = true, .quality = -1 };
@@ -889,8 +891,8 @@ static bool auto_check(int64_t now)
     }
 
     uint32_t no_rtk_s = (uint32_t) ((now - s_auto.last_rtk_us) / 1000000);
-    base_auto_result_t r = base_auto_choose(list, n, s_auto.have_pos, s_auto.lat_deg, s_auto.lon_deg,
-                                            s_auto.current, s_auto.quality, no_rtk_s, first);
+    base_auto_result_t r = base_auto_choose_ex(list, n, s_auto.have_pos, s_auto.lat_deg, s_auto.lon_deg,
+                                               s_auto.current, s_auto.quality, no_rtk_s, first, s_auto.bans, now);
     bool change = r.change;
     if (change) {
         if (r.current_km >= 0) {
@@ -990,11 +992,13 @@ void ntrip_rover_client_task(void *arg)
         }
 
         set_active_sock(sock);
+        bool got_data = extra_len > 0;
 
         while (1) {
             sys_stats_heartbeat(HB_NTRIP);
             int n = recv(sock, net_buf, sizeof(net_buf), 0);
             if (n > 0) {
+                got_data = true;
                 feed_rtcm(net_buf, n);
             } else if (n == 0) {
                 ESP_LOGW(TAG, "Caster ha chiuso la connessione");
@@ -1034,6 +1038,21 @@ void ntrip_rover_client_task(void *arg)
         // un'altra connessione (es. una richiesta del pannello).
         set_active_sock(-1);
         net_close_now(sock);
+
+        // Base scelta in automatico che accetta il collegamento ma non manda
+        // niente (spenta ma ancora in tabella): esclusa per un'ora e ripiego
+        // sulla base iniziale. La base iniziale non si esclude mai: e' la
+        // scelta dell'utente e il ripiego.
+        if (got_data || !s_auto.enabled || strcmp(s_auto.current, s_auto.fallback) == 0) {
+            s_auto.silent = 0;
+        } else if (++s_auto.silent >= BASE_AUTO_SILENT_SESSIONS) {
+            ESP_LOGW(TAG, "Base automatica: %s non manda dati (%d collegamenti), esclusa per %d min, ripiego su %s",
+                     s_auto.current, s_auto.silent, BASE_AUTO_BAN_S / 60, s_auto.fallback);
+            base_auto_ban_add(s_auto.bans, s_auto.current, esp_timer_get_time());
+            strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
+            s_auto.silent = 0;
+            auto_publish(false, NULL);
+        }
         // 2s era troppo poco: il caster rileva una connessione precedente
         // interrotta bruscamente solo dopo il proprio keepalive TCP (decine
         // di secondi), e nel frattempo tiene occupato lo slot di sessione

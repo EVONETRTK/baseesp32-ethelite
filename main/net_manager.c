@@ -77,7 +77,40 @@ static void peek_network_mode(const app_settings_t *s, void *ctx)
 #define WIFI_HOLD_US            (15LL * 60 * 1000000)  // WiFi senza Internet: SIM per almeno 15 minuti
 #define CF_CELL_RETRY_US        (2LL * 60 * 1000000)   // 4G con riserva: 4G non disponibile, si riprova dopo
 #define CF_WIFI_RETRY_US        (5LL * 60 * 1000000)   // 4G con riserva: WiFi caduto, si riprova dopo
+#define CF_WIFI_RETRY_FAST_US   (30LL * 1000000)       // idem, ma con il 4G giu': nessuna rete, si riprova presto
 #define ETH_ONLY_AP_AFTER_US    (3LL * 60 * 1000000)   // "Solo Ethernet" senza rete: AP di emergenza
+
+// ---------------------------------------------------------------------------
+// DNS di riserva. In lwIP i server DNS sono uno solo per tutta la base
+// (CONFIG_ESP_NETIF_SET_DNS_PER_DEFAULT_NETIF spento): il DHCP del WiFi
+// scrive i suoi negli slot 0 e 1, il 4G (PPP) i suoi, e quando il 4G cade li
+// azzera senza rimettere quelli del WiFi. Con "4G con WiFi di riserva" (le
+// due reti su insieme) la base restava sul WiFi senza DNS: nome del caster
+// non risolto, mentre il controllo di Internet (indirizzi numerici) diceva
+// che la rete funzionava. Lo slot di riserva (l'ultimo) non lo toccano ne'
+// il DHCP ne' il PPP, e lwIP salta gli slot vuoti o che non rispondono:
+// con un DNS pubblico li' il nome si risolve con qualunque rete.
+// ---------------------------------------------------------------------------
+#define DNS_FALLBACK_IP "8.8.8.8"
+
+static void dns_fallback_ensure(void)
+{
+    esp_netif_t *sta = wifi_link_get_sta_netif(); // client DHCP: scrive i DNS di tutta la base
+    if (!sta) {
+        return; // "Solo Ethernet": una rete sola, i DNS del suo DHCP bastano
+    }
+    esp_netif_dns_info_t d = { 0 };
+    uint32_t want = esp_ip4addr_aton(DNS_FALLBACK_IP);
+    if (esp_netif_get_dns_info(sta, ESP_NETIF_DNS_FALLBACK, &d) == ESP_OK && d.ip.type == ESP_IPADDR_TYPE_V4 &&
+        d.ip.u_addr.ip4.addr == want) {
+        return;
+    }
+    d.ip.type = ESP_IPADDR_TYPE_V4;
+    d.ip.u_addr.ip4.addr = want;
+    if (esp_netif_set_dns_info(sta, ESP_NETIF_DNS_FALLBACK, &d) == ESP_OK) {
+        ESP_LOGI(TAG, "DNS di riserva impostato: %s", DNS_FALLBACK_IP);
+    }
+}
 
 typedef struct {
     char host[64];
@@ -217,10 +250,13 @@ static void net_manager_task(void *arg)
     int64_t eth_probe_next_us = 0;  // prossimo controllo di Internet via cavo
     int64_t cf_cell_retry_us = 0;   // "4G con WiFi di riserva": prossimo tentativo del 4G
     int64_t cf_wifi_retry_us = 0;   // idem: prossimo tentativo del WiFi caduto
+    bool cf_keep_check = false;     // idem: tentativo del 4G dal WiFi in uso, il controllo continua
+    bool cf_wifi_dead = false;      // idem: il controllo ha trovato il WiFi senza Internet
     bool eth_probe_ok = false;
 
     while (1) {
         sys_stats_heartbeat(HB_NET);
+        dns_fallback_ensure();
         vpn_link_tick(); // tunnel VPN per l'accesso remoto (vpn_link.c)
         // Solo la modalita' di rete, senza copiare tutta la configurazione
         // (~2,2 KB): con la copia, piu' quella dentro wifi_link_connect_known()
@@ -265,13 +301,18 @@ static void net_manager_task(void *arg)
                     ESP_LOGI(TAG, "4G con WiFi di riserva: collego il WiFi");
                     if (!wifi_link_connect_known(CONFIG_BASEESP32_WIFI_CONNECT_TIMEOUT_MS)) {
                         wifi_link_disconnect();
-                        cf_wifi_retry_us = esp_timer_get_time() + CF_WIFI_RETRY_US;
+                        // Con il 4G su il WiFi e' solo la rete di casa: ogni 5
+                        // minuti. Senza 4G e' l'unica possibilita': presto.
+                        cf_wifi_retry_us = esp_timer_get_time() +
+                                           (cellular_link_is_connected() ? CF_WIFI_RETRY_US : CF_WIFI_RETRY_FAST_US);
                     }
                 }
                 if (esp_timer_get_time() >= cf_cell_retry_us) {
                     ESP_LOGI(TAG, "4G con WiFi di riserva: collego il 4G");
                     if (cellular_link_connect()) {
                         cell_fail = 0;
+                        cf_keep_check = false;
+                        cf_wifi_dead = false;
                         ESP_LOGI(TAG, "Rete attiva: cellulare (WiFi %s)", wifi_link_is_connected() ? "di riserva" : "assente");
                         status_set_net(NET_STATUS_CELLULAR);
                         net_check_reset(&check);
@@ -289,15 +330,37 @@ static void net_manager_task(void *arg)
                         modem_reset_at = xTaskGetTickCount();
                         cell_fail = 0;
                     }
+                    if (cf_wifi_dead && wifi_link_is_connected()) {
+                        // WiFi senza Internet e 4G appena fallito: si ricollega
+                        // il WiFi come in "Solo WiFi" (DHCP bloccato, rete di
+                        // ripiego rimasta dopo il ritorno di quella principale).
+                        // Prima si restava sul WiFi guasto senza fine.
+                        ESP_LOGW(TAG, "4G con WiFi di riserva: WiFi senza Internet e 4G non disponibile, "
+                                      "ricollego il WiFi");
+                        wifi_link_disconnect();
+                        cf_wifi_retry_us = 0;
+                        cf_wifi_dead = false;
+                        cf_keep_check = false;
+                        break; // al prossimo giro si ricollega
+                    }
                 }
                 if (wifi_link_is_connected()) {
-                    ESP_LOGI(TAG, "Rete attiva: WiFi (4G non disponibile, nuovo tentativo tra %d s)",
-                             (int) (CF_CELL_RETRY_US / 1000000));
+                    // Si resta sul WiFi gia' in uso dopo il tentativo del 4G
+                    // (ogni 2 minuti): il controllo di Internet continua, se
+                    // ripartisse da zero (scatta dopo 3 minuti senza caster)
+                    // non arriverebbe mai.
+                    if (!cf_keep_check) {
+                        ESP_LOGI(TAG, "Rete attiva: WiFi (4G non disponibile, nuovo tentativo tra %d s)",
+                                 (int) (CF_CELL_RETRY_US / 1000000));
+                        net_check_reset(&check);
+                    }
+                    cf_keep_check = false;
                     status_set_net(NET_STATUS_WIFI);
-                    net_check_reset(&check);
                     active = LINK_WIFI;
                     break;
                 }
+                cf_keep_check = false;
+                cf_wifi_dead = false;
                 status_set_net(NET_STATUS_NONE);
                 vTaskDelay(pdMS_TO_TICKS(CONFIG_BASEESP32_NET_RETRY_DELAY_MS));
                 break;
@@ -403,16 +466,17 @@ static void net_manager_task(void *arg)
                 status_set_net(NET_STATUS_NONE);
                 active = LINK_NONE;
             } else if (settings.network_mode == NETWORK_MODE_CELLULAR_FIRST &&
-                       (net_check_dead(&check) || now_us >= cf_cell_retry_us)) {
+                       (now_us >= cf_cell_retry_us || (cf_wifi_dead = net_check_dead(&check)))) {
                 // 4G con WiFi di riserva: si riprova il 4G (ogni 2 minuti, o
                 // subito se il WiFi non porta a Internet), lasciando il WiFi
                 // collegato.
-                if (now_us < cf_cell_retry_us) {
+                if (cf_wifi_dead) {
                     ESP_LOGW(TAG, "WiFi collegato ma senza Internet: riprovo subito il 4G");
                     cf_cell_retry_us = now_us;
                 }
+                cf_keep_check = true;
                 active = LINK_NONE;
-            } else if (net_check_dead(&check)) {
+            } else if (settings.network_mode != NETWORK_MODE_CELLULAR_FIRST && net_check_dead(&check)) {
                 if (settings.network_mode == NETWORK_MODE_BOTH) {
                     ESP_LOGW(TAG, "WiFi collegato ma senza Internet (caster irraggiungibile): passo alla SIM "
                                   "per almeno %d minuti", (int) (WIFI_HOLD_US / 60000000));

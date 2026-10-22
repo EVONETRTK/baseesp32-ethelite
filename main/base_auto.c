@@ -41,9 +41,52 @@ static void set_name(char *dst, const char *src)
     dst[n] = '\0';
 }
 
+void base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us)
+{
+    if (!bans || !name || !name[0]) {
+        return;
+    }
+    int slot = 0;
+    for (int i = 0; i < BASE_AUTO_BANS; i++) {
+        if (bans[i].until_us > now_us && strncmp(bans[i].name, name, BASE_AUTO_NAME_LEN) == 0) {
+            slot = i; // gia' esclusa: si rinnova
+            break;
+        }
+        if (bans[i].until_us < bans[slot].until_us) {
+            slot = i; // libero o scaduto (o quello che scade prima)
+        }
+    }
+    set_name(bans[slot].name, name);
+    bans[slot].until_us = now_us + (int64_t) BASE_AUTO_BAN_S * 1000000;
+}
+
+bool base_auto_banned(const base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us)
+{
+    if (!bans || !name) {
+        return false;
+    }
+    for (int i = 0; i < BASE_AUTO_BANS; i++) {
+        if (bans[i].until_us > now_us && strncmp(bans[i].name, name, BASE_AUTO_NAME_LEN) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 base_auto_result_t base_auto_choose(const base_auto_entry_t *list, size_t count, bool pos_valid, double lat_deg,
                                     double lon_deg, const char *current, int quality, uint32_t no_rtk_s, bool first)
 {
+    return base_auto_choose_ex(list, count, pos_valid, lat_deg, lon_deg, current, quality, no_rtk_s, first, NULL, 0);
+}
+
+base_auto_result_t base_auto_choose_ex(const base_auto_entry_t *list, size_t count, bool pos_valid, double lat_deg,
+                                       double lon_deg, const char *current, int quality, uint32_t no_rtk_s, bool first,
+                                       const base_auto_ban_t *bans, int64_t now_us)
+{
+    // Base in uso esclusa: va lasciata come al primo collegamento.
+    if (current && base_auto_banned(bans, current, now_us)) {
+        first = true;
+    }
     base_auto_result_t r;
     memset(&r, 0, sizeof(r));
     r.nearest = -1;
@@ -61,6 +104,9 @@ base_auto_result_t base_auto_choose(const base_auto_entry_t *list, size_t count,
         const base_auto_entry_t *e = &list[i];
         if (e->name[0] == '\0' || !base_auto_coords_valid(e->lat_deg, e->lon_deg)) {
             continue; // mountpoint senza coordinate (o con coordinate impossibili)
+        }
+        if (base_auto_banned(bans, e->name, now_us)) {
+            continue; // muta da poco
         }
         r.candidates++;
         double d = base_auto_distance_km(lat_deg, lon_deg, e->lat_deg, e->lon_deg);

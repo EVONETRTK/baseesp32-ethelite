@@ -8,6 +8,19 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.3
+
+Controllo di qualita' sulla 1.35.x (basi lontane, non devono restare irraggiungibili):
+
+- **DNS di riserva (8.8.8.8)** nell'ultimo slot di lwIP, che ne' il DHCP del WiFi ne' il 4G cancellano. In "4G con WiFi di riserva", quando il 4G cadeva, i suoi DNS venivano azzerati e il WiFi restava senza: nome del caster non risolto, mentre il controllo di Internet (indirizzi numerici) diceva che la rete funzionava.
+- **"4G con WiFi di riserva"**: il controllo di Internet sul WiFi ripartiva da zero a ogni tentativo del 4G (ogni 2 minuti) e non scattava mai; ora continua, e con il WiFi senza Internet e il 4G non disponibile il WiFi si ricollega. Con il 4G giu' il WiFi caduto si riprova ogni 30 s invece che ogni 5 minuti.
+- **Modem**: dopo una chiamata dati fallita esp_modem restava "in CMUX" e ogni tentativo successivo falliva subito fino al riavvio del modem; ora torna ai comandi AT. Controllo "gia' acceso" piu' sicuro: vale solo una vera risposta del multiplexer (UA/DM, non un byte 0xF9 qualunque), uscita dal collegamento dati senza CMUX con "+++", e dopo un riavvio dell'ESP non da accensione si aspetta fino a 25 s che il modem finisca di avviarsi prima di dare l'impulso. Nel riavvio del modem con PWRKEY, se l'impulso lungo lo ha acceso (era spento) non si da' il secondo impulso che lo rispegneva.
+- I comandi AT degli altri task (salute del modem, SIM, pannello, OLED) aspettano mentre il modem si collega, si scollega o si riavvia (esp_modem cambia modalita' senza il blocco dei comandi).
+- **Riavvio di sicurezza della base** dopo 2 ore senza nessuna rete (WiFi, 4G, cavo), solo se la rete c'era in questo avvio: niente riavvii in serie dove la copertura non c'e'.
+- **Rover, base automatica muta**: una base in tabella che accetta il collegamento ma non manda dati (vista il 22/10/2026: AGRI_MSM4 a 0,4 km) teneva il rover senza correzioni per sempre. Dopo 2 collegamenti di fila senza un byte la base e' esclusa per un'ora e si torna alla base iniziale (base_auto_ban_*, con prove sul PC).
+- Manuale: capitolo Trattore (base piu' vicina che non manda correzioni).
+- Restano da fare (verificati, non ancora corretti): la VPN WireGuard esce solo dal WiFi, quindi con il solo 4G non si raggiunge la base da remoto; in "4G con WiFi di riserva" con il WiFi funzionante il modem senza 4G viene riavviato ogni ~16 minuti senza fine.
+
 ## 1.35.2
 
 - **Modem LilyGO non piu' spento dai riavvii**: all'avvio il ricevitore dava sempre l'impulso su PWRKEY; con un riavvio da pannello o dopo un aggiornamento il modem era gia' acceso e l'impulso lo spegneva (poi il recupero lo riaccendeva dopo circa 6 minuti). Ora prima dell'impulso si chiede "AT" sulla seriale; se il modem tace ma risponde all'apertura CMUX (riavvio con il 4G attivo) si chiude il multiplexer (CLD) e non si da' l'impulso. Con il ricevitore acceso da spento non cambia niente.
