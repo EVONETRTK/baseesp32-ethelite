@@ -138,8 +138,12 @@ void status_ntrip_note_disconnected(const char *reason)
     // sicurezza "caster scollegato da 30 minuti", l'avviso via email/WhatsApp
     // e il "scollegato da" del pannello non vedevano mai una caduta lunga
     // (revisione del 22/10/2026).
-    if (s_ntrip.connected || s_ntrip.last_disconnect_us == 0) {
-        s_ntrip.last_disconnect_us = esp_timer_get_time();
+    // Una sessione di meno di un minuto (caster che accetta e chiude subito)
+    // non chiude la caduta: altrimenti ricominciava a ogni giro e non si
+    // vedeva mai.
+    int64_t now = esp_timer_get_time();
+    if ((s_ntrip.connected && now - s_ntrip.connected_since_us >= 60LL * 1000000) || s_ntrip.last_disconnect_us == 0) {
+        s_ntrip.last_disconnect_us = now;
     }
     s_ntrip.connected = false;
     s_ntrip.connected_since_us = 0;

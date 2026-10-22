@@ -506,7 +506,15 @@ static esp_err_t require_auth(httpd_req_t *req)
         auth_note_fail(ip);
     }
 
-    ESP_LOGW(TAG, "Autenticazione fallita per %s", req->uri);
+    // Password sbagliata: sempre nel registro. Nessuna credenziale (scheda del
+    // pannello aperta con l'accesso scaduto, ~1 richiesta al secondo, o
+    // scanner da Internet): solo in DEBUG, prima riempiva il registro in
+    // memoria in 2 minuti e cancellava l'avvio (revisione del 22/10/2026).
+    if (ar == AUTH_WRONG) {
+        ESP_LOGW(TAG, "Autenticazione fallita per %s", req->uri);
+    } else {
+        ESP_LOGD(TAG, "Richiesta senza credenziali per %s", req->uri);
+    }
     httpd_resp_set_status(req, "401 Unauthorized");
     httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"EVONETRTK\"");
     // Cookie con una password vecchia (cambiata dal pannello): lo si
@@ -2924,6 +2932,24 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Una sola operazione pesante in background alla volta (ricerca dei
+// mountpoint, prova del caster, formattazione della microSD): ognuna prende
+// 6-7 KB di stack in RAM interna e tiene un socket per 8-18 s, e qualche clic
+// ripetuto superava la memoria libera (~34 KB): errori TLS/WiFi o crash.
+// Revisione del 22/10/2026.
+static volatile bool s_bg_busy;
+
+static bool bg_claim(httpd_req_t *req)
+{
+    if (s_bg_busy) {
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_sendstr(req, "Un'altra operazione e' in corso, riprova tra qualche secondo");
+        return false;
+    }
+    s_bg_busy = true;
+    return true;
+}
+
 // La lettura del sourcetable (DNS, connessione fino a 8 s, risposta) gira in
 // un task a parte con la richiesta resa asincrona, come la prova di
 // connessione: prima teneva fermo tutto il pannello per l'intera attesa con
@@ -2990,6 +3016,7 @@ static void ntrip_mountpoints_task(void *arg)
         free(json);
     }
     httpd_req_async_handler_complete(req);
+    s_bg_busy = false;
     vTaskDelete(NULL);
 }
 
@@ -2998,12 +3025,17 @@ static esp_err_t ntrip_mountpoints_get_handler(httpd_req_t *req)
     if (require_auth(req) != ESP_OK) {
         return ESP_FAIL;
     }
+    if (!bg_claim(req)) {
+        return ESP_FAIL;
+    }
     httpd_req_t *async_req = NULL;
     if (httpd_req_async_handler_begin(req, &async_req) != ESP_OK) {
+        s_bg_busy = false;
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "richiesta asincrona non disponibile");
     }
     // 7 KB: la funzione copia la configurazione sullo stack (2,4 KB) e fa DNS + socket.
     if (xTaskCreate(ntrip_mountpoints_task, "ntrip_mp", 7168, async_req, 5, NULL) != pdPASS) {
+        s_bg_busy = false;
         httpd_resp_send_err(async_req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente, riprova");
         httpd_req_async_handler_complete(async_req);
         return ESP_FAIL;
@@ -3043,6 +3075,7 @@ static void ntrip_test_task(void *arg)
     httpd_req_async_handler_complete(job->req);
     memset(job->password, 0, sizeof(job->password));
     free(job);
+    s_bg_busy = false;
     vTaskDelete(NULL);
 }
 
@@ -3148,12 +3181,18 @@ static esp_err_t ntrip_test_connect_post_handler(httpd_req_t *req)
     memcpy(job->mountpoint, mountpoint, sizeof(job->mountpoint));
     memcpy(job->username, username, sizeof(job->username));
     memcpy(job->password, password, sizeof(job->password));
+    if (!bg_claim(req)) {
+        free(job);
+        return ESP_FAIL;
+    }
     if (httpd_req_async_handler_begin(req, &job->req) != ESP_OK) {
+        s_bg_busy = false;
         free(job);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "richiesta asincrona non disponibile");
         return ESP_FAIL;
     }
     if (xTaskCreate(ntrip_test_task, "ntrip_test", 6144, job, 5, NULL) != pdPASS) {
+        s_bg_busy = false;
         httpd_resp_send_err(job->req, HTTPD_500_INTERNAL_SERVER_ERROR, "task di prova non avviato");
         httpd_req_async_handler_complete(job->req);
         free(job);
@@ -3182,6 +3221,7 @@ static void sd_format_task(void *arg)
     free(json);
     cJSON_Delete(resp);
     httpd_req_async_handler_complete(req);
+    s_bg_busy = false;
     vTaskDelete(NULL);
 }
 
@@ -3210,12 +3250,17 @@ static esp_err_t sd_format_post_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
+    if (!bg_claim(req)) {
+        return ESP_FAIL;
+    }
     httpd_req_t *async_req = NULL;
     if (httpd_req_async_handler_begin(req, &async_req) != ESP_OK) {
+        s_bg_busy = false;
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "richiesta asincrona non disponibile");
         return ESP_FAIL;
     }
     if (xTaskCreate(sd_format_task, "sd_format", 6144, async_req, 3, NULL) != pdPASS) {
+        s_bg_busy = false;
         httpd_resp_send_err(async_req, HTTPD_500_INTERNAL_SERVER_ERROR, "task di formattazione non avviato");
         httpd_req_async_handler_complete(async_req);
         return ESP_FAIL;
@@ -4060,6 +4105,10 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 
 void web_ui_start(void)
 {
+    // "uri handler execution failed" a ogni 401 e i socket chiusi dal browser:
+    // righe senza informazione che riempivano il registro.
+    esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
+    esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     // default 8, non basta piu' con tutti gli endpoint aggiunti (23 in uso

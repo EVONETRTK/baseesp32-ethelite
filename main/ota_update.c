@@ -177,36 +177,65 @@ void ota_update_mark_valid(void)
 // ---------------------------------------------------------------------------
 
 #include "status.h"
+#include "net_util.h"
+#include "sys_stats.h"
+#include "esp_attr.h"
 #include "esp_timer.h"
 #include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #define CONFIRM_STABLE_US   (5LL * 60 * 1000000)   // 5 minuti senza crash e caster collegato...
-#define CONFIRM_ANYWAY_US   (15LL * 60 * 1000000)  // ...o 15 minuti senza crash in ogni caso
+#define CONFIRM_ANYWAY_US   (15LL * 60 * 1000000)  // ...o 15 minuti senza crash con la rete su
+#define CONFIRM_NO_NET_US   (60LL * 60 * 1000000)  // nessuna rete in un'ora: si torna indietro
 
 bool ota_update_is_pending(void)
 {
     return s_pending;
 }
 
+// Rete presente nella versione che ha fatto l'aggiornamento, appena prima del
+// riavvio: memoria RTC, sopravvive al riavvio software (non a un calo di
+// corrente: allora si torna al comportamento di prima).
+#define NET_RTC_MAGIC 0x4E455455u
+static RTC_NOINIT_ATTR uint32_t s_rtc_net_magic;
+static RTC_NOINIT_ATTR uint32_t s_rtc_net_up;
+static bool s_net_before;
+
 // Chiamata ogni 5 s dal task di sorveglianza (sys_stats.c): nessun task
 // proprio, la memoria libera e' poca.
 void ota_update_confirm_tick(void)
 {
+    bool net_now = net_any_up();
     if (s_pending) {
         int64_t up = esp_timer_get_time();
         ntrip_conn_status_t nt = status_ntrip_get();
-        if ((up >= CONFIRM_STABLE_US && nt.connected) || up >= CONFIRM_ANYWAY_US) {
+        // Rete vista almeno una volta in questo avvio. Prima a 15 minuti si
+        // confermava comunque: una versione che rompeva WiFi, 4G o Ethernet
+        // restava installata e la base fuori rete per sempre (serviva la USB
+        // sul posto). Revisione del 22/10/2026. Una base senza rete gia'
+        // prima dell'aggiornamento (es. solo caster locale, aggiornata dalla
+        // microSD) si conferma come prima.
+        static bool net_seen;
+        net_seen = net_seen || net_now;
+        if ((up >= CONFIRM_STABLE_US && nt.connected) || (up >= CONFIRM_ANYWAY_US && (net_seen || !s_net_before))) {
             ESP_LOGI(TAG, "Firmware nuovo stabile da %lld min%s: confermato",
                      (long long) (up / 60000000), nt.connected ? " con il caster collegato" : "");
             ota_update_mark_valid();
+        } else if (up >= CONFIRM_NO_NET_US && !net_seen && s_net_before) {
+            // La rete c'era prima dell'aggiornamento e con il firmware nuovo
+            // non sale da un'ora: riavvio senza conferma, il bootloader torna
+            // alla versione precedente.
+            sys_stats_restart_with_reason("firmware nuovo senza rete per 60 minuti: torno alla versione precedente");
         }
     }
+    s_rtc_net_magic = NET_RTC_MAGIC;
+    s_rtc_net_up = net_now;
 }
 
 void ota_update_start_confirm(void)
 {
+    s_net_before = s_rtc_net_magic == NET_RTC_MAGIC && s_rtc_net_up;
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t state;
     if (esp_ota_get_state_partition(running, &state) != ESP_OK || state != ESP_OTA_IMG_PENDING_VERIFY) {
@@ -253,7 +282,45 @@ void ota_update_check_rollback(void)
                  desc.date);
         ESP_LOGE(TAG, "Aggiornamento annullato: %s", s_rollback_note);
         nvs_set_str(h, "seen", key);
+        // La versione che si stava installando (ota_update_note_trying) e'
+        // quella annullata: l'aggiornamento automatico la salta.
+        char trying[24] = "";
+        len = sizeof(trying);
+        if (nvs_get_str(h, "try", trying, &len) == ESP_OK && trying[0]) {
+            nvs_set_str(h, "bad", trying);
+            ESP_LOGE(TAG, "Versione %s annullata: l'aggiornamento automatico la salta fino a una versione piu' nuova",
+                     trying);
+        }
         nvs_commit(h);
     }
     nvs_close(h);
+}
+
+// Una release difettosa (crash o blocco nei primi 15 minuti) torna indietro
+// da sola, ma l'aggiornamento automatico la riscaricava e reinstallava 15
+// minuti dopo, per sempre: ~2,3 MB e una caduta delle correzioni ogni 20
+// minuti, anche sulla SIM (revisione del 22/10/2026). Si annota la versione
+// prima di installarla; se viene annullata (ota_update_check_rollback) la si
+// salta.
+void ota_update_note_trying(const char *version)
+{
+    nvs_handle_t h;
+    if (nvs_open("otaroll", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "try", version ? version : "");
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+bool ota_update_version_rejected(const char *version)
+{
+    nvs_handle_t h;
+    if (!version || nvs_open("otaroll", NVS_READONLY, &h) != ESP_OK) {
+        return false;
+    }
+    char bad[24] = "";
+    size_t len = sizeof(bad);
+    bool rejected = nvs_get_str(h, "bad", bad, &len) == ESP_OK && strcmp(bad, version) == 0;
+    nvs_close(h);
+    return rejected;
 }

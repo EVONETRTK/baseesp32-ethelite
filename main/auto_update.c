@@ -1,6 +1,7 @@
 #include "auto_update.h"
 #include "settings.h"
 #include "online_update.h"
+#include "ota_update.h"
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -67,7 +68,13 @@ static void auto_update_task(void *arg)
             continue;
         }
 
+        if (ota_update_version_rejected(version)) {
+            ESP_LOGW(TAG, "Controllo automatico: la versione %s era gia' stata annullata (si riavviava prima della "
+                          "conferma): non la reinstallo, aspetto una versione piu' nuova", version);
+            continue;
+        }
         ESP_LOGW(TAG, "Controllo automatico: trovata versione %s, la applico e riavvio (nessuno da avvisare, dispositivo in campo)", version);
+        ota_update_note_trying(version);
         // online_update_apply_async() riavvia da sola in caso di successo;
         // se fallisce, il dispositivo resta com'era e si ritenta al
         // prossimo intervallo - vedi last_check_us sopra.

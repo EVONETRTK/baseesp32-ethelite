@@ -448,20 +448,29 @@ static void alerts_task(void *arg)
         if (!base_pkg) {
             already_alerted = false;
         } else if (!ntrip.connected) {
-            if (ntrip.last_disconnect_us <= 0 || ntrip.connect_count == 0) {
-                // mai stato connesso dal boot: non e' una disconnessione da segnalare
-            } else {
+            // Mai collegato dall'avvio (corrente tornata con il caster gia'
+            // irraggiungibile, password cambiata): prima nessun avviso, mai.
+            // Ora si avvisa anche qui, ma non prima di 30 minuti (tempo per
+            // l'avvio di rete e modem).
+            int threshold = s.alert_threshold_min;
+            if (ntrip.connect_count == 0 && threshold < 30) {
+                threshold = 30;
+            }
+            if (ntrip.last_disconnect_us > 0) {
                 int down_min = (int) ((esp_timer_get_time() - ntrip.last_disconnect_us) / 1000000 / 60);
-                if (!already_alerted && down_min >= s.alert_threshold_min) {
+                if (!already_alerted && down_min >= threshold) {
                     char body[256];
                     snprintf(body, sizeof(body),
                              "EVONETRTK %s: connessione al caster NTRIP interrotta da oltre %d minuti (%s)",
-                             s.device_serial, s.alert_threshold_min, ntrip.last_error);
+                             s.device_serial, threshold, ntrip.last_error);
                     send_on_configured_channels(&s, "EVONETRTK - caster disconnesso", body, NULL, 0);
                     already_alerted = true;
                 }
             }
-        } else if (already_alerted) {
+        } else if (already_alerted && esp_timer_get_time() - ntrip.connected_since_us >= 60LL * 1000000) {
+            // Solo dopo un minuto collegato: con un caster che accetta e chiude
+            // subito si mandava "ripristinato" e poi di nuovo "disconnesso" a
+            // ogni giro.
             char body[128];
             snprintf(body, sizeof(body), "EVONETRTK %s: connessione al caster NTRIP ripristinata.", s.device_serial);
             send_on_configured_channels(&s, "EVONETRTK - caster ripristinato", body, NULL, 0);

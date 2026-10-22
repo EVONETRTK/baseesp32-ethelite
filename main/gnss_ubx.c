@@ -104,10 +104,12 @@ static size_t ubx_key_value_size(uint32_t key)
 
 // L'ultimo CFG-VALSET e' stato rifiutato (ACK-NAK): vedi ubx_valset_group().
 static bool s_last_nak;
+static bool s_last_ack; // ultima ubx_valset() confermata con UBX-ACK-ACK
 
 static esp_err_t ubx_valset(uart_port_t uart_num, const char *label, const ubx_cfg_kv32_t *kvs, size_t n)
 {
     s_last_nak = false;
+    s_last_ack = false;
     if (n > 32) {
         return ESP_ERR_INVALID_SIZE;
     }
@@ -166,6 +168,7 @@ static esp_err_t ubx_valset(uart_port_t uart_num, const char *label, const ubx_c
         ESP_LOGI(TAG, "[%s] Configurazione accettata dal ricevitore (UBX-ACK-ACK)", label);
     }
     s_last_nak = answered && !acked;
+    s_last_ack = answered && acked;
 
     return ESP_OK;
 }
@@ -480,8 +483,16 @@ static void svin_poll_task(void *arg)
                     { 0x209102a5 - port_off, want },          // CFG-MSGOUT-UBX_RXM_RAWX (UART1; -1 = I2C)
                     { 0x20910232 - port_off, want ? 1u : 0u }, // CFG-MSGOUT-UBX_RXM_SFRBX
                 };
+                // Applicato solo con la risposta del ricevitore (ACK, o NAK:
+                // inutile insistere). Senza risposta (I2C occupato, ricevitore
+                // in riavvio) si riprova al giro dopo: prima restava segnato
+                // come fatto e controllo dello spostamento e registrazione
+                // aspettavano i dati fino al riavvio (revisione del 22/10/2026).
                 ubx_valset(uart_num, want ? "DATI GREZZI attivi" : "DATI GREZZI spenti", kv, 2);
-                applied = want;
+                if (s_last_ack ||
+                    s_last_nak) {
+                    applied = want;
+                }
             }
         }
         svin_status_t sv = status_svin_get();

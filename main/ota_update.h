@@ -52,6 +52,12 @@ void ota_update_confirm_tick(void); // dal task di sorveglianza, ogni 5 s
 void ota_update_check_rollback(void);
 const char *ota_update_rollback_note(void);
 
+// Versione che si sta per installare (aggiornamento automatico): se il
+// bootloader la annulla, ota_update_version_rejected() la riconosce e
+// l'aggiornamento automatico non la reinstalla in ciclo.
+void ota_update_note_trying(const char *version);
+bool ota_update_version_rejected(const char *version);
+
 // Confronto versioni "MAJOR.MINOR.PATCH": >0 se a>b, <0 se a<b, 0 se
 // uguali. Ignora eventuali suffissi non numerici dopo il PATCH.
 // Condiviso tra sd_update.c e online_update.c per non duplicarlo.
