@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "modem_health.h"
+
 // Inizializza il modem SIM7600 (UART + netif PPP tramite esp_modem). Va
 // chiamata dopo esp_netif_init()/esp_event_loop_create_default(). Ritorna
 // false se il supporto cellulare e' disabilitato in Kconfig o se
@@ -65,3 +67,8 @@ bool cellular_link_ussd(const char *code, char *out, size_t out_size);
 bool cellular_link_send_sms(const char *number, const char *text);
 bool cellular_link_read_sms(char *out, size_t out_size);
 bool cellular_link_delete_sms(void);
+
+// Salute del modem (temperatura, tensione, AT+CPSI?, con fw=true anche la
+// versione del firmware). Come i comandi SIM: solo dal task di sim_tools.c.
+// Campi non letti restano *_ok = false. false se il modem non risponde.
+bool cellular_link_read_health(modem_health_t *h, bool fw);

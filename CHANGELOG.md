@@ -8,6 +8,39 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.2
+
+- **Modem LilyGO non piu' spento dai riavvii**: all'avvio il ricevitore dava sempre l'impulso su PWRKEY; con un riavvio da pannello o dopo un aggiornamento il modem era gia' acceso e l'impulso lo spegneva (poi il recupero lo riaccendeva dopo circa 6 minuti). Ora prima dell'impulso si chiede "AT" sulla seriale; se il modem tace ma risponde all'apertura CMUX (riavvio con il 4G attivo) si chiude il multiplexer (CLD) e non si da' l'impulso. Con il ricevitore acceso da spento non cambia niente.
+
+## 1.35.1
+
+- **Rete in uso a colpo d'occhio**: il pallino della rete in cima al pannello resta visibile anche nella scheda Stato e dice cosa porta internet con la riserva pronta: "📱 4G · WiFi di riserva", "📶 WiFi · 4G di riserva", "🔌 Ethernet", "⛔ Nessuna rete"; giallo "WiFi · 4G non disponibile" quando in "4G con WiFi di riserva" il 4G non va. Manuale (capitolo Pannello) aggiornato.
+- Provata la 1.35.0 sul ricevitore: in "4G con WiFi di riserva" caster via SIM (contatore SIM che sale, WiFi fermo) con il pannello raggiungibile dalla rete di casa e la VPN su; memoria minima 21,9 KB. Con la SIM Very serve l'APN "internet.it" (con "internet" il 4G prende un indirizzo ma non porta a internet).
+
+## 1.35.0
+
+- **Nuova connettivita' "4G con WiFi di riserva"** (network_mode "cellular_first"): Internet dalla SIM (caster, aggiornamenti, avvisi) con il WiFi station sempre collegato, che porta la rete di casa (pannello, VPN, AgOpenGPS) e fa da riserva. Il netif PPP nasce con priorita' 200, sopra il WiFi (100): con tutte e due su si esce dal 4G, se il PPP cade ESP-IDF torna da solo al WiFi. 4G non disponibile o senza Internet: WiFi subito e nuovo tentativo del 4G ogni 2 minuti; WiFi caduto: ricollegato ogni 5 minuti senza toccare il 4G. Le altre modalita' non cambiano. Manuale (Scheda Connessione) aggiornato.
+- Letture della salute del modem riattivate (sospese nella 1.34.2): il blocco del modem del 21/10 dipendeva dall'impostazione "SIMCom originale" su un modulo LilyGO, non dai comandi.
+
+## 1.34.2
+
+- **Prova: letture della salute del modem sospese** (AT+CPMUTEMP, AT+CBC, AT+CPSI?, AT+CGMR). Con la 1.34.0 il SIM7600 ha risposto a questi comandi alle 16:42 del 21/10/2026 e poi si e' zittito: si verifica se senza resta vivo. Resta il controllo "Modem non risponde" con il solo AT (come prima della 1.34.0). Si riattivano con MODEM_HEALTH_AT in sim_tools.c.
+
+## 1.34.1
+
+- **"Modem non risponde"**: se il modem, gia' visto (risposta in questo avvio o IMEI salvato), smette di rispondere ai comandi, il riquadro Rete mobile lo dice (arancione, rosso con la SIM in uso) con il consiglio di togliere e ridare corrente, e la scheda SIM lo scrive in rosso. Nel registro: ora del blocco con gli ultimi valori letti (temperatura, tensione, rete) e ora del ritorno. Nei primi 3 minuti dall'accensione non conta (il SIM7600 si avvia in 60-75 s). In /api/status: modem_silent_s. Visto il 20 e 21/10/2026: il SIM7600 si e' bloccato senza errori.
+- **Avvertenza DIP corretta** (pannello e manuale): con il modulo SIMCom originale vanno spenti SW2-5 (POWERKEY), SW2-7 e SW3-3 (RESET); le altre posizioni di SW3 restano accese (DTR, seriale, OE). Prima diceva di spegnere "SW3": spegnendolo tutto il modem non comunica.
+
+## 1.34.0
+
+- **Salute del modem SIM7600**: ogni 2 minuti il ricevitore legge dal modem temperatura (AT+CPMUTEMP), tensione (AT+CBC), qualita' del 4G con banda e cella (AT+CPSI?: RSRP, RSRQ, SINR) e, una volta per avvio, la versione del firmware (AT+CGMR). Nella scheda SIM, con parole semplici accanto ai numeri; in /api/status nell'oggetto "modem". Lettura delle risposte in modem_health.c con prove sul PC. Avviso nel log sopra i 70 gradi.
+- **Un solo riquadro "Rete mobile"** nella scheda Stato al posto di LTE e SIM: tacche del segnale e, sotto, SIM in uso o di riserva, operatore, temperatura del modem, credito, piano dati e rinnovo. Arancione con il modem oltre 70 gradi, rosso oltre 80.
+- Manuale aggiornato (capitoli Pannello, Scheda Stato, Scheda SIM).
+
+## 1.33.1
+
+- **Riquadri LTE e SIM piu' chiari**: nel primo paio di minuti dopo l'accensione il riquadro LTE scrive "Modem in avvio…" (verde) invece di "Nessun segnale": il SIM7600 impiega 60-75 s ad agganciare la rete. Con il WiFi in uso e il modem agganciato la SIM e' "Di riserva" in verde invece di "Non in uso" in giallo; giallo solo per "Modem senza rete". Manuale aggiornato (capitoli Pannello e Scheda Stato).
+
 ## 1.33.0
 
 - **Mountpoint proposti**: "Cerca mountpoint disponibili" (rover) ordina l'elenco del caster dal piu' adatto e segna il consigliato con una stella; per ognuno distanza dal rover, costellazioni e avvisi (oltre 35 o 60 km, solo messaggi vecchi senza MSM, meno di 3 costellazioni). La scelta resta all'utente: si tocca quello che si vuole o si scrive un altro nome. Verifica come quella della base in uso, sui campi 5 (tipi di messaggio) e 7 (costellazioni) della tabella delle sorgenti (base_check_from_sourcetable, con prove sul PC); /api/ntrip/mountpoints restituisce anche distance_km, level, issues, systems.

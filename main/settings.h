@@ -44,6 +44,10 @@ typedef enum {
     // fisico di reset (tenuto premuto, vedi reset_button.c) cancella le
     // impostazioni e torna al WiFi.
     NETWORK_MODE_ETHERNET_ONLY = 3,
+    // 4G preferito per Internet (caster, aggiornamenti), WiFi station sempre
+    // collegato: porta la rete di casa (pannello, VPN, AgOpenGPS) e fa da
+    // riserva se il 4G cade. Vedi cellular_link_init (priorita' del PPP).
+    NETWORK_MODE_CELLULAR_FIRST = 4,
 } network_mode_t;
 
 typedef enum {

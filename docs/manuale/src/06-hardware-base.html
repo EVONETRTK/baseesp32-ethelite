@@ -260,7 +260,7 @@
 
 <ul>
   <li>Modem supportati: <strong>SIM7600</strong> in versione Mini PCIe originale SIMCom (varianti G-H o E-H) o modulo LilyGO, montato nello shield LTE. Il SIM868 resta selezionabile solo per prove. Per l'Italia serve un modem con la <strong>banda 20 (800 MHz)</strong>, la più diffusa nelle campagne.</li>
-  <li>Con il modem SIM7600 originale SIMCom i DIP switch <strong>POWERKEY</strong> (SW2-5) e <strong>RESET</strong> (SW3) dello shield vanno <strong>spenti</strong>.</li>
+  <li>Con il modem SIM7600 originale SIMCom sullo shield vanno <strong>spenti</strong> i DIP <strong>SW2-5</strong> (POWERKEY), <strong>SW2-7</strong> e <strong>SW3-3</strong> (RESET). Le altre posizioni di <strong>SW3</strong> restano <strong>accese</strong> (1 DTR, 4 e 5 seriale, 8 OE): senza, il modem non comunica. SW2 1-4 e 6 si possono lasciare spenti.</li>
   <li>La SIM deve essere <strong>attiva</strong> presso l'operatore e con il <strong>codice PIN disattivato</strong>: il firmware non inserisce il PIN. Disattivatelo prima, inserendo la SIM in un telefono.</li>
   <li>Inserite nel pannello l'<strong>APN</strong> dell'operatore e i dati del piano (giga al mese, data di rinnovo), così il ricevitore controlla i consumi e avvisa prima della scadenza (capitolo <a data-cap="Scheda SIM e costi"></a>).</li>
   <li>Una base consuma pochi dati: le correzioni occupano pochi gigabyte al mese. Controllate comunque il consumo reale nel pannello nelle prime settimane.</li>

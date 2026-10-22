@@ -704,6 +704,7 @@ static const char *network_mode_str(network_mode_t m)
     case NETWORK_MODE_WIFI_ONLY:      return "wifi";
     case NETWORK_MODE_CELLULAR_ONLY:  return "cellular";
     case NETWORK_MODE_ETHERNET_ONLY:  return "ethernet_only";
+    case NETWORK_MODE_CELLULAR_FIRST: return "cellular_first";
     default:                          return "both";
     }
 }
@@ -1060,6 +1061,28 @@ static esp_err_t status_get_handler(httpd_req_t *req)
         cJSON_AddStringToObject(root, "sim_iccid_prev", st.iccid_prev);
         cJSON_AddStringToObject(root, "sim_imei_prev", st.imei_prev);
         cJSON_AddBoolToObject(root, "sim_number_written", st.number_written);
+        if (st.modem_silent) {
+            cJSON_AddNumberToObject(root, "modem_silent_s", (double) ((esp_timer_get_time() - st.modem_silent_us) / 1000000));
+        }
+        if (st.health_valid) {
+            const modem_health_t *mh = &st.health;
+            cJSON *m = cJSON_AddObjectToObject(root, "modem");
+            if (m) {
+                cJSON_AddNumberToObject(m, "age_s", (double) ((esp_timer_get_time() - st.health_us) / 1000000));
+                if (mh->temp_ok) cJSON_AddNumberToObject(m, "temp_c", mh->temp_c);
+                if (mh->volt_ok) cJSON_AddNumberToObject(m, "volt_v", mh->volt_mv / 1000.0);
+                if (mh->mode[0]) cJSON_AddStringToObject(m, "mode", mh->mode);
+                if (mh->fw[0]) cJSON_AddStringToObject(m, "fw", mh->fw);
+                if (mh->lte_ok) {
+                    cJSON_AddNumberToObject(m, "band", mh->band);
+                    cJSON_AddNumberToObject(m, "rsrp_dbm", mh->rsrp_dbm);
+                    cJSON_AddNumberToObject(m, "rsrq_db", mh->rsrq_db);
+                    cJSON_AddNumberToObject(m, "sinr_db", mh->sinr_db);
+                    cJSON_AddNumberToObject(m, "cell_id", (double) mh->cell_id);
+                    cJSON_AddStringToObject(m, "mcc_mnc", mh->mcc_mnc);
+                }
+            }
+        }
         if (st.ids_at > 0) {
             char when[24];
             struct tm tm;
@@ -2306,6 +2329,8 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
             s.network_mode = NETWORK_MODE_WIFI_ONLY;
         } else if (strcmp(net_mode_item->valuestring, "cellular") == 0) {
             s.network_mode = NETWORK_MODE_CELLULAR_ONLY;
+        } else if (strcmp(net_mode_item->valuestring, "cellular_first") == 0) {
+            s.network_mode = NETWORK_MODE_CELLULAR_FIRST;
         } else if (strcmp(net_mode_item->valuestring, "ethernet_only") == 0) {
             // Solo Ethernet spegne la radio WiFi (anche la rete di emergenza):
             // senza il cavo funzionante la base diventava irraggiungibile, si

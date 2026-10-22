@@ -40,10 +40,10 @@
   <figcaption><b>Figura 3.</b> La parte alta del pannello di una base, come appare sul telefono.</figcaption>
 </figure>
 
-<p>Sotto il nome ci sono quattro <strong>pallini di stato</strong>: verde vuol dire che va bene, rosso che c'è un problema. Compaiono in tutte le schede tranne <strong>Stato</strong>, dove le stesse informazioni sono già nel giudizio e nei riquadri di riepilogo: così, mentre lavorate in un'altra scheda, vedete sempre se il ricevitore funziona.</p>
+<p>Sotto il nome ci sono quattro <strong>pallini di stato</strong>: verde vuol dire che va bene, rosso che c'è un problema. Compaiono in tutte le schede; nella scheda <strong>Stato</strong> resta solo quello della rete, perché il resto è già nel giudizio e nei riquadri di riepilogo. Così vedete sempre se il ricevitore funziona e da dove prende internet.</p>
 
 <ul>
-  <li><strong>WiFi</strong>, <strong>Cellulare</strong> o <strong>Ethernet</strong>: la connessione a internet in uso (Ethernet in giallo: cavo collegato ma senza indirizzo). "Assente" in rosso: il ricevitore non è collegato a internet.</li>
+  <li><strong>📶 WiFi</strong>, <strong>📱 4G</strong> o <strong>🔌 Ethernet</strong>: la connessione che porta internet in quel momento, con la riserva pronta, per esempio «4G · WiFi di riserva» o «WiFi · 4G di riserva». In giallo: cavo Ethernet senza indirizzo, oppure «WiFi · 4G non disponibile» quando, con la connettività <em>4G con WiFi di riserva</em>, il 4G non va e il ricevitore lavora in WiFi. «⛔ Nessuna rete» in rosso: il ricevitore non è collegato a internet.</li>
   <li><strong>NTRIP OK</strong>: il ricevitore è collegato al caster; una base gli manda le correzioni, un rover le riceve. "NTRIP giù" in rosso: il collegamento è interrotto.</li>
   <li><strong>Fix</strong>: la qualità della posizione. Sul rover deve indicare <strong>RTK fisso</strong> (verde); <em>RTK float</em> e le correzioni approssimate DGPS o HAS (arancione) vogliono dire precisione di decimetri, <em>No RTK</em> (rosso) che le correzioni non vengono usate. Lo stesso colore compare nel riquadro Fix e nel giudizio della scheda Stato. Su una base lo stesso pallino indica invece se la base manda la sua posizione: <strong>Posiz. OK</strong> (verde), <em>Survey-in</em> o <em>In avvio</em> (arancione), <em>No posiz.</em> (rosso: i trattori non possono arrivare al fix).</li>
   <li><strong>SD</strong>: la scheda di memoria dove il ricevitore salva il suo diario di funzionamento.</li>
@@ -68,7 +68,7 @@
 
 <figure>
   <img class="schermata" src="img/pannello-riepilogo.png" alt="Scheda Stato di una base: riquadro Funziona tutto e riquadri di riepilogo">
-  <figcaption><b>Figura 4.</b> La scheda Stato di una base che funziona: in cima il riquadro verde «Funziona tutto», sotto i riquadri con caster, posizione, satelliti, temperature, WiFi e LTE con le tacche, SIM.</figcaption>
+  <figcaption><b>Figura 4.</b> La scheda Stato di una base che funziona: in cima il riquadro verde «Funziona tutto», sotto i riquadri con caster, posizione, satelliti, temperature, WiFi e rete mobile con le tacche.</figcaption>
 </figure>
 
 <table class="divisibile">
@@ -77,8 +77,8 @@
   <tr><td><strong>Posizione base</strong></td><td>Inviata: i trattori possono lavorare in RTK.</td><td>Survey-in: la base sta ancora calcolando la sua posizione.</td><td>Non inviata: i trattori non possono arrivare al fix.</td></tr>
   <tr><td><strong>Satelliti</strong></td><td>8 o più con segnale buono.</td><td>Da 4 a 7: pochi.</td><td>Meno di 4: l'antenna non riceve.</td></tr>
   <tr><td><strong>Temperature</strong></td><td>Ricevitore sotto i 60 °C.</td><td>Tra 60 e 70 °C.</td><td>Oltre 70 °C: riparatelo dal sole.</td></tr>
-  <tr><td><strong>WiFi</strong> e <strong>LTE</strong></td><td>3 o 4 tacche (Buono, Ottimo).</td><td>2 tacche (Discreto).</td><td>1 tacca (Debole) sulla connessione in uso.</td></tr>
-  <tr><td><strong>SIM</strong></td><td>Pronta o in uso, credito sufficiente.</td><td>Non in uso, piano dati oltre il 70%, rinnovo vicino.</td><td>Credito basso, piano dati oltre il 90%, rinnovo scaduto.</td></tr>
+  <tr><td><strong>WiFi</strong></td><td>3 o 4 tacche (Buono, Ottimo).</td><td>2 tacche (Discreto).</td><td>1 tacca (Debole) sulla connessione in uso.</td></tr>
+  <tr><td><strong>Rete mobile</strong> (segnale 4G e SIM insieme)</td><td>3 o 4 tacche; SIM in uso, di riserva (WiFi in uso e modem agganciato alla rete) o modem in avvio; credito sufficiente.</td><td>2 tacche, modem acceso ma senza rete, modem oltre 70 °C, piano dati oltre il 70%, rinnovo vicino.</td><td>1 tacca sulla connessione in uso, modem oltre 80 °C, credito basso, piano dati oltre il 90%, rinnovo scaduto.</td></tr>
 </table>
 
 <p>Per una base i due riquadri che contano di più sono <strong>Caster</strong> e <strong>Posizione base</strong>: se sono verdi, i trattori possono lavorare.</p>

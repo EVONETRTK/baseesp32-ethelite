@@ -13,7 +13,16 @@
 
 <h3>Stato della SIM</h3>
 
-<p>I dati letti dal modem: <strong>modulo</strong>, <strong>operatore di rete</strong>, <strong>segnale</strong> e la <strong>rete usata dal ricevitore</strong> in quel momento (WiFi, Ethernet o cellulare). ICCID, IMEI e numero sono nel riquadro in cima alla scheda. Senza modem montato, o con la connettività <em>Solo WiFi</em> o <em>Solo Ethernet</em>, i riquadri SIM e LTE della scheda <em>Stato</em> non compaiono.</p>
+<p>I dati letti dal modem: <strong>modulo</strong>, <strong>operatore di rete</strong>, <strong>segnale</strong> e la <strong>rete usata dal ricevitore</strong> in quel momento (WiFi, Ethernet o cellulare). ICCID, IMEI e numero sono nel riquadro in cima alla scheda. Senza modem montato, o con la connettività <em>Solo WiFi</em> o <em>Solo Ethernet</em>, il riquadro <em>Rete mobile</em> della scheda <em>Stato</em> non compare.</p>
+
+<p>Con il modem SIM7600 il ricevitore può leggere ogni 2 minuti anche la <strong>salute del modem</strong>:</p>
+<ul>
+  <li><strong>Qualità del 4G</strong>: <strong>RSRP</strong> è la forza del segnale (meglio sopra −90 dBm), <strong>SINR</strong> quanto è pulito dai disturbi (meglio sopra 10 dB), <strong>RSRQ</strong> la qualità complessiva. Con RSRP buono e SINR basso il segnale c'è ma è disturbato: spesso aiuta spostare l'antenna LTE o allontanarla da altri apparecchi.</li>
+  <li><strong>Banda e cella</strong>: la banda 4G e la cella a cui è agganciato il modem; utile all'assistenza.</li>
+  <li><strong>Temperatura del modem</strong>: il modem lavora fino a 80 °C. Sopra i 70 °C il riquadro <em>Rete mobile</em> diventa arancione, sopra gli 80 °C rosso: serve più ombra o aria nella scatola.</li>
+  <li><strong>Alimentazione del modem</strong> e <strong>firmware del modem</strong>: per l'assistenza.</li>
+  <li><strong>Modem non risponde</strong>: il modem è montato ma non risponde più ai comandi. Il riavvio dal pannello non basta, perché il modem SIMCom ha un'alimentazione sua: togliete e ridate corrente al ricevitore. Il ricevitore annota nel registro quando è successo, con gli ultimi valori letti (temperatura, tensione, rete): se capita di nuovo, mandateli all'assistenza.</li>
+</ul>
 
 <h2>Scoprire il numero della SIM</h2>
 
@@ -35,7 +44,7 @@
 
 <div class="box avviso"><span class="box-titolo">Attenzione</span>Prima di montare un <strong>SIM7600 originale SIMCom</strong>:
 <ul>
-  <li>spegnete i DIP <strong>POWERKEY</strong> (SW2, posizione 5) e <strong>RESET</strong> (SW3) dello shield, che servono solo ai moduli LilyGO;</li>
+  <li>spegnete i DIP <strong>SW2-5</strong> (POWERKEY), <strong>SW2-7</strong> e <strong>SW3-3</strong> (RESET) dello shield, che servono solo ai moduli LilyGO, e lasciate <strong>accese</strong> le altre posizioni di SW3 (1, 2, 4-8);</li>
   <li>per l'Italia scegliete la variante <strong>G-H</strong> (tutte le bande, anche la B28 a 700 MHz) o <strong>E-H</strong> (B1, B3, B7, B8, B20, senza B28); non vanno bene A-H, NA-H, SA-H e JC-H, pensate per altri continenti;</li>
   <li>il formato deve essere <strong>Mini PCIe</strong>, non M.2 né modulo da saldare;</li>
   <li>collegate l'<strong>antenna LTE prima di accendere</strong>: senza antenna il modulo può scaldarsi e non registrarsi alla rete.</li>

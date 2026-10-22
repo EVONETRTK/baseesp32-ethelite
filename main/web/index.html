@@ -32,7 +32,8 @@
   .qs-chip.qs-warn { background:#fef3c7; color:#b45309; border-color:#fcd34d; }
   .qs-chip.qs-bad { background:#fee2e2; color:#b91c1c; border-color:#fca5a5; }
   /* Nella scheda Stato i pallini ripeterebbero giudizio e riquadri: compaiono nelle altre schede. */
-  body.on-status .quick-status > .qs-chip { display:none; }
+  /* Nella scheda Stato resta solo la rete in uso: il resto e' nei riquadri. */
+  body.on-status .quick-status > .qs-chip:not(#qs-wifi) { display:none; }
   nav.tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom: 1rem; }
   nav.tabs button { padding:.55rem 1rem; border:1px solid #c5c9d0; background:#fff; border-radius:8px; cursor:pointer; font-size:.9rem; transition: background .15s, color .15s, border-color .15s; }
   nav.tabs button.active { background:var(--mode-accent); color:#fff; border-color:var(--mode-accent); }
@@ -512,11 +513,13 @@
     <label>Connettivita' da usare
       <select name="network_mode">
         <option value="both">WiFi con fallback cellulare (consigliato)</option>
+        <option value="cellular_first">4G con WiFi di riserva (Internet dalla SIM, WiFi per la rete di casa)</option>
         <option value="wifi">Solo WiFi (ignora il modem cellulare anche se collegato)</option>
         <option value="cellular">Solo cellulare (ignora il WiFi station)</option>
         <option value="ethernet_only">⚠️ Solo Ethernet (spegne la radio WiFi)</option>
       </select>
-      <small class="hint">L'AP di setup di questa pagina resta sempre attivo in ogni caso, <strong>tranne</strong> con "Solo Ethernet": in quel modo la radio WiFi non si accende proprio (utile per isolare interferenze RF sul GNSS), ma se l'Ethernet non funziona perdi ogni accesso remoto - l'unico recupero e' il pulsante BOOT tenuto premuto 5 secondi, che cancella le impostazioni. Usalo solo con Ethernet gia' verificato funzionante. L'Ethernet, se abilitata via menuconfig, e' indipendente da questa scelta.</small>
+      <small class="hint">Con "4G con WiFi di riserva" caster, aggiornamenti e avvisi passano dalla SIM (si consumano dati: circa 70-80 MB al giorno con le correzioni sempre attive); il WiFi resta collegato per il pannello, la VPN e AgOpenGPS sulla rete di casa e prende il posto del 4G in pochi secondi se il 4G cade (il 4G si riprova ogni 2 minuti).
+      L'AP di setup di questa pagina resta sempre attivo in ogni caso, <strong>tranne</strong> con "Solo Ethernet": in quel modo la radio WiFi non si accende proprio (utile per isolare interferenze RF sul GNSS), ma se l'Ethernet non funziona perdi ogni accesso remoto - l'unico recupero e' il pulsante BOOT tenuto premuto 5 secondi, che cancella le impostazioni. Usalo solo con Ethernet gia' verificato funzionante. L'Ethernet, se abilitata via menuconfig, e' indipendente da questa scelta.</small>
     </label>
   
     <div class="fieldset-save-row">
@@ -1212,7 +1215,15 @@
       <dt>Operatore di rete</dt><dd id="sim-op">-</dd>
       <dt>Segnale</dt><dd id="sim-rssi">-</dd>
       <dt>Rete usata dalla base</dt><dd id="sim-net">-</dd>
+      <dt>Qualità del 4G</dt><dd id="sim-lte">-</dd>
+      <dt>Banda e cella</dt><dd id="sim-cell">-</dd>
+      <dt>Temperatura del modem</dt><dd id="sim-temp">-</dd>
+      <dt>Alimentazione del modem</dt><dd id="sim-volt">-</dd>
+      <dt>Firmware del modem</dt><dd id="sim-fw">-</dd>
     </dl>
+    <small class="hint" id="sim-health-hint">Letti dal modem ogni 2 minuti. RSRP è la forza del segnale 4G (meglio sopra −90 dBm),
+      SINR quanto è pulito dai disturbi (meglio sopra 10 dB): con RSRP buono e SINR basso il segnale c'è ma è disturbato.
+      Il modem lavora fino a 80 °C: sopra i 70 °C conviene più ombra o aria nella scatola.</small>
   </fieldset>
 
   <fieldset>
@@ -1245,7 +1256,7 @@
     <div id="simcom-warn" style="display:none; background:#fef3c7; color:#78350f; border:1px solid #fcd34d; border-radius:8px; padding:.6rem .8rem; margin:.4rem 0 .6rem; font-size:.88rem">
       <b>⚠️ Modulo SIMCom originale: prima di montarlo</b>
       <ul style="margin:.4rem 0 0; padding-left:1.2rem">
-        <li><b>Spegni i DIP POWERKEY (SW2, posizione 5) e RESET (SW3) dello shield.</b> Servono solo ai moduli LilyGO:
+        <li><b>DIP dello shield: su SW2 spegni le posizioni 5 (POWERKEY) e 7 (RESET); su SW3 spegni solo la posizione 3 (RESET) e lascia accese le altre</b> (1 DTR, 4-5 seriale, 8 OE: senza queste il modem non comunica). POWERKEY e RESET servono solo ai moduli LilyGO:
           questo modulo si accende da solo appena riceve i 3,3 V e la base non usa quel pin (lo lascia libero).</li>
         <li><b>Variante per l'Italia: SIM7600G-H</b> (tutte le bande, anche B28 a 700 MHz) oppure <b>SIM7600E-H</b>
           (B1/B3/B7/B8/B20, senza B28). Non vanno bene A-H, NA-H (America), SA-H (Sud America/Australia), JC-H (Giappone).</li>
@@ -2812,9 +2823,21 @@ function setQsChip(id, state, label) {
 
 function renderQuickStatusFromStatus(s) {
   const net = netInUse(s);
-  const netLabel = { wifi: 'WiFi', cellulare: 'Cellulare', ethernet: 'Ethernet' }[net] || 'Assente';
-  // Cavo collegato ma senza indirizzo: giallo.
-  setQsChip('qs-wifi', !net ? 'qs-bad' : (net === 'ethernet' && !s.eth_ip ? 'qs-warn' : 'qs-ok'), netLabel);
+  // Rete che porta Internet adesso, a colpo d'occhio (anche nella scheda
+  // Stato), con la riserva pronta: "4G · WiFi di riserva".
+  const sig = lastSignals || {};
+  const cellReady = !!sig.cellular_tech && s.network_mode !== "wifi" && s.network_mode !== "ethernet_only";
+  let netLabel = { wifi: "WiFi", cellulare: "4G", ethernet: "Ethernet" }[net] || "Nessuna rete";
+  if (net === "cellulare" && s.wifi_current_ssid) netLabel += " · WiFi di riserva";
+  else if (net === "wifi" && cellReady) netLabel += " · 4G di riserva";
+  else if (net === "ethernet" && s.wifi_current_ssid) netLabel += " · WiFi di riserva";
+  const icon = document.querySelector("#qs-wifi .qs-icon");
+  if (icon) icon.textContent = { wifi: "📶", cellulare: "📱", ethernet: "🔌" }[net] || "⛔";
+  // Cavo collegato ma senza indirizzo, o "4G con WiFi di riserva" che sta
+  // lavorando in WiFi perche' il 4G non va: giallo.
+  const cfOnWifi = s.network_mode === "cellular_first" && net === "wifi";
+  if (cfOnWifi) netLabel = "WiFi · 4G non disponibile";
+  setQsChip("qs-wifi", !net ? "qs-bad" : ((net === "ethernet" && !s.eth_ip) || cfOnWifi ? "qs-warn" : "qs-ok"), netLabel);
 
   setQsChip('qs-ntrip', s.ntrip_connected ? 'qs-ok' : 'qs-bad', s.ntrip_connected ? 'NTRIP OK' : 'NTRIP giu\'');
 
@@ -4500,10 +4523,39 @@ function updateSimIdBox(s) {
   document.getElementById('sim-iccid-cfg-wrap').style.display = s.sim_iccid ? 'none' : '';
 }
 
+// Salute del modem (s.modem, dal firmware 1.34.0): parole semplici accanto ai numeri.
+function updateModemHealth(s) {
+  const m = s.modem || {};
+  const set = (id, txt, col) => { const e = document.getElementById(id); e.textContent = txt; e.style.color = col || ""; };
+  const giudizio = (v, soglie) => v >= soglie[0] ? "ottimo" : v >= soglie[1] ? "buono" : v >= soglie[2] ? "discreto" : "debole";
+  if (m.rsrp_dbm !== undefined) {
+    const g = giudizio(m.rsrp_dbm, [-80, -90, -100]), q = giudizio(m.sinr_db, [20, 13, 0]);
+    set("sim-lte", "RSRP " + m.rsrp_dbm.toFixed(0) + " dBm (" + g + ") · SINR " + m.sinr_db + " dB (" + q + ") · RSRQ " + m.rsrq_db.toFixed(1).replace(".", ",") + " dB",
+      (g === "debole" || q === "debole") ? "#dc2626" : "");
+    set("sim-cell", "banda " + (m.band || "?") + " · cella " + m.cell_id + " · rete " + m.mcc_mnc);
+  } else {
+    set("sim-lte", m.mode ? (m.mode === "NO SERVICE" ? "nessuna rete" : m.mode + " (non 4G)") : "-");
+    set("sim-cell", "-");
+  }
+  if (m.temp_c !== undefined) set("sim-temp", m.temp_c + " °C" + (m.temp_c >= 80 ? " — troppo caldo" : m.temp_c >= 70 ? " — caldo" : ""),
+    m.temp_c >= 80 ? "#dc2626" : m.temp_c >= 70 ? "#d97706" : "");
+  else set("sim-temp", "-");
+  set("sim-volt", m.volt_v !== undefined ? m.volt_v.toFixed(2).replace(".", ",") + " V" : "-");
+  set("sim-fw", m.fw || "-");
+  if (s.modem_silent_s !== undefined) {
+    // Gli altri valori restano gli ultimi letti prima del blocco: utili per capire la causa.
+    set("sim-lte", "il modem non risponde da " + fmtDuration(s.modem_silent_s) +
+      ": togli e ridai corrente al ricevitore (il riavvio dal pannello non basta)", "#dc2626");
+    if (s.modem) set("sim-cell", "ultimi valori letti " + fmtDuration(s.modem.age_s) + " fa, prima del blocco");
+  }
+  document.getElementById("sim-health-hint").style.display = s.modem ? "" : "none";
+}
+
 function updateSimUi(s) {
   const mod = { sim7600_lilygo: 'SIM7600 (LilyGO)', sim7600_simcom: 'SIM7600 (SIMCom originale)', sim868: 'SIM868' };
   document.getElementById('sim-module').textContent = mod[s.cellular_module] || '-';
   updateSimIdBox(s);
+  updateModemHealth(s);
   document.getElementById('sim-net').textContent = { cellulare: 'cellulare (questa SIM)', wifi: 'WiFi (SIM non usata ora)', ethernet: 'Ethernet (SIM non usata ora)' }[netInUse(s)] || 'nessuna';
   const eur = document.getElementById('sim-credit-eur');
   if (s.sim_credit_at) {
@@ -4741,10 +4793,46 @@ function updateSummaryCards(s) {
     cards.push(sumCard('w', '📶 WiFi', b.n ? b.cls : 'warn', '<span class="sc-bars">' + b.bars + '</span> ' + b.word,
       (b.n ? sig.wifi_rssi_dbm + ' dBm · ' : '') + s.wifi_current_ssid + (s.net === 'wifi' ? ' · in uso' : ''), 'page-network'));
   }
+  // Dopo l'accensione il SIM7600 impiega 60-75 s ad agganciare la rete: in
+  // quei minuti "Nessun segnale" sembrava un guasto.
+  const modemBooting = sig.cellular_rssi_dbm == null && s.net !== 'cellulare' && (s.now_us || 0) < 180e6;
+  // Rete mobile: segnale LTE e SIM in un solo riquadro (prima erano due).
   if (usesCellular(s)) {
+    const worse = (x, y) => ({ ok: 0, warn: 1, bad: 2 }[y] > { ok: 0, warn: 1, bad: 2 }[x] ? y : x);
     const b = signalBars(sig.cellular_rssi_dbm, [-105, -95, -85]);
-    cards.push(sumCard('l', '📱 LTE', b.n ? b.cls : (s.net === 'cellulare' ? 'bad' : 'warn'), b.n ? '<span class="sc-bars">' + b.bars + '</span> ' + b.word : 'Nessun segnale',
-      (b.n ? sig.cellular_rssi_dbm + ' dBm · ' : '') + (sig.cellular_operator || 'non registrato') + (sig.cellular_tech ? ' · ' + sig.cellular_tech : '') + (s.net === 'cellulare' ? ' · in uso' : ''), 'page-sim'));
+    const registered = sig.cellular_rssi_dbm != null || !!sig.cellular_tech;
+    // Modem che non risponde ai comandi (firmware 1.34.1): non e' "senza
+    // rete", e' fermo; si riprende togliendo e ridando corrente.
+    const silent = s.modem_silent_s !== undefined;
+    let cls = silent ? (s.net === "cellulare" ? "bad" : "warn") : b.n ? b.cls : (modemBooting ? "ok" : (s.net === "cellulare" ? "bad" : "warn"));
+    const val = silent ? "Modem non risponde" : b.n ? '<span class="sc-bars">' + b.bars + "</span> " + b.word : (modemBooting ? "Modem in avvio…" : "Nessun segnale");
+    // Con il WiFi in uso la SIM e' di riserva: e' la situazione normale.
+    const parts = [];
+    if (silent) parts.push("da " + fmtDuration(s.modem_silent_s) + " · togli e ridai corrente");
+    else if (s.net === "cellulare") parts.push("in uso");
+    else if (registered) parts.push("di riserva");
+    else if (modemBooting) parts.push("aggancia la rete in circa un minuto");
+    else parts.push("modem senza rete");
+    if (!silent && sig.cellular_operator) parts.push(sig.cellular_operator + (sig.cellular_tech ? " " + sig.cellular_tech : ""));
+    const t = silent ? undefined : (s.modem && s.modem.temp_c);
+    if (t !== undefined && t !== null) {
+      parts.push("modem " + t + " °C");
+      if (t >= 80) cls = "bad"; else if (t >= 70) cls = worse(cls, "warn");
+    }
+    if (s.sim_credit_eur !== undefined) {
+      parts.push(s.sim_credit_eur.toFixed(2).replace(".", ",") + " €");
+      if (s.sim_credit_min_eur > 0 && s.sim_credit_eur < s.sim_credit_min_eur) cls = "bad";
+    }
+    if (s.data_plan_mb > 0) {
+      const pct = Math.round(100 * (s.data_cell_month_bytes || 0) / (s.data_plan_mb * 1e6));
+      parts.push("piano dati " + pct + "%");
+      if (pct >= 90) cls = "bad"; else if (pct >= 70) cls = worse(cls, "warn");
+    }
+    if (s.sim_renew_days_left !== undefined && s.sim_renew_days_left <= simNoticeDays(s)) {
+      parts.push(s.sim_renew_days_left < 0 ? "rinnovo scaduto" : "rinnovo tra " + s.sim_renew_days_left + " g");
+      cls = s.sim_renew_days_left < 0 ? "bad" : worse(cls, "warn");
+    }
+    cards.push(sumCard("l", "📱 Rete mobile", cls, val, parts.join(" · "), "page-sim"));
   }
   // Bluetooth LE (uscita NMEA verso il telefono): solo se acceso o in errore.
   const bleSt = (lastSignals || {}).ble_nmea;
@@ -4761,27 +4849,6 @@ function updateSummaryCards(s) {
   const freeKb = Math.round((s.free_heap_bytes || 0) / 1024);
   if (freeKb > 0 && freeKb < 16) {
     cards.push(sumCard('y', '⚙️ Memoria', 'bad', freeKb + ' KB liberi', 'poca memoria: se capita spesso, riavvia', 'page-status#sys'));
-  }
-  // SIM
-  if (usesCellular(s)) {
-    let cls = 'ok', val = 'Pronta', sub = '';
-    if (s.sim_credit_eur !== undefined) {
-      val = s.sim_credit_eur.toFixed(2).replace('.', ',') + ' €';
-      if (s.sim_credit_min_eur > 0 && s.sim_credit_eur < s.sim_credit_min_eur) cls = 'bad';
-    } else {
-      val = s.net === 'cellulare' ? 'In uso' : 'Non in uso';
-      cls = s.net === 'cellulare' ? 'ok' : 'warn';
-    }
-    if (s.data_plan_mb > 0) {
-      const pct = Math.round(100 * (s.data_cell_month_bytes || 0) / (s.data_plan_mb * 1e6));
-      sub = 'piano dati ' + pct + '%';
-      if (pct >= 90) cls = 'bad'; else if (pct >= 70 && cls === 'ok') cls = 'warn';
-    }
-    if (s.sim_renew_days_left !== undefined && s.sim_renew_days_left <= simNoticeDays(s)) {
-      sub += (sub ? ' · ' : '') + (s.sim_renew_days_left < 0 ? 'rinnovo scaduto' : 'rinnovo tra ' + s.sim_renew_days_left + ' g');
-      if (s.sim_renew_days_left < 0) cls = 'bad'; else if (cls === 'ok') cls = 'warn';
-    }
-    cards.push(sumCard('m', '📱 SIM', cls, escHtml(val), sub, 'page-sim'));
   }
   // Riscritti solo se cambiano: un tocco a cavallo dell'aggiornamento non va perso.
   const html = cards.join('');

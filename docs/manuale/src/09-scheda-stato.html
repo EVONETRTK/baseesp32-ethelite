@@ -2,7 +2,7 @@
 
 <h2>Riepilogo e avvisi</h2>
 
-<p>La scheda si apre con il <strong>riquadro del giudizio</strong> (verde «Funziona tutto», oppure il problema più importante con la spiegazione e l'elenco degli altri), seguito dai riquadri di riepilogo (Caster, Posizione base o Fix, Satelliti, Temperature, WiFi, LTE, Ethernet se collegata, SIM; Memoria solo se scarsa) e dagli avvisi colorati, descritti nel capitolo <a data-cap="Il pannello in un colpo d'occhio"></a>. Le soglie usate sono:</p>
+<p>La scheda si apre con il <strong>riquadro del giudizio</strong> (verde «Funziona tutto», oppure il problema più importante con la spiegazione e l'elenco degli altri), seguito dai riquadri di riepilogo (Caster, Posizione base o Fix, Satelliti, Temperature, WiFi, Rete mobile, Ethernet se collegata; Memoria solo se scarsa) e dagli avvisi colorati, descritti nel capitolo <a data-cap="Il pannello in un colpo d'occhio"></a>. Le soglie usate sono:</p>
 
 <table class="divisibile">
   <tr><th>Riquadro</th><th>Verde</th><th>Arancione</th><th>Rosso</th></tr>
@@ -11,10 +11,10 @@
   <tr><td>Satelliti</td><td>8 o più con C/N0 ≥ 35 dB-Hz</td><td>Da 4 a 7</td><td>Meno di 4</td></tr>
   <tr><td>Temperature</td><td>ESP32 e modulo GNSS &lt; 60 °C</td><td>Da 60 a 70 °C</td><td>Oltre 70 °C</td></tr>
   <tr><td>WiFi</td><td>≥ −70 dBm (Buono, Ottimo)</td><td>Da −80 a −70 dBm (Discreto)</td><td>Sotto −80 dBm (Debole)</td></tr>
-  <tr><td>LTE</td><td>≥ −95 dBm (Buono, Ottimo)</td><td>Da −105 a −95 dBm (Discreto)</td><td>Sotto −105 dBm (Debole)</td></tr>
+  <tr><td>Rete mobile: segnale</td><td>≥ −95 dBm (Buono, Ottimo)</td><td>Da −105 a −95 dBm (Discreto)</td><td>Sotto −105 dBm (Debole)</td></tr>
   <tr><td>Bluetooth (rover, solo se acceso)</td><td>Telefono collegato: le posizioni arrivano all'app</td><td>In attesa: nessun telefono collegato</td><td>Non avviato (memoria insufficiente)</td></tr>
   <tr><td>Memoria (solo se scarsa)</td><td>—</td><td>—</td><td>RAM interna &lt; 16 KB</td></tr>
-  <tr><td>SIM</td><td>In uso, o credito sopra la soglia</td><td>Non in uso, piano &gt; 70%, rinnovo entro il primo preavviso</td><td>Credito sotto la soglia, piano &gt; 90%, rinnovo scaduto</td></tr>
+  <tr><td>Rete mobile: SIM e modem</td><td>In uso, di riserva o modem in avvio; credito sopra la soglia</td><td>Modem senza rete, modem che non risponde (rosso se la SIM è in uso), modem da 70 a 80 °C, piano &gt; 70%, rinnovo entro il primo preavviso</td><td>Modem oltre 80 °C, credito sotto la soglia, piano &gt; 90%, rinnovo scaduto</td></tr>
 </table>
 
 <p><span class="pubblico tecnico">Solo rover</span> Se il trattore era in RTK fisso e lo perde per più dei secondi scelti nel campo <strong>Allarme RTK perso dopo</strong> (scheda <em>Posizione e correzioni</em>, riquadro <em>Uscita dati per software di guida</em>; 5 secondi di fabbrica), sopra il giudizio compare una <strong>striscia rossa lampeggiante «RTK PERSO da … s»</strong>, con la posizione che il ricevitore ha in quel momento (RTK float, DGPS o HAS, posizione autonoma, nessun fix, oppure nessun dato dal ricevitore). Anche il giudizio diventa rosso: <strong>RTK perso da N s: il trattore non è più in RTK fisso</strong>. Nello stesso momento il display del ricevitore, se montato, lampeggia «RTK PERSO» a tutto schermo. Striscia e lampeggio spariscono da soli appena torna l'RTK fisso. L'allarme non compare se dall'accensione il rover non è mai arrivato in RTK fisso.</p>
@@ -155,7 +155,7 @@
 
 <h3>WiFi e LTE</h3>
 
-<p>I riquadri <strong>WiFi</strong> e <strong>LTE</strong> mostrano le tacche come sul telefono, il giudizio (Ottimo, Buono, Discreto, Debole), l'intensità in dBm (<strong>RSSI</strong>), il nome della rete WiFi o l'operatore e la tecnologia della rete mobile, e quale connessione è in uso.</p>
+<p>I riquadri <strong>WiFi</strong> e <strong>Rete mobile</strong> mostrano le tacche come sul telefono, il giudizio (Ottimo, Buono, Discreto, Debole), l'intensità in dBm (<strong>RSSI</strong>), il nome della rete WiFi o l'operatore e la tecnologia della rete mobile, e quale connessione è in uso. Il riquadro Rete mobile riunisce segnale 4G e SIM: sotto le tacche dice se la SIM è in uso o di riserva, l'operatore, la temperatura del modem e, se impostati, credito, piano dati e rinnovo. Nei primi minuti dopo l'accensione scrive <strong>Modem in avvio…</strong>: il modem impiega circa un minuto ad agganciare la rete. <strong>Nessun segnale</strong> compare solo se dopo l'avvio il modem non trova la rete.</p>
 
 <table>
   <tr><th>RSSI WiFi</th><th>Qualità</th></tr>

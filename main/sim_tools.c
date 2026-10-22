@@ -377,6 +377,8 @@ static void save_ids(void)
 // risponde (l'ICCID solo con la SIM inserita; il numero puo' mancare nella
 // SIM: risposta vuota = finito). Poi, se la SIM non contiene il numero, ci
 // copia quello scritto a mano nel pannello.
+static void read_health(int64_t now_us);
+
 static void read_ids(void)
 {
     static bool s_imei_done, s_iccid_done, s_number_done;
@@ -630,6 +632,7 @@ void sim_tools_tick(const app_settings_t *cfg)
     }
 
     read_ids();
+    read_health(now_us);
 
     // Controllo automatico: ogni N giorni, dall'ora scelta.
     time_t now = time(NULL);
@@ -665,6 +668,82 @@ void sim_tools_tick(const app_settings_t *cfg)
         return;
     }
     nvs_close(h);
+}
+
+// Salute del modem ogni 2 minuti: temperatura, tensione, qualita' del 4G;
+// la versione del firmware una volta per avvio.
+#define HEALTH_EVERY_US (120LL * 1000000)
+// Comandi della salute (AT+CPMUTEMP, AT+CBC, AT+CPSI?, AT+CGMR): sospesi nella
+// 1.34.2 per prova, riattivati nella 1.35.0. Il SIM7600 non si era bloccato per
+// loro: era impostato come modulo SIMCom originale ma e' un modulo LilyGO, che
+// senza l'impulso su PWRKEY, una volta spento, non si riaccendeva (21/10/2026).
+#define MODEM_HEALTH_AT 1
+static void read_health(int64_t now_us)
+{
+    static int64_t s_last_us;
+    static bool s_fw_done;
+    static modem_health_t h; // statico: lo stack del task e' condiviso
+    if (s_last_us && now_us - s_last_us < HEALTH_EVERY_US) {
+        return;
+    }
+    s_last_us = now_us;
+    // Il modem SIM7600 si e' bloccato senza dare errori (20 e 21/10/2026):
+    // si annota quando smette di rispondere, con gli ultimi valori letti, per
+    // capire la causa (tempo, caldo, alimentazione). Atteso = ha gia' risposto
+    // in questo avvio, oppure c'e' l'IMEI salvato di un modem montato.
+    if (!cellular_link_modem_present()) {
+        if (now_us < 180LL * 1000000) {
+            s_last_us = now_us - HEALTH_EVERY_US + 15LL * 1000000; // all'avvio si riprova tra 15 s
+            return; // il SIM7600 impiega 60-75 s ad avviarsi: non e' un guasto
+        }
+        lock();
+        bool expected = s_st.health_valid || s_st.imei[0];
+        bool first = expected && !s_st.modem_silent;
+        if (first) {
+            s_st.modem_silent = true;
+            s_st.modem_silent_us = now_us;
+        }
+        modem_health_t last = s_st.health;
+        bool had = s_st.health_valid;
+        int64_t last_us = s_st.health_us;
+        unlock();
+        if (first) {
+            if (had) {
+                ESP_LOGW(TAG, "Modem non risponde (ultima risposta %lld s fa: %d gradi, %d mV, rete %s)",
+                         (long long) ((now_us - last_us) / 1000000), last.temp_c, last.volt_mv,
+                         last.mode[0] ? last.mode : "?");
+            } else {
+                ESP_LOGW(TAG, "Modem non risponde dall'avvio (montato in passato: IMEI salvato)");
+            }
+        }
+        return;
+    }
+    lock();
+    bool was_silent = s_st.modem_silent;
+    int64_t silent_us = s_st.modem_silent_us;
+    s_st.modem_silent = false;
+    h = s_st.health;
+    unlock();
+    if (was_silent) {
+        ESP_LOGW(TAG, "Modem di nuovo raggiungibile dopo %lld s senza risposta",
+                 (long long) ((now_us - silent_us) / 1000000));
+    }
+#if !MODEM_HEALTH_AT
+    return;
+#endif
+    h.temp_ok = h.volt_ok = h.lte_ok = false;
+    if (!cellular_link_read_health(&h, !s_fw_done)) {
+        return;
+    }
+    if (h.fw[0]) s_fw_done = true;
+    if (h.temp_ok && h.temp_c >= 70) {
+        ESP_LOGW(TAG, "Modem caldo: %d gradi", h.temp_c);
+    }
+    lock();
+    s_st.health = h;
+    s_st.health_valid = true;
+    s_st.health_us = now_us;
+    unlock();
 }
 
 void sim_tools_get_status(sim_tools_status_t *out)

@@ -43,6 +43,7 @@ idf_component_register(
         "rtk_alarm.c"
         "base_auto.c"
         "base_check.c"
+        "modem_health.c"
         "gnss_nmea_reader.c"
         "nmea_udp_broadcast.c"
         "nmea_ble.c"

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <time.h>
 #include "settings.h"
+#include "modem_health.h"
 
 // Gestione della SIM dal pannello: credito (USSD o SMS), SMS liberi,
 // lettura e cancellazione degli SMS ricevuti, controllo automatico del
@@ -48,6 +49,11 @@ typedef struct {
     char iccid_prev[24];       // SIM di prima, se all'avvio e' diversa (SIM cambiata)
     char imei_prev[20];        // modem di prima, se all'avvio e' diverso (modem sostituito)
     bool number_written;       // numero scritto a mano copiato nella SIM in questo avvio
+    bool health_valid;         // salute del modem letta almeno una volta in questo avvio
+    int64_t health_us;         // quando (esp_timer), per dire quanto e' vecchia
+    modem_health_t health;     // temperatura, tensione, qualita' 4G, firmware del modem
+    bool modem_silent;         // modem atteso (gia' risposto o IMEI salvato) che non risponde piu'
+    int64_t modem_silent_us;   // da quando (esp_timer)
 } sim_tools_status_t;
 
 void sim_tools_get_status(sim_tools_status_t *out);

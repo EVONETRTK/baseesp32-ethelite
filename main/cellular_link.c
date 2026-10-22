@@ -20,6 +20,7 @@ static const char *TAG = "cellular_link";
 #include "esp_modem_api.h"
 #include "esp_netif_ppp.h"
 #include "driver/gpio.h"
+#include "driver/uart.h"
 
 #define CELLULAR_CONNECTED_BIT BIT0
 #define CELLULAR_DIAL_TIMEOUT_MS 30000
@@ -32,6 +33,7 @@ static volatile bool s_inited = false; // impostato dal task di avvio del modem 
 static bool s_is_sim868; // dal momento dell'avvio del modem (niente copie delle impostazioni sullo stack)
 static bool s_simcom_std; // idem: modulo SIMCom originale, PWRKEY non collegato
 static char s_apn[64];    // idem: APN (esp_modem lo copia, ma resta valido comunque)
+static bool s_cell_first; // idem: "4G con WiFi di riserva" (PPP con priorita' sopra il WiFi)
 static bool s_powered;    // impulso di accensione gia' dato: un secondo impulso spegnerebbe il modem
 static volatile bool s_init_tried; // primo avvio del modem concluso (riuscito o no)
 
@@ -97,7 +99,57 @@ static void on_ppp_event(void *arg, esp_event_base_t event_base, int32_t event_i
 // fretta. Lo slot LTE della T-ETH-Elite espone comunque lo stesso pin
 // fisico per PWRKEY qualunque sia lo shield innestato, cambia solo la
 // sequenza da mandarci.
-static void modem_power_on(bool is_sim868, bool simcom_std)
+#if CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN >= 0
+// Il modem risponde gia' sulla seriale? Da chiamare prima che esp_modem
+// prenda la UART. Prima un "AT"; se tace, potrebbe essere rimasto in CMUX
+// (riavvio dell'ESP con il 4G attivo): si manda l'apertura del canale di
+// controllo (SABM su DLCI 0, 3GPP 27.010 modo base) e, se risponde con un
+// frame CMUX, la chiusura del multiplexer (CLD), cosi' torna ai comandi AT.
+static bool modem_already_on(void)
+{
+    const uart_port_t port = CONFIG_BASEESP32_CELLULAR_UART_NUM;
+    if (uart_is_driver_installed(port) || uart_driver_install(port, 512, 0, 0, NULL, 0) != ESP_OK) {
+        return false;
+    }
+    const uart_config_t cfg = {
+        .baud_rate = CONFIG_BASEESP32_CELLULAR_UART_BAUD,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+    uart_param_config(port, &cfg);
+    uart_set_pin(port, CONFIG_BASEESP32_CELLULAR_UART_TX_PIN, CONFIG_BASEESP32_CELLULAR_UART_RX_PIN,
+                 UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    static uint8_t buf[128];
+    bool on = false;
+    for (int i = 0; i < 2 && !on; i++) {
+        uart_flush_input(port);
+        uart_write_bytes(port, "AT\r", 3);
+        int n = uart_read_bytes(port, buf, sizeof(buf) - 1, pdMS_TO_TICKS(400));
+        buf[n > 0 ? n : 0] = '\0';
+        on = n > 0 && strstr((const char *) buf, "OK") != NULL;
+    }
+    if (!on) {
+        static const uint8_t sabm0[] = { 0xF9, 0x03, 0x3F, 0x01, 0x1C, 0xF9 };
+        static const uint8_t cld[] = { 0xF9, 0x03, 0xEF, 0x05, 0xC3, 0x01, 0xF2, 0xF9 };
+        uart_flush_input(port);
+        uart_write_bytes(port, sabm0, sizeof(sabm0));
+        int n = uart_read_bytes(port, buf, sizeof(buf), pdMS_TO_TICKS(400));
+        if (n > 0 && memchr(buf, 0xF9, (size_t) n)) {
+            ESP_LOGI(TAG, "Modem acceso ma ancora in CMUX: chiudo il multiplexer");
+            uart_write_bytes(port, cld, sizeof(cld));
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            on = true;
+        }
+    }
+    uart_driver_delete(port);
+    return on;
+}
+#endif
+
+static void modem_power_on(bool is_sim868, bool simcom_std, bool probe)
 {
 #if CONFIG_BASEESP32_CELLULAR_DTR_PIN >= 0
     gpio_config_t dtr_conf = {
@@ -126,6 +178,15 @@ static void modem_power_on(bool is_sim868, bool simcom_std)
         .mode = GPIO_MODE_OUTPUT,
     };
     gpio_config(&io_conf);
+    gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 0); // impulso non attivo
+
+    // Riavvio dell'ESP con il modem gia' acceso (pannello, aggiornamento): sul
+    // modulo LilyGO l'impulso lo SPEGNEVA, e il recupero (AT+CFUN, PWRKEY
+    // lungo) lo riaccendeva solo dopo circa 6 minuti (21/10/2026).
+    if (probe && modem_already_on()) {
+        ESP_LOGI(TAG, "Modem gia' acceso: nessun impulso su PWRKEY");
+        return;
+    }
 
     if (is_sim868) {
         gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 1);
@@ -153,6 +214,7 @@ static void peek_modem_cfg(const app_settings_t *s, void *ctx)
 {
     s_is_sim868 = s->cellular_is_sim868;
     s_simcom_std = s->cellular_simcom_std;
+    s_cell_first = s->network_mode == NETWORK_MODE_CELLULAR_FIRST;
     strlcpy(s_apn, s->cellular_apn, sizeof(s_apn));
 }
 
@@ -171,7 +233,7 @@ bool cellular_link_init(void)
     // cellular_link_connect) il modem e' gia' acceso e un altro impulso su
     // PWRKEY lo spegnerebbe.
     if (!s_powered) {
-        modem_power_on(s_is_sim868, s_simcom_std);
+        modem_power_on(s_is_sim868, s_simcom_std, true);
         s_powered = true;
     }
 
@@ -189,7 +251,21 @@ bool cellular_link_init(void)
     // Riusato ai tentativi successivi: prima un fallimento qui sotto lasciava
     // il netif allocato e il modem restava inutilizzabile fino al riavvio.
     if (!s_ppp_netif) {
-        esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
+        // "4G con WiFi di riserva": il PPP sopra il WiFi station (100), cosi'
+        // con tutte e due su Internet esce dalla SIM; il traffico verso la
+        // rete di casa (pannello, VPN, AgOpenGPS) resta sul WiFi perche' e'
+        // sulla sua sottorete. Se il PPP cade, ESP-IDF torna da solo al WiFi.
+        // Priorita' fissata qui una volta: cambiare modalita' richiede il
+        // riavvio (pending_restart.c). Negli altri modi: 20, sotto il WiFi.
+        esp_netif_inherent_config_t ppp_base = ESP_NETIF_INHERENT_DEFAULT_PPP();
+        if (s_cell_first) {
+            ppp_base.route_prio = 200;
+        }
+        esp_netif_config_t netif_ppp_config = {
+            .base = &ppp_base,
+            .driver = NULL,
+            .stack = ESP_NETIF_NETSTACK_DEFAULT_PPP,
+        };
         s_ppp_netif = esp_netif_new(&netif_ppp_config);
     }
     if (!s_ppp_netif) {
@@ -545,7 +621,7 @@ bool cellular_link_reset_modem(void)
     vTaskDelay(pdMS_TO_TICKS(s_is_sim868 ? 1500 : 3000));
     gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 0);
     vTaskDelay(pdMS_TO_TICKS(10000));
-    modem_power_on(s_is_sim868, s_simcom_std);
+    modem_power_on(s_is_sim868, s_simcom_std, false);
     return true;
 #else
     ESP_LOGE(TAG, "Il modem non risponde e il pin PWRKEY non e' configurato");
@@ -751,6 +827,30 @@ bool cellular_link_delete_sms(void)
     return modem_cmd("AT+CMGD=1,4\r", "OK", tmp, sizeof(tmp), 10000);
 }
 
+bool cellular_link_read_health(modem_health_t *h, bool fw)
+{
+    // Statico: la risposta di AT+CPSI? supera i 100 byte, lo stack del task e' piccolo.
+    static char buf[160];
+    bool any = false;
+    if (modem_cmd("AT+CPMUTEMP\r", "OK", buf, sizeof(buf), 2000)) {
+        h->temp_ok = modem_health_parse_temp(buf, &h->temp_c);
+        any = true;
+    }
+    if (modem_cmd("AT+CBC\r", "OK", buf, sizeof(buf), 2000)) {
+        h->volt_ok = modem_health_parse_cbc(buf, &h->volt_mv);
+        any = true;
+    }
+    if (modem_cmd("AT+CPSI?\r", "OK", buf, sizeof(buf), 3000)) {
+        modem_health_parse_cpsi(buf, h);
+        any = true;
+    }
+    if (fw && modem_cmd("AT+CGMR\r", "OK", buf, sizeof(buf), 2000)) {
+        modem_health_parse_cgmr(buf, h->fw, sizeof(h->fw));
+        any = true;
+    }
+    return any;
+}
+
 #else // !CONFIG_BASEESP32_CELLULAR_ENABLE
 
 bool cellular_link_init(void) { return false; }
@@ -770,5 +870,6 @@ bool cellular_link_ussd(const char *code, char *out, size_t out_size) { return f
 bool cellular_link_send_sms(const char *number, const char *text) { return false; }
 bool cellular_link_read_sms(char *out, size_t out_size) { return false; }
 bool cellular_link_delete_sms(void) { return false; }
+bool cellular_link_read_health(modem_health_t *h, bool fw) { return false; }
 
 #endif
