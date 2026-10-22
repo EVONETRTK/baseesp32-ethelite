@@ -264,32 +264,6 @@ void ppp_log_feed(const uint8_t *data, size_t len)
     xStreamBufferSend(s_feed_stream, data, len, 0);
 }
 
-FILE *ppp_log_open_for_read(void)
-{
-    if (s_should_record || s_recording) {
-        ESP_LOGW(TAG, "Download rifiutato: registrazione in corso, ferma prima");
-        return NULL;
-    }
-    if (!mount_sd()) {
-        return NULL;
-    }
-    FILE *f = fopen(LOG_FILENAME, "rb");
-    if (!f) {
-        ESP_LOGW(TAG, "Nessun file di log da scaricare");
-        unmount_sd();
-        return NULL;
-    }
-    return f;
-}
-
-void ppp_log_close_for_read(FILE *f)
-{
-    if (f) {
-        fclose(f);
-    }
-    unmount_sd();
-}
-
 #define PPP_DL_CHUNK (32 * 1024)
 
 esp_err_t ppp_log_send_http(httpd_req_t *req)

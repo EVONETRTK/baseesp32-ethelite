@@ -11,6 +11,7 @@
 // dell'orbita).
 #include "prove.h"
 #include "../../main/etrf.c"
+#include "../../main/rtcm3_crc.c"
 #include "../../main/base_selfpos.c"
 
 // --- sostituti -----------------------------------------------------------------
@@ -47,7 +48,7 @@ PROVA(lettura_dei_bit_con_e_senza_segno)
 
 PROVA(crc24q_valore_di_controllo_standard)
 {
-    VERIFICA_INT(crc24q((const uint8_t *) "123456789", 9), 0xCDE703);
+    VERIFICA_INT(rtcm3_crc24q((const uint8_t *) "123456789", 9), 0xCDE703);
 }
 
 PROVA(differenza_di_tempo_dentro_la_settimana)
@@ -261,11 +262,23 @@ PROVA(frame_spezzato_a_byte_e_preceduto_da_b5_doppio)
     VERIFICA_INT(in_coda(), 1);
 }
 
+// RAWX con il massimo di misure (255: 16 + 32 * 255 = 8176 byte): entra in
+// MAX_PAYLOAD, come in raw_log.c (prima il limite era 4096, ~127 misure).
+PROVA(rawx_con_255_misure_messo_in_coda)
+{
+    avvia();
+    in_coda();
+    static uint8_t f[6 + MAX_PAYLOAD + 2];
+    size_t n = ubx(f, 0x02, 0x15, 16 + 32 * 255);
+    base_selfpos_feed(f, n);
+    VERIFICA_INT(in_coda(), 1);
+}
+
 PROVA(frame_con_checksum_sbagliato_o_troppo_lungo_scartato)
 {
     avvia();
     in_coda();
-    static uint8_t f[6000];
+    static uint8_t f[6 + MAX_PAYLOAD + 1 + 2];
     size_t n = ubx(f, 0x02, 0x15, 16 + 32 * 2);
     f[20] ^= 0x01;
     base_selfpos_feed(f, n);
@@ -293,6 +306,7 @@ int main(void)
     ESEGUI(posizione_trasmessa_etrf2000_riportata_in_itrf);
     ESEGUI(frame_rawx_e_sfrbx_messi_in_coda_gli_altri_no);
     ESEGUI(frame_spezzato_a_byte_e_preceduto_da_b5_doppio);
+    ESEGUI(rawx_con_255_misure_messo_in_coda);
     ESEGUI(frame_con_checksum_sbagliato_o_troppo_lungo_scartato);
     return prove_fine();
 }

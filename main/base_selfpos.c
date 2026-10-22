@@ -1,6 +1,7 @@
 #include "base_selfpos.h"
 #include "base_monitor.h"
 #include "etrf.h"
+#include "rtcm3_crc.h"
 #include "settings.h"
 
 #include <math.h>
@@ -23,7 +24,7 @@ static const char *TAG = "base_selfpos";
 // Prototipo e prove sul PC: scratchpad "drift/spp2.js" della sessione dell'08/10/2026
 // (stessi algoritmi, stessi numeri sulla registrazione del 04/10).
 
-#define MAX_PAYLOAD     4096        // RAWX = 16 + 32 * misure: 4 costellazioni ~ 2,5 KB
+#define MAX_PAYLOAD     8192        // RAWX = 16 + 32 * misure (al massimo 255: 8176 byte), come raw_log.c; buffer nella PSRAM
 #define QUEUE_BYTES     (24 * 1024) // nella PSRAM
 #define RAWX_RATE       5           // una soluzione ogni 5 epoche (5 s con la base a 1 Hz)
 #define WINDOW_S        (30 * 60)
@@ -126,21 +127,6 @@ static void setbit(uint8_t *b, int pos, int v)
     } else {
         b[pos >> 3] &= (uint8_t) ~(1u << (7 - (pos & 7)));
     }
-}
-
-static uint32_t crc24q(const uint8_t *b, int n)
-{
-    uint32_t crc = 0;
-    for (int i = 0; i < n; i++) {
-        crc ^= (uint32_t) b[i] << 16;
-        for (int j = 0; j < 8; j++) {
-            crc <<= 1;
-            if (crc & 0x1000000u) {
-                crc ^= 0x1864cfbu;
-            }
-        }
-    }
-    return crc & 0xffffffu;
 }
 
 // =============================================================================
@@ -250,7 +236,7 @@ static void decode_inav(int sv, const uint32_t *words)
     for (int i = 0; i < 82; i++) {
         setbit(cb, 118 + i, (int) getbitu(p, 128 + i, 1));
     }
-    if (crc24q(cb, 25) != getbitu(p, 128 + 82, 24)) {
+    if (rtcm3_crc24q(cb, 25) != getbitu(p, 128 + 82, 24)) {
         return;
     }
     uint8_t d[16] = { 0 };

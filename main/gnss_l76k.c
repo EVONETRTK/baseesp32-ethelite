@@ -1,5 +1,6 @@
 #include "gnss_l76k.h"
 #include "gnss_io.h"
+#include "gnss_cmd.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -9,24 +10,12 @@
 
 static const char *TAG = "gnss_l76k";
 
-// Manda "$<body>*<checksum>\r\n": checksum NMEA standard (XOR di tutti i
-// caratteri tra '$' e '*'), calcolato qui invece che scritto a mano accanto
-// a ogni comando.
+// Manda "$<body>*<checksum>\r\n": checksum calcolato da gnss_cmd_send_nmea
+// invece che scritto a mano accanto a ogni comando.
 static esp_err_t send_pcas(uart_port_t uart_num, const char *body)
 {
-    uint8_t ck = 0;
-    for (const char *p = body; *p; p++) {
-        ck ^= (uint8_t) *p;
-    }
-    char cmd[64];
-    int len = snprintf(cmd, sizeof(cmd), "$%s*%02X\r\n", body, ck);
-    if (len <= 0 || len >= (int) sizeof(cmd)) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-    ESP_LOGI(TAG, "-> %.*s", len - 2, cmd);
-    int written = gnss_io_write(cmd, len);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    return (written == len) ? ESP_OK : ESP_FAIL;
+    (void) uart_num;
+    return gnss_cmd_send_nmea(TAG, body);
 }
 
 esp_err_t gnss_l76k_configure_base(uart_port_t uart_num)

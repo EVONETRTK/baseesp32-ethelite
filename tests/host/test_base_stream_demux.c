@@ -6,6 +6,7 @@
 // Python (tests/host/strumenti/riferimenti.py, sezione "RTCM").
 #include "prove.h"
 #include "../../main/gnss_fix.c"
+#include "../../main/rtcm3_crc.c"
 #include "../../main/base_stream_demux.c"
 
 #include <stdio.h>

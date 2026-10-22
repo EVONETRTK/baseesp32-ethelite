@@ -7,6 +7,7 @@
 // nessuna inversione finale). Intestazioni inventate, nessuna matricola.
 #include "prove.h"
 #include "../../main/gnss_unicore.c"
+#include "../../main/gnss_cmd.c"
 
 #include <stdio.h>
 

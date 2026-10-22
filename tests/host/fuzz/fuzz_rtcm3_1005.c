@@ -5,6 +5,7 @@
 // casuale, ognuno contro una pagina protetta.
 #include "motore.h"
 #include "aiuti.h"
+// SORGENTI: rtcm3_crc.c
 #include "../../../main/rtcm3_1005.c"
 
 #include <math.h>

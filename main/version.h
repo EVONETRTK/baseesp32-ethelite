@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.35.3"
+#define FIRMWARE_VERSION "1.35.4"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Base piu' robusta sul 4G: DNS di riserva, recupero di WiFi e modem senza blocchi, rover che lascia una base muta."
+#define FIRMWARE_RELEASE_NOTES "Pulizia del codice: numeri con gli spazi per SMS e ricerca del numero, LED e display con il solo cavo Ethernet, impostazioni salvate senza perdite."

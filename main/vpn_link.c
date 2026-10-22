@@ -243,15 +243,10 @@ void vpn_link_tick(void)
 
 void vpn_link_get_status(vpn_status_t *out)
 {
-    vpn_cfg_t c;
-    settings_peek(peek_cfg, &c);
     memset(out, 0, sizeof(*out));
-    out->enabled = c.enable;
-    out->configured = cfg_complete(&c);
     out->started = s_started;
     out->up = s_up;
     out->up_since_us = s_up ? s_up_since_us : 0;
-    out->last_up_us = s_last_up_us;
     strlcpy(out->public_key, s_pub, sizeof(out->public_key));
     strlcpy(out->last_error, s_last_error, sizeof(out->last_error));
 }

@@ -233,7 +233,7 @@ void ntrip_client_task(void *arg)
         sys_stats_heartbeat(HB_NTRIP);
         // Come net_wait_ready(30000), ma svuotando il flusso RTCM nell'attesa.
         for (uint32_t waited = 0; waited < 30000; waited += 250) {
-            if (status_get_net() != NET_STATUS_NONE || eth_link_is_connected()) {
+            if (net_any_up()) {
                 break;
             }
             discard_for_ms(rtcm_stream, buf, sizeof(buf), 250);

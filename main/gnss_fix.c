@@ -73,14 +73,11 @@ bool nmea_checksum_ok(const char *line)
     if (!line || line[0] != '$') {
         return false;
     }
-    unsigned char cs = 0;
-    const char *p = line + 1;
-    for (; *p && *p != '*'; p++) {
-        cs ^= (unsigned char) *p;
-    }
-    if (*p != '*') {
+    const char *p = strchr(line + 1, '*');
+    if (!p) {
         return false;
     }
+    unsigned char cs = nmea_checksum(line + 1);
     int hi = hex_val(p[1]), lo = hi >= 0 ? hex_val(p[2]) : -1;
     return hi >= 0 && lo >= 0 && (unsigned char) ((hi << 4) | lo) == cs;
 }

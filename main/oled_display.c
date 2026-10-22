@@ -2,6 +2,7 @@
 #include "sd_mutex.h"
 #include "settings.h"
 #include "status.h"
+#include "net_util.h"
 #include "gnss_signal.h"
 #include "wifi_link.h"
 #include "cellular_link.h"
@@ -295,7 +296,7 @@ static const char *net_label(net_status_t s)
     switch (s) {
     case NET_STATUS_WIFI:     return "NET: WIFI";
     case NET_STATUS_CELLULAR: return "NET: CELL";
-    default:                  return "NET: ---";
+    default:                  return net_any_up() ? "NET: ETH" : "NET: ---"; // solo cavo: net_manager non lo segue
     }
 }
 

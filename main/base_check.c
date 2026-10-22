@@ -35,7 +35,8 @@ static uint8_t legacy_system(uint16_t t)
     return 0;
 }
 
-static int bits(uint8_t v)
+// Numero di bit a 1 (costellazioni presenti in una maschera BASE_CHECK_*).
+static int count_bits(uint8_t v)
 {
     int n = 0;
     for (; v; v &= (uint8_t) (v - 1)) {
@@ -61,7 +62,7 @@ base_check_t base_check_eval(const uint16_t *types, size_t count, double distanc
         }
     }
     r.systems = (uint8_t) (r.msm_systems | legacy);
-    r.n_systems = bits(r.systems);
+    r.n_systems = count_bits(r.systems);
 
     if (count == 0 || !types) {
         r.issues |= BASE_CHECK_NO_DATA;
@@ -161,15 +162,6 @@ static uint8_t navsys_bits(const char *s)
         }
     }
     return bits;
-}
-
-static int count_bits(uint8_t v)
-{
-    int n = 0;
-    for (; v; v &= (uint8_t) (v - 1)) {
-        n++;
-    }
-    return n;
 }
 
 base_check_t base_check_from_sourcetable(const char *details, const char *navsys, double distance_km,

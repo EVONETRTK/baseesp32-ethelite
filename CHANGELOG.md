@@ -8,6 +8,23 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.4
+
+Revisione del codice accumulato in centinaia di versioni: routine scritte piu' volte e codice rimasto inutile. Corretti i bug nati da copie che si erano separate:
+
+- **"Trova il mio numero" e "SMS di prova" con gli spazi**: il pannello accettava "+39 333 1234567" (lo suggerisce lui), sim_tools poi lo rifiutava. Il numero ora si ripulisce come per WhatsApp prima di passarlo al modem.
+- **Invio e lettura degli SMS** rispettano l'attesa mentre il modem si collega, si scollega o si riavvia (mancavano nella 1.35.3).
+- **Base solo via cavo Ethernet**: LED di rete lampeggiante e OLED "NET: ---" come senza rete. Ora LED fisso, LED RGB blu come per il WiFi, OLED "NET: ETH". Il controllo "c'e' rete" era scritto 7 volte: ora net_any_up() in net_util.h. Manuale (Manutenzione, LED RGB) aggiornato.
+- **Impostazioni**: il pannello aveva un lucchetto suo per "leggi, cambia, salva", che gli aggiornamenti automatici (rinnovo della SIM, chiave VPN, misura della base) non vedevano: una modifica poteva perdersi. Ora un solo lucchetto in settings.c (settings_edit_begin/end), preso anche da settings_update().
+- Tre gestori del pannello leggevano il corpo della richiesta con una sola lettura e rispondevano "corpo mancante" se arrivava in due pacchetti (recv_all).
+- Messaggio all'avvio con la NVS illeggibile: dalla 1.31.0 la licenza sta in nvs_lic e non si perde.
+
+Doppioni unificati: CRC24Q (rtcm3_crc.c, era in 3 copie), invio dei comandi ai ricevitori Unicore/ComNav/Bynav e L76K/LC29H (gnss_cmd.c; il comando LC29H troppo lungo poteva leggere oltre il buffer), checksum NMEA, conteggio dei bit in base_check. base_selfpos legge trame RAWX fino a 8 KB come raw_log (prima 4 KB: oltre circa 127 misure la trama si perdeva; in PSRAM). Pannello: una sola funzione di escape HTML, una sola scala del segnale (a -75 dBm WiFi la barra era rossa e la scheda diceva "Discreto"), un solo formato delle durate, errori veri della base al posto di "Errore di comunicazione"; la misura della base rifiutata non dice piu' "La base si riavvia come rover".
+
+Tolti: ppp_log_open_for_read/close_for_read (superate dal download a blocchi), il calcolo della deriva in base_monitor (sostituito da base_selfpos), iccidNorm e il vecchio salvataggio dell'intero modulo nel pannello, /api/wifi/forget-known (tasto non piu' nel pannello), l'interruttore MODEM_HEALTH_AT della prova 1.34.2, l'opzione BASEESP32_NTRIP_PASSWORD mai usata, i campi dello stato VPN che il pannello non legge (con la lettura delle impostazioni a ogni aggiornamento del pannello).
+
+Restano doppi, di proposito per ora (toccano rete, aggiornamenti e impostazioni sulle basi gia' sul campo): montaggio della microSD (7 copie), apertura delle connessioni TCP (5), scrittura delle impostazioni in NVS (3), i due motori di aggiornamento.
+
 ## 1.35.3
 
 Controllo di qualita' sulla 1.35.x (basi lontane, non devono restare irraggiungibili):

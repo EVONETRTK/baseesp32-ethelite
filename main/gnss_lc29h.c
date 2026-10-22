@@ -1,5 +1,6 @@
 #include "gnss_lc29h.h"
 #include "gnss_io.h"
+#include "gnss_cmd.h"
 #include "settings.h"
 #include "geo_convert.h"
 
@@ -11,30 +12,13 @@
 
 static const char *TAG = "gnss_lc29h";
 
-// Checksum NMEA standard (XOR di tutti i byte tra '$' e '*'), usato sia
-// dalle sentenze NMEA sia dai comandi proprietari $PQTM.../$PAIR... di
-// questo modulo - calcolato a runtime invece di scrivere valori fissi nel
-// codice, per restare corretto anche se in futuro cambiano i parametri dei
-// comandi qui sotto.
-static uint8_t nmea_checksum(const char *body)
-{
-    uint8_t cksum = 0;
-    for (const char *p = body; *p; p++) {
-        cksum ^= (uint8_t) *p;
-    }
-    return cksum;
-}
-
 // body = il comando SENZA '$' iniziale ne' '*checksum' finale, es.
-// "PQTMCFGRCVRMODE,W,2".
+// "PQTMCFGRCVRMODE,W,2": il checksum NMEA lo calcola gnss_cmd_send_nmea a
+// runtime, cosi' resta corretto anche se cambiano i parametri dei comandi.
 static esp_err_t send_cmd(uart_port_t uart_num, const char *body)
 {
-    char line[128];
-    int n = snprintf(line, sizeof(line), "$%s*%02X\r\n", body, nmea_checksum(body));
-    ESP_LOGI(TAG, "-> %s", body);
-    int written = gnss_io_write(line, n);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    return (written == n) ? ESP_OK : ESP_FAIL;
+    (void) uart_num;
+    return gnss_cmd_send_nmea(TAG, body);
 }
 
 esp_err_t gnss_lc29h_configure_base(uart_port_t uart_num)

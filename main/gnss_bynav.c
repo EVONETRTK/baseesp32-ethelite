@@ -1,5 +1,6 @@
 #include "gnss_bynav.h"
 #include "gnss_io.h"
+#include "gnss_cmd.h"
 #include "settings.h"
 #include "license.h"
 
@@ -21,12 +22,8 @@ static const char *TAG = "gnss_bynav";
 
 static esp_err_t send_cmd(uart_port_t uart_num, const char *cmd)
 {
-    ESP_LOGI(TAG, "-> %s", cmd);
-    int len = (int) strlen(cmd);
-    int written = gnss_io_write(cmd, len);
-    gnss_io_write("\r\n", 2);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    return (written == len) ? ESP_OK : ESP_FAIL;
+    (void) uart_num;
+    return gnss_cmd_send_line(TAG, cmd);
 }
 
 // Manda "LOG COM<BYNAV_COM_PORT> RTCM<tipo> ONTIME <secondi>" se enabled,

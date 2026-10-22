@@ -1,5 +1,6 @@
 #include "nmea_etrf.h"
 #include "etrf.h"
+#include "gnss_fix.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -188,10 +189,9 @@ static bool rewrite(char *line, size_t cap, double epoch, double h_ell_m,
         }
         k += (size_t) w;
     }
-    unsigned char cs = 0;
-    for (size_t i = 1; i < k; i++) {
-        cs ^= (unsigned char) out[i];
-    }
+    // k >= 6 (f[0] e' "$xxGGA"/"$xxRMC") e i campi non hanno '*' (split
+    // taglia al primo): il checksum copre tutto out tranne il '$'.
+    unsigned char cs = nmea_checksum(out + 1);
     int w = snprintf(out + k, sizeof(out) - k, "*%02X", cs);
     // Anche il checksum deve stare in out: troncato, la riga usciva con il
     // checksum rotto (trovato dal fuzzing).

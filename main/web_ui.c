@@ -80,8 +80,9 @@ static const char *TAG = "web_ui";
 // riscrivono per intero - se si sovrappongono, chi salva per ultimo
 // sovrascrive il lavoro dell'altro con un'istantanea piu' vecchia. Preso
 // prima di settings_get() e rilasciato dopo settings_save() in ognuno dei
-// punti che fanno questa sequenza, cosi' non possono mai sovrapporsi.
-static SemaphoreHandle_t s_settings_edit_mutex;
+// punti che fanno questa sequenza, cosi' non possono mai sovrapporsi. Dal
+// 22/10/2026 e' settings_edit_begin/end in settings.c, preso anche da
+// settings_update() (rinnovo della SIM, chiave VPN, misura della base).
 
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t icon192_png_start[] asm("_binary_icon192_png_start");
@@ -236,6 +237,22 @@ static void auth_note_ok(uint32_t ip)
         s_auth_fail[i].fails = 0;
         s_auth_fail[i].until_us = 0;
     }
+}
+
+// Legge esattamente len byte del corpo, anche se arrivano in piu' pacchetti.
+// Prima tre gestori facevano una sola httpd_req_recv() e rispondevano
+// "corpo mancante" a un corpo spezzato in due (revisione del 22/10/2026).
+static bool recv_all(httpd_req_t *req, char *buf, int len)
+{
+    int got = 0;
+    while (got < len) {
+        int r = httpd_req_recv(req, buf + got, len - got);
+        if (r <= 0) {
+            return false; // anche il timeout: un client fermo non blocca il server
+        }
+        got += r;
+    }
+    return true;
 }
 
 static esp_err_t send_too_many(httpd_req_t *req, int wait_s)
@@ -598,7 +615,7 @@ static esp_err_t access_secrets_post_handler(httpd_req_t *req)
     }
     char buf[128] = {0};
     int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
-    if (len <= 0 || httpd_req_recv(req, buf, len) != len) {
+    if (len <= 0 || !recv_all(req, buf, len)) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo mancante");
     }
     cJSON *root = cJSON_Parse(buf);
@@ -1839,7 +1856,7 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    xSemaphoreTake(s_settings_edit_mutex, portMAX_DELAY);
+    settings_edit_begin();
     app_settings_t s;
     settings_get_into(&s); // senza la copia temporanea di settings_get() (2,4 KB di stack in meno)
     // Primo errore di validazione: la richiesta viene rifiutata per intero
@@ -2019,7 +2036,7 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         strlcpy(old_serial, s.device_serial, sizeof(old_serial));
         copy_field(root, "device_serial", s.device_serial, sizeof(s.device_serial), verr);
         if (strcmp(old_serial, s.device_serial) != 0 && license_is_stored()) {
-            xSemaphoreGive(s_settings_edit_mutex);
+            settings_edit_end();
             cJSON_Delete(root);
             ESP_LOGW(TAG, "Cambio di matricola rifiutato: ricevitore gia' attivato");
             httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
@@ -2422,14 +2439,14 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     cJSON_Delete(root);
 
     if (verr[0]) {
-        xSemaphoreGive(s_settings_edit_mutex);
+        settings_edit_end();
         ESP_LOGW(TAG, "Impostazioni rifiutate: %s", verr);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, verr);
         return ESP_FAIL;
     }
 
     esp_err_t err = settings_save(&s);
-    xSemaphoreGive(s_settings_edit_mutex);
+    settings_edit_end();
     if (err != ESP_OK) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "salvataggio fallito");
         return ESP_FAIL;
@@ -2660,7 +2677,7 @@ static void wifi_test_connect_task(void *arg)
 
     bool connected = wifi_link_connect_with(ctx->ssid, ctx->password, 15000);
     if (connected) {
-        xSemaphoreTake(s_settings_edit_mutex, portMAX_DELAY);
+        settings_edit_begin();
         app_settings_t s = settings_get();
         // Ricorda questa rete (diventa la principale; un'eventuale rete
         // precedente scende nell'elenco delle "conosciute") invece di
@@ -2669,7 +2686,7 @@ static void wifi_test_connect_task(void *arg)
         // gia' provate con successo senza dover reinserire le credenziali.
         app_settings_remember_wifi(&s, ctx->ssid, ctx->password);
         settings_save(&s);
-        xSemaphoreGive(s_settings_edit_mutex);
+        settings_edit_end();
         status_set_net(NET_STATUS_WIFI);
         ESP_LOGI(TAG, "Connesso, rete '%s' ricordata automaticamente", ctx->ssid);
     }
@@ -3502,7 +3519,7 @@ static esp_err_t ppp_log_stop_post_handler(httpd_req_t *req)
 // Serve il file di log grezzo per il download dal browser, a blocchi (mai
 // caricato tutto in RAM: una registrazione di diverse ore puo' superare
 // facilmente la memoria disponibile) - fallisce con un messaggio chiaro se
-// la registrazione e' ancora in corso (vedi ppp_log_open_for_read()) o se
+// la registrazione e' ancora in corso (vedi ppp_log_send_http()) o se
 // non c'e' nessun file salvato.
 static esp_err_t ppp_log_download_get_handler(httpd_req_t *req)
 {
@@ -3513,21 +3530,6 @@ static esp_err_t ppp_log_download_get_handler(httpd_req_t *req)
     // montata per tutto lo scaricamento e il ricevitore via I2C taceva. Se
     // una registrazione e' in corso o non c'e' nessun file risponde 409.
     return ppp_log_send_http(req);
-}
-
-static esp_err_t wifi_forget_known_post_handler(httpd_req_t *req)
-{
-    if (require_auth(req) != ESP_OK) {
-        return ESP_FAIL;
-    }
-    xSemaphoreTake(s_settings_edit_mutex, portMAX_DELAY);
-    app_settings_t s = settings_get();
-    memset(s.wifi_known_networks, 0, sizeof(s.wifi_known_networks));
-    settings_save(&s);
-    xSemaphoreGive(s_settings_edit_mutex);
-    ESP_LOGI(TAG, "Elenco reti WiFi conosciute svuotato dalla UI web");
-    httpd_resp_sendstr(req, "{\"ok\":true}");
-    return ESP_OK;
 }
 
 // Misura della posizione base (base_measure.c): {"action":"start"} (RTK),
@@ -3739,7 +3741,7 @@ static esp_err_t test_fault_post_handler(httpd_req_t *req)
     }
     char buf[64] = {0};
     int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
-    if (len <= 0 || httpd_req_recv(req, buf, len) != len) {
+    if (len <= 0 || !recv_all(req, buf, len)) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo mancante");
     }
     cJSON *root = cJSON_Parse(buf);
@@ -3787,7 +3789,7 @@ static esp_err_t rawlog_action_post_handler(httpd_req_t *req)
     }
     char buf[160] = {0};
     int len = req->content_len < (int) sizeof(buf) - 1 ? req->content_len : (int) sizeof(buf) - 1;
-    if (len <= 0 || httpd_req_recv(req, buf, len) != len) {
+    if (len <= 0 || !recv_all(req, buf, len)) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "corpo mancante");
     }
     cJSON *root = cJSON_Parse(buf);
@@ -3871,6 +3873,11 @@ static esp_err_t sim_action_post_handler(httpd_req_t *req)
     const char *code = jc && cJSON_IsString(jc) ? jc->valuestring : "";
     const char *num = jn && cJSON_IsString(jn) ? jn->valuestring : "";
     const char *txt = jt && cJSON_IsString(jt) ? jt->valuestring : "";
+    // Numero ripulito (spazi, trattini... tolti) come per WhatsApp: il
+    // pannello suggerisce "+39 333 1234567", ma sim_tools vuole solo cifre e
+    // rifiutava ogni numero scritto con gli spazi (revisione del 22/10/2026).
+    char num_clean[24] = "";
+    bool num_ok = strlen(num) < 32 && clean_phone_number(num, num_clean, sizeof(num_clean)) && num_clean[0];
 
     cJSON *resp = cJSON_CreateObject();
     char err[96] = "";
@@ -3896,24 +3903,15 @@ static esp_err_t sim_action_post_handler(httpd_req_t *req)
         for (const unsigned char *c = (const unsigned char *) txt; *c && txt_ok; c++) {
             txt_ok = *c >= 0x20 && *c != 0x7F;
         }
-        if (strlen(num) < 32 && sms_number_ok(num) && txt_ok) {
-            ok = sim_tools_request(SIM_ACT_SMS, num, txt, err, sizeof(err));
+        if (num_ok && txt_ok) {
+            ok = sim_tools_request(SIM_ACT_SMS, num_clean, txt, err, sizeof(err));
         } else {
-            snprintf(err, sizeof(err), "Numero (solo cifre e + iniziale) o testo (senza a capo, max 95) non validi");
+            snprintf(err, sizeof(err), "Numero (cifre, + iniziale, spazi) o testo (senza a capo, max 95) non validi");
         }
     } else if (strcmp(a, "find_number") == 0) {
-        // Solo + iniziale, cifre e spazi; almeno 6 cifre.
-        int digits = 0;
-        bool valid = num[0] != '\0';
-        for (const char *p = num; *p; p++) {
-            if (*p >= '0' && *p <= '9') {
-                digits++;
-            } else if (!(*p == ' ' || (*p == '+' && p == num))) {
-                valid = false;
-            }
-        }
-        if (valid && digits >= 6 && strlen(num) < 32) {
-            ok = sim_tools_request(SIM_ACT_FIND_NUMBER, num, NULL, err, sizeof(err));
+        // Almeno 6 cifre, + iniziale; spazi e trattini tolti.
+        if (num_ok) {
+            ok = sim_tools_request(SIM_ACT_FIND_NUMBER, num_clean, NULL, err, sizeof(err));
         } else {
             snprintf(err, sizeof(err), "Numero non valido: solo cifre, + iniziale e spazi");
         }
@@ -4062,7 +4060,6 @@ static esp_err_t reboot_post_handler(httpd_req_t *req)
 
 void web_ui_start(void)
 {
-    s_settings_edit_mutex = xSemaphoreCreateMutex();
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     // default 8, non basta piu' con tutti gli endpoint aggiunti (23 in uso
@@ -4138,7 +4135,6 @@ void web_ui_start(void)
     httpd_uri_t ntrip_test_uri = { .uri = "/api/ntrip/test-connect", .method = HTTP_POST, .handler = ntrip_test_connect_post_handler };
     httpd_uri_t wifi_test_uri  = { .uri = "/api/wifi/test-connect", .method = HTTP_POST, .handler = wifi_test_connect_post_handler };
     httpd_uri_t wifi_test_progress_uri = { .uri = "/api/wifi/test-progress", .method = HTTP_GET, .handler = wifi_test_progress_get_handler };
-    httpd_uri_t wifi_forget_uri = { .uri = "/api/wifi/forget-known", .method = HTTP_POST, .handler = wifi_forget_known_post_handler };
     httpd_uri_t log_uri        = { .uri = "/api/log", .method = HTTP_GET, .handler = log_get_handler };
     httpd_uri_t alerts_test_uri = { .uri = "/api/alerts/test", .method = HTTP_POST, .handler = alerts_test_post_handler };
     httpd_uri_t ppp_log_start_uri = { .uri = "/api/ppp-log/start", .method = HTTP_POST, .handler = ppp_log_start_post_handler };
@@ -4165,7 +4161,6 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &ntrip_test_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);
     httpd_register_uri_handler(server, &wifi_test_progress_uri);
-    httpd_register_uri_handler(server, &wifi_forget_uri);
     httpd_register_uri_handler(server, &status_uri);
     httpd_register_uri_handler(server, &signals_uri);
     httpd_register_uri_handler(server, &settings_uri);

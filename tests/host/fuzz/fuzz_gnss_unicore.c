@@ -4,7 +4,7 @@
 // Input: [opzioni][riga]. Opzione bit 0: CRC32 ricalcolato dopo la
 // mutazione. Nota: dopo 20 righe con il CRC sbagliato di fila il firmware
 // smette di controllarlo fino al riavvio: succede anche qui, durante il giro.
-// SORGENTI: gnss_comnav.c
+// SORGENTI: gnss_comnav.c gnss_cmd.c
 #include "motore.h"
 #include "aiuti.h"
 #include "stub_gnss.h"

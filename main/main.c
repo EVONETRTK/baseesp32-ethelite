@@ -180,12 +180,11 @@ void app_main(void)
 
     esp_err_t nvs_err = nvs_flash_init();
     if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // ATTENZIONE: la NVS contiene anche la chiave del ricevitore e la
-        // licenza (namespace "license"): cancellandola il ricevitore torna
-        // "da attivare" e la chiave viene rigenerata (serve riattivarlo con
-        // il server). Da decidere: partizione NVS separata per la licenza.
-        ESP_LOGE(TAG, "NVS non leggibile (%s): la cancello. Si perdono configurazione, chiave del ricevitore "
-                      "e LICENZA: il ricevitore andra' riattivato", esp_err_to_name(nvs_err));
+        // Dalla 1.31.0 chiave del ricevitore e licenza stanno nella partizione
+        // "nvs_lic" (license.c) e qui non si perdono; solo con la tabella
+        // delle partizioni vecchia (senza nvs_lic) stanno in questa NVS.
+        ESP_LOGE(TAG, "NVS non leggibile (%s): la cancello. Si perde la configurazione (con la tabella delle "
+                      "partizioni vecchia anche la licenza)", esp_err_to_name(nvs_err));
         ESP_ERROR_CHECK(nvs_flash_erase());
         nvs_err = nvs_flash_init();
     }

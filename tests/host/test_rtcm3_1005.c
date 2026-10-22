@@ -6,6 +6,7 @@
 // non legge l'ID stazione (non serve per rilevare uno spostamento); qui si
 // controlla solo che il frame lo contenga dove previsto dallo standard.
 #include "prove.h"
+#include "../../main/rtcm3_crc.c"
 #include "../../main/rtcm3_1005.c"
 
 // 1005, stazione 2003, X 4626000.1234 Y 1370000.5678 Z 4162000.9012
@@ -33,8 +34,7 @@ static void verifica_1005(const rtcm3_position_t *p)
 PROVA(crc24q_valore_di_controllo_standard)
 {
     // CRC-24Q di "123456789" = 0xCDE703 (valore di controllo noto)
-    uint32_t crc = 0;
-    for (const char *c = "123456789"; *c; c++) crc = crc24q_update(crc, (uint8_t) *c);
+    uint32_t crc = rtcm3_crc24q((const uint8_t *) "123456789", 9);
     VERIFICA_INT(crc, 0xCDE703);
 }
 

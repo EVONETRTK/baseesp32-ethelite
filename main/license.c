@@ -1,6 +1,7 @@
 #include "license.h"
 #include "settings.h"
 #include "status.h"
+#include "net_util.h"
 #include "time_sync.h"
 #include "version.h"
 #include "eth_link.h"
@@ -234,7 +235,7 @@ static void set_msg(const char *m)
 // (status_get_net() non conta l'Ethernet, vedi net_util.h).
 static bool net_up(void)
 {
-    return status_get_net() != NET_STATUS_NONE || eth_link_is_connected();
+    return net_any_up();
 }
 
 static bool time_ok(void)

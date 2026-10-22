@@ -1,4 +1,5 @@
 #include "rtcm3_1005.h"
+#include "rtcm3_crc.h"
 
 #include <string.h>
 
@@ -36,22 +37,6 @@ void rtcm3_1005_init(void)
     s_frame_pos = 0;
 }
 
-// CRC24Q (polinomio 0x1864CFB, non riflesso, valore iniziale 0) come da
-// standard RTCM 10403.x - versione bit-a-bit (senza tabella) perche' il
-// volume di dati da un singolo ricevitore base e' basso, non serve
-// ottimizzare la velocita' a scapito della memoria flash di una tabella.
-static uint32_t crc24q_update(uint32_t crc, uint8_t byte)
-{
-    crc ^= ((uint32_t) byte) << 16;
-    for (int i = 0; i < 8; i++) {
-        crc <<= 1;
-        if (crc & 0x01000000) {
-            crc ^= 0x01864CFB;
-        }
-    }
-    return crc & 0x00FFFFFF;
-}
-
 // Estrae un intero con segno a 38 bit da buf, a partire dal bit
 // bit_offset (0 = MSB del primo byte di buf), come da codifica RTCM3
 // (MSB-first, complemento a due).
@@ -79,10 +64,7 @@ static int64_t extract_bits_i38(const uint8_t *buf, size_t bit_offset)
 static bool try_decode_frame(rtcm3_position_t *out_pos)
 {
     size_t header_and_payload_len = 3 + s_payload_len;
-    uint32_t crc = 0;
-    for (size_t i = 0; i < header_and_payload_len; i++) {
-        crc = crc24q_update(crc, s_frame_buf[i]);
-    }
+    uint32_t crc = rtcm3_crc24q(s_frame_buf, header_and_payload_len);
     uint32_t received_crc = ((uint32_t) s_frame_buf[header_and_payload_len] << 16) |
                              ((uint32_t) s_frame_buf[header_and_payload_len + 1] << 8) |
                              ((uint32_t) s_frame_buf[header_and_payload_len + 2]);

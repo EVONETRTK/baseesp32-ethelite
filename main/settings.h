@@ -512,6 +512,14 @@ bool settings_loaded_from_nvs(void);
 void settings_peek(void (*fn)(const app_settings_t *s, void *ctx), void *ctx);
 esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx);
 
+// Lucchetto delle modifiche "settings_get(), cambia, settings_save()" (il
+// pannello): settings_update() lo prende anche lui, cosi' un aggiornamento
+// automatico (rinnovo della SIM, chiave VPN, misura della base) non si perde
+// sotto un salvataggio del pannello fatto con una copia piu' vecchia. Prima
+// il pannello aveva un lucchetto suo, che gli altri non vedevano.
+void settings_edit_begin(void);
+void settings_edit_end(void);
+
 // Posizioni al secondo del rover (nmea_rate_hz normalizzato): 1, 5 o 10.
 uint8_t settings_nmea_rate_hz(void);
 

@@ -422,6 +422,7 @@ void sys_stats_monitor_start(void)
 
 #include "esp_attr.h"
 #include "status.h"
+#include "net_util.h"
 #include "gnss_fix.h"
 #include "boot_guard.h"
 #include "eth_link.h"
@@ -602,7 +603,7 @@ static void safety_restart_check(int64_t now)
     if (status_get_active_rover()) {
         return;
     }
-    bool net_up = status_get_net() != NET_STATUS_NONE || eth_link_is_connected();
+    bool net_up = net_any_up();
     ntrip_conn_status_t nt = status_ntrip_get();
     if (net_up && nt.connect_count > 0 && !nt.connected && nt.last_disconnect_us > 0 &&
         now - nt.last_disconnect_us > GUARD_CASTER_DOWN_US) {

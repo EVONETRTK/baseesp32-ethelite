@@ -30,10 +30,6 @@ menu "baseesp32-ethelite Configuration"
             aggiornamenti online" nella UI web. Impostabile anche da li'
             senza ricompilare; vuoto per disattivare la funzione.
 
-    config BASEESP32_NTRIP_PASSWORD
-        string "NTRIP source password"
-        default ""
-
     config BASEESP32_GNSS_UART_NUM
         int "GNSS UART port number"
         default 2

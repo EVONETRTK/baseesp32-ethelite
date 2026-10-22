@@ -48,6 +48,21 @@ void gnss_fix_parse_gga(const char *line);
 // (fino a chilometri nella media della misura della base).
 bool nmea_checksum_ok(const char *line);
 
+// Checksum NMEA standard: XOR di tutti i caratteri di body fino al '*' o
+// alla fine della stringa (body = la riga SENZA il '$' iniziale). Unico
+// calcolo per il controllo delle righe ricevute (nmea_checksum_ok), per le
+// righe riscritte in ETRF2000 (nmea_etrf.c) e per i comandi $P... mandati
+// ai ricevitori (gnss_cmd.c). Nell'header (inline) perche' lo usano anche
+// moduli provati sul PC senza gnss_fix.c.
+static inline uint8_t nmea_checksum(const char *body)
+{
+    uint8_t cs = 0;
+    for (const char *p = body; *p && *p != '*'; p++) {
+        cs ^= (uint8_t) *p;
+    }
+    return cs;
+}
+
 // Copia lo stato corrente del fix. Puo' essere chiamata da qualunque task
 // (es. il server web).
 gnss_fix_status_t gnss_fix_get_status(void);

@@ -74,6 +74,15 @@ static inline void net_close_now(int sock)
     close(sock);
 }
 
+// C'e' una rete attiva: WiFi o cellulare (net_manager) oppure Ethernet, che
+// net_manager non segue (status_get_net() resta NONE con il solo cavo).
+// Prima la stessa condizione era scritta in 7 posti, e LED di rete e OLED la
+// scrivevano senza l'Ethernet: con il solo cavo "nessuna rete".
+static inline bool net_any_up(void)
+{
+    return status_get_net() != NET_STATUS_NONE || eth_link_is_connected();
+}
+
 // Aspetta che ci sia una rete attiva (WiFi o cellulare con IP, oppure
 // Ethernet), al massimo timeout_ms. Usata dai client NTRIP prima di ogni
 // tentativo: all'avvio il primo partiva prima del WiFi e falliva sempre con
@@ -82,7 +91,7 @@ static inline void net_close_now(int sock)
 static inline bool net_wait_ready(uint32_t timeout_ms)
 {
     for (uint32_t waited = 0; ; waited += 250) {
-        if (status_get_net() != NET_STATUS_NONE || eth_link_is_connected()) {
+        if (net_any_up()) {
             return true;
         }
         if (waited >= timeout_ms) {

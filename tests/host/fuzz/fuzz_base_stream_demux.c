@@ -5,7 +5,7 @@
 // checksum NMEA, CRC32 ASCII) ricalcolati dopo la mutazione. Il flusso
 // arriva a pezzi di misura casuale (1..64 byte o tutto insieme), ognuno in
 // un buffer contro una pagina protetta.
-// SORGENTI: gnss_fix.c gnss_signal.c gnss_unicore.c gnss_comnav.c
+// SORGENTI: gnss_fix.c gnss_signal.c gnss_unicore.c gnss_comnav.c gnss_cmd.c rtcm3_crc.c
 #include "motore.h"
 #include "aiuti.h"
 #include "stub_gnss.h"

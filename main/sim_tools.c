@@ -673,11 +673,6 @@ void sim_tools_tick(const app_settings_t *cfg)
 // Salute del modem ogni 2 minuti: temperatura, tensione, qualita' del 4G;
 // la versione del firmware una volta per avvio.
 #define HEALTH_EVERY_US (120LL * 1000000)
-// Comandi della salute (AT+CPMUTEMP, AT+CBC, AT+CPSI?, AT+CGMR): sospesi nella
-// 1.34.2 per prova, riattivati nella 1.35.0. Il SIM7600 non si era bloccato per
-// loro: era impostato come modulo SIMCom originale ma e' un modulo LilyGO, che
-// senza l'impulso su PWRKEY, una volta spento, non si riaccendeva (21/10/2026).
-#define MODEM_HEALTH_AT 1
 static void read_health(int64_t now_us)
 {
     static int64_t s_last_us;
@@ -728,9 +723,6 @@ static void read_health(int64_t now_us)
         ESP_LOGW(TAG, "Modem di nuovo raggiungibile dopo %lld s senza risposta",
                  (long long) ((now_us - silent_us) / 1000000));
     }
-#if !MODEM_HEALTH_AT
-    return;
-#endif
     h.temp_ok = h.volt_ok = h.lte_ok = false;
     if (!cellular_link_read_health(&h, !s_fw_done)) {
         return;

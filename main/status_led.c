@@ -1,5 +1,6 @@
 #include "status_led.h"
 #include "status.h"
+#include "net_util.h"
 #include "rgb_led.h"
 #include "settings.h"
 #include "sdkconfig.h"
@@ -56,7 +57,7 @@ static void status_led_task(void *arg)
 
     while (1) {
         net_status_t net = status_get_net();
-        bool net_up = (net != NET_STATUS_NONE);
+        bool net_up = net_any_up(); // anche il solo cavo Ethernet
 
         if (net_up) {
             led_set(NET_PIN, true);
@@ -79,8 +80,8 @@ static void status_led_task(void *arg)
 
         if (data_flash) {
             rgb_led_set(255, 255, 255);
-        } else if (net == NET_STATUS_WIFI) {
-            rgb_led_set(0, 0, 255);
+        } else if (net == NET_STATUS_WIFI || (net == NET_STATUS_NONE && net_up)) {
+            rgb_led_set(0, 0, 255); // rete fissa: WiFi o cavo Ethernet
         } else if (net == NET_STATUS_CELLULAR) {
             rgb_led_set(0, 255, 0);
         } else {

@@ -25,12 +25,9 @@ void vpn_link_tick(void);
 bool vpn_link_generate_keys(char *pub_b64, size_t pub_size);
 
 typedef struct {
-    bool enabled;      // attivato nelle impostazioni
-    bool configured;   // chiavi, server e indirizzo presenti
     bool started;      // interfaccia del tunnel creata
     bool up;           // handshake riuscito con il server (tunnel funzionante)
     int64_t up_since_us;
-    int64_t last_up_us; // ultima volta visto funzionante
     char public_key[48]; // chiave pubblica della base ("" se non generata)
     char last_error[64];
 } vpn_status_t;

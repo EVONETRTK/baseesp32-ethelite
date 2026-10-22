@@ -3,6 +3,7 @@
 #include "gnss_signal.h"
 #include "gnss_unicore.h"
 #include "gnss_comnav.h"
+#include "rtcm3_crc.h"
 
 #include <string.h>
 
@@ -37,26 +38,10 @@ static uint8_t s_ubx_hdr[4];
 static size_t s_ubx_pos;
 static size_t s_ubx_remaining;
 
-// Stesso CRC24Q di rtcm3_1005.c (polinomio 0x1864CFB, valore iniziale 0).
-static uint32_t crc24q_update(uint32_t crc, uint8_t byte)
-{
-    crc ^= ((uint32_t) byte) << 16;
-    for (int i = 0; i < 8; i++) {
-        crc <<= 1;
-        if (crc & 0x01000000) {
-            crc ^= 0x01864CFB;
-        }
-    }
-    return crc & 0x00FFFFFF;
-}
-
 static bool rtcm_frame_done(base_demux_rtcm_cb_t on_rtcm)
 {
     size_t body = s_rtcm_total - 3;
-    uint32_t crc = 0;
-    for (size_t i = 0; i < body; i++) {
-        crc = crc24q_update(crc, s_rtcm[i]);
-    }
+    uint32_t crc = rtcm3_crc24q(s_rtcm, body);
     uint32_t got = ((uint32_t) s_rtcm[body] << 16) | ((uint32_t) s_rtcm[body + 1] << 8) | s_rtcm[body + 2];
     if (crc != got) {
         return false;

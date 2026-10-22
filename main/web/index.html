@@ -52,7 +52,6 @@
   button.secondary, a.action.secondary { background:#6b7280; margin-left:.5rem; }
   dl.kv { display:grid; grid-template-columns:auto 1fr; gap:.4rem .8rem; margin:0; font-size:.9rem; }
   dl.kv dt { color:#666; }
-  #save-msg { margin-top:.6rem; font-size:.9rem; }
   small.hint { display:block; color:#888; margin-top:.2rem; }
   .sig-bar-track { background:#e5e7eb; border-radius:4px; height:10px; overflow:hidden; margin-top:.3rem; }
   .sig-bar-fill { background:#2563eb; height:100%; transition: width .3s, background .3s; }
@@ -1776,8 +1775,6 @@
 </small>
 </form>
 
-<div id="save-msg"></div>
-
 <script>
 // Risposte del ricevitore: con la sessione scaduta (401) o un errore arriva
 // una pagina di testo, non JSON - prima l'utente vedeva "Unexpected token".
@@ -2131,12 +2128,14 @@ document.getElementById('cfg-import-file').addEventListener('change', async (ev)
   msg.textContent = 'Caricamento...';
   try {
     const r = await fetch('/api/config/import', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: await file.arrayBuffer() });
-    const j = await r.json().catch(() => ({ ok: r.ok }));
+    if (!r.ok) throw await httpError(r);
+    // Dopo {"ok":true} la base si riavvia: la risposta puo' arrivare troncata.
+    const j = await r.json().catch(() => ({ ok: true }));
     if (!j.ok) { msg.textContent = 'Errore: ' + (j.error || 'caricamento non riuscito'); return; }
     msg.textContent = 'Configurazione caricata: la base si riavvia, la pagina si ricarica tra circa 30 secondi.';
     setTimeout(() => location.reload(), 30000);
   } catch (e) {
-    msg.textContent = 'Errore di comunicazione con la base';
+    msg.textContent = e && e.httpErr ? 'Errore: ' + e.message : 'Errore di comunicazione con la base';
   }
 });
 
@@ -2144,8 +2143,7 @@ async function loadDiagList() {
   const ul = document.getElementById('diag-list');
   ul.innerHTML = '<li>Lettura della microSD...</li>';
   try {
-    const r = await fetch('/api/diag/list');
-    const j = await r.json();
+    const j = await readJson(await fetch('/api/diag/list'));
     if (!j.sd_ok) { ul.innerHTML = '<li>microSD non disponibile</li>'; return; }
     if (!j.files.length) { ul.innerHTML = '<li>Nessun log salvato</li>'; return; }
     // L'avvio in corso per primo, poi gli altri dal piu' recente.
@@ -2157,7 +2155,7 @@ async function loadDiagList() {
       return '<li><a href="/api/diag/download?n=' + f.index + '">' + label + '</a> (' + formatBytes(f.size) + ')</li>';
     }).join('');
   } catch (e) {
-    ul.innerHTML = '<li>Errore di comunicazione con la base</li>';
+    ul.innerHTML = '<li>' + escHtml(errText(e, 'Errore di comunicazione con la base')) + '</li>';
   }
 }
 document.getElementById('diag-list-btn').addEventListener('click', loadDiagList);
@@ -2321,9 +2319,9 @@ async function loadStatusOnce() {
       } else if (s.svin_valid === undefined) {
         el.textContent = 'non disponibile';
       } else if (s.svin_valid) {
-        el.textContent = '✅ completato (' + fmtDurata(s.svin_duration_s) + ', precisione ' + s.svin_mean_acc_m.toFixed(2) + ' m): la base manda la sua posizione';
+        el.textContent = '✅ completato (' + fmtDuration(s.svin_duration_s, true) + ', precisione ' + s.svin_mean_acc_m.toFixed(2) + ' m): la base manda la sua posizione';
       } else if (s.svin_active) {
-        el.textContent = '⏳ in corso da ' + fmtDurata(s.svin_duration_s) + ', precisione attuale ' + s.svin_mean_acc_m.toFixed(2) + ' m';
+        el.textContent = '⏳ in corso da ' + fmtDuration(s.svin_duration_s, true) + ', precisione attuale ' + s.svin_mean_acc_m.toFixed(2) + ' m';
       } else {
         el.textContent = '⚠️ non attivo: la base non manda la sua posizione (1005)';
       }
@@ -2369,7 +2367,7 @@ async function loadStatusOnce() {
         } else if (s.raw_active) {
           const left = Math.max(0, s.raw_end_unix - Date.now() / 1000);
           el.textContent = '🔴 in registrazione: ' + s.raw_file + ' · ' + mb(s.raw_bytes) + ' · ' + s.raw_frames +
-            ' frame' + (s.raw_dropped ? ' (' + s.raw_dropped + ' persi)' : '') + ' · finisce tra ' + fmtDurata(left);
+            ' frame' + (s.raw_dropped ? ' (' + s.raw_dropped + ' persi)' : '') + ' · finisce tra ' + fmtDuration(left, true);
         } else {
           el.textContent = 'ferma' + (s.raw_note ? ' — ultima sessione: ' + s.raw_note : '');
         }
@@ -2687,11 +2685,21 @@ function colorForPct(pct) {
   return '#16a34a';                // verde: buono
 }
 
-function setSignalBar(barId, textId, dbm, min, max, label) {
+// Soglie in dBm per 2, 3 e 4 tacche (vedi signalBars): le stesse per le
+// tacche dei riquadri, il colore delle barre e gli avvisi di segnale debole.
+const SIGNAL_TH = { wifi: [-80, -70, -60], cell: [-105, -95, -85] };
+// Colore della barra dalle tacche: 0-1 rosso, 2 arancio, 3-4 verde.
+function signalColor(dbm, th) {
+  if (dbm === null || dbm === undefined) return colorForPct(null);
+  return { ok: '#16a34a', warn: '#d97706', bad: '#dc2626' }[signalBars(dbm, th).cls];
+}
+
+// Larghezza lineare fra min e max, colore dalle soglie th.
+function setSignalBar(barId, textId, dbm, min, max, th, label) {
   const pct = rssiToPercent(dbm, min, max);
   const bar = document.getElementById(barId);
   bar.style.width = (pct === null ? 0 : pct) + '%';
-  bar.style.background = colorForPct(pct);
+  bar.style.background = signalColor(dbm, th);
   document.getElementById(textId).textContent = (dbm === null || dbm === undefined)
     ? (label + ': non disponibile')
     : (label + ': ' + dbm + ' dBm');
@@ -2725,14 +2733,16 @@ function renderCpuBar(barId, textId, percent, label) {
 // temperature ben piu' alte) - servono solo a capire a colpo d'occhio se
 // il dispositivo si sta scaldando piu' del normale, es. per il sole diretto
 // su una custodia chiusa in campo.
-// "3 h 12 min", "45 min", "20 s"
-function fmtDuration(sec) {
+// Durata leggibile, tagliata (non arrotondata) all'unita' mostrata:
+// "2 g 3 h", "3 h 12 min", "45 min", "20 s". Con secondi = true sotto l'ora
+// mostra anche i secondi: 200 -> "3 min 20 s".
+function fmtDuration(sec, secondi) {
   sec = Math.max(0, Math.round(sec || 0));
-  const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+  const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
   if (d) return d + ' g ' + hh + ' h';
   if (hh) return hh + ' h ' + m + ' min';
-  if (m) return m + ' min';
-  return sec + ' s';
+  if (m) return m + ' min' + (secondi && s ? ' ' + s + ' s' : '');
+  return s + ' s';
 }
 
 function renderChipTemp(celsius, maxCelsius, maxAt, maxAgoS) {
@@ -2762,12 +2772,6 @@ function renderChipTemp(celsius, maxCelsius, maxAt, maxAgoS) {
 const FIX_QUALITY_COLOR = { 4: '#16a34a', 6: '#16a34a', 5: '#d97706', 2: '#d97706', 1: '#2563eb', 3: '#2563eb' };
 const FIX_QUALITY_ICON = { 4: '✅', 6: '✅', 5: '🟡', 2: '🟡', 1: 'ℹ️', 3: 'ℹ️' };
 
-function formatElapsed(seconds) {
-  if (seconds < 60) return Math.round(seconds) + ' s';
-  if (seconds < 3600) return Math.round(seconds / 60) + ' min';
-  return Math.round(seconds / 3600) + ' h';
-}
-
 function renderNtripStatus(s) {
   const statusEl = document.getElementById('ntrip-status');
   const sinceLabelEl = document.getElementById('ntrip-since-label');
@@ -2784,7 +2788,7 @@ function renderNtripStatus(s) {
     statusEl.style.fontWeight = '600';
     sinceLabelEl.textContent = 'Connesso da';
     sinceEl.textContent = s.ntrip_connected_since_us
-      ? formatElapsed((s.now_us - s.ntrip_connected_since_us) / 1e6)
+      ? fmtDuration((s.now_us - s.ntrip_connected_since_us) / 1e6)
       : '-';
   } else {
     statusEl.textContent = '❌ NON CONNESSO';
@@ -2792,7 +2796,7 @@ function renderNtripStatus(s) {
     statusEl.style.fontWeight = '600';
     sinceLabelEl.textContent = 'Disconnesso da';
     sinceEl.textContent = s.ntrip_last_disconnect_us
-      ? formatElapsed((s.now_us - s.ntrip_last_disconnect_us) / 1e6)
+      ? fmtDuration((s.now_us - s.ntrip_last_disconnect_us) / 1e6)
       : 'mai connesso dal boot';
   }
 }
@@ -3039,7 +3043,7 @@ function renderPppLog(s) {
     statusEl.textContent = '🔴 registrazione in corso';
     statusEl.style.color = '#dc2626';
     statusEl.style.fontWeight = '600';
-    durationEl.textContent = formatElapsed((s.now_us - s.ppp_log_started_at_us) / 1e6);
+    durationEl.textContent = fmtDuration((s.now_us - s.ppp_log_started_at_us) / 1e6);
     sizeEl.textContent = formatBytes(s.ppp_log_bytes);
   } else if (s.ppp_log_file_exists) {
     statusEl.textContent = '✅ registrazione pronta per il download';
@@ -3060,12 +3064,11 @@ document.getElementById('ppp-log-start-btn').addEventListener('click', async () 
   const msg = document.getElementById('ppp-log-msg');
   msg.textContent = 'Avvio in corso...';
   try {
-    const r = await fetch('/api/ppp-log/start', { method: 'POST' });
-    const s = await r.json();
+    const s = await readJson(await fetch('/api/ppp-log/start', { method: 'POST' }));
     msg.textContent = s.ok ? 'Registrazione avviata.' : 'Impossibile avviare: verifica che la scheda SD sia inserita.';
     loadStatus();
   } catch (e) {
-    msg.textContent = 'Errore di comunicazione con il dispositivo.';
+    msg.textContent = errText(e, 'Errore di comunicazione con il dispositivo.');
   }
 });
 
@@ -3480,8 +3483,8 @@ async function loadSignalsOnce() {
     updateBleNmea(s);
     drawSatChart(s.satellites || []);
     updateSatCount(s.satellites || []);
-    setSignalBar('st-wifi-sig-bar', 'st-wifi-sig-text', s.wifi_rssi_dbm, -90, -30, 'WiFi');
-    setSignalBar('st-cell-sig-bar', 'st-cell-sig-text', s.cellular_rssi_dbm, -113, -51, 'Cellulare');
+    setSignalBar('st-wifi-sig-bar', 'st-wifi-sig-text', s.wifi_rssi_dbm, -90, -30, SIGNAL_TH.wifi, 'WiFi');
+    setSignalBar('st-cell-sig-bar', 'st-cell-sig-text', s.cellular_rssi_dbm, -113, -51, SIGNAL_TH.cell, 'Cellulare');
     document.getElementById('sim-op').textContent = s.cellular_operator ? s.cellular_operator + (s.cellular_tech ? ' (' + s.cellular_tech + ')' : '') : 'non registrato';
     document.getElementById('sim-rssi').textContent = s.cellular_rssi_dbm !== null && s.cellular_rssi_dbm !== undefined ? s.cellular_rssi_dbm + ' dBm' : 'non disponibile';
     const stCellOperatorEl = document.getElementById('st-cell-operator');
@@ -3753,7 +3756,7 @@ async function saveFieldset(names, btn, msgEl) {
     msgEl.style.color = '';
     // Verifica: i numeri salvati devono risultare nello stato della base.
     try {
-      const st = await (await fetch('/api/status', { cache: 'no-store' })).json();
+      const st = await readJson(await fetch('/api/status', { cache: 'no-store' }));
       const rejected = Object.keys(data).filter(k => typeof data[k] === 'number' && k in st && typeof st[k] === 'number' &&
         Math.abs(st[k] - data[k]) > 1e-6 * Math.max(1, Math.abs(data[k])));
       if (rejected.length) {
@@ -3804,33 +3807,9 @@ document.querySelectorAll('.fieldset-save-btn[data-reboot]').forEach((btn) => {
   btn.after(rb);
 });
 
-// Fallback: invio del form (es. tasto Invio in un campo) salva tutto in un
-// colpo solo, come faceva il vecchio pulsante unico - non piu' raggiungibile
-// dalla UI (ogni campo si salva da solo col suo 💾), ma resta un ripiego
-// innocuo se il browser decidesse comunque di inviare il form.
-document.getElementById('cfg-form').addEventListener('submit', async (ev) => {
-  ev.preventDefault();
-  const f = ev.target;
-  const data = Object.fromEntries(new FormData(f).entries());
-  for (const name of Object.keys(data)) {
-    data[name] = typedFieldValue(f, name);
-    if (data[name] === undefined) delete data[name];
-  }
-  for (const name of BOOL_CHECKBOX_FIELDS) {
-    data[name] = f.elements[name] ? f.elements[name].checked : false;
-  }
-
-  const msg = document.getElementById('save-msg');
-  msg.textContent = 'Salvataggio...';
-  try {
-    const r = await fetch('/api/settings', { method: 'POST', body: JSON.stringify(data) });
-    if (!r.ok) throw new Error('errore server');
-    msg.textContent = 'Salvato. Se hai modificato pin GNSS/OLED/RGB serve un riavvio (pulsante «Riavvia dispositivo» in fondo alla scheda Stato) per applicarli - il resto e\' gia\' attivo.';
-    loadStatus();
-  } catch (e) {
-    msg.textContent = 'Errore nel salvataggio';
-  }
-});
+// Il form non ha un pulsante di invio (ogni riquadro si salva col suo 💾):
+// se il browser lo inviasse comunque, niente navigazione con i campi nell'indirizzo.
+document.getElementById('cfg-form').addEventListener('submit', (ev) => ev.preventDefault());
 
 document.getElementById('reboot-btn').addEventListener('click', async () => {
   if (!confirm('Riavviare il dispositivo ora? Se sta trasmettendo correzioni a dei rover collegati, il flusso si interrompe per qualche secondo.')) {
@@ -3887,13 +3866,12 @@ document.getElementById('sd-format-btn').addEventListener('click', async () => {
   msg.style.color = '';
   msg.textContent = 'Formattazione in corso, puo\' richiedere qualche minuto: non togliere la scheda...';
   try {
-    const r = await fetch('/api/sd/format', { method: 'POST', body: JSON.stringify({ confirm: 'FORMATTA' }) });
-    const s = await r.json();
+    const s = await readJson(await fetch('/api/sd/format', { method: 'POST', body: JSON.stringify({ confirm: 'FORMATTA' }) }));
     msg.style.color = s.ok ? '#16a34a' : '#dc2626';
     msg.textContent = s.message || (s.ok ? 'Formattata' : 'Formattazione non riuscita');
   } catch (e) {
     msg.style.color = '#dc2626';
-    msg.textContent = 'Errore di comunicazione durante la formattazione';
+    msg.textContent = errText(e, 'Errore di comunicazione durante la formattazione');
   }
   btn.disabled = false;
 });
@@ -3902,11 +3880,10 @@ document.getElementById('fw-sd-btn').addEventListener('click', async () => {
   const msg = document.getElementById('fw-sd-msg');
   msg.textContent = 'Controllo scheda SD...';
   try {
-    const r = await fetch('/api/ota/sd-update', { method: 'POST' });
-    const s = await r.json();
+    const s = await readJson(await fetch('/api/ota/sd-update', { method: 'POST' }));
     msg.textContent = s.message || '-';
   } catch (e) {
-    msg.textContent = 'Errore di comunicazione col dispositivo';
+    msg.textContent = errText(e, 'Errore di comunicazione col dispositivo');
   }
 });
 
@@ -3914,8 +3891,7 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
   const results = document.getElementById('wifi-scan-results');
   results.textContent = 'Ricerca reti in corso (qualche secondo)...';
   try {
-    const r = await fetch('/api/wifi/scan');
-    const s = await r.json();
+    const s = await readJson(await fetch('/api/wifi/scan'));
     const nets = s.networks || [];
     if (!nets.length) {
       results.textContent = 'Nessuna rete trovata';
@@ -3964,7 +3940,7 @@ document.getElementById('wifi-scan-btn').addEventListener('click', async () => {
       results.appendChild(btn);
     });
   } catch (e) {
-    results.textContent = 'Errore durante la ricerca reti';
+    results.textContent = errText(e, 'Errore durante la ricerca reti');
   }
 });
 
@@ -3976,8 +3952,7 @@ document.getElementById('ntrip-mp-scan-btn').addEventListener('click', async () 
   const results = document.getElementById('ntrip-mp-results');
   results.textContent = 'Ricerca mountpoint in corso...';
   try {
-    const r = await fetch('/api/ntrip/mountpoints');
-    const s = await r.json();
+    const s = await readJson(await fetch('/api/ntrip/mountpoints'));
     const mps = s.mountpoints || [];
     if (!mps.length) {
       results.textContent = 'Nessuna mountpoint trovata (caster irraggiungibile o sourcetable vuoto)';
@@ -4039,7 +4014,7 @@ document.getElementById('ntrip-mp-scan-btn').addEventListener('click', async () 
       results.appendChild(btn);
     });
   } catch (e) {
-    results.textContent = 'Errore durante la ricerca mountpoint';
+    results.textContent = errText(e, 'Errore durante la ricerca mountpoint');
   }
 });
 
@@ -4066,14 +4041,14 @@ document.getElementById('ntrip-test-btn').addEventListener('click', async () => 
         device_mode: f.device_mode.value, // base: prova come sorgente, rover: come ricevitore
       }),
     });
-    const s = await r.json();
+    const s = await readJson(r);
     msg.style.color = s.ok ? '#16a34a' : '#dc2626';
     msg.style.fontWeight = '600';
     msg.textContent = s.message || (s.ok ? 'Riuscito' : 'Fallito');
   } catch (e) {
     msg.style.color = '#dc2626';
     msg.style.fontWeight = '600';
-    msg.textContent = 'Errore di comunicazione col dispositivo';
+    msg.textContent = errText(e, 'Errore di comunicazione col dispositivo');
   }
 });
 
@@ -4236,13 +4211,15 @@ function updateMeasureUi(s) {
 async function postMeasure(action, extra) {
   try {
     const r = await fetch('/api/base/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action }, extra || {})) });
+    if (!r.ok) throw await httpError(r);
+    // Dopo {"ok":true} la base si riavvia: la risposta puo' arrivare troncata.
     const j = await r.json().catch(() => ({}));
     if (j.ok === false) { alert(j.error || 'Operazione non riuscita'); return; }
     alert(action !== 'cancel'
       ? 'La base si riavvia come rover per la misura. Riapri il pannello tra circa un minuto: lo stato è in cima alla scheda Stato.'
       : 'Misura annullata: la base si riavvia come base.');
   } catch (e) {
-    alert('Errore di comunicazione con la base');
+    alert(errText(e, 'Errore di comunicazione con la base'));
   }
 }
 
@@ -4427,7 +4404,7 @@ function updateReliabilityUi(s) {
   el.innerHTML = list.map(o => {
     const when = o.at ? o.at.slice(8, 10) + '/' + o.at.slice(5, 7) + ' ' + o.at.slice(11, 16) : fmtDuration(o.ago_s) + ' fa';
     const dur = o.ongoing ? '<b>in corso</b> da ' + fmtDuration(o.duration_s) : 'durata ' + fmtDuration(o.duration_s);
-    const reason = String(o.reason || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    const reason = escHtml(o.reason);
     return when + ' · ' + dur + (reason ? ' · ' + reason : '');
   }).join('<br>');
 }
@@ -4468,8 +4445,6 @@ document.getElementById('cfg-form').elements['sim_credit_mode'].addEventListener
 // Riquadro in evidenza: ICCID e IMEI letti dal modem (l'ICCID a mano solo
 // finche' il modem non l'ha mai letto); numero scritto a mano, altrimenti
 // quello letto dalla SIM.
-const simEsc = t => String(t == null ? '' : t).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-const iccidNorm = t => String(t || '').toUpperCase().replace(/[^0-9F]/g, '').replace(/F$/, '');
 const iccidGroups = t => String(t || '').replace(/(.{4})(?=.)/g, '$1 ');
 const simWhen = t => t ? t.slice(8, 10) + '/' + t.slice(5, 7) + '/' + t.slice(0, 4) + ' alle ' + t.slice(11, 16) : '';
 // Provenienza di un valore del modem: letto ora, o ultima lettura salvata.
@@ -4485,7 +4460,7 @@ function updateSimIdBox(s) {
   im.className = 'sim-id-value mono' + (s.sim_imei ? '' : ' empty');
   if (phone) {
     const tel = phone.replace(/[^0-9+]/g, '');
-    ph.innerHTML = '<a href="tel:' + tel + '" title="Chiama">' + simEsc(phone) + '</a>';
+    ph.innerHTML = '<a href="tel:' + tel + '" title="Chiama">' + escHtml(phone) + '</a>';
   } else {
     ph.textContent = 'non ancora noto';
   }
@@ -4494,7 +4469,7 @@ function updateSimIdBox(s) {
   let phSrc = 'non scritto nella SIM: scoprilo con l\'SMS di prova qui sotto';
   if (phone) {
     phSrc = s.sim_phone ? (s.sim_phone_read ? (s.sim_number_written ? 'inserito a mano e scritto nella SIM' : 'inserito a mano, presente anche nella SIM') : 'inserito a mano') : 'letto dalla SIM';
-    phSrc = simEsc(phSrc) + ' · <a href="sms:' + phone.replace(/[^0-9+]/g, '') + '">SMS</a>';
+    phSrc = escHtml(phSrc) + ' · <a href="sms:' + phone.replace(/[^0-9+]/g, '') + '">SMS</a>';
   }
   document.getElementById('sim-id-phone-src').innerHTML = phSrc;
   document.getElementById('sim-id-iccid-src').textContent = s.sim_iccid ? simModemSrc(s.sim_iccid_live, s)
@@ -4503,18 +4478,18 @@ function updateSimIdBox(s) {
   const extra = [];
   if (s.sim_operator) {
     const opt = document.querySelector('#cfg-form select[name="sim_operator"] option[value="' + s.sim_operator + '"]');
-    extra.push('Operatore: <b>' + simEsc(opt ? opt.textContent : s.sim_operator) + '</b>');
+    extra.push('Operatore: <b>' + escHtml(opt ? opt.textContent : s.sim_operator) + '</b>');
   }
-  if (s.cellular_apn) extra.push('APN: <b>' + simEsc(s.cellular_apn) + '</b>');
-  if (s.sim_renew_date) extra.push('Rinnovo: <b>' + simEsc(s.sim_renew_date.slice(8, 10) + '/' + s.sim_renew_date.slice(5, 7) + '/' + s.sim_renew_date.slice(0, 4)) + '</b>');
+  if (s.cellular_apn) extra.push('APN: <b>' + escHtml(s.cellular_apn) + '</b>');
+  if (s.sim_renew_date) extra.push('Rinnovo: <b>' + escHtml(s.sim_renew_date.slice(8, 10) + '/' + s.sim_renew_date.slice(5, 7) + '/' + s.sim_renew_date.slice(0, 4)) + '</b>');
   document.getElementById('sim-id-extra').innerHTML = extra.join(' · ');
   const warns = [];
   if (s.sim_iccid_prev) {
-    warns.push('⚠️ <b>SIM cambiata.</b> All\'avvio il modem ha letto l\'ICCID <b>' + simEsc(iccidGroups(s.sim_iccid)) + '</b>, prima c\'era <b>' +
-      simEsc(iccidGroups(s.sim_iccid_prev)) + '</b>. Se è voluto, aggiorna il numero di telefono qui sotto (con l\'SMS di prova).');
+    warns.push('⚠️ <b>SIM cambiata.</b> All\'avvio il modem ha letto l\'ICCID <b>' + escHtml(iccidGroups(s.sim_iccid)) + '</b>, prima c\'era <b>' +
+      escHtml(iccidGroups(s.sim_iccid_prev)) + '</b>. Se è voluto, aggiorna il numero di telefono qui sotto (con l\'SMS di prova).');
   }
   if (s.sim_imei_prev) {
-    warns.push('⚠️ <b>Modem sostituito.</b> IMEI nuovo <b>' + simEsc(s.sim_imei) + '</b>, prima <b>' + simEsc(s.sim_imei_prev) + '</b>.');
+    warns.push('⚠️ <b>Modem sostituito.</b> IMEI nuovo <b>' + escHtml(s.sim_imei) + '</b>, prima <b>' + escHtml(s.sim_imei_prev) + '</b>.');
   }
   const warn = document.getElementById('sim-id-warn');
   warn.style.display = warns.length ? '' : 'none';
@@ -4577,14 +4552,18 @@ function updateSimUi(s) {
 async function simAction(body, after) {
   const msg = document.getElementById('sim-last-msg');
   try {
-    const r = await fetch('/api/sim/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await r.json();
+    const j = await readJson(await fetch('/api/sim/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
     if (!j.ok && body.action !== 'parse') { msg.textContent = 'Errore: ' + (j.error || 'operazione non accettata'); return j; }
     if (body.action !== 'parse') msg.textContent = 'Richiesta inviata, attendi...';
     if (after) setTimeout(after, 8000);
     setTimeout(loadStatus, 3000);
     return j;
   } catch (e) {
+    // Errore spiegato dal ricevitore (es. sessione scaduta): come un rifiuto.
+    if (e && e.httpErr) {
+      msg.textContent = 'Errore: ' + e.message;
+      return { ok: false, error: e.message };
+    }
     msg.textContent = 'Errore di comunicazione con la base';
     return null;
   }
@@ -4633,7 +4612,6 @@ document.getElementById('sim-parse-btn').addEventListener('click', async () => {
 // SMS: risposta grezza di AT+CMGL, una riga di intestazione e una di testo.
 function renderSms(raw) {
   const el = document.getElementById('sim-sms-list');
-  const esc = t => String(t).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
   const lines = String(raw || '').split(/\r?\n/);
   const items = [];
   for (let i = 0; i < lines.length; i++) {
@@ -4641,7 +4619,7 @@ function renderSms(raw) {
     if (m) items.push({ from: m[1], at: m[2], text: lines[i + 1] || '' });
   }
   el.innerHTML = items.length
-    ? items.reverse().map(x => '<div style="border-bottom:1px solid #e5e7eb; padding:.4rem 0"><b>' + esc(x.from) + '</b> <span class="hint">' + esc(x.at) + '</span><div>' + esc(x.text) + '</div></div>').join('')
+    ? items.reverse().map(x => '<div style="border-bottom:1px solid #e5e7eb; padding:.4rem 0"><b>' + escHtml(x.from) + '</b> <span class="hint">' + escHtml(x.at) + '</span><div>' + escHtml(x.text) + '</div></div>').join('')
     : '<span class="hint">Nessun SMS (o non ancora letti)</span>';
 }
 async function loadSms() {
@@ -4654,30 +4632,20 @@ document.getElementById('sim-sms-del-btn').addEventListener('click', () => {
 
 // --- Riquadri riassuntivi della scheda Stato ------------------------------------
 // Verde/giallo/rosso a colpo d'occhio; toccandone uno si va ai dettagli.
-// Durata leggibile: 73337 -> "20 h 22 min", 200 -> "3 min 20 s".
-function fmtDurata(sec) {
-  sec = Math.max(0, Math.round(sec || 0));
-  const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
-  if (d) return d + ' g ' + h + ' h';
-  if (h) return h + ' h ' + m + ' min';
-  if (m) return m + ' min' + (s ? ' ' + s + ' s' : '');
-  return s + ' s';
-}
 async function rawAction(body) {
   const msg = document.getElementById('raw-msg');
   msg.textContent = '...';
   try {
-    const r = await fetch('/api/rawlog/action', { method: 'POST', body: JSON.stringify(body) });
-    const j = await r.json();
+    const j = await readJson(await fetch('/api/rawlog/action', { method: 'POST', body: JSON.stringify(body) }));
     msg.textContent = j.ok ? 'Fatto' : 'Errore: ' + (j.error || 'operazione non riuscita');
     return j.ok;
-  } catch (e) { msg.textContent = 'Errore di comunicazione con la base'; return false; }
+  } catch (e) { msg.textContent = errText(e, 'Errore di comunicazione con la base'); return false; }
 }
 async function loadRawFiles() {
   const ul = document.getElementById('raw-files');
   ul.innerHTML = '<li>Lettura della microSD...</li>';
   try {
-    const j = await (await fetch('/api/rawlog/list')).json();
+    const j = await readJson(await fetch('/api/rawlog/list'));
     if (!j.sd_ok) { ul.innerHTML = '<li>microSD non disponibile</li>'; return; }
     const free = j.free_bytes !== undefined ? ' — spazio libero ' + (j.free_bytes / 1073741824).toFixed(1) + ' GB' : '';
     if (!j.files.length) { ul.innerHTML = '<li>Nessun file' + free + '</li>'; return; }
@@ -4685,7 +4653,7 @@ async function loadRawFiles() {
     ul.innerHTML = j.files.map(f => '<li><a href="/api/rawlog/download?name=' + encodeURIComponent(f.name) + '">' + f.name +
       '</a> (' + (f.size / 1048576).toFixed(1) + ' MB) <a href="#" data-raw-del="' + f.name + '" style="color:#dc2626">elimina</a></li>').join('') +
       (free ? '<li style="list-style:none">' + free.slice(3) + '</li>' : '');
-  } catch (e) { ul.innerHTML = '<li>Errore di comunicazione con la base</li>'; }
+  } catch (e) { ul.innerHTML = '<li>' + escHtml(errText(e, 'Errore di comunicazione con la base')) + '</li>'; }
 }
 document.getElementById('raw-start-btn').addEventListener('click', () => rawAction({
   action: 'start', hours: Number(document.getElementById('raw-hours').value), interval: Number(document.getElementById('raw-interval').value),
@@ -4789,7 +4757,7 @@ function updateSummaryCards(s) {
   const sig = lastSignals || {};
   const ethInUse = netInUse(s) === 'ethernet';
   if (s.wifi_current_ssid) {
-    const b = signalBars(sig.wifi_rssi_dbm, [-80, -70, -60]);
+    const b = signalBars(sig.wifi_rssi_dbm, SIGNAL_TH.wifi);
     cards.push(sumCard('w', '📶 WiFi', b.n ? b.cls : 'warn', '<span class="sc-bars">' + b.bars + '</span> ' + b.word,
       (b.n ? sig.wifi_rssi_dbm + ' dBm · ' : '') + s.wifi_current_ssid + (s.net === 'wifi' ? ' · in uso' : ''), 'page-network'));
   }
@@ -4799,7 +4767,7 @@ function updateSummaryCards(s) {
   // Rete mobile: segnale LTE e SIM in un solo riquadro (prima erano due).
   if (usesCellular(s)) {
     const worse = (x, y) => ({ ok: 0, warn: 1, bad: 2 }[y] > { ok: 0, warn: 1, bad: 2 }[x] ? y : x);
-    const b = signalBars(sig.cellular_rssi_dbm, [-105, -95, -85]);
+    const b = signalBars(sig.cellular_rssi_dbm, SIGNAL_TH.cell);
     const registered = sig.cellular_rssi_dbm != null || !!sig.cellular_tech;
     // Modem che non risponde ai comandi (firmware 1.34.1): non e' "senza
     // rete", e' fermo; si riprende togliendo e ridando corrente.
@@ -4869,8 +4837,9 @@ document.getElementById('summary-cards').addEventListener('click', (ev) => {
   if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
+// Testo sicuro dentro innerHTML (anche negli attributi); null e undefined: stringa vuota.
 function escHtml(t) {
-  return String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 // Tacche come sul telefono: soglie in dBm per 2, 3 e 4 tacche. n = 0: dato non disponibile.
 function signalBars(dbm, th) {
@@ -4932,8 +4901,8 @@ function updateStatusVerdict(s) {
   const hot = Math.max(s.chip_temp_c || 0, s.gnss_temp_c || 0);
   if (hot >= 70) bad.push('Temperatura alta (' + hot.toFixed(0) + ' °C): ripara il ricevitore dal sole.');
   else if (hot >= 60) warn.push('Temperatura elevata (' + hot.toFixed(0) + ' °C).');
-  if (s.net === 'cellulare' && signalBars(sig.cellular_rssi_dbm, [-105, -95, -85]).n === 1) warn.push('Segnale LTE debole.');
-  if (s.net === 'wifi' && signalBars(sig.wifi_rssi_dbm, [-80, -70, -60]).n === 1) warn.push('Segnale WiFi debole.');
+  if (s.net === 'cellulare' && signalBars(sig.cellular_rssi_dbm, SIGNAL_TH.cell).n === 1) warn.push('Segnale LTE debole.');
+  if (s.net === 'wifi' && signalBars(sig.wifi_rssi_dbm, SIGNAL_TH.wifi).n === 1) warn.push('Segnale WiFi debole.');
   if (s.net === 'nessuna' && !netInUse(s)) bad.push('Nessuna connessione a internet.');
   if (usesCellular(s) && s.sim_renew_days_left !== undefined && s.sim_renew_days_left < 0) bad.push('Piano della SIM scaduto.');
   const all = bad.concat(warn);
@@ -5110,8 +5079,7 @@ function updateModeVisibility() {
 // senza dover ricordare a mano cosa c'era prima.
 document.getElementById('rtcm-revert').addEventListener('click', async () => {
   try {
-    const r = await fetch('/api/status');
-    const s = await r.json();
+    const s = await readJson(await fetch('/api/status'));
     const f = document.getElementById('cfg-form');
     RTCM_ALL_MESSAGE_FIELDS.forEach((name) => {
       f.elements[name].checked = !!s[name];
@@ -5119,7 +5087,7 @@ document.getElementById('rtcm-revert').addEventListener('click', async () => {
     });
     updateTabDirtyBadges();
   } catch (e) {
-    alert('Errore nel recupero dei valori salvati');
+    alert(errText(e, 'Errore nel recupero dei valori salvati'));
   }
 });
 
@@ -5139,15 +5107,14 @@ async function pollWifiTestProgress() {
   const poll = async () => {
     let s;
     try {
-      const r = await fetch('/api/wifi/test-progress');
-      s = await r.json();
+      s = await readJson(await fetch('/api/wifi/test-progress'));
       consecutiveFailures = 0;
     } catch (e) {
       consecutiveFailures++;
       if (consecutiveFailures >= 15) {
         msg.style.color = '#dc2626';
         msg.style.fontWeight = '600';
-        msg.textContent = 'Connessione alla pagina persa durante il test - ricarica la pagina per verificare lo stato.';
+        msg.textContent = errText(e, 'Connessione alla pagina persa durante il test - ricarica la pagina per verificare lo stato.');
         return;
       }
       setTimeout(poll, 1000);
@@ -5169,8 +5136,7 @@ async function pollWifiTestProgress() {
         // scritto "senza rete" quando in realta' si e' gia' ricollegato.
         setTimeout(async () => {
           try {
-            const r3 = await fetch('/api/wifi/test-progress');
-            const s3 = await r3.json();
+            const s3 = await readJson(await fetch('/api/wifi/test-progress'));
             if (s3.connected_ssid) {
               msg.textContent = 'NON connesso alla rete richiesta (nessuna modifica salvata) - attualmente collegato a "' + s3.connected_ssid + '"';
             }
@@ -5183,13 +5149,12 @@ async function pollWifiTestProgress() {
     msg.style.fontWeight = '600';
     msg.textContent = 'CONNESSO a "' + (s.connected_ssid || '?') + '"';
     try {
-      const r2 = await fetch('/api/signals');
-      const s2 = await r2.json();
+      const s2 = await readJson(await fetch('/api/signals'));
       const pct = rssiToPercent(s2.wifi_rssi_dbm, -90, -30);
       if (pct !== null) {
         barTrack.style.display = 'block';
         barFill.style.width = pct + '%';
-        barFill.style.background = colorForPct(pct);
+        barFill.style.background = signalColor(s2.wifi_rssi_dbm, SIGNAL_TH.wifi);
         msg.textContent += ' Segnale: ' + s2.wifi_rssi_dbm + ' dBm.';
       }
     } catch (e) {
@@ -5238,11 +5203,11 @@ async function waitForRebootAndVerify(targetVersion) {
   msg.style.color = '';
   msg.style.fontWeight = '';
   msg.textContent = 'Connessione persa - probabile riavvio dopo l\'aggiornamento, verifica in corso...';
+  let lastErr = null;
   for (let i = 0; i < 30; i++) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     try {
-      const r = await fetch('/api/status');
-      const s = await r.json();
+      const s = await readJson(await fetch('/api/status'));
       if (s.firmware_version === targetVersion) {
         msg.style.color = '#16a34a';
         msg.style.fontWeight = '600';
@@ -5255,12 +5220,14 @@ async function waitForRebootAndVerify(targetVersion) {
       }
       return;
     } catch (e) {
-      // ancora irraggiungibile, ritenta
+      // ancora irraggiungibile (o appena ripartito), ritenta
+      lastErr = e;
     }
   }
   msg.style.color = '#dc2626';
   msg.style.fontWeight = '600';
-  msg.textContent = 'Dispositivo non piu\' raggiungibile dopo l\'aggiornamento - ricarica la pagina per verificare manualmente (potrebbe aver cambiato indirizzo).';
+  // Se alla fine risponde ma con un errore (es. accesso scaduto), si mostra quello.
+  msg.textContent = errText(lastErr, 'Dispositivo non piu\' raggiungibile dopo l\'aggiornamento - ricarica la pagina per verificare manualmente (potrebbe aver cambiato indirizzo).');
 }
 
 function pollOtaProgress(targetVersion) {
@@ -5271,8 +5238,7 @@ function pollOtaProgress(targetVersion) {
   const poll = async () => {
     let s;
     try {
-      const r = await fetch('/api/ota/progress');
-      s = await r.json();
+      s = await readJson(await fetch('/api/ota/progress'));
     } catch (e) {
       if (sawRunning) {
         waitForRebootAndVerify(targetVersion);
@@ -5389,8 +5355,7 @@ document.getElementById('fw-online-btn').addEventListener('click', async () => {
   msg.style.fontWeight = '';
   msg.textContent = 'Controllo aggiornamenti online...';
   try {
-    const r = await fetch('/api/ota/check-online', { method: 'POST' });
-    const s = await r.json();
+    const s = await readJson(await fetch('/api/ota/check-online', { method: 'POST' }));
     msg.textContent = s.message || '-';
     if (!s.available) {
       return;
@@ -5442,8 +5407,7 @@ async function loadFwArchive() {
     return;
   }
   try {
-    const r = await fetch('/api/firmware-archive/list');
-    const s = await r.json();
+    const s = await readJson(await fetch('/api/firmware-archive/list'));
     const files = s.files || [];
     if (files.length === 0) {
       listEl.textContent = 'Nessuna versione archiviata ancora (si popola al primo aggiornamento applicato).';
@@ -5466,7 +5430,7 @@ async function loadFwArchive() {
       listEl.appendChild(row);
     });
   } catch (e) {
-    listEl.textContent = 'Errore nel caricamento dell\'elenco.';
+    listEl.textContent = errText(e, 'Errore nel caricamento dell\'elenco.');
   }
 }
 
@@ -5477,14 +5441,13 @@ async function applyFwArchive(filename) {
   const msg = document.getElementById('fw-archive-msg');
   msg.textContent = 'Ripristino in corso...';
   try {
-    const r = await fetch('/api/firmware-archive/apply', {
+    const s = await readJson(await fetch('/api/firmware-archive/apply', {
       method: 'POST',
       body: JSON.stringify({ filename }),
-    });
-    const s = await r.json();
+    }));
     msg.textContent = s.message || (s.applied ? 'Ripristinato.' : 'Ripristino fallito.');
   } catch (e) {
-    msg.textContent = 'Errore di comunicazione con il dispositivo.';
+    msg.textContent = errText(e, 'Errore di comunicazione con il dispositivo.');
   }
 }
 

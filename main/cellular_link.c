@@ -896,7 +896,7 @@ bool cellular_link_ussd(const char *code, char *out, size_t out_size)
 
 bool cellular_link_send_sms(const char *number, const char *text)
 {
-    if (!s_inited || !s_dce || s_data_no_cmux) {
+    if (!s_inited || !s_dce || s_data_no_cmux || s_busy) {
         return false;
     }
     if (!number || !text || !phone_number_ok(number) || !sms_text_ok(text)) {
@@ -911,7 +911,7 @@ bool cellular_link_send_sms(const char *number, const char *text)
 bool cellular_link_read_sms(char *out, size_t out_size)
 {
     char tmp[32];
-    if (!s_inited || !s_dce || s_data_no_cmux) {
+    if (!s_inited || !s_dce || s_data_no_cmux || s_busy) {
         return false;
     }
     esp_modem_sms_txt_mode(s_dce, true);

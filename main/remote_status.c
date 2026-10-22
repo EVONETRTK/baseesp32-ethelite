@@ -1,5 +1,6 @@
 #include "remote_status.h"
 #include "status.h"
+#include "net_util.h"
 #include "sys_stats.h"
 #include "base_monitor.h"
 #include "data_usage.h"
@@ -96,7 +97,7 @@ void remote_status_tick(const app_settings_t *cfg)
     // Anche con la sola Ethernet: prima con "Solo Ethernet" lo stato remoto
     // non partiva mai (status_get_net() vale NONE).
     if (cfg->remote_interval_min == 0 || !cfg->remote_url[0] ||
-        (status_get_net() == NET_STATUS_NONE && !eth_link_is_connected())) {
+        !net_any_up()) {
         return;
     }
     int64_t now = esp_timer_get_time();

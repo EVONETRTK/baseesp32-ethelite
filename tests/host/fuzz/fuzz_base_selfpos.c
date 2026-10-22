@@ -20,7 +20,7 @@
 //     scala dall'input), una ogni 5 s, fino a 255 per comando
 // Ogni frame passa da base_selfpos_feed (checksum UBX giusto, a pezzi di
 // misura casuale), poi la coda viene svuotata come fa il task.
-// SORGENTI: etrf.c
+// SORGENTI: etrf.c rtcm3_crc.c
 #include "motore.h"
 #include "aiuti.h"
 #include "../../../main/base_selfpos.c"
@@ -134,7 +134,7 @@ static void cmd_sfrbx_gal(void)
         uint8_t cb[25] = { 0 };
         for (int i = 0; i < 114; i++) setbit(cb, 4 + i, (int) getbitu(p, i, 1));
         for (int i = 0; i < 82; i++) setbit(cb, 118 + i, (int) getbitu(p, 128 + i, 1));
-        uint32_t c = crc24q(cb, 25);
+        uint32_t c = rtcm3_crc24q(cb, 25);
         for (int k = 0; k < 24; k++) setbit(p, 128 + 82 + k, (int) ((c >> (23 - k)) & 1));
     }
     uint8_t pl[8 + 32] = { 2, sv, 0, 0, 8, 0, 2, 0 };

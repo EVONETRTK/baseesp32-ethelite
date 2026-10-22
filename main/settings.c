@@ -73,6 +73,19 @@ static bool s_loaded_from_nvs; // false = default di fabbrica (nessuna configura
 // rende atomica ogni lettura/scrittura dell'intera struct condivisa.
 static SemaphoreHandle_t s_settings_mutex;
 static SemaphoreHandle_t s_save_mutex; // salvataggi in NVS e s_save_buf (vedi settings_save)
+// Modifiche "leggi, cambia, salva" (vedi settings_edit_begin): ricorsivo,
+// cosi' chi lo tiene puo' chiamare settings_update() senza bloccarsi.
+static SemaphoreHandle_t s_edit_mutex;
+
+void settings_edit_begin(void)
+{
+    xSemaphoreTakeRecursive(s_edit_mutex, portMAX_DELAY);
+}
+
+void settings_edit_end(void)
+{
+    xSemaphoreGiveRecursive(s_edit_mutex);
+}
 
 // Stessi 3 byte finali del MAC gia' usati per il suffisso dell'SSID
 // dell'AP di setup (es. "EVONETRTK-893428" -> "893428") - stesso numero
@@ -210,6 +223,9 @@ void settings_init(void)
     // insieme in s_save_buf).
     if (!s_save_mutex) {
         s_save_mutex = xSemaphoreCreateMutex();
+    }
+    if (!s_edit_mutex) {
+        s_edit_mutex = xSemaphoreCreateRecursiveMutex();
     }
 
     ESP_LOGI(TAG, "sizeof(app_settings_t) di questo firmware = %u byte", (unsigned) sizeof(app_settings_t));
@@ -737,6 +753,7 @@ esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx)
     if (!s_save_mutex) {
         s_save_mutex = xSemaphoreCreateMutex();
     }
+    settings_edit_begin(); // non in mezzo a un "leggi, cambia, salva" del pannello
     xSemaphoreTake(s_save_mutex, portMAX_DELAY);
     xSemaphoreTake(s_settings_mutex, portMAX_DELAY);
     fn(&s_settings, ctx);
@@ -756,6 +773,7 @@ esp_err_t settings_update(void (*fn)(app_settings_t *s, void *ctx), void *ctx)
         nvs_close(h);
     }
     xSemaphoreGive(s_save_mutex);
+    settings_edit_end();
     ESP_LOGI(TAG, "Impostazioni aggiornate sul posto: %s", esp_err_to_name(err));
     if (err == ESP_OK) {
         config_backup_request();
