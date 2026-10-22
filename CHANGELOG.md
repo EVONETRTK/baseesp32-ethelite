@@ -11,6 +11,7 @@ Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai sat
 ## 1.35.2
 
 - **Modem LilyGO non piu' spento dai riavvii**: all'avvio il ricevitore dava sempre l'impulso su PWRKEY; con un riavvio da pannello o dopo un aggiornamento il modem era gia' acceso e l'impulso lo spegneva (poi il recupero lo riaccendeva dopo circa 6 minuti). Ora prima dell'impulso si chiede "AT" sulla seriale; se il modem tace ma risponde all'apertura CMUX (riavvio con il 4G attivo) si chiude il multiplexer (CLD) e non si da' l'impulso. Con il ricevitore acceso da spento non cambia niente.
+- Lettura della tensione del modem (AT+CBC): una risposta rovinata con un numero enorme o "nan" veniva convertita in intero fuori scala (comportamento indefinito, trovato dal fuzzing); ora e' scartata. Nuovo bersaglio di fuzzing fuzz_modem_health.c.
 
 ## 1.35.1
 

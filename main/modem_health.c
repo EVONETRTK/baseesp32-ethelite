@@ -59,9 +59,11 @@ bool modem_health_parse_cbc(const char *resp, int *volt_mv)
     char *end;
     double v = strtod(last, &end);
     if (end == last) return false;
-    int mv = (int) (v < 100 ? v * 1000.0 + 0.5 : v + 0.5);  // "3.801V" oppure "3801"
-    if (mv < 2500 || mv > 5500) return false;
-    *volt_mv = mv;
+    double mv = v < 100 ? v * 1000.0 + 0.5 : v + 0.5;  // "3.801V" oppure "3801"
+    // Scala controllata sul double (scarta anche nan): la conversione in int
+    // di un valore fuori scala sarebbe comportamento indefinito.
+    if (!(mv >= 2500 && mv <= 5500)) return false;
+    *volt_mv = (int) mv;
     return true;
 }
 

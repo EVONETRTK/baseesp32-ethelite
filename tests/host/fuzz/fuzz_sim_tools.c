@@ -40,6 +40,16 @@ bool cellular_link_get_number(char *out, size_t out_size) { return copia_testo(4
 bool cellular_link_send_sms(const char *number, const char *text) { (void) number; (void) text; return true; }
 bool cellular_link_delete_sms(void) { return true; }
 bool cellular_link_write_number(const char *number) { (void) number; return true; }
+// La lettura delle risposte ha il suo bersaglio (fuzz_modem_health.c): qui
+// solo un modem che risponde o no (bit 6), caldo con il bit 7.
+bool cellular_link_read_health(modem_health_t *h, bool fw)
+{
+    if (!(g_opz & 64)) return false;
+    h->temp_ok = true;
+    h->temp_c = (g_opz & 128) ? 85 : 40;
+    if (fw) strlcpy(h->fw, "LE20B04SIM7600M22", sizeof(h->fw));
+    return true;
+}
 void alerts_wake(void) {}
 bool alerts_send_now(const app_settings_t *s, const char *subject, const char *body)
 {

@@ -29,6 +29,19 @@ PROVA(tensione_in_volt_e_millivolt)
     VERIFICA(!modem_health_parse_cbc(NULL, &mv));
 }
 
+// Trovato dal fuzzing: un numero enorme o "nan" finiva convertito in int
+// fuori scala (comportamento indefinito).
+PROVA(tensione_enorme_o_non_numero_scartata)
+{
+    int mv = 1234;
+    VERIFICA(!modem_health_parse_cbc("+CBC: 1e20V\r\n", &mv));
+    VERIFICA(!modem_health_parse_cbc("+CBC: 0,85,99999999999\r\n", &mv));
+    VERIFICA(!modem_health_parse_cbc("+CBC: -1e20\r\n", &mv));
+    VERIFICA(!modem_health_parse_cbc("+CBC: nan\r\n", &mv));
+    VERIFICA(!modem_health_parse_cbc("+CBC: inf\r\n", &mv));
+    VERIFICA_INT(mv, 1234);
+}
+
 PROVA(cpsi_lte_completo)
 {
     modem_health_t h;
@@ -97,6 +110,7 @@ int main(void)
 {
     ESEGUI(temperatura_con_eco);
     ESEGUI(tensione_in_volt_e_millivolt);
+    ESEGUI(tensione_enorme_o_non_numero_scartata);
     ESEGUI(cpsi_lte_completo);
     ESEGUI(cpsi_valori_gia_in_unita);
     ESEGUI(cpsi_senza_servizio_e_altre_reti);
