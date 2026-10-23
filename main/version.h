@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.35.6"
+#define FIRMWARE_VERSION "1.35.7"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Trovata la causa dei blocchi del 4G: le seriali dello ZED-F9P disturbavano il modem. Ora spente con il ricevitore in I2C."
+#define FIRMWARE_RELEASE_NOTES "4G collegato in pochi secondi all'avvio; il 4G si richiude per disturbi solo se il caster non riceve piu' dati."
