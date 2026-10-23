@@ -148,10 +148,10 @@ static void apply_defaults(void)
     s_settings.gnss_uart_baud = CONFIG_BASEESP32_GNSS_UART_BAUD;
 
     s_settings.rgb_led_mode = RGB_LED_NONE;
-    s_settings.rgb_led_ws2812_pin = CONFIG_BASEESP32_RGB_WS2812_PIN;
-    s_settings.rgb_led_pwm_r_pin = CONFIG_BASEESP32_RGB_PWM_R_PIN;
-    s_settings.rgb_led_pwm_g_pin = CONFIG_BASEESP32_RGB_PWM_G_PIN;
-    s_settings.rgb_led_pwm_b_pin = CONFIG_BASEESP32_RGB_PWM_B_PIN;
+    s_settings.rgb_led_ws2812_pin = -1;
+    s_settings.rgb_led_pwm_r_pin = -1;
+    s_settings.rgb_led_pwm_g_pin = -1;
+    s_settings.rgb_led_pwm_b_pin = -1;
     s_settings.rgb_led_pwm_active_low = false;
 
     s_settings.oled_sda_pin = CONFIG_BASEESP32_OLED_SDA_PIN;

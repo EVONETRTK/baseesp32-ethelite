@@ -738,6 +738,14 @@ static void read_health(int64_t now_us)
     unlock();
 }
 
+int64_t sim_tools_modem_silent_since_us(void)
+{
+    lock();
+    int64_t since = s_st.modem_silent ? s_st.modem_silent_us : 0;
+    unlock();
+    return since;
+}
+
 void sim_tools_get_status(sim_tools_status_t *out)
 {
     lock();

@@ -177,26 +177,6 @@ menu "baseesp32-ethelite Configuration"
             default (GPIO38). Attivare solo per un LED esterno con logica
             invertita.
 
-    config BASEESP32_RGB_WS2812_PIN
-        int "GPIO dati verso un LED RGB WS2812/NeoPixel (-1 se non presente)"
-        default -1
-        help
-            Solo default iniziale: tipo di LED RGB, pin e colori si
-            impostano poi dalla UI web (scheda Hardware), non serve
-            ricompilare per cambiarli.
-
-    config BASEESP32_RGB_PWM_R_PIN
-        int "GPIO canale rosso di un LED RGB a 3 pin PWM (-1 se non presente)"
-        default -1
-
-    config BASEESP32_RGB_PWM_G_PIN
-        int "GPIO canale verde di un LED RGB a 3 pin PWM (-1 se non presente)"
-        default -1
-
-    config BASEESP32_RGB_PWM_B_PIN
-        int "GPIO canale blu di un LED RGB a 3 pin PWM (-1 se non presente)"
-        default -1
-
     config BASEESP32_OLED_SDA_PIN
         int "GPIO SDA verso un display OLED SSD1306 128x64 (-1 se non presente)"
         default 17
@@ -208,7 +188,7 @@ menu "baseesp32-ethelite Configuration"
             web (scheda Hardware) senza ricompilare, se il proprio display
             va cablato diversamente. Se presente, il display alterna a
             rotazione stato dispositivo/satelliti per costellazione/segnale
-            cellulare e WiFi - stesse informazioni gia' su web e LED RGB,
+            cellulare e WiFi - stesse informazioni gia' sul pannello web,
             utili pero' sul campo senza dover aprire la UI dal telefono.
             Un display non collegato non causa problemi: l'init I2C fallisce
             silenziosamente (timeout brevi in avvio) e il task del display
@@ -264,7 +244,7 @@ menu "baseesp32-ethelite Configuration"
             Pin del lettore microSD della T-ETH-Elite, dal repository
             ufficiale LilyGO (LilyGo-Modem-Series, utilities.h, blocco
             LILYGO_T_ETH_ELITE: SPI_MISO_PIN/SD_MISO_PIN). Fisso dalla
-            scheda - a differenza dei pin GNSS/RGB/OLED non ha senso
+            scheda - a differenza dei pin GNSS/OLED non ha senso
             renderlo configurabile dalla UI web.
 
     config BASEESP32_SD_MOSI_PIN

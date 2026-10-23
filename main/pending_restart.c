@@ -28,9 +28,6 @@ typedef struct {
     uint8_t oled_i2c_addr;
     oled_controller_t oled_controller;
     bool oled_flip_h, oled_flip_v;
-    rgb_led_mode_t rgb_led_mode;
-    int rgb_led_ws2812_pin, rgb_led_pwm_r_pin, rgb_led_pwm_g_pin, rgb_led_pwm_b_pin;
-    bool rgb_led_pwm_active_low;
 } restart_fields_t;
 
 static restart_fields_t s_boot;
@@ -70,12 +67,6 @@ static void pick(const app_settings_t *s, restart_fields_t *o)
     o->oled_controller = s->oled_controller;
     o->oled_flip_h = s->oled_flip_h;
     o->oled_flip_v = s->oled_flip_v;
-    o->rgb_led_mode = s->rgb_led_mode;
-    o->rgb_led_ws2812_pin = s->rgb_led_ws2812_pin;
-    o->rgb_led_pwm_r_pin = s->rgb_led_pwm_r_pin;
-    o->rgb_led_pwm_g_pin = s->rgb_led_pwm_g_pin;
-    o->rgb_led_pwm_b_pin = s->rgb_led_pwm_b_pin;
-    o->rgb_led_pwm_active_low = s->rgb_led_pwm_active_low;
 }
 
 void pending_restart_snapshot(const app_settings_t *s)
@@ -131,10 +122,5 @@ void pending_restart_describe(const app_settings_t *s, char *out, size_t out_siz
     if (n.oled_sda_pin != b->oled_sda_pin || n.oled_scl_pin != b->oled_scl_pin || n.oled_i2c_addr != b->oled_i2c_addr ||
         n.oled_controller != b->oled_controller || n.oled_flip_h != b->oled_flip_h || n.oled_flip_v != b->oled_flip_v) {
         add(out, out_size, "display OLED");
-    }
-    if (n.rgb_led_mode != b->rgb_led_mode || n.rgb_led_ws2812_pin != b->rgb_led_ws2812_pin ||
-        n.rgb_led_pwm_r_pin != b->rgb_led_pwm_r_pin || n.rgb_led_pwm_g_pin != b->rgb_led_pwm_g_pin ||
-        n.rgb_led_pwm_b_pin != b->rgb_led_pwm_b_pin || n.rgb_led_pwm_active_low != b->rgb_led_pwm_active_low) {
-        add(out, out_size, "LED");
     }
 }

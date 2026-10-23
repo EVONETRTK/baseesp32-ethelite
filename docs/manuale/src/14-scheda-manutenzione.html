@@ -121,19 +121,9 @@
 
 <div class="box consiglio"><span class="box-titolo">Consiglio</span>Quando chiedete assistenza per un problema, allegate il log recente e, se il ricevitore si è riavviato, il file della microSD dell'accensione precedente.</div>
 
-<h2>LED RGB e display OLED</h2>
+<h2>Display OLED</h2>
 
-<p><span class="pubblico tecnico">Avanzate · opzionali</span> Il ricevitore può pilotare un LED colorato e un piccolo display, utili per vedere lo stato senza aprire il pannello. Tutte queste impostazioni valgono dopo il riavvio; un pin a −1 significa "non usato".</p>
-
-<h3>LED RGB</h3>
-
-<ul>
-  <li><strong>Tipo di LED</strong>: nessuno, <strong>WS2812/NeoPixel</strong> (un solo pin dati) o <strong>3 pin separati R/G/B</strong> (PWM), con i rispettivi GPIO.</li>
-  <li><strong>Logica invertita</strong>: per i LED a catodo comune collegati verso i GPIO.</li>
-  <li>Il colore segue lo stato: blu per il WiFi o il cavo Ethernet, verde per il cellulare, rosso lampeggiante senza rete, con un lampo bianco a ogni pacchetto di correzioni.</li>
-</ul>
-
-<h3>Display OLED</h3>
+<p><span class="pubblico tecnico">Avanzate · opzionale</span> Il ricevitore può pilotare un piccolo display, utile per vedere lo stato senza aprire il pannello. Le impostazioni valgono dopo il riavvio; un pin a −1 significa "non usato".</p>
 
 <ul>
   <li>Display da 128×64 punti in I2C, sugli stessi pin del modulo GNSS in I2C (17/18 sulla T-ETH-Elite).</li>
@@ -149,7 +139,7 @@
   <li>L'archivio sulla microSD conserva le ultime 2 versioni per un ripristino manuale.</li>
   <li>Copia completa con password per ripristinare, copia per clonare senza identità per preparare un nuovo ricevitore.</li>
   <li>Log recenti in memoria e log sulla microSD delle ultime 5 accensioni: da allegare alle richieste di assistenza.</li>
-  <li>LED RGB e display OLED opzionali, validi dopo il riavvio.</li>
+  <li>Display OLED opzionale, valido dopo il riavvio.</li>
   <li>Licenza: attivazione con codice e due spunte, controllo giornaliero automatico, funzioni nuove o scadute valide dal riavvio.</li>
 </ul>
 </div>

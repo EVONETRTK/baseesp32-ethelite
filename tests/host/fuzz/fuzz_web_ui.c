@@ -2,7 +2,7 @@
 // giro in build/web_ui_estratto.c da web_ui_estrai.ps1, come per le prove):
 // numeri di telefono, caratteri ammessi, pin GPIO.
 // Input: [opzioni][pin 8 x 2 byte][testo]. Opzioni: bit 0-4 dimensione del
-// buffer di uscita del numero (2..33), bit 5-7 modo del LED RGB.
+// buffer di uscita del numero (2..33), bit 5 ricevitore in I2C.
 #include "motore.h"
 #include "web_ui_estratto.c"
 
@@ -49,11 +49,6 @@ void bersaglio_esegui(const uint8_t *d, size_t n)
     st.gnss_uart_rx_pin = pin[1];
     st.oled_sda_pin = pin[2];
     st.oled_scl_pin = pin[3];
-    st.rgb_led_mode = (opz >> 6);
-    st.rgb_led_ws2812_pin = pin[4];
-    st.rgb_led_pwm_r_pin = pin[5];
-    st.rgb_led_pwm_g_pin = pin[6];
-    st.rgb_led_pwm_b_pin = pin[7];
     char *verr = (char *) fuzz_buffer(VERR_SIZE);
     verr[0] = '\0';
     (void) pins_conflict(&st, verr);

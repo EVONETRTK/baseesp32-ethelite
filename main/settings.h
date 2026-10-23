@@ -157,9 +157,9 @@ typedef struct {
     int gnss_uart_rx_pin;
     int gnss_uart_baud;
 
-    // LED RGB opzionale (in aggiunta ai LED semplici rete/dati, gia'
-    // solo-Kconfig). -1 su un pin = non usato/non applicabile alla
-    // modalita' scelta.
+    // LED RGB: tolto nella 1.35.8 (si usa il display OLED). I campi restano
+    // solo perche' le impostazioni sono salvate come blocco binario:
+    // toglierli sposterebbe i campi successivi. Non letti da nessuno.
     rgb_led_mode_t rgb_led_mode;
     int rgb_led_ws2812_pin;
     int rgb_led_pwm_r_pin;

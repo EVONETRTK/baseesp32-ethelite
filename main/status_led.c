@@ -1,8 +1,6 @@
 #include "status_led.h"
 #include "status.h"
 #include "net_util.h"
-#include "rgb_led.h"
-#include "settings.h"
 #include "sdkconfig.h"
 
 #include <stdbool.h>
@@ -46,9 +44,7 @@ static void configure_output(int pin)
 // LED rete: acceso fisso se WiFi o cellulare sono su, lampeggiante
 // (~300ms) finche' il dispositivo sta ancora cercando una rete. LED dati:
 // si accende per un ciclo (~150ms) ad ogni volta che il contatore RTCM
-// condiviso avanza. LED RGB (se configurato): stesso concetto ma a
-// colori - blu=WiFi, verde=cellulare, spento/lampeggiante=nessuna rete,
-// con un lampo bianco sovrapposto ad ogni pacchetto dati.
+// condiviso avanza.
 static void status_led_task(void *arg)
 {
     uint32_t last_bytes = status_get_rtcm_total_bytes();
@@ -56,7 +52,6 @@ static void status_led_task(void *arg)
     bool net_blink_state = false;
 
     while (1) {
-        net_status_t net = status_get_net();
         bool net_up = net_any_up(); // anche il solo cavo Ethernet
 
         if (net_up) {
@@ -67,45 +62,22 @@ static void status_led_task(void *arg)
         }
 
         uint32_t bytes = status_get_rtcm_total_bytes();
-        bool data_flash = false;
         if (bytes != last_bytes) {
             last_bytes = bytes;
             led_set(DATA_PIN, true);
             data_led_on = true;
-            data_flash = true;
         } else if (data_led_on) {
             led_set(DATA_PIN, false);
             data_led_on = false;
-        }
-
-        if (data_flash) {
-            rgb_led_set(255, 255, 255);
-        } else if (net == NET_STATUS_WIFI || (net == NET_STATUS_NONE && net_up)) {
-            rgb_led_set(0, 0, 255); // rete fissa: WiFi o cavo Ethernet
-        } else if (net == NET_STATUS_CELLULAR) {
-            rgb_led_set(0, 255, 0);
-        } else {
-            rgb_led_set(net_blink_state ? 40 : 0, 0, 0);
         }
 
         vTaskDelay(pdMS_TO_TICKS(150));
     }
 }
 
-static void peek_rgb_mode(const app_settings_t *s, void *ctx)
-{
-    *(rgb_led_mode_t *) ctx = s->rgb_led_mode;
-}
-
 void status_led_start(void)
 {
-    rgb_led_init();
-
-    // Senza LED singoli il task serve comunque se c'e' un LED RGB configurato
-    // dal pannello: prima restava spento.
-    rgb_led_mode_t rgb = RGB_LED_NONE;
-    settings_peek(peek_rgb_mode, &rgb);
-    if (NET_PIN < 0 && DATA_PIN < 0 && rgb == RGB_LED_NONE) {
+    if (NET_PIN < 0 && DATA_PIN < 0) {
         return;
     }
     configure_output(NET_PIN);

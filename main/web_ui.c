@@ -734,15 +734,6 @@ static const char *network_mode_str(network_mode_t m)
     }
 }
 
-static const char *rgb_mode_str(rgb_led_mode_t m)
-{
-    switch (m) {
-    case RGB_LED_WS2812: return "ws2812";
-    case RGB_LED_PWM3:   return "pwm3";
-    default:              return "none";
-    }
-}
-
 // Il nome di una rete WiFi rilevata in scansione e' una sequenza di byte
 // arbitraria (non tutti i router usano UTF-8 per nomi con caratteri
 // speciali) - se contiene byte non validi come UTF-8, JSON/il browser li
@@ -1403,12 +1394,6 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "gnss_uart_baud", s.gnss_uart_baud);
     cJSON_AddStringToObject(root, "gnss_link", s.gnss_i2c ? "i2c" : "uart");
 
-    cJSON_AddStringToObject(root, "rgb_led_mode", rgb_mode_str(s.rgb_led_mode));
-    cJSON_AddNumberToObject(root, "rgb_led_ws2812_pin", s.rgb_led_ws2812_pin);
-    cJSON_AddNumberToObject(root, "rgb_led_pwm_r_pin", s.rgb_led_pwm_r_pin);
-    cJSON_AddNumberToObject(root, "rgb_led_pwm_g_pin", s.rgb_led_pwm_g_pin);
-    cJSON_AddNumberToObject(root, "rgb_led_pwm_b_pin", s.rgb_led_pwm_b_pin);
-    cJSON_AddBoolToObject(root, "rgb_led_pwm_active_low", s.rgb_led_pwm_active_low);
 
     cJSON_AddNumberToObject(root, "oled_sda_pin", s.oled_sda_pin);
     cJSON_AddNumberToObject(root, "oled_scl_pin", s.oled_scl_pin);
@@ -1769,7 +1754,7 @@ typedef struct {
 
 static bool pins_conflict(const app_settings_t *s, char *verr)
 {
-    pin_use_t used[8];
+    pin_use_t used[4];
     int n = 0;
     if (!s->gnss_i2c) {
         used[n++] = (pin_use_t){ "TX seriale ricevitore", s->gnss_uart_tx_pin };
@@ -1777,13 +1762,6 @@ static bool pins_conflict(const app_settings_t *s, char *verr)
     }
     used[n++] = (pin_use_t){ "SDA display/I2C", s->oled_sda_pin };
     used[n++] = (pin_use_t){ "SCL display/I2C", s->oled_scl_pin };
-    if (s->rgb_led_mode == RGB_LED_WS2812) {
-        used[n++] = (pin_use_t){ "LED WS2812", s->rgb_led_ws2812_pin };
-    } else if (s->rgb_led_mode == RGB_LED_PWM3) {
-        used[n++] = (pin_use_t){ "LED rosso", s->rgb_led_pwm_r_pin };
-        used[n++] = (pin_use_t){ "LED verde", s->rgb_led_pwm_g_pin };
-        used[n++] = (pin_use_t){ "LED blu", s->rgb_led_pwm_b_pin };
-    }
     for (int i = 0; i < n; i++) {
         for (int j = i + 1; j < n; j++) {
             if (used[i].pin >= 0 && used[i].pin == used[j].pin) {
@@ -2397,25 +2375,6 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
         s.gnss_i2c = (strcmp(gnss_link_item->valuestring, "i2c") == 0);
     }
 
-    cJSON *rgb_mode_item = cJSON_GetObjectItemCaseSensitive(root, "rgb_led_mode");
-    if (rgb_mode_item && cJSON_IsString(rgb_mode_item)) {
-        if (strcmp(rgb_mode_item->valuestring, "ws2812") == 0) {
-            s.rgb_led_mode = RGB_LED_WS2812;
-        } else if (strcmp(rgb_mode_item->valuestring, "pwm3") == 0) {
-            s.rgb_led_mode = RGB_LED_PWM3;
-        } else {
-            s.rgb_led_mode = RGB_LED_NONE;
-        }
-    }
-    copy_pin_field(root, "rgb_led_ws2812_pin", &s.rgb_led_ws2812_pin, verr);
-    copy_pin_field(root, "rgb_led_pwm_r_pin", &s.rgb_led_pwm_r_pin, verr);
-    copy_pin_field(root, "rgb_led_pwm_g_pin", &s.rgb_led_pwm_g_pin, verr);
-    copy_pin_field(root, "rgb_led_pwm_b_pin", &s.rgb_led_pwm_b_pin, verr);
-    cJSON *rgb_active_low_item = cJSON_GetObjectItemCaseSensitive(root, "rgb_led_pwm_active_low");
-    if (rgb_active_low_item && cJSON_IsBool(rgb_active_low_item)) {
-        s.rgb_led_pwm_active_low = cJSON_IsTrue(rgb_active_low_item);
-    }
-
     copy_pin_field(root, "oled_sda_pin", &s.oled_sda_pin, verr);
     copy_pin_field(root, "oled_scl_pin", &s.oled_scl_pin, verr);
     cJSON *oled_addr_item = cJSON_GetObjectItemCaseSensitive(root, "oled_i2c_addr");
@@ -2445,8 +2404,7 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     // (una configurazione salvata prima non blocca il salvataggio di altro).
     {
         static const char *const pin_keys[] = {
-            "gnss_uart_tx_pin", "gnss_uart_rx_pin", "gnss_link", "rgb_led_mode", "rgb_led_ws2812_pin",
-            "rgb_led_pwm_r_pin", "rgb_led_pwm_g_pin", "rgb_led_pwm_b_pin", "oled_sda_pin", "oled_scl_pin",
+            "gnss_uart_tx_pin", "gnss_uart_rx_pin", "gnss_link", "oled_sda_pin", "oled_scl_pin",
         };
         for (size_t i = 0; i < sizeof(pin_keys) / sizeof(pin_keys[0]); i++) {
             if (cJSON_GetObjectItemCaseSensitive(root, pin_keys[i])) {

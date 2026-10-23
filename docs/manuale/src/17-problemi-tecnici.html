@@ -74,6 +74,7 @@
 <table class="divisibile">
   <tr><th>Sintomo</th><th>Causa probabile</th><th>Cosa fare</th></tr>
   <tr><td>Il modem non risponde, nessun operatore</td><td>Modem sbagliato nelle impostazioni, DIP dello shield, antenna LTE assente.</td><td>Scheda <em>SIM e costi</em>: modello del modem; DIP POWERKEY e RESET spenti con il SIM7600 originale; antenna LTE collegata.</td></tr>
+  <tr><td>In rover il 4G si blocca o non porta dati quando il ricevitore è in RTK float, e funziona quando il ricevitore è senza correzioni</td><td>Pin 38 dello shield LTE non tagliato: l'uscita RTK della HAT ZED-F9P disturba la linea dei dati dal modem.</td><td>Tagliate il pin 38 superiore dello shield (capitolo <em>Hardware della base</em>, collegamento in I2C).</td></tr>
   <tr><td>Operatore e segnale presenti, niente internet</td><td>APN errato, SIM non attiva o senza traffico, PIN attivo.</td><td>APN dell'operatore; SIM attiva con traffico; PIN disattivato da un telefono.</td></tr>
   <tr><td>Segnale debole, tecnologia 2G o 3G</td><td>Copertura scarsa, modem senza la banda 20.</td><td>Antenna LTE esterna più in alto; modem SIM7600 G-H o E-H.</td></tr>
   <tr><td>Brevi interruzioni a intervalli regolari, per esempio ogni poche ore</td><td>L'operatore chiude la connessione dati periodicamente.</td><td>Normale: il ricevitore si ricollega in pochi secondi. Impostate gli avvisi di disconnessione su 5–10 minuti.</td></tr>

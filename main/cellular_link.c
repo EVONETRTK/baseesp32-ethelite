@@ -7,6 +7,7 @@
 #include "sdkconfig.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "esp_netif.h"
 #include "esp_event.h"
 
@@ -167,6 +168,40 @@ static bool cmux_reply(const uint8_t *b, size_t n)
     return false;
 }
 
+// Dopo un impulso su PWRKEY: aspetta fino a seconds che il modem risponda ad
+// "AT" (seriale aperta solo per la verifica, prima di esp_modem).
+static bool wait_at_raw(int seconds)
+{
+    const uart_port_t port = CONFIG_BASEESP32_CELLULAR_UART_NUM;
+    if (uart_is_driver_installed(port) || uart_driver_install(port, 512, 0, 0, NULL, 0) != ESP_OK) {
+        vTaskDelay(pdMS_TO_TICKS(seconds * 1000));
+        return false;
+    }
+    const uart_config_t cfg = {
+        .baud_rate = CONFIG_BASEESP32_CELLULAR_UART_BAUD,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+    uart_param_config(port, &cfg);
+    uart_set_pin(port, CONFIG_BASEESP32_CELLULAR_UART_TX_PIN, CONFIG_BASEESP32_CELLULAR_UART_RX_PIN,
+                 UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    static uint8_t buf[128];
+    bool ok = false;
+    int64_t end = esp_timer_get_time() + (int64_t) seconds * 1000000;
+    vTaskDelay(pdMS_TO_TICKS(3000)); // il SIM7600 non risponde prima di qualche secondo
+    while (!ok && esp_timer_get_time() < end) {
+        ok = probe_at(port, buf, sizeof(buf), 1);
+        if (!ok) {
+            vTaskDelay(pdMS_TO_TICKS(600));
+        }
+    }
+    uart_driver_delete(port);
+    return ok;
+}
+
 static bool modem_already_on(void)
 {
     const uart_port_t port = CONFIG_BASEESP32_CELLULAR_UART_NUM;
@@ -285,8 +320,23 @@ static void modem_power_on(bool is_sim868, bool simcom_std, bool probe)
         vTaskDelay(pdMS_TO_TICKS(500));
         gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 0);
 
-        ESP_LOGI(TAG, "Attesa avvio modem SIM7600 (fino a 15s)...");
-        vTaskDelay(pdMS_TO_TICKS(15000));
+        if (!probe) {
+            ESP_LOGI(TAG, "Attesa avvio modem SIM7600 (fino a 15s)...");
+            vTaskDelay(pdMS_TO_TICKS(15000));
+        } else if (wait_at_raw(25)) {
+            ESP_LOGI(TAG, "Modem SIM7600 acceso e pronto");
+        } else {
+            // Sul modulo LilyGO l'impulso inverte lo stato: se il modem era
+            // acceso ma non ha risposto al controllo (risposte perse nei
+            // disturbi della linea) l'impulso lo ha SPENTO, e senza 4G in uso
+            // nessuno lo riaccendeva (23/10/2026). Secondo impulso e verifica.
+            ESP_LOGW(TAG, "Il modem non risponde dopo l'accensione: secondo impulso (forse il primo lo ha spento)");
+            gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 1);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 0);
+            ESP_LOGI(TAG, "Modem SIM7600 dopo il secondo impulso: %s",
+                     wait_at_raw(25) ? "acceso e pronto" : "ancora muto (ci riprova il recupero del modem)");
+        }
     }
 #endif
 }
@@ -432,6 +482,10 @@ static bool connect_inner(void)
             ESP_LOGI(TAG, "GPS del modem: %s", gps);
         }
         esp_modem_at(s_dce, "AT+CGPS=0", gps, 3000);
+        // Risparmio energetico della seriale spento: con AT+CSCLK=1 (esempi
+        // LilyGO "ModemSleep", l'impostazione resta nel modem) il SIM7600 si
+        // addormenta e perde i primi caratteri a ogni risveglio.
+        esp_modem_at(s_dce, "AT+CSCLK=0", gps, 2000);
     }
 
     int rssi_csq = 0, ber = 0;

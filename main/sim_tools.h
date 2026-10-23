@@ -57,6 +57,8 @@ typedef struct {
 } sim_tools_status_t;
 
 void sim_tools_get_status(sim_tools_status_t *out);
+// Da quando il modem non risponde (esp_timer), 0 se risponde.
+int64_t sim_tools_modem_silent_since_us(void);
 
 // SMS ricevuti, risposta grezza di AT+CMGL (il pannello la interpreta).
 // Copiata in out; stringa vuota se non ancora letti.

@@ -8,6 +8,29 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.8
+
+- **Trovata davvero la causa del disturbo sulla seriale del modem** (1.35.5-1.35.7). La HAT dello ZED-F9P e' progettata per il Raspberry Pi e porta sul pin fisico 38 l'uscita RTK_STAT dello ZED. Questa uscita lampeggia a 1 Hz (500 ms bassa, 500 ms alta) quando il ricevitore usa le correzioni senza fix: RTK float o DGPS. Sulla T-ETH-Elite il pin 38 e' IO4, cioe' la linea dei dati dal modem all'ESP32: in rover, in float, ogni fronte diventava un "Rx Break" e il 4G si bloccava. In RTK fisso RTK_STAT resta bassa e la linea resterebbe ferma. Le prove sulla base di prova del 23/10/2026:
+  - **lettura simultanea di tutti i GPIO**: onda presente in float e DGPS, assente con q=1 e in fisso, agganciata al PPS dello ZED (sempre 333-337 ms dopo l'impulso);
+  - **ESP32 escluso**: dai registri il GPIO 4 non e' un'uscita;
+  - **modem escluso**: l'onda resta con il modem spento con PWRKEY;
+  - **conferma finale**: con il pin 38 superiore dello shield tagliato, in float con il 4G attivo, zero errori sulla seriale.
+
+  Spiega anche i dati che avevano portato fuori strada:
+  - **1.35.6**, "togliendo la HAT il disturbo spariva": senza HAT manca RTK_STAT;
+  - **1.35.7**, "con il PoE si', con la USB no": in PoE la base di prova era all'aperto e andava in float, con la USB era in casa senza correzioni utilizzabili.
+
+  Le seriali dello ZED spente e l'alimentazione PoE non c'entravano. **In modalita' base RTK_STAT resta ferma: le basi non hanno il problema.** Rimedio hardware, senza fili, per tutti i ricevitori con la HAT: tagliare a filo il pin 38 superiore dello shield LTE (piegarlo non basta, perche' il pin tocca ancora la presa). La HAT porta inoltre SDA sul pin 24 (BOOT dell'ESP32) e SCL sul pin 23 (clock della microSD). Manuale aggiornato: Hardware della base (collegamento in I2C) e Problemi tecnici (rete mobile).
+- **Modem spento o muto con il 4G non in uso**: in "WiFi + cellulare", o con il cavo funzionante, il recupero del modem partiva solo da un collegamento 4G fallito. Un modem spento restava spento per sempre, e la riserva 4G non c'era. Ora, se il modem non risponde da 10 minuti e il 4G non e' in uso, il modem si riavvia, al massimo ogni 30 minuti.
+- **Accensione del modem verificata**: sul modulo LilyGO l'impulso su PWRKEY inverte lo stato. Se il modem era acceso ma non aveva risposto al controllo, l'impulso lo spegneva. Dopo l'impulso ora si aspetta che risponda ad "AT" (fino a 25 s); se resta muto si da' un secondo impulso.
+- Al collegamento del 4G il risparmio energetico della seriale del modem viene spento (AT+CSCLK=0): l'impostazione resta nel modem, e gli esempi LilyGO "ModemSleep" la accendono.
+- **Tolto il LED RGB** (WS2812 o 3 pin PWM): si usa il display OLED. Sono stati tolti:
+  - la sezione del pannello;
+  - le opzioni di Kconfig;
+  - rgb_led.c e la dipendenza led_strip.
+
+  I campi restano nelle impostazioni salvate, che sono un blocco binario: toglierli sposterebbe quelli successivi. Nessuno li legge, e un vecchio LED salvato sullo stesso pin del display non blocca i salvataggi (nuova prova in test_web_ui.c). Manuale aggiornato: Manutenzione e Dati tecnici.
+
 ## 1.35.7
 
 - **4G all'avvio in pochi secondi**: in "4G con WiFi di riserva" il primo tentativo partiva con il modem ancora in avvio e il successivo arrivava dopo 2 minuti. Ora, con il modem non ancora pronto (cellular_link_ready) e nei primi 3 minuti dall'avvio, si riprova dopo 20 s senza contare come fallimento. Provato: 4G collegato 10 s dopo il riavvio.

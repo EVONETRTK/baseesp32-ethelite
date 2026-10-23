@@ -7,6 +7,7 @@
 #include "sys_stats.h"
 #include "vpn_link.h"
 #include "web_ui.h"
+#include "sim_tools.h"
 
 #include "net_util.h"
 
@@ -79,6 +80,8 @@ static void peek_network_mode(const app_settings_t *s, void *ctx)
 #define CF_CELL_RETRY_MAX_US    (30LL * 60 * 1000000)  // idem con il WiFi funzionante: attesa massima
 #define CF_CELL_BOOT_RETRY_US   (20LL * 1000000)       // idem, modem ancora in avvio
 #define CF_CELL_BOOT_WINDOW_US  (3LL * 60 * 1000000)   // idem, primi minuti dall'avvio: tentativi ravvicinati
+#define MODEM_IDLE_RESET_AFTER_US (10LL * 60 * 1000000)  // modem muto con il 4G non in uso: riavvio dopo...
+#define MODEM_IDLE_RESET_EVERY_US (30LL * 60 * 1000000)  // ...e al massimo ogni
 #define CF_WIFI_RETRY_US        (5LL * 60 * 1000000)   // 4G con riserva: WiFi caduto, si riprova dopo
 #define CF_WIFI_RETRY_FAST_US   (30LL * 1000000)       // idem, ma con il 4G giu': nessuna rete, si riprova presto
 #define ETH_ONLY_AP_AFTER_US    (3LL * 60 * 1000000)   // "Solo Ethernet" senza rete: AP di emergenza
@@ -301,6 +304,26 @@ static void net_manager_task(void *arg)
         struct { network_mode_t network_mode; } settings;
         settings_peek(peek_network_mode, &settings.network_mode);
         int64_t now_us = esp_timer_get_time();
+
+        // Modem muto da 10 minuti con il 4G non in uso (WiFi o cavo
+        // funzionanti): prima il recupero partiva solo da un collegamento 4G
+        // fallito, e in "WiFi + cellulare" un modem spento restava spento per
+        // sempre, senza riserva (23/10/2026). Riavvio del modem al massimo
+        // ogni 30 minuti.
+        if (active != LINK_CELLULAR && settings.network_mode != NETWORK_MODE_WIFI_ONLY &&
+            settings.network_mode != NETWORK_MODE_ETHERNET_ONLY) {
+            static int64_t idle_reset_us;
+            int64_t silent_since = sim_tools_modem_silent_since_us();
+            if (silent_since > 0 && now_us - silent_since > MODEM_IDLE_RESET_AFTER_US &&
+                (idle_reset_us == 0 || now_us - idle_reset_us > MODEM_IDLE_RESET_EVERY_US)) {
+                idle_reset_us = now_us;
+                ESP_LOGW(TAG, "Modem muto da %lld min con il 4G non in uso: riavvio del modem",
+                         (long long) ((now_us - silent_since) / 60000000));
+                sys_stats_heartbeat(HB_NET);
+                cellular_link_reset_modem();
+                now_us = esp_timer_get_time();
+            }
+        }
 
         switch (active) {
         case LINK_NONE:

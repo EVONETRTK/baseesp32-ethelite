@@ -74,9 +74,6 @@ PROVA(pin_predefiniti_di_ricevitore_e_display_accettati)
     VERIFICA(pin_allowed(CONFIG_BASEESP32_OLED_SDA_PIN));
     VERIFICA(pin_allowed(CONFIG_BASEESP32_OLED_SCL_PIN));
 #endif
-#ifdef CONFIG_BASEESP32_RGB_WS2812_PIN
-    VERIFICA(pin_allowed(CONFIG_BASEESP32_RGB_WS2812_PIN));
-#endif
 }
 
 static app_settings_t s;
@@ -89,9 +86,6 @@ static void impostazioni_base(void)
     s.gnss_uart_rx_pin = 44;
     s.oled_sda_pin = 17;
     s.oled_scl_pin = 18;
-    s.rgb_led_mode = RGB_LED_NONE;
-    s.rgb_led_ws2812_pin = 17; // non usato con RGB_LED_NONE
-    s.rgb_led_pwm_r_pin = s.rgb_led_pwm_g_pin = s.rgb_led_pwm_b_pin = -1;
 }
 
 PROVA(pin_diversi_nessun_conflitto)
@@ -121,23 +115,20 @@ PROVA(ricevitore_i2c_libera_i_pin_della_seriale)
     VERIFICA(!pins_conflict(&s, NULL));
 }
 
-PROVA(led_ws2812_e_pwm_controllati_solo_se_attivi)
+PROVA(led_rgb_salvato_da_versioni_vecchie_ignorato)
 {
+    // LED RGB tolto nella 1.35.8: i campi restano nel blocco salvato, ma un
+    // vecchio LED sullo stesso pin del display non deve bloccare i salvataggi.
     impostazioni_base();
     s.rgb_led_mode = RGB_LED_WS2812;
-    VERIFICA(pins_conflict(&s, NULL)); // 17 come SDA
-    s.rgb_led_ws2812_pin = 2;
+    s.rgb_led_ws2812_pin = 17;
+    s.rgb_led_pwm_r_pin = s.rgb_led_pwm_g_pin = 18;
     VERIFICA(!pins_conflict(&s, NULL));
-    s.rgb_led_mode = RGB_LED_PWM3;
-    s.rgb_led_pwm_r_pin = 5;
-    s.rgb_led_pwm_g_pin = 5;
-    VERIFICA(pins_conflict(&s, NULL));
 }
 
 PROVA(pin_meno_uno_ripetuti_non_sono_conflitto)
 {
     impostazioni_base();
-    s.rgb_led_mode = RGB_LED_PWM3; // tre pin a -1
     s.oled_sda_pin = s.oled_scl_pin = -1;
     VERIFICA(!pins_conflict(&s, NULL));
 }
@@ -236,7 +227,7 @@ int main(void)
     ESEGUI(pin_diversi_nessun_conflitto);
     ESEGUI(stesso_pin_per_seriale_e_display_conflitto_con_messaggio);
     ESEGUI(ricevitore_i2c_libera_i_pin_della_seriale);
-    ESEGUI(led_ws2812_e_pwm_controllati_solo_se_attivi);
+    ESEGUI(led_rgb_salvato_da_versioni_vecchie_ignorato);
     ESEGUI(pin_meno_uno_ripetuti_non_sono_conflitto);
     ESEGUI(primo_errore_non_sovrascritto);
     ESEGUI(numero_whatsapp_ripulito);

@@ -1704,30 +1704,6 @@
     <ul id="diag-list" style="margin:.6rem 0 0; padding-left:1.2rem"></ul>
   </fieldset>
 
-  <fieldset data-adv>
-    <legend>💡 LED RGB (opzionale)</legend>
-    <label>Tipo di LED
-      <select name="rgb_led_mode">
-        <option value="none">Nessuno</option>
-        <option value="ws2812">WS2812 / NeoPixel (1 pin dati)</option>
-        <option value="pwm3">3 pin separati R/G/B (PWM)</option>
-      </select>
-    </label>
-    <label>GPIO dati WS2812<input name="rgb_led_ws2812_pin" type="number" min="-1" max="48"></label>
-    <label>GPIO Rosso (PWM)<input name="rgb_led_pwm_r_pin" type="number" min="-1" max="48"></label>
-    <label>GPIO Verde (PWM)<input name="rgb_led_pwm_g_pin" type="number" min="-1" max="48"></label>
-    <label>GPIO Blu (PWM)<input name="rgb_led_pwm_b_pin" type="number" min="-1" max="48"></label>
-    <label style="display:flex; align-items:center; gap:.4rem">
-      <input name="rgb_led_pwm_active_low" type="checkbox" style="width:auto; margin:0">
-      Logica invertita (catodo comune verso i GPIO)
-    </label>
-    <small class="hint">-1 su un pin = non usato/non applicabile al tipo scelto. Richiede un riavvio.</small>
-  
-    <div class="fieldset-save-row">
-      <button type="button" class="action fieldset-save-btn" data-fields="rgb_led_mode,rgb_led_ws2812_pin,rgb_led_pwm_r_pin,rgb_led_pwm_g_pin,rgb_led_pwm_b_pin,rgb_led_pwm_active_low" data-reboot="1">💾 Salva</button>
-      <span class="fieldset-save-msg"></span><span class="fieldset-last-saved"></span>
-    </div>
-  </fieldset>
 
   <fieldset data-adv>
     <legend>🖥️ Display OLED (opzionale, 128x64 I2C)</legend>
@@ -2514,12 +2490,6 @@ async function loadStatusOnce() {
       f.gnss_uart_baud.value = s.gnss_uart_baud ?? 115200;
       f.gnss_link.value = s.gnss_link || 'uart';
       updateGnssLinkVisibility();
-      f.rgb_led_mode.value = s.rgb_led_mode || 'none';
-      f.rgb_led_ws2812_pin.value = s.rgb_led_ws2812_pin ?? -1;
-      f.rgb_led_pwm_r_pin.value = s.rgb_led_pwm_r_pin ?? -1;
-      f.rgb_led_pwm_g_pin.value = s.rgb_led_pwm_g_pin ?? -1;
-      f.rgb_led_pwm_b_pin.value = s.rgb_led_pwm_b_pin ?? -1;
-      f.rgb_led_pwm_active_low.checked = !!s.rgb_led_pwm_active_low;
       f.oled_sda_pin.value = s.oled_sda_pin ?? -1;
       f.oled_scl_pin.value = s.oled_scl_pin ?? -1;
       f.oled_i2c_addr.value = s.oled_i2c_addr ?? 60;
@@ -3553,8 +3523,7 @@ document.getElementById('cfg-form').oled_i2c_addr.addEventListener('input', upda
 const NUMBER_FIELDS = new Set([
   'remote_interval_min', 'vpn_port', 'data_plan_gb', 'sim_credit_every_days', 'sim_credit_hour', 'sim_credit_min_eur', 'sim_renew_every_days', 'sim_notice1_days', 'sim_notice2_days',
   'ntrip_port', 'nmea_udp_port', 'nmea_rate_hz', 'rtk_lost_alarm_s', 'gnss_uart_num', 'gnss_uart_tx_pin', 'gnss_uart_rx_pin',
-  'gnss_uart_baud', 'rgb_led_ws2812_pin', 'rgb_led_pwm_r_pin', 'rgb_led_pwm_g_pin',
-  'rgb_led_pwm_b_pin', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
+  'gnss_uart_baud', 'oled_sda_pin', 'oled_scl_pin', 'oled_i2c_addr', 'alert_threshold_min',
   'alert_smtp_port', 'base_drift_threshold_m', 'ntrip_caster_server_port', 'base_fixed_lat_deg',
   'base_fixed_lon_deg', 'base_fixed_height_m', 'auto_update_check_interval_h',
   'base_svin_min_dur_s', 'base_svin_acc_m',
@@ -3562,7 +3531,7 @@ const NUMBER_FIELDS = new Set([
   'bynav_ant2_z_m', 'bynav_rbv_roll_deg', 'bynav_rbv_pitch_deg', 'bynav_rbv_yaw_deg',
 ]);
 const BOOL_CHECKBOX_FIELDS = new Set([
-  'vpn_enable', 'rgb_led_pwm_active_low', 'oled_flip_h', 'oled_flip_v', 'alert_enable',
+  'vpn_enable', 'oled_flip_h', 'oled_flip_v', 'alert_enable',
   'base_drift_alert_enable', 'ntrip_caster_server_enable', 'auto_update_check_enable',
   'rtcm_1005_enable', 'rtcm_1007_enable', 'rtcm_1008_enable', 'rtcm_1230_enable',
   'rtcm_1019_enable', 'rtcm_1020_enable', 'rtcm_1074_enable', 'rtcm_1077_enable',
