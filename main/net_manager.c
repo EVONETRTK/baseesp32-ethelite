@@ -81,7 +81,8 @@ static void peek_network_mode(const app_settings_t *s, void *ctx)
 #define CF_CELL_BOOT_RETRY_US   (20LL * 1000000)       // idem, modem ancora in avvio
 #define CF_CELL_BOOT_WINDOW_US  (3LL * 60 * 1000000)   // idem, primi minuti dall'avvio: tentativi ravvicinati
 #define MODEM_IDLE_RESET_AFTER_US (10LL * 60 * 1000000)  // modem muto con il 4G non in uso: riavvio dopo...
-#define MODEM_IDLE_RESET_EVERY_US (30LL * 60 * 1000000)  // ...e al massimo ogni
+#define MODEM_IDLE_RESET_EVERY_US (30LL * 60 * 1000000)  // ...e al massimo ogni (raddoppia se resta muto)
+#define MODEM_IDLE_RESET_MAX_US   (4LL * 60 * 60 * 1000000) // fino a 4 ore (modem assente o guasto)
 #define CF_WIFI_RETRY_US        (5LL * 60 * 1000000)   // 4G con riserva: WiFi caduto, si riprova dopo
 #define CF_WIFI_RETRY_FAST_US   (30LL * 1000000)       // idem, ma con il 4G giu': nessuna rete, si riprova presto
 #define ETH_ONLY_AP_AFTER_US    (3LL * 60 * 1000000)   // "Solo Ethernet" senza rete: AP di emergenza
@@ -305,22 +306,37 @@ static void net_manager_task(void *arg)
         settings_peek(peek_network_mode, &settings.network_mode);
         int64_t now_us = esp_timer_get_time();
 
-        // Modem muto da 10 minuti con il 4G non in uso (WiFi o cavo
-        // funzionanti): prima il recupero partiva solo da un collegamento 4G
+        // Modem muto da 10 minuti con il 4G non in uso e WiFi o cavo
+        // funzionanti: prima il recupero partiva solo da un collegamento 4G
         // fallito, e in "WiFi + cellulare" un modem spento restava spento per
-        // sempre, senza riserva (23/10/2026). Riavvio del modem al massimo
-        // ogni 30 minuti.
-        if (active != LINK_CELLULAR && settings.network_mode != NETWORK_MODE_WIFI_ONLY &&
-            settings.network_mode != NETWORK_MODE_ETHERNET_ONLY) {
+        // sempre, senza riserva (23/10/2026). Senza nessuna rete ci pensano i
+        // recuperi del 4G fallito (cell_fail, cell_dead), con cui condivide
+        // modem_reset_at: mai due riavvii di fila. Intervallo crescente (30
+        // min, 1 h, 2 h, 4 h) con un modem che non risponde mai (tolto o
+        // guasto): ogni riavvio ferma net_manager per circa un minuto.
+        {
             static int64_t idle_reset_us;
+            static int64_t idle_every_us = MODEM_IDLE_RESET_EVERY_US;
             int64_t silent_since = sim_tools_modem_silent_since_us();
-            if (silent_since > 0 && now_us - silent_since > MODEM_IDLE_RESET_AFTER_US &&
-                (idle_reset_us == 0 || now_us - idle_reset_us > MODEM_IDLE_RESET_EVERY_US)) {
+            if (silent_since == 0) {
+                idle_every_us = MODEM_IDLE_RESET_EVERY_US; // risponde di nuovo
+            }
+            bool other_link = active == LINK_WIFI || (active == LINK_NONE && eth_link_is_connected());
+            if (other_link && settings.network_mode != NETWORK_MODE_WIFI_ONLY &&
+                settings.network_mode != NETWORK_MODE_ETHERNET_ONLY && silent_since > 0 &&
+                now_us - silent_since > MODEM_IDLE_RESET_AFTER_US &&
+                (idle_reset_us == 0 || now_us - idle_reset_us > idle_every_us) &&
+                (!modem_reset_done || xTaskGetTickCount() - modem_reset_at >= pdMS_TO_TICKS(10 * 60 * 1000))) {
+                if (idle_reset_us != 0) {
+                    idle_every_us = idle_every_us * 2 > MODEM_IDLE_RESET_MAX_US ? MODEM_IDLE_RESET_MAX_US : idle_every_us * 2;
+                }
                 idle_reset_us = now_us;
-                ESP_LOGW(TAG, "Modem muto da %lld min con il 4G non in uso: riavvio del modem",
-                         (long long) ((now_us - silent_since) / 60000000));
+                ESP_LOGW(TAG, "Modem muto da %lld min con il 4G non in uso: riavvio del modem (prossimo al massimo tra %lld min)",
+                         (long long) ((now_us - silent_since) / 60000000), (long long) (idle_every_us / 60000000));
                 sys_stats_heartbeat(HB_NET);
                 cellular_link_reset_modem();
+                modem_reset_at = xTaskGetTickCount();
+                modem_reset_done = true;
                 now_us = esp_timer_get_time();
             }
         }

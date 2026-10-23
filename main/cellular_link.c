@@ -140,6 +140,7 @@ static bool probe_at(uart_port_t port, uint8_t *buf, size_t size, int tries)
 {
     for (int i = 0; i < tries; i++) {
         uart_flush_input(port);
+        memset(buf, 0, size); // modem_alive_text legge tutto il buffer
         uart_write_bytes(port, "AT\r", 3);
         int n = uart_read_bytes(port, buf, size - 1, pdMS_TO_TICKS(400));
         buf[n > 0 ? n : 0] = '\0';
@@ -168,14 +169,33 @@ static bool cmux_reply(const uint8_t *b, size_t n)
     return false;
 }
 
+// Segni di vita del modem nel buffer letto da probe_at (terminato da '\0'
+// dopo i byte letti, ma con possibili '\0' in mezzo dai disturbi della
+// linea: strstr si fermerebbe al primo). I byte nulli si saltano.
+static bool modem_alive_text(const uint8_t *buf, size_t size)
+{
+    char txt[128];
+    size_t n = 0;
+    for (size_t i = 0; i < size - 1 && n < sizeof(txt) - 1; i++) {
+        if (buf[i] != 0) {
+            txt[n++] = (char) buf[i];
+        }
+    }
+    txt[n] = '\0';
+    return strstr(txt, "OK") || strstr(txt, "AT") || strstr(txt, "RDY") || strstr(txt, "ERROR");
+}
+
 // Dopo un impulso su PWRKEY: aspetta fino a seconds che il modem risponda ad
-// "AT" (seriale aperta solo per la verifica, prima di esp_modem).
+// "AT" (seriale aperta solo per la verifica, prima di esp_modem). true anche
+// se il modem da' segni di vita senza ancora "OK" (eco dell'AT, "RDY",
+// "ERROR"): e' acceso, e un altro impulso lo spegnerebbe. I disturbi sulla
+// linea (zeri, break) non contano.
 static bool wait_at_raw(int seconds)
 {
     const uart_port_t port = CONFIG_BASEESP32_CELLULAR_UART_NUM;
     if (uart_is_driver_installed(port) || uart_driver_install(port, 512, 0, 0, NULL, 0) != ESP_OK) {
         vTaskDelay(pdMS_TO_TICKS(seconds * 1000));
-        return false;
+        return true; // non verificabile: niente secondo impulso alla cieca
     }
     const uart_config_t cfg = {
         .baud_rate = CONFIG_BASEESP32_CELLULAR_UART_BAUD,
@@ -190,10 +210,10 @@ static bool wait_at_raw(int seconds)
                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     static uint8_t buf[128];
     bool ok = false;
-    int64_t end = esp_timer_get_time() + (int64_t) seconds * 1000000;
     vTaskDelay(pdMS_TO_TICKS(3000)); // il SIM7600 non risponde prima di qualche secondo
+    int64_t end = esp_timer_get_time() + (int64_t) seconds * 1000000;
     while (!ok && esp_timer_get_time() < end) {
-        ok = probe_at(port, buf, sizeof(buf), 1);
+        ok = probe_at(port, buf, sizeof(buf), 1) || modem_alive_text(buf, sizeof(buf));
         if (!ok) {
             vTaskDelay(pdMS_TO_TICKS(600));
         }
@@ -323,8 +343,8 @@ static void modem_power_on(bool is_sim868, bool simcom_std, bool probe)
         if (!probe) {
             ESP_LOGI(TAG, "Attesa avvio modem SIM7600 (fino a 15s)...");
             vTaskDelay(pdMS_TO_TICKS(15000));
-        } else if (wait_at_raw(25)) {
-            ESP_LOGI(TAG, "Modem SIM7600 acceso e pronto");
+        } else if (wait_at_raw(35)) {
+            ESP_LOGI(TAG, "Modem SIM7600 acceso");
         } else {
             // Sul modulo LilyGO l'impulso inverte lo stato: se il modem era
             // acceso ma non ha risposto al controllo (risposte perse nei
@@ -335,7 +355,7 @@ static void modem_power_on(bool is_sim868, bool simcom_std, bool probe)
             vTaskDelay(pdMS_TO_TICKS(500));
             gpio_set_level(CONFIG_BASEESP32_CELLULAR_PWRKEY_PIN, 0);
             ESP_LOGI(TAG, "Modem SIM7600 dopo il secondo impulso: %s",
-                     wait_at_raw(25) ? "acceso e pronto" : "ancora muto (ci riprova il recupero del modem)");
+                     wait_at_raw(35) ? "acceso" : "ancora muto (ci riprova il recupero del modem)");
         }
     }
 #endif

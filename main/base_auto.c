@@ -60,18 +60,26 @@ void base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, i
     bans[slot].until_us = now_us + (int64_t) BASE_AUTO_BAN_S * 1000000;
 }
 
-base_auto_silent_t base_auto_silent_session(base_auto_ban_t bans[BASE_AUTO_BANS], int *silent, bool got_data,
-                                            const char *current, const char *fallback, int64_t now_us)
+base_auto_silent_t base_auto_silent_session(base_auto_ban_t bans[BASE_AUTO_BANS], base_auto_silent_ctr_t *ctr,
+                                            bool got_data, const char *current, const char *fallback, int64_t now_us)
 {
+    if (strncmp(ctr->name, current, BASE_AUTO_NAME_LEN) != 0) {
+        set_name(ctr->name, current); // altra base: il conto riparte
+        ctr->count = 0;
+    }
     if (got_data) {
-        *silent = 0;
+        ctr->count = 0;
         return BASE_AUTO_SILENT_KEEP;
     }
-    if (++*silent < BASE_AUTO_SILENT_SESSIONS) {
+    if (++ctr->count < BASE_AUTO_SILENT_SESSIONS) {
         return BASE_AUTO_SILENT_KEEP;
     }
-    *silent = 0;
+    ctr->count = 0;
+    bool was_banned = base_auto_banned(bans, current, now_us);
     base_auto_ban_add(bans, current, now_us);
+    if (was_banned) {
+        return BASE_AUTO_SILENT_RENEWED;
+    }
     if (strncmp(current, fallback, BASE_AUTO_NAME_LEN) != 0 && !base_auto_banned(bans, fallback, now_us)) {
         return BASE_AUTO_SILENT_FALLBACK;
     }

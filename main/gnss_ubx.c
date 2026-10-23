@@ -260,11 +260,10 @@ static void mute_other_ports(uart_port_t uart_num)
     };
     ubx_valset_group(uart_num, "ALTRE PORTE mute", kvs_other, sizeof(kvs_other) / sizeof(kvs_other[0]));
     // Con il ricevitore in I2C le due seriali dello ZED non servono: spente del
-    // tutto. Con la HAT uRTK6 montata la linea dal modem all'ESP32 (GPIO4)
-    // riceveva un disturbo di ~1 al secondo ("Rx Break" ed errori di formato,
-    // CMUX che ripartiva, 4G fermo): sparito togliendo la HAT, non spegnendo
-    // il PPS (prove del 22/10/2026). La UART1 della HAT arriva gia' su un pin
-    // della microSD (GPIO9). Gruppo a se': un NAK non tocca il resto.
+    // tutto (la UART1 della HAT arriva su pin dell'ESP32 usati da altro, come
+    // la microSD). Non erano loro la causa del disturbo sulla linea dal modem
+    // (GPIO4) visto nella 1.35.6: era RTK_STAT dello ZED sul pin 38 della HAT
+    // (vedi CHANGELOG 1.35.8). Gruppo a se': un NAK non tocca il resto.
     const ubx_cfg_kv32_t kvs_uart_off[] = {
         { 0x10520005, 0 },    // CFG-UART1-ENABLED
         { 0x10530005, 0 },    // CFG-UART2-ENABLED

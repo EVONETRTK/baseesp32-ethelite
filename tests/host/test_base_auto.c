@@ -273,36 +273,70 @@ PROVA(base_iniziale_muta_esclusa)
         voce("AGRI_MSM4", 44.0 + KM_LAT(0.4), 11.0),
         voce("puglia", 44.0 + KM_LAT(40), 11.0),
     };
-    int silent = 0;
+    base_auto_silent_ctr_t c;
+    memset(&c, 0, sizeof(c));
     int64_t t = 1000 * S;
-    VERIFICA_INT(base_auto_silent_session(bans, &silent, false, "AGRI_MSM4", "AGRI_MSM4", t), BASE_AUTO_SILENT_KEEP);
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "AGRI_MSM4", "AGRI_MSM4", t), BASE_AUTO_SILENT_KEEP);
     VERIFICA(!base_auto_banned(bans, "AGRI_MSM4", t));
-    VERIFICA_INT(base_auto_silent_session(bans, &silent, false, "AGRI_MSM4", "AGRI_MSM4", t + 35 * S),
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "AGRI_MSM4", "AGRI_MSM4", t + 35 * S),
                  BASE_AUTO_SILENT_RECHOOSE);
-    VERIFICA_INT(silent, 0);
+    VERIFICA_INT(c.count, 0);
     VERIFICA(base_auto_banned(bans, "AGRI_MSM4", t + 40 * S));
-    // Scelta rifatta (first): la piu' vicina delle altre.
+    // Scelta rifatta (first): la piu' vicina delle altre; in float si rimanda.
     base_auto_result_t r = base_auto_choose_ex(l, 2, true, 44.0, 11.0, "AGRI_MSM4", 1, 0, true, bans, t + 40 * S);
     VERIFICA(r.change);
     VERIFICA_STR(r.mountpoint, "puglia");
+    r = base_auto_choose_ex(l, 2, true, 44.0, 11.0, "AGRI_MSM4", 5, 0, true, bans, t + 40 * S);
+    VERIFICA(!r.change);
+    VERIFICA_INT(r.reason, BASE_AUTO_KEEP_RTK);
 
     // Muta anche puglia: la base iniziale e' esclusa, non ci si torna.
-    VERIFICA_INT(base_auto_silent_session(bans, &silent, false, "puglia", "AGRI_MSM4", t + 100 * S), BASE_AUTO_SILENT_KEEP);
-    VERIFICA_INT(base_auto_silent_session(bans, &silent, false, "puglia", "AGRI_MSM4", t + 135 * S),
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "puglia", "AGRI_MSM4", t + 100 * S), BASE_AUTO_SILENT_KEEP);
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "puglia", "AGRI_MSM4", t + 135 * S),
                  BASE_AUTO_SILENT_RECHOOSE);
 
     // Base iniziale funzionante: dalla muta si torna li'.
     memset(bans, 0, sizeof(bans));
-    silent = 0;
-    (void) base_auto_silent_session(bans, &silent, false, "puglia", "AGRI_MSM4", t);
-    VERIFICA_INT(base_auto_silent_session(bans, &silent, false, "puglia", "AGRI_MSM4", t + 35 * S),
+    memset(&c, 0, sizeof(c));
+    (void) base_auto_silent_session(bans, &c, false, "puglia", "AGRI_MSM4", t);
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "puglia", "AGRI_MSM4", t + 35 * S),
                  BASE_AUTO_SILENT_FALLBACK);
 
     // Un byte arrivato azzera il conto.
-    silent = 0;
-    (void) base_auto_silent_session(bans, &silent, false, "AGRI_MSM4", "AGRI_MSM4", t);
-    VERIFICA_INT(base_auto_silent_session(bans, &silent, true, "AGRI_MSM4", "AGRI_MSM4", t + 35 * S), BASE_AUTO_SILENT_KEEP);
-    VERIFICA_INT(silent, 0);
+    memset(&c, 0, sizeof(c));
+    (void) base_auto_silent_session(bans, &c, false, "AGRI_MSM4", "AGRI_MSM4", t);
+    VERIFICA_INT(base_auto_silent_session(bans, &c, true, "AGRI_MSM4", "AGRI_MSM4", t + 35 * S), BASE_AUTO_SILENT_KEEP);
+    VERIFICA_INT(c.count, 0);
+}
+
+// Revisione del 23/10/2026 sulla 1.35.11: un collegamento muto alla base A
+// e uno alla base B escludevano B (il conto non ripartiva cambiando base);
+// una sola base, muta, rifaceva la scelta (e scaricava la tabella) a ogni
+// esclusione rinnovata.
+PROVA(base_muta_conto_per_base_e_rinnovo)
+{
+    const int64_t S = 1000000;
+    base_auto_ban_t bans[BASE_AUTO_BANS];
+    memset(bans, 0, sizeof(bans));
+    base_auto_silent_ctr_t c;
+    memset(&c, 0, sizeof(c));
+    int64_t t = 1000 * S;
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "A", "A", t), BASE_AUTO_SILENT_KEEP);
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "B", "A", t + 35 * S), BASE_AUTO_SILENT_KEEP);
+    VERIFICA(!base_auto_banned(bans, "B", t + 40 * S));
+    VERIFICA_INT(c.count, 1);
+
+    // Unica base, muta: prima esclusione -> scelta; poi solo rinnovi.
+    memset(&c, 0, sizeof(c));
+    (void) base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", t);
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", t + 35 * S), BASE_AUTO_SILENT_RECHOOSE);
+    (void) base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", t + 70 * S);
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", t + 105 * S), BASE_AUTO_SILENT_RENEWED);
+    VERIFICA(base_auto_banned(bans, "SOLA", t + 105 * S + (int64_t) (BASE_AUTO_BAN_S - 10) * S));
+    // Esclusione scaduta: di nuovo una scelta (al massimo una volta l'ora).
+    int64_t dopo = t + 105 * S + (int64_t) BASE_AUTO_BAN_S * S + S;
+    (void) base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", dopo);
+    VERIFICA_INT(base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", dopo + 35 * S), BASE_AUTO_SILENT_RECHOOSE);
 }
 
 PROVA(elenco_delle_escluse_pieno)
@@ -343,6 +377,7 @@ int main(void)
     ESEGUI(nomi_lunghi_e_pari_distanza);
     ESEGUI(base_muta_esclusa_per_un_ora);
     ESEGUI(base_iniziale_muta_esclusa);
+    ESEGUI(base_muta_conto_per_base_e_rinnovo);
     ESEGUI(elenco_delle_escluse_pieno);
     return prove_fine();
 }

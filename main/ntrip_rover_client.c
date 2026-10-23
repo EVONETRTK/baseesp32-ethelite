@@ -181,6 +181,10 @@ static void apply_data_socket_options(int sock)
 // NTRIP 2.0/HTTP ("HTTP/1.1 200 OK") - va verificato quale usa realmente
 // il caster EVONETRTK. I dati RTCM arrivati insieme alla risposta finiscono
 // in extra (da girare al ricevitore come il resto del flusso).
+// Socket collegato, oppure NTRIP_CONNECT_FAILED (rete, DNS, nessuna
+// risposta) o NTRIP_CONNECT_REFUSED (il caster ha risposto e rifiutato).
+#define NTRIP_CONNECT_FAILED  (-1)
+#define NTRIP_CONNECT_REFUSED (-2)
 static int ntrip_rover_connect(const app_settings_t *settings, uint8_t *extra, size_t extra_size, size_t *extra_len)
 {
     *extra_len = 0;
@@ -252,7 +256,7 @@ static int ntrip_rover_connect(const app_settings_t *settings, uint8_t *extra, s
         const char *msg = "Caster ha risposto in NTRIP 2.0 \"a blocchi\" (chunked), non gestito dal rover";
         ESP_LOGE(TAG, "%s", msg);
         status_ntrip_note_disconnected(msg);
-        return -1;
+        return NTRIP_CONNECT_REFUSED;
     }
     if (!reply_is_ok(resp)) {
         net_close_now(sock);
@@ -265,7 +269,7 @@ static int ntrip_rover_connect(const app_settings_t *settings, uint8_t *extra, s
         snprintf(msg, sizeof(msg), "Caster ha rifiutato: %.150s", why ? why : resp);
         ESP_LOGE(TAG, "%s", msg);
         status_ntrip_note_disconnected(msg);
-        return -1;
+        return NTRIP_CONNECT_REFUSED;
     }
 
     ESP_LOGI(TAG, "Rover connesso al caster %s:%d mountpoint /%s",
@@ -490,6 +494,9 @@ size_t ntrip_rover_client_fetch_mountpoints(ntrip_mountpoint_entry_t *out, size_
     }
     buf[total] = '\0';
     net_close_now(sock);
+    // Anche la tabella va nel conto del traffico (scelta automatica della base).
+    data_usage_add((uint32_t) req_len, true);
+    data_usage_add((uint32_t) total, false);
 
     size_t count = 0;
     char *line = buf;
@@ -718,7 +725,7 @@ typedef struct {
     bool have_pos;            // ultima posizione valida del rover
     double lat_deg, lon_deg;
     int quality;              // ultima qualita' della GGA (-1 nessun dato recente)
-    int silent;               // collegamenti di fila a current senza un byte
+    base_auto_silent_ctr_t silent; // collegamenti di fila a current senza un byte
     base_auto_ban_t bans[BASE_AUTO_BANS]; // basi mute, escluse per un'ora
 } rover_auto_t;
 
@@ -846,18 +853,18 @@ static bool auto_check(int64_t now)
     if (!s_auto.enabled || !s_auto.have_pos) {
         return false; // senza posizione resta la base iniziale
     }
+    // Chiamata anche a ogni pacchetto ricevuto: la tabella (fino a 8 KB
+    // sulla SIM) si scarica solo con first o dopo BASE_AUTO_CHECK_S. Nella
+    // 1.35.11 una base in uso esclusa saltava questi limiti e la tabella
+    // poteva scaricarsi a ogni pacchetto.
     if (!s_auto.first) {
-        // Base in uso esclusa perche' muta: si riprova a ogni giro (il fix
-        // puo' restare float per un po' con le ultime correzioni), non dopo
-        // 10 minuti.
-        bool banned = base_auto_banned(s_auto.bans, s_auto.current, now);
-        if (!banned && s_auto.last_check_us != 0 && now - s_auto.last_check_us < (int64_t) BASE_AUTO_CHECK_S * 1000000) {
+        if (s_auto.last_check_us != 0 && now - s_auto.last_check_us < (int64_t) BASE_AUTO_CHECK_S * 1000000) {
             return false; // tabella letta da meno di 10 minuti
         }
         // In RTK o senza RTK da poco: niente cambio possibile, inutile
         // scaricare la tabella (traffico sulla SIM).
         if (s_auto.quality == GNSS_FIX_RTK_FIXED || s_auto.quality == GNSS_FIX_RTK_FLOAT ||
-            (!banned && now - s_auto.last_rtk_us < (int64_t) BASE_AUTO_NO_RTK_S * 1000000)) {
+            now - s_auto.last_rtk_us < (int64_t) BASE_AUTO_NO_RTK_S * 1000000) {
             return false;
         }
     }
@@ -891,12 +898,21 @@ static bool auto_check(int64_t now)
     if (n == 0) {
         free(list);
         ESP_LOGW(TAG, "Base automatica: tabella delle sorgenti non letta, resta %s", s_auto.current);
+        if (base_auto_banned(s_auto.bans, s_auto.current, now)) {
+            // Base in uso muta: nuovo tentativo tra un minuto, non tra 10.
+            s_auto.last_check_us = now - (int64_t) (BASE_AUTO_CHECK_S - 60) * 1000000;
+        }
         return false;
     }
 
     uint32_t no_rtk_s = (uint32_t) ((now - s_auto.last_rtk_us) / 1000000);
     base_auto_result_t r = base_auto_choose_ex(list, n, s_auto.have_pos, s_auto.lat_deg, s_auto.lon_deg,
                                                s_auto.current, s_auto.quality, no_rtk_s, first, s_auto.bans, now);
+    // Base in uso esclusa ma il fix e' ancora float con le ultime correzioni:
+    // nuovo controllo tra un minuto invece che tra 10.
+    if (!r.change && r.reason == BASE_AUTO_KEEP_RTK && base_auto_banned(s_auto.bans, s_auto.current, now)) {
+        s_auto.last_check_us = now - (int64_t) (BASE_AUTO_CHECK_S - 60) * 1000000;
+    }
     bool change = r.change;
     if (change) {
         if (r.current_km >= 0) {
@@ -964,9 +980,19 @@ void ntrip_rover_client_task(void *arg)
         int sock = ntrip_rover_connect(&s_task_cfg, net_buf, sizeof(net_buf), &extra_len);
         if (sock < 0) {
             if (s_auto.enabled && strcmp(s_auto.current, s_auto.fallback) != 0) {
-                // La base scelta non risponde o rifiuta: si torna alla base
-                // iniziale; la tabella si riguarda al prossimo controllo.
-                ESP_LOGW(TAG, "Base automatica: collegamento a %s fallito, ripiego su %s", s_auto.current, s_auto.fallback);
+                // La base scelta non risponde o rifiuta: ritorno alla base
+                // iniziale. Se il caster ha risposto e rifiutato (la tabella
+                // elenca anche mountpoint non concessi all'account) la base
+                // e' esclusa per un'ora, cosi' il controllo successivo non la
+                // riprova: un caster vero puo' bloccare chi sbaglia l'accesso
+                // di continuo. Un errore di rete (DNS, WiFi caduto, 4G che
+                // cambia cella) non esclude niente.
+                bool refused = sock == NTRIP_CONNECT_REFUSED;
+                ESP_LOGW(TAG, "Base automatica: collegamento a %s %s, ripiego su %s", s_auto.current,
+                         refused ? "rifiutato dal caster, esclusa per 60 min" : "fallito (rete)", s_auto.fallback);
+                if (refused) {
+                    base_auto_ban_add(s_auto.bans, s_auto.current, esp_timer_get_time());
+                }
                 strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
                 auto_publish(false, NULL);
             }
@@ -1050,7 +1076,7 @@ void ntrip_rover_client_task(void *arg)
         // se la muta e' proprio la base iniziale. Con la scelta automatica
         // spenta il rover resta sulla base impostata.
         if (!s_auto.enabled) {
-            s_auto.silent = 0;
+            s_auto.silent.count = 0;
         } else {
             switch (base_auto_silent_session(s_auto.bans, &s_auto.silent, got_data, s_auto.current,
                                              s_auto.fallback, esp_timer_get_time())) {
@@ -1064,8 +1090,12 @@ void ntrip_rover_client_task(void *arg)
                 ESP_LOGW(TAG, "Base automatica: %s non manda dati (%d collegamenti), esclusa per %d min, "
                               "scelta della piu' vicina tra le altre",
                          s_auto.current, BASE_AUTO_SILENT_SESSIONS, BASE_AUTO_BAN_S / 60);
-                s_auto.first = true; // tabella riletta subito al prossimo giro
+                s_auto.first = true; // tabella riletta subito, una volta
                 s_auto.last_check_us = 0;
+                break;
+            case BASE_AUTO_SILENT_RENEWED:
+                ESP_LOGW(TAG, "Base automatica: %s ancora muta, nessuna alternativa per ora (tabella ricontrollata ogni %d min)",
+                         s_auto.current, BASE_AUTO_CHECK_S / 60);
                 break;
             default:
                 break;

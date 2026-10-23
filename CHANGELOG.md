@@ -8,6 +8,28 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.13
+
+Correzioni da una revisione indipendente del codice della 1.35.8-1.35.11, e da una seconda revisione delle correzioni (23/10/2026). **La 1.35.11 va sostituita.** La 1.35.12 e' stata solo provata sulla base di prova: il suo contenuto e' compreso qui sotto.
+
+- **Tabella del caster scaricata di continuo (1.35.11)**. Con la base in uso esclusa perche' muta, il controllo della scelta automatica saltava il limite dei 10 minuti, e quel controllo gira anche a ogni pacchetto ricevuto. Esempio: un rover con una sola base che si ferma un minuto. Al ritorno dei dati la tabella (fino a 8 KB) si riscaricava a ogni pacchetto finche' il ricevitore non andava in float, e per un'ora a ogni perdita del float; con la base sempre muta, a ogni giro di ricollegamento. Erano decine di MB sulla SIM. Ora:
+  - dopo un'esclusione nuova si fa una sola scelta immediata, e se il fix e' ancora float con le ultime correzioni la si ripete dopo un minuto;
+  - se la base esclusa e' quella in uso perche' non c'e' nessuna alternativa, l'esclusione si rinnova senza nuove scelte (BASE_AUTO_SILENT_RENEWED) e la tabella si ricontrolla ogni 10 minuti come prima.
+
+  Il traffico della tabella ora entra nel conto dei dati della SIM.
+- **Collegamenti rifiutati a ripetizione**: la tabella elenca anche mountpoint non concessi all'account. Una base scelta in automatico che rifiutava il collegamento non veniva esclusa, e con la base di partenza muta veniva ritentata a ogni giro: un caster vero puo' bloccare l'account o l'indirizzo. Ora una base scelta in automatico e' esclusa per un'ora solo se il caster risponde e la rifiuta (NTRIP_CONNECT_REFUSED). Un errore di rete (DNS, WiFi caduto, cambio di cella del 4G) non esclude niente: nella 1.35.12, solo provata, escludeva per un'ora anche una base buona.
+- Tabella illeggibile subito dopo l'esclusione della base in uso: nuovo tentativo dopo un minuto, non dopo 10.
+- Posti per le basi escluse da 4 a 8: ora ci finiscono anche i mountpoint rifiutati.
+- Il conto dei collegamenti muti riparte quando cambia la base: prima un collegamento muto alla base A e uno alla base B escludevano B. Nuova prova: base_muta_conto_per_base_e_rinnovo.
+- **Riavvio del modem fermo con il 4G non in uso (1.35.8)**:
+  - ora scatta solo con WiFi o cavo funzionanti; senza nessuna rete ci pensano gia' i recuperi del 4G fallito;
+  - non si somma piu' a quei recuperi: prima poteva seguirne uno subito dopo, con due riavvii di fila;
+  - con un modem che non risponde mai (tolto o guasto) l'intervallo cresce da 30 minuti fino a 4 ore. Ogni riavvio ferma il gestore della rete per circa un minuto.
+- **Secondo impulso su PWRKEY (1.35.8)**:
+  - si danno al modem 35 s veri dopo l'impulso; prima erano circa 22 s, contro i 15-20 s che servono al SIM7600 per partire;
+  - se il modem da' segni di vita (eco dell'AT, "RDY", "ERROR") non si da' il secondo impulso, che lo spegnerebbe. I byte nulli dei disturbi della linea si saltano: strstr si sarebbe fermato al primo.
+- Manuale (Scheda Posizione e correzioni) aggiornato.
+
 ## 1.35.11
 
 - **Rover sempre scollegato dal caster con la base di partenza muta**. Collaudo del 23/10/2026: AGRI_MSM4, la base di partenza e anche la piu' vicina (0,4 km), era nella tabella del caster ma non mandava dati. Ogni 35 s il rover si collegava, restava 20 s senza un byte, chiudeva per timeout ("errno 11") e ripartiva, per sempre e senza correzioni. Collegato a puglia, attraverso lo stesso 4G, le correzioni arrivavano subito. Le basi mute venivano gia' escluse per un'ora (1.35.3), ma **mai la base di partenza**. Ora, con la scelta automatica attiva, si esclude anche lei (base_auto_silent_session in base_auto.c, nuova prova base_iniziale_muta_esclusa): si torna alla base di partenza se e' un'altra e funziona, altrimenti si rifa' subito la scelta tra le altre. Finche' la base in uso e' esclusa la tabella si ricontrolla a ogni giro e non dopo 10 minuti, perche' il fix puo' restare float per un po' con le ultime correzioni; il cambio resta vietato in RTK. Con la scelta automatica spenta il rover resta sulla base impostata. Manuale aggiornato: Scheda Posizione e correzioni.
