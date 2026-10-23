@@ -214,6 +214,17 @@ static bool s_x20p_signals_done;
 // Survey-in in corso (base senza posizione fissa): solo allora svin_poll_task
 // chiede NAV-SVIN. Scritta prima di creare il task.
 static bool s_svin_active;
+static float s_svin_acc_m; // precisione richiesta all'avvio del survey-in
+
+// Survey-in che non si chiude: con segnali deboli (balcone, alberi) la
+// precisione stimata dal ricevitore puo' non scendere mai a quella richiesta,
+// e la base non manda mai la sua posizione (1005): i trattori non possono
+// lavorare. Prova del 23/10/2026: 24 m dopo 12 minuti, contro 2 m richiesti.
+// Dopo 30 minuti il limite si allarga alla precisione raggiunta piu' il 25%
+// (al massimo 50 m): la base parte con una posizione approssimata, scritta
+// nel registro. Per una base fissa restano consigliate le coordinate fisse.
+#define SVIN_RELAX_AFTER_S 1800
+#define SVIN_RELAX_MAX_M   50.0f
 
 static bool model_is_x20(void)
 {
@@ -381,6 +392,7 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
     // Durata e precisione dal pannello (0 = predefinito: 60 s, 0,25 m).
     uint32_t svin_dur_s = s.base_svin_min_dur_s ? s.base_svin_min_dur_s : 60;
     uint32_t svin_acc_01mm = (s.base_svin_acc_m > 0) ? (uint32_t) (s.base_svin_acc_m * 10000.0f + 0.5f) : 2500;
+    s_svin_acc_m = svin_acc_01mm / 10000.0f;
     ESP_LOGI(TAG, "Survey-in: almeno %u s, precisione %.2f m", (unsigned) svin_dur_s, svin_acc_01mm / 10000.0);
     const ubx_cfg_kv32_t kvs_tmode[] = {
         { 0x20030001, 1 },              // CFG-TMODE-MODE = 1 (Survey-In)
@@ -452,6 +464,30 @@ static void svin_poll_task(void *arg)
             // navigazione successiva, fino a 1 s dopo (con 300 ms, come per
             // MON-VER, la risposta non arrivava mai in tempo).
             gnss_ubx_ack_wait(1200, NULL, NULL, NULL);
+        }
+        // Survey-in bloccato da 30 minuti: limite di precisione allargato una
+        // volta (vedi SVIN_RELAX_AFTER_S).
+        static bool svin_relaxed;
+        if (s_svin_active && !svin_relaxed) {
+            svin_status_t sv = status_svin_get();
+            if (sv.have && sv.active && !sv.valid && sv.duration_s >= SVIN_RELAX_AFTER_S && sv.mean_acc_m > 0) {
+                svin_relaxed = true;
+                float lim = sv.mean_acc_m * 1.25f;
+                if (lim > SVIN_RELAX_MAX_M) {
+                    lim = SVIN_RELAX_MAX_M;
+                }
+                if (lim > s_svin_acc_m) {
+                    ESP_LOGW(TAG, "Survey-in da %u min senza arrivare a %.2f m (ora %.1f m, segnali deboli?): "
+                                  "limite allargato a %.1f m: la base parte appena il survey-in lo raggiunge (il "
+                                  "ricevitore potrebbe ricominciarlo), con una posizione approssimata. Per una base "
+                                  "fissa usare le coordinate fisse",
+                             (unsigned) (sv.duration_s / 60), s_svin_acc_m, sv.mean_acc_m, lim);
+                    const ubx_cfg_kv32_t kv_acc[] = {
+                        { 0x40030011, (uint32_t) (lim * 10000.0f + 0.5f) }, // CFG-TMODE-SVIN-ACC-LIMIT (0,1 mm)
+                    };
+                    ubx_valset_group(uart_num, "SURVEY-IN allargato", kv_acc, 1);
+                }
+            }
         }
         // Ogni minuto anche UBX-MON-SYS: temperatura e stato del ricevitore
         // (lo ZED-F9P HPG 1.51 risponde, verificato il 03/10/2026).

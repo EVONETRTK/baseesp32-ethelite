@@ -74,7 +74,7 @@
   <li><strong>Precisione richiesta</strong>, in metri.</li>
 </ul>
 
-<p>Con 0 si usano i valori predefiniti: u-blox 60 s e 0,25 m; Unicore e LC29H 60 s e 2,5 m. Con il cielo parzialmente coperto una precisione di 0,25 m può non arrivare mai: per le prove usate 1–2 m.</p>
+<p>Con 0 si usano i valori predefiniti: u-blox 60 s e 0,25 m; Unicore e LC29H 60 s e 2,5 m. Con il cielo parzialmente coperto una precisione di 0,25 m può non arrivare mai: per le prove usate 1–2 m. Con i moduli u-blox, se dopo 30 minuti la precisione richiesta non è ancora raggiunta (segnali deboli), il limite si allarga alla precisione raggiunta più un quarto, al massimo 50 m: la base comincia a trasmettere con una posizione approssimata invece di restare senza, e il registro lo segnala.</p>
 
 <div class="box avviso"><span class="box-titolo">Attenzione</span>Il survey-in dà una posizione con un errore di <strong>metri</strong>, e <strong>diversa a ogni avvio</strong>: tutti i rover si spostano con lei e le linee di guida non sono ripetibili. Va bene per le prove, non per l'esercizio. Una base in servizio deve avere <strong>coordinate fisse</strong> misurate con precisione.</div>
 

@@ -8,6 +8,19 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.17
+
+La 1.35.16 e' stata solo provata sulla base di prova; queste correzioni vengono anche dalla sua revisione indipendente.
+
+- **Modem gia' acceso non riconosciuto dopo un riavvio**: dopo un aggiornamento con il 4G in uso il modem restava in CMUX e continuava a mandare le trame dati del collegamento precedente (RTCM dal caster). La risposta al SABM arrivava dopo i primi 128 byte letti e non si vedeva. Il modem veniva preso per spento e il 4G tornava solo dopo circa 2 minuti, con lo stesso indirizzo IP: il modem non si era mai spento (prova del 23/10/2026). Ora:
+  - fino a 3 SABM, ognuno letto per 1,2 s con un buffer che scorre (in PSRAM), controllando tutto quello che arriva;
+  - prima di qualunque impulso anche una trama dati CMUX conta come prova che il modem e' acceso, e il multiplexer si chiude. Dopo un impulso invece no: un modem che si sta spegnendo puo' ancora svuotare il buffer.
+
+  Provato: dopo un aggiornamento con il 4G in uso il modem e' riconosciuto in CMUX e il 4G torna in circa 5 s.
+- **Survey-in che non si chiude** (moduli u-blox): con segnali deboli la precisione stimata dal ricevitore puo' non scendere mai a quella richiesta. Prova sul balcone: 24 m dopo 12 minuti, contro 2 m. La base non mandava mai la sua posizione (1005). Ora dopo 30 minuti il limite si allarga alla precisione raggiunta piu' il 25%, al massimo 50 m: la base parte con una posizione approssimata, scritta nel registro. Per una base in servizio restano consigliate le coordinate fisse. Da verificare sull'hardware: se al cambio del limite il ricevitore ricomincia il survey-in. In quel caso servono altri ~20 minuti, una volta sola.
+- **Prova di velocita' della connessione** nella scheda SIM (POST /api/net/speedtest): scarica fino a 128 KB del firmware dell'ultima release dalla rete in uso (al massimo 30 s) e mostra KB/s e kbit/s. Sul 4G il limite e' di solito la seriale tra scheda e modem (115200 baud, circa 11 KB/s): misurati 10,7 KB/s. Per una decina di secondi rallenta le correzioni. Non parte durante un aggiornamento o con meno di 40 KB di RAM interna libera, perche' durante la prova scende di circa 20 KB. Il traffico, con una stima per le connessioni TLS, entra nel conto della SIM.
+- Manuale aggiornato: Scheda Posizione (survey-in), Scheda SIM (prova di velocita').
+
 ## 1.35.15
 
 Caccia agli errori su tutto il firmware (23/10/2026): quattro revisioni indipendenti (rete e modem, correzioni NTRIP, aggiornamenti e memoria, ricevitore GNSS e pannello). Ogni segnalazione e' stata verificata sul codice prima di correggerla, e le correzioni sono state ricontrollate da una quinta revisione. La 1.35.14 e' stata solo provata sulla base di prova.

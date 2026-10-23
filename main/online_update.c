@@ -5,6 +5,7 @@
 #include "sys_stats.h"
 #include "fw_archive.h"
 #include "status.h"
+#include "data_usage.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -13,6 +14,7 @@
 
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
 #include "esp_crt_bundle.h"
@@ -537,4 +539,108 @@ bool online_update_apply_async(const char *firmware_url)
         progress_finish(false, "Impossibile avviare il task di aggiornamento");
     }
     return true;
+}
+
+// Prova di velocita' della connessione in uso (pannello, scheda SIM): scarica
+// al massimo SPEEDTEST_BYTES del firmware dell'ultima release (lo stesso
+// indirizzo degli aggiornamenti, versione.json -> firmware.bin) e misura il
+// tempo. Sul 4G misura il modem: il limite e' di solito la seriale a 115200
+// baud (~11 KB/s), non la rete. Range sui byte richiesti e lettura fermata
+// comunque a SPEEDTEST_BYTES, anche se il server ignorasse il Range, o dopo
+// SPEEDTEST_MAX_US. 128 KB (~12 s sul 4G): durante la prova la seriale del
+// modem e' piena e le correzioni verso il caster rallentano.
+#define SPEEDTEST_BYTES  (128 * 1024)
+#define SPEEDTEST_MAX_US (30LL * 1000000)
+#define SPEEDTEST_TLS_OVERHEAD (16 * 1024) // stima: tre handshake TLS e i redirect
+
+bool online_update_speedtest(char *out_msg, size_t out_msg_size)
+{
+    char manifest[sizeof(((app_settings_t *) 0)->ota_update_url)];
+    settings_peek(peek_update_url, manifest);
+    char *fw_url = ou_alloc(MAX_URL_LEN);
+    char *final_url = ou_alloc(MAX_URL_LEN);
+    uint8_t *buf = ou_alloc(2048);
+    bool ok = false;
+    if (!fw_url || !final_url || !buf) {
+        snprintf(out_msg, out_msg_size, "Memoria insufficiente per la prova");
+        goto out;
+    }
+    strlcpy(fw_url, manifest, MAX_URL_LEN);
+    char *slash = strrchr(fw_url, '/');
+    if (!slash || strncmp(fw_url, "https://", 8) != 0) {
+        snprintf(out_msg, out_msg_size, "Indirizzo degli aggiornamenti non valido");
+        goto out;
+    }
+    strlcpy(slash + 1, "firmware.bin", MAX_URL_LEN - (size_t) (slash + 1 - fw_url));
+
+    int64_t t0 = esp_timer_get_time();
+    int status = http_fetch_following_redirects(fw_url, true, final_url, MAX_URL_LEN, NULL, 0);
+    if (status < 200 || status >= 300) {
+        snprintf(out_msg, out_msg_size, "Server non raggiungibile (esito %d): controlla la connessione", status);
+        goto out;
+    }
+    esp_http_client_config_t config = {
+        .url = final_url,
+        .method = HTTP_METHOD_GET,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .timeout_ms = 15000,
+        .buffer_size = 2048,
+        .buffer_size_tx = 2048,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) {
+        snprintf(out_msg, out_msg_size, "Prova non avviata (indirizzo o memoria)");
+        goto out;
+    }
+    char range[40];
+    snprintf(range, sizeof(range), "bytes=0-%d", SPEEDTEST_BYTES - 1);
+    esp_http_client_set_header(client, "Range", range);
+    esp_http_client_set_header(client, "Accept-Encoding", "identity");
+    int64_t t_open = esp_timer_get_time();
+    size_t total = 0;
+    int64_t t_first = 0;
+    int http_status = 0;
+    if (esp_http_client_open(client, 0) == ESP_OK && esp_http_client_fetch_headers(client) >= 0) {
+        http_status = esp_http_client_get_status_code(client);
+    }
+    if (http_status == 200 || http_status == 206) {
+        while (total < SPEEDTEST_BYTES && !(t_first && esp_timer_get_time() - t_first > SPEEDTEST_MAX_US)) {
+            int want = (int) (SPEEDTEST_BYTES - total) < 2048 ? (int) (SPEEDTEST_BYTES - total) : 2048;
+            int n = esp_http_client_read(client, (char *) buf, want);
+            if (n <= 0) {
+                break;
+            }
+            if (!t_first) {
+                t_first = esp_timer_get_time();
+            }
+            total += (size_t) n;
+        }
+    }
+    int64_t t_end = esp_timer_get_time();
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+    data_usage_add((uint32_t) total + SPEEDTEST_TLS_OVERHEAD, false); // nel conto della SIM, se sul 4G
+    if (http_status != 200 && http_status != 206) {
+        snprintf(out_msg, out_msg_size, "Il server ha risposto con l'esito %d: prova non riuscita", http_status);
+        goto out;
+    }
+    if (total < 16 * 1024 || !t_first) {
+        snprintf(out_msg, out_msg_size, "Download interrotto dopo %u byte: connessione instabile o server lento",
+                 (unsigned) total);
+        goto out;
+    }
+    double s = (t_end - t_first) / 1e6;
+    double kbs = s > 0 ? total / 1024.0 / s : 0;
+    net_status_t net = status_get_net();
+    snprintf(out_msg, out_msg_size,
+             "%.0f KB in %.1f s: %.1f KB/s (%.0f kbit/s) sulla rete %s. Avvio della connessione %.1f s.",
+             total / 1024.0, s, kbs, kbs * 8.192, net == NET_STATUS_CELLULAR ? "cellulare" : (net == NET_STATUS_WIFI ? "WiFi" : "via cavo"),
+             (t_first - t0) / 1e6);
+    ESP_LOGI(TAG, "Prova di velocita': %s (aperta in %.1f s)", out_msg, (t_open - t0) / 1e6);
+    ok = true;
+out:
+    free(fw_url);
+    free(final_url);
+    free(buf);
+    return ok;
 }

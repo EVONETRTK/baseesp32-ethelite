@@ -1220,6 +1220,11 @@
       <dt>Alimentazione del modem</dt><dd id="sim-volt">-</dd>
       <dt>Firmware del modem</dt><dd id="sim-fw">-</dd>
     </dl>
+    <button type="button" class="action secondary" id="speedtest-btn" style="margin-top:.6rem">Prova la velocità della connessione</button>
+    <span id="speedtest-msg" style="display:block; margin-top:.4rem"></span>
+    <small class="hint">Scarica fino a 128 KB dalla rete in uso in quel momento (sul 4G consuma dati della SIM e per una decina
+      di secondi rallenta le correzioni). Sul 4G il limite è di solito il collegamento tra scheda e modem, circa 11 KB/s:
+      alle correzioni ne bastano 1–2.</small>
     <small class="hint" id="sim-health-hint">Letti dal modem ogni 2 minuti. RSRP è la forza del segnale 4G (meglio sopra −90 dBm),
       SINR quanto è pulito dai disturbi (meglio sopra 10 dB): con RSRP buono e SINR basso il segnale c'è ma è disturbato.
       Il modem lavora fino a 80 °C: sopra i 70 °C conviene più ombra o aria nella scatola.</small>
@@ -4014,6 +4019,25 @@ document.getElementById('ntrip-test-btn').addEventListener('click', async () => 
     msg.style.color = s.ok ? '#16a34a' : '#dc2626';
     msg.style.fontWeight = '600';
     msg.textContent = s.message || (s.ok ? 'Riuscito' : 'Fallito');
+  } catch (e) {
+    msg.style.color = '#dc2626';
+    msg.style.fontWeight = '600';
+    msg.textContent = errText(e, 'Errore di comunicazione col dispositivo');
+  }
+});
+
+// Prova di velocita' della connessione (scheda SIM).
+document.getElementById('speedtest-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('speedtest-msg');
+  msg.style.color = '';
+  msg.style.fontWeight = '';
+  msg.textContent = 'Prova in corso, fino a un minuto...';
+  try {
+    const r = await fetch('/api/net/speedtest', { method: 'POST', body: '{}' });
+    const s = await readJson(r);
+    msg.style.color = s.ok ? '#16a34a' : '#dc2626';
+    msg.style.fontWeight = '600';
+    msg.textContent = s.message || (s.ok ? 'Riuscita' : 'Non riuscita');
   } catch (e) {
     msg.style.color = '#dc2626';
     msg.style.fontWeight = '600';

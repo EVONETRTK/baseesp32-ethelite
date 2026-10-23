@@ -8,6 +8,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
 #include "esp_netif.h"
 #include "esp_event.h"
 
@@ -185,6 +186,21 @@ static bool modem_alive_text(const uint8_t *buf, size_t size)
     return strstr(txt, "OK") || strstr(txt, "AT") || strstr(txt, "RDY") || strstr(txt, "ERROR");
 }
 
+// Trama dati CMUX (F9, indirizzo con il bit EA, controllo UIH): il modem e'
+// acceso e ancora nel multiplexer. Solo PRIMA di qualunque impulso (vedi
+// modem_already_on): dopo un impulso che lo sta spegnendo potrebbe ancora
+// svuotare il buffer. I disturbi della linea danno zeri e break, non questa
+// sequenza.
+static bool cmux_uih_seen(const uint8_t *b, size_t n)
+{
+    for (size_t i = 0; i + 2 < n; i++) {
+        if (b[i] == 0xF9 && (b[i + 1] & 0x01) && b[i + 1] != 0xF9 && (b[i + 2] & ~0x10) == 0xEF) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Dopo un impulso su PWRKEY: aspetta fino a seconds che il modem risponda ad
 // "AT" (seriale aperta solo per la verifica, prima di esp_modem). true anche
 // se il modem da' segni di vita senza ancora "OK" (eco dell'AT, "RDY",
@@ -244,14 +260,49 @@ static bool modem_already_on(void)
     if (!on) {
         static const uint8_t sabm0[] = { 0xF9, 0x03, 0x3F, 0x01, 0x1C, 0xF9 };
         static const uint8_t cld[] = { 0xF9, 0x03, 0xEF, 0x05, 0xC3, 0x01, 0xF2, 0xF9 };
-        uart_flush_input(port);
-        uart_write_bytes(port, sabm0, sizeof(sabm0));
-        int n = uart_read_bytes(port, buf, sizeof(buf), pdMS_TO_TICKS(400));
-        if (n > 0 && cmux_reply(buf, (size_t) n)) {
+        // Dopo un riavvio dell'ESP con il 4G in uso il modem resta in CMUX e
+        // continua a mandare le trame dati del collegamento di prima (RTCM
+        // dal caster): la risposta al SABM arrivava dopo i primi 128 byte e
+        // non si vedeva. Il modem veniva preso per spento, il 4G tornava dopo
+        // circa 2 minuti (23/10/2026). Ora fino a 3 tentativi, ognuno letto
+        // per 1,2 s veri controllando tutto quello che arriva (buffer che
+        // scorre: a 115200 baud 1 KB si riempie in 90 ms); anche una trama
+        // dati CMUX vale come prova che il modem e' acceso. Buffer in PSRAM:
+        // serve solo all'avvio.
+        const size_t cap = 512;
+        uint8_t *mux = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!mux) {
+            mux = malloc(cap);
+        }
+        bool uih = false;
+        for (int attempt = 0; mux && attempt < 3 && !on && !uih; attempt++) {
+            uart_flush_input(port);
+            uart_write_bytes(port, sabm0, sizeof(sabm0));
+            size_t got = 0;
+            int64_t end = esp_timer_get_time() + 1200000;
+            while (!on && esp_timer_get_time() < end) {
+                int n = uart_read_bytes(port, mux + got, cap - got, pdMS_TO_TICKS(100));
+                if (n <= 0) {
+                    continue;
+                }
+                got += (size_t) n;
+                on = cmux_reply(mux, got);
+                uih = uih || cmux_uih_seen(mux, got);
+                if (got > cap - 64) {
+                    memmove(mux, mux + got - 8, 8); // gli ultimi byte: una trama a cavallo
+                    got = 8;
+                }
+            }
+        }
+        free(mux);
+        if (!on && uih) {
+            ESP_LOGI(TAG, "Modem in CMUX con dati in arrivo (nessuna risposta al SABM)");
+            on = true;
+        }
+        if (on) {
             ESP_LOGI(TAG, "Modem acceso ma ancora in CMUX: chiudo il multiplexer");
             uart_write_bytes(port, cld, sizeof(cld));
             vTaskDelay(pdMS_TO_TICKS(1000));
-            on = true;
         }
     }
     if (!on) {

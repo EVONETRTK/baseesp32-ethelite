@@ -2971,6 +2971,61 @@ static bool bg_claim(httpd_req_t *req)
     return true;
 }
 
+// Prova di velocita' della connessione (scheda SIM): fino a ~40 s, in un task
+// a parte con la richiesta asincrona, come la prova del caster.
+static void speedtest_task(void *arg)
+{
+    httpd_req_t *req = arg;
+    char msg[200];
+    bool ok = online_update_speedtest(msg, sizeof(msg));
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", ok);
+    cJSON_AddStringToObject(resp, "message", msg);
+    char *json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
+    httpd_resp_sendstr(req, json ? json : "{\"ok\":false,\"message\":\"memoria insufficiente\"}");
+    free(json);
+    httpd_req_async_handler_complete(req);
+    s_bg_busy = false;
+    vTaskDelete(NULL);
+}
+
+static esp_err_t speedtest_post_handler(httpd_req_t *req)
+{
+    if (require_auth(req) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    // Mai insieme a un aggiornamento (due sessioni TLS), e solo con margine
+    // di RAM interna: durante la prova scende di circa 20 KB (misurato).
+    if (ota_update_in_progress()) {
+        httpd_resp_set_status(req, "409 Conflict");
+        return httpd_resp_sendstr(req, "Aggiornamento in corso: riprova dopo");
+    }
+    if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 40 * 1024 ||
+        heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) < 8 * 1024) {
+        httpd_resp_set_status(req, "409 Conflict");
+        return httpd_resp_sendstr(req, "Memoria del ricevitore al momento scarsa: prova non avviata, riprova tra poco");
+    }
+    if (!bg_claim(req)) {
+        return ESP_FAIL;
+    }
+    httpd_req_t *async_req = NULL;
+    if (httpd_req_async_handler_begin(req, &async_req) != ESP_OK) {
+        s_bg_busy = false;
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "richiesta asincrona non disponibile");
+    }
+    // 8 KB: TLS verso GitHub come il controllo degli aggiornamenti.
+    if (xTaskCreate(speedtest_task, "speedtest", 8192, async_req, 4, NULL) != pdPASS) {
+        s_bg_busy = false;
+        httpd_resp_send_err(async_req, HTTPD_500_INTERNAL_SERVER_ERROR, "memoria insufficiente, riprova");
+        httpd_req_async_handler_complete(async_req);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
 // La lettura del sourcetable (DNS, connessione fino a 8 s, risposta) gira in
 // un task a parte con la richiesta resa asincrona, come la prova di
 // connessione: prima teneva fermo tutto il pannello per l'intera attesa con
@@ -4251,6 +4306,8 @@ void web_ui_start(void)
     httpd_register_uri_handler(server, &rawlog_dl_uri);
     httpd_register_uri_handler(server, &ntrip_mountpoints_uri);
     httpd_register_uri_handler(server, &ntrip_test_uri);
+    httpd_uri_t speedtest_uri = { .uri = "/api/net/speedtest", .method = HTTP_POST, .handler = speedtest_post_handler };
+    httpd_register_uri_handler(server, &speedtest_uri);
     httpd_register_uri_handler(server, &wifi_test_uri);
     httpd_register_uri_handler(server, &wifi_test_progress_uri);
     httpd_register_uri_handler(server, &status_uri);

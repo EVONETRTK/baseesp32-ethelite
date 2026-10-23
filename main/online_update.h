@@ -38,4 +38,9 @@ typedef struct {
 // un altro aggiornamento firmware e' gia' in corso (vedi ota_update.h).
 bool online_update_apply_async(const char *firmware_url);
 
+// Prova di velocita' della connessione in uso: scarica al massimo 128 KB
+// del firmware dell'ultima release (al massimo 30 s di download) e scrive
+// l'esito in out_msg. Blocca fino a ~50 s: da chiamare in un task a parte.
+bool online_update_speedtest(char *out_msg, size_t out_msg_size);
+
 online_update_progress_t online_update_get_progress(void);
