@@ -527,6 +527,11 @@ void cellular_link_serial_error_counts(uint32_t out[3])
     }
 }
 
+bool cellular_link_ready(void)
+{
+    return s_init_tried;
+}
+
 uint32_t cellular_link_serial_errors(void)
 {
     return s_serial_errors;
@@ -1002,6 +1007,7 @@ bool cellular_link_connect(void) { return false; }
 void cellular_link_disconnect(void) { }
 bool cellular_link_is_connected(void) { return false; }
 uint32_t cellular_link_serial_errors(void) { return 0; }
+bool cellular_link_ready(void) { return true; }
 void cellular_link_serial_error_counts(uint32_t out[3]) { out[0] = out[1] = out[2] = 0; }
 bool cellular_link_get_signal(int *rssi_dbm) { return false; }
 bool cellular_link_get_operator_info(char *operator_out, size_t operator_out_size,

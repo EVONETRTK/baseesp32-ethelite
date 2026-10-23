@@ -22,6 +22,10 @@ void cellular_link_disconnect(void);
 
 bool cellular_link_is_connected(void);
 
+// Primo avvio del modem concluso (riuscito o no): prima, un tentativo di
+// collegamento fallisce comunque.
+bool cellular_link_ready(void);
+
 // Errori della seriale del modem dall'avvio (ognuno fa ripartire il CMUX):
 // net_manager richiude il 4G se crescono troppo in fretta.
 uint32_t cellular_link_serial_errors(void);

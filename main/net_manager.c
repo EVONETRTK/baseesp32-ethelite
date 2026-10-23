@@ -77,6 +77,8 @@ static void peek_network_mode(const app_settings_t *s, void *ctx)
 #define WIFI_HOLD_US            (15LL * 60 * 1000000)  // WiFi senza Internet: SIM per almeno 15 minuti
 #define CF_CELL_RETRY_US        (2LL * 60 * 1000000)   // 4G con riserva: 4G non disponibile, si riprova dopo
 #define CF_CELL_RETRY_MAX_US    (30LL * 60 * 1000000)  // idem con il WiFi funzionante: attesa massima
+#define CF_CELL_BOOT_RETRY_US   (20LL * 1000000)       // idem, modem ancora in avvio
+#define CF_CELL_BOOT_WINDOW_US  (3LL * 60 * 1000000)   // idem, primi minuti dall'avvio: tentativi ravvicinati
 #define CF_WIFI_RETRY_US        (5LL * 60 * 1000000)   // 4G con riserva: WiFi caduto, si riprova dopo
 #define CF_WIFI_RETRY_FAST_US   (30LL * 1000000)       // idem, ma con il 4G giu': nessuna rete, si riprova presto
 #define ETH_ONLY_AP_AFTER_US    (3LL * 60 * 1000000)   // "Solo Ethernet" senza rete: AP di emergenza
@@ -238,7 +240,9 @@ static bool net_check_dead(net_check_t *c)
 // collegamento sano sono zero; con il CMUX partito "storto" decine al
 // secondo, e il 4G restava su senza portare dati per 2-5 minuti (fino al
 // timeout del PPP o al controllo di Internet), con il rover senza
-// correzioni anche con il WiFi disponibile (prove del 22/10/2026).
+// correzioni anche con il WiFi disponibile (prove del 22/10/2026). Conta solo
+// con il caster scollegato: con esp_modem modificato (components/esp_modem) i
+// disturbi non fermano piu' il CMUX e il 4G puo' portare dati lo stesso.
 #define CELL_SERIAL_ERR_WINDOW_US (30LL * 1000000)
 #define CELL_SERIAL_ERR_MAX       150 // 5 al secondo: su alcune schede c'e' un disturbo di fondo di ~1 al secondo
 
@@ -338,7 +342,12 @@ static void net_manager_task(void *arg)
                                            (cellular_link_is_connected() ? CF_WIFI_RETRY_US : CF_WIFI_RETRY_FAST_US);
                     }
                 }
-                if (esp_timer_get_time() >= cf_cell_retry_us) {
+                if (esp_timer_get_time() >= cf_cell_retry_us && !cellular_link_ready()) {
+                    // Modem ancora in avvio (task cell_init): niente tentativo
+                    // a vuoto, si riguarda tra 20 s. Prima il primo tentativo
+                    // falliva subito e il successivo arrivava dopo 2 minuti.
+                    cf_cell_retry_us = esp_timer_get_time() + CF_CELL_BOOT_RETRY_US;
+                } else if (esp_timer_get_time() >= cf_cell_retry_us) {
                     ESP_LOGI(TAG, "4G con WiFi di riserva: collego il 4G");
                     if (cellular_link_connect()) {
                         cell_fail = 0;
@@ -361,8 +370,17 @@ static void net_manager_task(void *arg)
                     if (!wifi_link_is_connected() || cf_wifi_dead) {
                         cf_cell_wait_us = CF_CELL_RETRY_US;
                     }
-                    cf_cell_retry_us = esp_timer_get_time() + cf_cell_wait_us;
-                    cf_cell_wait_us = cf_cell_wait_us * 2 > CF_CELL_RETRY_MAX_US ? CF_CELL_RETRY_MAX_US : cf_cell_wait_us * 2;
+                    if (esp_timer_get_time() < CF_CELL_BOOT_WINDOW_US) {
+                        // Primi minuti dall'avvio: il SIM7600 impiega 60-75 s ad
+                        // agganciare la rete. Si riprova presto e non conta
+                        // come fallimento (riavvio del modem).
+                        cf_cell_retry_us = esp_timer_get_time() + CF_CELL_BOOT_RETRY_US;
+                        cell_fail = 0;
+                    } else {
+                        cf_cell_retry_us = esp_timer_get_time() + cf_cell_wait_us;
+                        cf_cell_wait_us = cf_cell_wait_us * 2 > CF_CELL_RETRY_MAX_US ? CF_CELL_RETRY_MAX_US
+                                                                                    : cf_cell_wait_us * 2;
+                    }
                     if (++cell_fail >= 3 &&
                         (!modem_reset_done || xTaskGetTickCount() - modem_reset_at >= pdMS_TO_TICKS(10 * 60 * 1000))) {
                         ESP_LOGW(TAG, "Rete cellulare: %d tentativi falliti di fila, riavvio del modem", cell_fail);
@@ -544,7 +562,7 @@ static void net_manager_task(void *arg)
                 status_set_net(NET_STATUS_NONE);
                 active = LINK_NONE;
                 cf_cell_retry_us = now_us + CF_CELL_RETRY_US; // 4G con riserva: intanto il WiFi
-            } else if (cell_serial_storm(now_us) || net_check_dead(&check)) {
+            } else if ((cell_serial_storm(now_us) && !status_ntrip_get().connected) || net_check_dead(&check)) {
                 // PPP "su" ma senza traffico (modem rimasto in sessione senza
                 // copertura), o seriale del modem in tempesta di errori: si
                 // richiude e si ricompone. I fallimenti contano per il
