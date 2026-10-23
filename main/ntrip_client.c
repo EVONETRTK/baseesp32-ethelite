@@ -219,6 +219,23 @@ static bool send_all(int sock, const uint8_t *data, size_t len)
     return true;
 }
 
+// Caster, porta, mountpoint o password diversi da quelli della sessione
+// aperta. Prima un cambio dal pannello valeva solo alla prossima caduta: una
+// base sana continuava per giorni verso il caster o la mountpoint vecchi
+// (revisione del 23/10/2026).
+typedef struct {
+    const app_settings_t *session;
+    bool changed;
+} caster_cmp_t;
+
+static void peek_caster_changed(const app_settings_t *s, void *ctx)
+{
+    caster_cmp_t *c = ctx;
+    c->changed = strcmp(s->ntrip_host, c->session->ntrip_host) != 0 || s->ntrip_port != c->session->ntrip_port ||
+                 strcmp(s->ntrip_mountpoint, c->session->ntrip_mountpoint) != 0 ||
+                 strcmp(s->ntrip_password, c->session->ntrip_password) != 0;
+}
+
 void ntrip_client_task(void *arg)
 {
     esp_register_shutdown_handler(ntrip_client_shutdown);
@@ -262,8 +279,21 @@ void ntrip_client_task(void *arg)
         while (xStreamBufferReceive(rtcm_stream, buf, sizeof(buf), 0) > 0) {
         }
 
+        uint32_t gen = settings_generation();
+        bool caster_changed = false;
         while (1) {
             sys_stats_heartbeat(HB_NTRIP);
+            if (settings_generation() != gen) {
+                gen = settings_generation();
+                caster_cmp_t cmp = { .session = &settings, .changed = false };
+                settings_peek(peek_caster_changed, &cmp);
+                if (cmp.changed) {
+                    ESP_LOGI(TAG, "Impostazioni del caster cambiate dal pannello: nuovo collegamento");
+                    status_ntrip_note_disconnected("Impostazioni del caster cambiate: nuovo collegamento");
+                    caster_changed = true;
+                    break;
+                }
+            }
             size_t len = xStreamBufferReceive(rtcm_stream, buf, sizeof(buf), pdMS_TO_TICKS(1000));
             if (len == 0) {
                 continue;
@@ -278,7 +308,10 @@ void ntrip_client_task(void *arg)
             }
         }
         close_active_sock(sock);
-        if (esp_timer_get_time() - session_start_us >= 60LL * 1000000) {
+        if (caster_changed) {
+            retry_ms = 5000; // nuovo caster: subito, senza attese crescenti
+            discard_for_ms(rtcm_stream, buf, sizeof(buf), 2000);
+        } else if (esp_timer_get_time() - session_start_us >= 60LL * 1000000) {
             // Sessione durata: caduta normale, si riprova quasi subito.
             retry_ms = 5000;
             discard_for_ms(rtcm_stream, buf, sizeof(buf), 2000);

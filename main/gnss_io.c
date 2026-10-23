@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "freertos/stream_buffer.h"
 
 static const char *TAG = "gnss_io";
@@ -45,6 +46,11 @@ static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
 static StreamBufferHandle_t s_i2c_rx;
 static StreamBufferHandle_t s_i2c_tx;
+// Un solo scrittore alla volta su s_i2c_tx: lo stream buffer di FreeRTOS ne
+// ammette uno solo (RTCM dal rover, comandi UBX, reset del ricevitore dal
+// controllo di sicurezza); due in attesa a buffer pieno fanno scattare un
+// configASSERT, cioe' un crash (revisione del 23/10/2026).
+static SemaphoreHandle_t s_i2c_tx_lock;
 
 // Serie di errori consecutivi, per un riepilogo nel log quando il bus torna
 // a funzionare (quanti errori e per quanto tempo): serve a capire con cosa
@@ -219,6 +225,11 @@ static bool i2c_init(const app_settings_t *settings)
     }
     s_i2c_rx = xStreamBufferCreate(4096, 1);
     s_i2c_tx = xStreamBufferCreate(4096, 1);
+    s_i2c_tx_lock = xSemaphoreCreateMutex();
+    if (!s_i2c_rx || !s_i2c_tx || !s_i2c_tx_lock) {
+        ESP_LOGE(TAG, "GNSS via I2C: memoria insufficiente per i buffer");
+        return false;
+    }
     // Core 1: se il driver I2C dovesse mai restare in attesa del bus, non
     // blocca il core 0 (WiFi, rete, pannello web).
     xTaskCreatePinnedToCore(i2c_poll_task, "gnss_i2c_poll", 3072, NULL, 5, NULL, 1);
@@ -326,8 +337,14 @@ int gnss_io_read(uint8_t *buf, size_t len, TickType_t timeout)
 int gnss_io_write(const void *data, size_t len)
 {
     if (s_i2c) {
-        // In coda: la scrittura vera la fa i2c_poll_task, entro ~20 ms.
-        return (int) xStreamBufferSend(s_i2c_tx, data, len, pdMS_TO_TICKS(500));
+        // In coda: la scrittura vera la fa i2c_poll_task, entro ~20 ms. Al
+        // massimo 500 ms in tutto, mutex compreso; chi non lo ottiene rinuncia.
+        if (xSemaphoreTake(s_i2c_tx_lock, pdMS_TO_TICKS(500)) != pdTRUE) {
+            return 0;
+        }
+        int n = (int) xStreamBufferSend(s_i2c_tx, data, len, pdMS_TO_TICKS(500));
+        xSemaphoreGive(s_i2c_tx_lock);
+        return n;
     }
     if (!s_uart_ok) {
         return -1;

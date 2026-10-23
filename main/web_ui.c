@@ -1815,6 +1815,22 @@ static bool sms_number_ok(const char *v)
     return only_chars(v, "+0123456789") && strchr(v[0] ? v + 1 : v, '+') == NULL;
 }
 
+// Chiave WireGuard (32 byte in base64): 43 caratteri base64, l'ultimo dei
+// quali porta solo 4 bit, piu' "=". Vuota = VPN non configurata. Una chiave
+// del server non valida faceva aggiungere due volte l'interfaccia a lwIP,
+// crash a ogni avvio (revisione del 23/10/2026; ora anche esp_wireguard.c).
+static bool wg_key_ok(const char *v)
+{
+    if (v[0] == '\0') {
+        return true;
+    }
+    static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    if (strlen(v) != 44 || v[43] != '=' || strspn(v, b64) != 43) {
+        return false;
+    }
+    return strchr("AEIMQUYcgkosw048", v[42]) != NULL;
+}
+
 static esp_err_t settings_post_handler(httpd_req_t *req)
 {
     if (require_auth(req) != ESP_OK) {
@@ -1947,6 +1963,12 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     }
     copy_field_allow_empty(root, "vpn_address", s.vpn_address, sizeof(s.vpn_address), verr);
     copy_field_allow_empty(root, "vpn_peer_public_key", s.vpn_peer_public_key, sizeof(s.vpn_peer_public_key), verr);
+    // Solo se la richiesta tocca il campo: una chiave sbagliata gia' salvata
+    // non deve bloccare il salvataggio di altro.
+    if (cJSON_GetObjectItemCaseSensitive(root, "vpn_peer_public_key") && !wg_key_ok(s.vpn_peer_public_key)) {
+        verr_set(verr, "Campo %s non valido: la chiave del server VPN e' di 44 caratteri e finisce con '=' (%d). "
+                       "Nessuna impostazione salvata.", "vpn_peer_public_key", (int) strlen(s.vpn_peer_public_key));
+    }
     copy_field_allow_empty(root, "vpn_endpoint", s.vpn_endpoint, sizeof(s.vpn_endpoint), verr);
     {
         cJSON *it = cJSON_GetObjectItemCaseSensitive(root, "remote_interval_min");
@@ -2362,13 +2384,29 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
 
     cJSON *gnss_uart_item = cJSON_GetObjectItemCaseSensitive(root, "gnss_uart_num");
     if (gnss_uart_item && cJSON_IsNumber(gnss_uart_item) && gnss_uart_item->valueint >= 0 && gnss_uart_item->valueint < 3) {
+#ifdef CONFIG_BASEESP32_CELLULAR_UART_NUM
+        // La seriale del modem non si puo' dare al ricevitore: esp_modem, senza
+        // eccezioni C++, va in abort() se la trova occupata, e il ricevitore
+        // ruberebbe i pin del modem (crash a ogni avvio, revisione del 23/10/2026).
+        if (gnss_uart_item->valueint == CONFIG_BASEESP32_CELLULAR_UART_NUM) {
+            verr_set(verr, "Campo %s non valido: la UART%d e' quella del modem. Nessuna impostazione salvata.",
+                     "gnss_uart_num", gnss_uart_item->valueint);
+        } else
+#endif
         s.gnss_uart_num = gnss_uart_item->valueint;
     }
     copy_pin_field(root, "gnss_uart_tx_pin", &s.gnss_uart_tx_pin, verr);
     copy_pin_field(root, "gnss_uart_rx_pin", &s.gnss_uart_rx_pin, verr);
     cJSON *gnss_baud_item = cJSON_GetObjectItemCaseSensitive(root, "gnss_uart_baud");
-    if (gnss_baud_item && cJSON_IsNumber(gnss_baud_item) && gnss_baud_item->valueint > 0) {
-        s.gnss_uart_baud = gnss_baud_item->valueint;
+    if (gnss_baud_item && cJSON_IsNumber(gnss_baud_item)) {
+        // Velocita' fuori da quelle dei ricevitori: la seriale non si apriva e
+        // il ricevitore restava scollegato fino alla correzione dal pannello.
+        if (gnss_baud_item->valueint >= 4800 && gnss_baud_item->valueint <= 921600) {
+            s.gnss_uart_baud = gnss_baud_item->valueint;
+        } else {
+            verr_set(verr, "Campo %s non valido (%d): ammesso da 4800 a 921600. Nessuna impostazione salvata.",
+                     "gnss_uart_baud", gnss_baud_item->valueint);
+        }
     }
     cJSON *gnss_link_item = cJSON_GetObjectItemCaseSensitive(root, "gnss_link");
     if (gnss_link_item && cJSON_IsString(gnss_link_item)) {
@@ -2378,8 +2416,15 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
     copy_pin_field(root, "oled_sda_pin", &s.oled_sda_pin, verr);
     copy_pin_field(root, "oled_scl_pin", &s.oled_scl_pin, verr);
     cJSON *oled_addr_item = cJSON_GetObjectItemCaseSensitive(root, "oled_i2c_addr");
-    if (oled_addr_item && cJSON_IsNumber(oled_addr_item) && oled_addr_item->valueint > 0 && oled_addr_item->valueint < 256) {
+    // Indirizzi I2C a 7 bit: oltre 127 il driver tronca il byte e il display
+    // scriveva il suo framebuffer al ricevitore u-blox (0x42) sullo stesso
+    // bus (revisione del 23/10/2026).
+    if (oled_addr_item && cJSON_IsNumber(oled_addr_item) && oled_addr_item->valueint >= 0x08 && oled_addr_item->valueint <= 0x77 &&
+        oled_addr_item->valueint != 0x42) { // 0x42 = ricevitore u-blox sullo stesso bus
         s.oled_i2c_addr = (uint8_t) oled_addr_item->valueint;
+    } else if (oled_addr_item) {
+        verr_set(verr, "Campo %s non valido (%d): indirizzo da 8 a 119, diverso da 66 (ricevitore u-blox). "
+                       "Nessuna impostazione salvata.", "oled_i2c_addr", cJSON_IsNumber(oled_addr_item) ? oled_addr_item->valueint : -1);
     }
     cJSON *oled_controller_item = cJSON_GetObjectItemCaseSensitive(root, "oled_controller");
     if (oled_controller_item && cJSON_IsString(oled_controller_item)) {
@@ -2665,7 +2710,13 @@ static void wifi_test_connect_task(void *arg)
         app_settings_remember_wifi(&s, ctx->ssid, ctx->password);
         settings_save(&s);
         settings_edit_end();
-        status_set_net(NET_STATUS_WIFI);
+        // Sul 4G la rete attiva resta il cellulare: il passaggio al WiFi lo
+        // decide net_manager, che poi aggiorna lo stato. Prima lo stato
+        // diventava WiFi mentre il traffico passava ancora dalla SIM, e il
+        // conto dei dati della SIM si fermava (revisione del 23/10/2026).
+        if (status_get_net() != NET_STATUS_CELLULAR) {
+            status_set_net(NET_STATUS_WIFI);
+        }
         ESP_LOGI(TAG, "Connesso, rete '%s' ricordata automaticamente", ctx->ssid);
     }
 
@@ -3134,7 +3185,19 @@ static esp_err_t ntrip_test_connect_post_handler(httpd_req_t *req)
         : (as_base ? existing.ntrip_password : existing.rover_password);
     strncpy(password, pass_src, sizeof(password) - 1);
     password[sizeof(password) - 1] = '\0';
+    bool pass_given = pass_src != existing.ntrip_password && pass_src != existing.rover_password;
     cJSON_Delete(root);
+    // La password salvata va solo al caster salvato: con un indirizzo diverso
+    // chi aveva solo il pannello aperto poteva farsela mandare a un server
+    // suo, senza la password di amministratore che il pannello chiede per
+    // mostrarla (revisione del 23/10/2026).
+    if (!pass_given && password[0] && (strcasecmp(host, existing.ntrip_host) != 0 || port != existing.ntrip_port)) {
+        memset(password, 0, sizeof(password));
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                            "Per provare un caster diverso da quello salvato scrivi anche la password: quella salvata "
+                            "non viene mandata ad altri server");
+        return ESP_FAIL;
+    }
 
     // La prova (DNS + connessione + risposta del caster, fino a ~15 s con un
     // caster che non risponde) gira in un task a parte con la richiesta resa
@@ -3462,9 +3525,12 @@ static esp_err_t alerts_test_post_handler(httpd_req_t *req)
         free(buf);
         if (root) {
             app_settings_t *s = &job->s;
+            char saved_host[sizeof(s->alert_smtp_host)];
+            strlcpy(saved_host, s->alert_smtp_host, sizeof(saved_host));
+            uint16_t saved_port = s->alert_smtp_port;
             copy_field(root, "alert_smtp_host", s->alert_smtp_host, sizeof(s->alert_smtp_host), verr);
             copy_field(root, "alert_smtp_user", s->alert_smtp_user, sizeof(s->alert_smtp_user), verr);
-            copy_field(root, "alert_smtp_password", s->alert_smtp_password, sizeof(s->alert_smtp_password), verr);
+            bool pass_given = copy_field(root, "alert_smtp_password", s->alert_smtp_password, sizeof(s->alert_smtp_password), verr);
             copy_field(root, "alert_email_to", s->alert_email_to, sizeof(s->alert_email_to), verr);
             if (copy_field(root, "alert_whatsapp_phone", s->alert_whatsapp_phone, sizeof(s->alert_whatsapp_phone), verr)) {
                 char ph[sizeof(s->alert_whatsapp_phone)];
@@ -3478,6 +3544,13 @@ static esp_err_t alerts_test_post_handler(httpd_req_t *req)
             cJSON *port_item = cJSON_GetObjectItemCaseSensitive(root, "alert_smtp_port");
             if (port_item && cJSON_IsNumber(port_item) && port_item->valueint > 0 && port_item->valueint <= 65535) {
                 s->alert_smtp_port = (uint16_t) port_item->valueint;
+            }
+            // La password email salvata va solo al server salvato: come per la
+            // prova del caster (revisione del 23/10/2026).
+            if (!pass_given && s->alert_smtp_password[0] &&
+                (strcasecmp(s->alert_smtp_host, saved_host) != 0 || s->alert_smtp_port != saved_port)) {
+                verr_set(verr, "Per provare un server email diverso da quello salvato scrivi anche la password (%s).%.0d",
+                         "alert_smtp_password", 0);
             }
             cJSON_Delete(root);
         }

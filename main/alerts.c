@@ -390,13 +390,57 @@ static void license_reminder_tick(const app_settings_t *s)
     nvs_close(h);
 }
 
+// Avviso "caster disconnesso" gia' mandato, ricordato anche dopo un riavvio
+// software: il riavvio di sicurezza (caster giu' da 30 minuti, sys_stats.c)
+// arrivava dopo l'avviso, e con il ricordo solo in RAM il "ripristinato" di
+// dopo il riavvio non partiva mai (revisione del 23/10/2026). Dopo una
+// mancanza di corrente il valore e' casuale: vale solo con il numero magico.
+#define CASTER_ALERT_MAGIC 0xCA57A1E7u
+static RTC_NOINIT_ATTR uint32_t s_rtc_caster_alert_magic;
+static RTC_NOINIT_ATTR uint32_t s_rtc_caster_alerted;
+
+static void caster_alert_note(bool alerted)
+{
+    s_rtc_caster_alert_magic = CASTER_ALERT_MAGIC;
+    s_rtc_caster_alerted = alerted ? 1 : 0;
+}
+
+// Mese gia' avvisato per il piano dati, nella NVS: prima stava in RAM e
+// l'avviso ripartiva a ogni riavvio dello stesso mese.
+static void data_month_load(char *out, size_t size)
+{
+    out[0] = '\0';
+    nvs_handle_t h;
+    if (nvs_open("alerts", NVS_READONLY, &h) == ESP_OK) {
+        size_t len = size;
+        if (nvs_get_str(h, "datamon", out, &len) != ESP_OK) {
+            out[0] = '\0';
+        }
+        nvs_close(h);
+    }
+}
+
+static void data_month_save(const char *month)
+{
+    nvs_handle_t h;
+    if (nvs_open("alerts", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "datamon", month);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
 static void alerts_task(void *arg)
 {
-    bool already_alerted = false;
+    bool already_alerted = s_rtc_caster_alert_magic == CASTER_ALERT_MAGIC && s_rtc_caster_alerted == 1;
     bool already_alerted_drift = false;
     bool already_alerted_temp = false;
     bool already_alerted_1005 = false;
     static char alerted_data_month[16]; // mese gia' avvisato per il piano dati
+    data_month_load(alerted_data_month, sizeof(alerted_data_month));
+    if (already_alerted) {
+        ESP_LOGI(TAG, "Avviso \"caster disconnesso\" mandato prima del riavvio: al ritorno si avvisa del ripristino");
+    }
     while (1) {
         // Ogni minuto, o subito se il pannello chiede un'operazione sulla SIM
         // (alerts_wake(), sim_tools.c).
@@ -429,11 +473,13 @@ static void alerts_task(void *arg)
                          s.device_serial, du.cell_month / 1e6, (unsigned) s.data_plan_mb, du.month);
                 send_on_configured_channels(&s, "EVONETRTK - piano dati quasi esaurito", body, NULL, 0);
                 strncpy(alerted_data_month, du.month, sizeof(alerted_data_month) - 1);
+                data_month_save(alerted_data_month);
             }
         }
 
         if (!s.alert_enable) {
             already_alerted = false;
+            caster_alert_note(false);
             already_alerted_drift = false;
             already_alerted_temp = false;
             already_alerted_1005 = false;
@@ -447,6 +493,7 @@ static void alerts_task(void *arg)
         ntrip_conn_status_t ntrip = status_ntrip_get();
         if (!base_pkg) {
             already_alerted = false;
+            caster_alert_note(false);
         } else if (!ntrip.connected) {
             // Mai collegato dall'avvio (corrente tornata con il caster gia'
             // irraggiungibile, password cambiata): prima nessun avviso, mai.
@@ -465,6 +512,7 @@ static void alerts_task(void *arg)
                              s.device_serial, threshold, ntrip.last_error);
                     send_on_configured_channels(&s, "EVONETRTK - caster disconnesso", body, NULL, 0);
                     already_alerted = true;
+                    caster_alert_note(true);
                 }
             }
         } else if (already_alerted && esp_timer_get_time() - ntrip.connected_since_us >= 60LL * 1000000) {
@@ -475,6 +523,7 @@ static void alerts_task(void *arg)
             snprintf(body, sizeof(body), "EVONETRTK %s: connessione al caster NTRIP ripristinata.", s.device_serial);
             send_on_configured_channels(&s, "EVONETRTK - caster ripristinato", body, NULL, 0);
             already_alerted = false;
+            caster_alert_note(false);
         }
 
         // Spostamento dell'antenna (vedi base_selfpos.c: posizione ricalcolata

@@ -941,6 +941,24 @@ static bool auto_check(int64_t now)
 // Copia delle impostazioni del task: statica, non sullo stack (oltre 2 KB).
 static app_settings_t s_task_cfg;
 
+// Caster, porta, utente o password (e mountpoint, con la scelta automatica
+// spenta) diversi da quelli della sessione aperta: prima valevano solo alla
+// prossima caduta, che con un flusso sano non arriva mai (revisione del
+// 23/10/2026). Con la scelta automatica la mountpoint la gestisce auto_check.
+typedef struct {
+    bool check_mountpoint;
+    bool changed;
+} rover_cmp_t;
+
+static void peek_rover_changed(const app_settings_t *s, void *ctx)
+{
+    rover_cmp_t *c = ctx;
+    c->changed = strcmp(s->ntrip_host, s_task_cfg.ntrip_host) != 0 || s->ntrip_port != s_task_cfg.ntrip_port ||
+                 strcmp(s->rover_username, s_task_cfg.rover_username) != 0 ||
+                 strcmp(s->rover_password, s_task_cfg.rover_password) != 0 ||
+                 (c->check_mountpoint && strcmp(s->rover_mountpoint, s_task_cfg.rover_mountpoint) != 0);
+}
+
 void ntrip_rover_client_task(void *arg)
 {
     (void) arg; // porta verso il ricevitore gestita da gnss_io (seriale o I2C)
@@ -1013,7 +1031,9 @@ void ntrip_rover_client_task(void *arg)
             s_retry_ms = changed ? 5000 : (s_retry_ms * 2 > 120000 ? 120000 : s_retry_ms * 2);
             continue;
         }
-        s_retry_ms = 5000;
+        // s_retry_ms non si azzera qui: un caster che accetta e poi chiude
+        // subito rimetteva l'attesa a 5 s a ogni giro. Si azzera dopo una
+        // sessione buona (in fondo al ciclo).
         // Il conto "senza RTK" riparte dal collegamento: la base nuova ha
         // 30 s per dare il fix prima di un altro cambio.
         s_auto.last_rtk_us = esp_timer_get_time();
@@ -1024,6 +1044,9 @@ void ntrip_rover_client_task(void *arg)
 
         set_active_sock(sock);
         bool got_data = extra_len > 0;
+        bool cfg_changed = false;
+        bool base_switched = false; // cambio di base voluto (scelta automatica): niente attesa crescente
+        int64_t session_start_us = esp_timer_get_time();
 
         while (1) {
             sys_stats_heartbeat(HB_NTRIP);
@@ -1049,6 +1072,17 @@ void ntrip_rover_client_task(void *arg)
             int64_t now = esp_timer_get_time();
             if (settings_generation() != s_auto.gen) {
                 auto_read_settings();
+                // Scelta automatica spenta (anche appena spenta): la mountpoint
+                // del campo, se diversa da quella in uso, vale subito. Accesa:
+                // in s_task_cfg c'e' la base scelta, non la si confronta.
+                rover_cmp_t cmp = { .check_mountpoint = !s_auto.enabled, .changed = false };
+                settings_peek(peek_rover_changed, &cmp);
+                if (cmp.changed) {
+                    ESP_LOGI(TAG, "Impostazioni del caster cambiate dal pannello: nuovo collegamento");
+                    status_ntrip_note_disconnected("Impostazioni del caster cambiate: nuovo collegamento");
+                    cfg_changed = true;
+                    break;
+                }
             }
             bool switch_base = false;
             if (s_auto.enabled) {
@@ -1059,6 +1093,7 @@ void ntrip_rover_client_task(void *arg)
                 char msg[96];
                 snprintf(msg, sizeof(msg), "Cambio base: collegamento a %.40s", s_auto.current);
                 status_ntrip_note_disconnected(msg);
+                base_switched = true;
                 break;
             }
         }
@@ -1085,6 +1120,7 @@ void ntrip_rover_client_task(void *arg)
                          s_auto.current, BASE_AUTO_SILENT_SESSIONS, BASE_AUTO_BAN_S / 60, s_auto.fallback);
                 strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
                 auto_publish(false, NULL);
+                base_switched = true;
                 break;
             case BASE_AUTO_SILENT_RECHOOSE:
                 ESP_LOGW(TAG, "Base automatica: %s non manda dati (%d collegamenti), esclusa per %d min, "
@@ -1092,6 +1128,7 @@ void ntrip_rover_client_task(void *arg)
                          s_auto.current, BASE_AUTO_SILENT_SESSIONS, BASE_AUTO_BAN_S / 60);
                 s_auto.first = true; // tabella riletta subito, una volta
                 s_auto.last_check_us = 0;
+                base_switched = true;
                 break;
             case BASE_AUTO_SILENT_RENEWED:
                 ESP_LOGW(TAG, "Base automatica: %s ancora muta, nessuna alternativa per ora (tabella ricontrollata ogni %d min)",
@@ -1107,7 +1144,27 @@ void ntrip_rover_client_task(void *arg)
         // dell'account (limite anti-condivisione password). Riprovare troppo
         // in fretta colpiva sempre quella finestra, venendo rifiutati per
         // "troppe sessioni contemporanee" - osservato in pratica.
-        vTaskDelay(pdMS_TO_TICKS(15000));
+        // Sessione breve o senza dati (caster che accetta e chiude, base
+        // muta): attesa crescente come per la base (ntrip_client.c), fino a
+        // 2 minuti. Prima 15 s fissi: migliaia di collegamenti al giorno sulla
+        // SIM, e un caster puo' bloccare l'account (revisione del 23/10/2026).
+        uint32_t wait_ms = 15000;
+        if (cfg_changed) {
+            s_retry_ms = 5000;
+            wait_ms = 3000; // impostazioni nuove: subito
+        } else if (base_switched) {
+            s_retry_ms = 5000; // base nuova: si riparte da capo, 15 s come prima
+        } else if (!got_data || esp_timer_get_time() - session_start_us < 60LL * 1000000) {
+            wait_ms = s_retry_ms > 15000 ? s_retry_ms : 15000;
+            s_retry_ms = s_retry_ms * 2 > 120000 ? 120000 : s_retry_ms * 2;
+        } else {
+            s_retry_ms = 5000; // sessione buona
+        }
+        uint32_t gen = settings_generation();
+        for (uint32_t waited = 0; waited < wait_ms && settings_generation() == gen; waited += 1000) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            sys_stats_heartbeat(HB_NTRIP);
+        }
     }
 }
 

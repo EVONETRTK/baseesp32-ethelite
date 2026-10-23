@@ -656,7 +656,7 @@
     <label data-link="uart">UART ESP32
       <select name="gnss_uart_num">
         <option value="0">UART0</option>
-        <option value="1">UART1</option>
+        <!-- UART1 e' del modem: il firmware la rifiuta (esp_modem andrebbe in abort) -->
         <option value="2">UART2</option>
       </select>
     </label>
@@ -1717,7 +1717,7 @@
     </label>
     <label>GPIO SDA<input name="oled_sda_pin" type="number" min="-1" max="48"></label>
     <label>GPIO SCL<input name="oled_scl_pin" type="number" min="-1" max="48"></label>
-    <label>Indirizzo I2C (decimale)<input name="oled_i2c_addr" type="number" min="1" max="255"></label>
+    <label>Indirizzo I2C (decimale)<input name="oled_i2c_addr" type="number" min="8" max="119"></label>
     <small class="hint" id="oled-addr-hex"></small>
     <small class="hint">
       Indirizzo tipico 60 (0x3C, esadecimale); alcuni cloni rispondono su 61 (0x3D). -1 su SDA/SCL

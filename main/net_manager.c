@@ -334,9 +334,13 @@ static void net_manager_task(void *arg)
                 ESP_LOGW(TAG, "Modem muto da %lld min con il 4G non in uso: riavvio del modem (prossimo al massimo tra %lld min)",
                          (long long) ((now_us - silent_since) / 60000000), (long long) (idle_every_us / 60000000));
                 sys_stats_heartbeat(HB_NET);
-                cellular_link_reset_modem();
-                modem_reset_at = xTaskGetTickCount();
-                modem_reset_done = true;
+                // Conta solo un riavvio fatto, o tentato con il modem gia' inizializzato:
+                // durante l'avvio il modem non e' pronto e il turno (uno ogni 10 minuti)
+                // si consumava senza riavviare niente (revisione del 23/10/2026).
+                if (cellular_link_reset_modem() || cellular_link_ready()) {
+                    modem_reset_done = true;
+                    modem_reset_at = xTaskGetTickCount();
+                }
                 now_us = esp_timer_get_time();
             }
         }
@@ -424,9 +428,13 @@ static void net_manager_task(void *arg)
                         (!modem_reset_done || xTaskGetTickCount() - modem_reset_at >= pdMS_TO_TICKS(10 * 60 * 1000))) {
                         ESP_LOGW(TAG, "Rete cellulare: %d tentativi falliti di fila, riavvio del modem", cell_fail);
                         sys_stats_heartbeat(HB_NET);
-                        cellular_link_reset_modem();
-                        modem_reset_done = true;
-                        modem_reset_at = xTaskGetTickCount();
+                        // Conta solo un riavvio fatto, o tentato con il modem gia' inizializzato:
+                        // durante l'avvio il modem non e' pronto e il turno (uno ogni 10 minuti)
+                        // si consumava senza riavviare niente (revisione del 23/10/2026).
+                        if (cellular_link_reset_modem() || cellular_link_ready()) {
+                            modem_reset_done = true;
+                            modem_reset_at = xTaskGetTickCount();
+                        }
                         cell_fail = 0;
                     }
                     if (cf_wifi_dead && wifi_link_is_connected()) {
@@ -538,9 +546,13 @@ static void net_manager_task(void *arg)
                     (!modem_reset_done || xTaskGetTickCount() - modem_reset_at >= pdMS_TO_TICKS(10 * 60 * 1000))) {
                     ESP_LOGW(TAG, "Rete cellulare: %d tentativi falliti di fila, riavvio del modem", cell_fail);
                     sys_stats_heartbeat(HB_NET); // il riavvio del modem dura fino a ~30 s
-                    cellular_link_reset_modem();
-                    modem_reset_done = true;
-                    modem_reset_at = xTaskGetTickCount();
+                    // Conta solo un riavvio fatto, o tentato con il modem gia' inizializzato:
+                    // durante l'avvio il modem non e' pronto e il turno (uno ogni 10 minuti)
+                    // si consumava senza riavviare niente (revisione del 23/10/2026).
+                    if (cellular_link_reset_modem() || cellular_link_ready()) {
+                        modem_reset_done = true;
+                        modem_reset_at = xTaskGetTickCount();
+                    }
                     cell_fail = 0;
                 }
             }
@@ -617,9 +629,13 @@ static void net_manager_task(void *arg)
                     (!modem_reset_done || xTaskGetTickCount() - modem_reset_at >= pdMS_TO_TICKS(10 * 60 * 1000))) {
                     ESP_LOGW(TAG, "Cellulare senza Internet per %d volte di fila: riavvio del modem", cell_dead);
                     sys_stats_heartbeat(HB_NET);
-                    cellular_link_reset_modem();
-                    modem_reset_done = true;
-                    modem_reset_at = xTaskGetTickCount();
+                    // Conta solo un riavvio fatto, o tentato con il modem gia' inizializzato:
+                    // durante l'avvio il modem non e' pronto e il turno (uno ogni 10 minuti)
+                    // si consumava senza riavviare niente (revisione del 23/10/2026).
+                    if (cellular_link_reset_modem() || cellular_link_ready()) {
+                        modem_reset_done = true;
+                        modem_reset_at = xTaskGetTickCount();
+                    }
                     cell_dead = 0;
                 }
             } else if (settings.network_mode == NETWORK_MODE_CELLULAR_FIRST) {

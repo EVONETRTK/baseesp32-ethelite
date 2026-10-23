@@ -358,11 +358,22 @@ void settings_init(void)
         // essere valido ma in pratica (bug, corruzione, versioni future con
         // un bug di migrazione) potrebbe non esserlo, si riporta al default
         // di Kconfig qualunque valore non plausibile.
-        if (s_settings.gnss_uart_num < 0 || s_settings.gnss_uart_num > 2) {
+        if (s_settings.gnss_uart_num < 0 || s_settings.gnss_uart_num > 2
+#ifdef CONFIG_BASEESP32_CELLULAR_UART_NUM
+            // la seriale del modem: esp_modem andrebbe in abort() a ogni avvio
+            || s_settings.gnss_uart_num == CONFIG_BASEESP32_CELLULAR_UART_NUM
+#endif
+        ) {
             ESP_LOGW(TAG, "gnss_uart_num salvato non valido (%d), uso il default di Kconfig", s_settings.gnss_uart_num);
             s_settings.gnss_uart_num = CONFIG_BASEESP32_GNSS_UART_NUM;
         }
-        if (s_settings.gnss_uart_baud < 1200) {
+        // Indirizzo del display: 7 bit e non quello del ricevitore u-blox
+        // (0x42), con cui il display gli scriveva il suo framebuffer.
+        if (s_settings.oled_i2c_addr < 0x08 || s_settings.oled_i2c_addr > 0x77 || s_settings.oled_i2c_addr == 0x42) {
+            ESP_LOGW(TAG, "oled_i2c_addr salvato non valido (%d), uso il default di Kconfig", s_settings.oled_i2c_addr);
+            s_settings.oled_i2c_addr = CONFIG_BASEESP32_OLED_I2C_ADDR;
+        }
+        if (s_settings.gnss_uart_baud < 1200 || s_settings.gnss_uart_baud > 921600) {
             ESP_LOGW(TAG, "gnss_uart_baud salvato non valido (%d), uso il default di Kconfig", s_settings.gnss_uart_baud);
             s_settings.gnss_uart_baud = CONFIG_BASEESP32_GNSS_UART_BAUD;
         }

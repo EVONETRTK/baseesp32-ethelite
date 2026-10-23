@@ -439,6 +439,26 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
         FAIL("Aggiornamento fallito, avvio del download non riuscito");
     }
 
+    // Versione scritta nell'immagine (PROJECT_VER = FIRMWARE_VERSION dalla
+    // 1.35.14): se non e' piu' nuova di quella che gira si annulla. Il
+    // manifesto e il binario sono due file separati; con un binario vecchio
+    // allegato per errore il ricevitore lo reinstallava a ogni controllo
+    // (~2,3 MB ciascuno, revisione del 23/10/2026). Immagini senza versione
+    // numerica (precedenti): nessun controllo, come prima.
+    {
+        esp_app_desc_t img;
+        int a, b, c;
+        char extra;
+        if (esp_https_ota_get_img_desc(handle, &img) == ESP_OK &&
+            sscanf(img.version, "%d.%d.%d%c", &a, &b, &c, &extra) == 3 &&
+            ota_update_semver_compare(img.version, FIRMWARE_VERSION) <= 0) {
+            ESP_LOGE(TAG, "Aggiornamento online annullato: il file scaricato e' la versione %s, non piu' nuova di %s",
+                     img.version, FIRMWARE_VERSION);
+            esp_https_ota_abort(handle);
+            FAIL("Aggiornamento annullato: il file sul server non e' una versione piu' nuova");
+        }
+    }
+
     // Dimensione totale nota dal Content-Length della risposta, se il CDN
     // la fornisce - usata solo per calcolare la percentuale mostrata nella
     // UI web; -1 (sconosciuta) non blocca comunque il download.
@@ -472,6 +492,7 @@ bool online_update_apply(const char *firmware_url, char *out_msg, size_t out_msg
     }
 
     free(resolved_url);
+    ota_update_note_installed();
     SET_MSG("Aggiornamento scaricato e applicato, riavvio...");
     progress_finish(true, out_msg);
     return true;

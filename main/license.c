@@ -132,11 +132,13 @@ static void lic_storage_init(void)
         ESP_LOGI(TAG, "Tabella delle partizioni vecchia: licenza nella NVS principale");
         return;
     }
-    if (e == ESP_ERR_NVS_NO_FREE_PAGES || e == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_LOGE(TAG, "Partizione della licenza illeggibile (%s): cancellata", esp_err_to_name(e));
-        nvs_flash_erase_partition(LIC_PART);
-        e = nvs_flash_init_partition(LIC_PART);
-    }
+    // Partizione illeggibile (piena, o scritta da un ESP-IDF piu' nuovo e poi
+    // tornati a un firmware precedente): MAI cancellarla. Dentro ci sono la
+    // chiave del ricevitore e la licenza firmata, e per i ricevitori attivati
+    // dopo la 1.31 non ne esiste altra copia; cancellata, la licenza era persa
+    // per sempre (revisione del 23/10/2026). Per questo avvio si usa la NVS
+    // principale (copia di prima della 1.31, se c'e'); la partizione resta
+    // com'e' per l'assistenza o per un firmware che la sappia leggere.
     if (e != ESP_OK) {
         ESP_LOGE(TAG, "Partizione della licenza non disponibile (%s): uso la NVS principale", esp_err_to_name(e));
         return;

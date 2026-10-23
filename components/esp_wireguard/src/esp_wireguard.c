@@ -243,6 +243,15 @@ static esp_err_t tcpip_create_and_add_peer(void *arg)
     err_t lwip_err = wireguardif_add_peer(wg_netif, &peer, &wireguard_peer_index);
     if (lwip_err != ERR_OK || wireguard_peer_index == WIREGUARDIF_INVALID_INDEX) {
         ESP_LOGE(TAG, "wireguardif_add_peer: %i", lwip_err);
+        /* EVONETRTK (23/10/2026): interfaccia gia' aggiunta a lwIP ma senza
+         * peer (chiave del server non valida): va tolta qui. Restava nella
+         * lista e al tentativo dopo netif_add() la aggiungeva di nuovo:
+         * LWIP_ASSERT("netif already added"), crash a ogni avvio. */
+        wireguard_peer_index = WIREGUARDIF_INVALID_INDEX;
+        wireguardif_shutdown(wg_netif);
+        netif_remove(wg_netif);
+        wireguardif_fini(wg_netif);
+        wg_netif = NULL;
         return ESP_FAIL;
     }
     ctx->netif = wg_netif;

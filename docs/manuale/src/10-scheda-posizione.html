@@ -22,7 +22,7 @@
   <tr><th>Campo</th><th>Uso</th></tr>
   <tr><td><strong>Ricevitore GNSS collegato</strong></td><td>Il modulo GNSS (elenco e stato di prova nel capitolo <a data-cap="Hardware e installazione della base"></a>). Con <strong>Automatico</strong> il ricevitore riconosce all'avvio u-blox, Unicore e ComNav, e trova da solo la velocità giusta.</td></tr>
   <tr><td><strong>Collegamento</strong></td><td><strong>Seriale (UART)</strong> oppure <strong>I2C</strong>, quest'ultimo solo per gli u-blox: indirizzo 0x42, sugli stessi pin del display OLED (17/18 sulla T-ETH-Elite), nessuna velocità da impostare.</td></tr>
-  <tr><td><strong>UART ESP32</strong>, <strong>GPIO TX</strong>, <strong>GPIO RX</strong></td><td>La seriale e i pin usati. HAT per Raspberry con la seriale sul connettore: TX 43, RX 44. Modulo L76K dello shield LilyGO: TX 42, RX 39.</td></tr>
+  <tr><td><strong>UART ESP32</strong>, <strong>GPIO TX</strong>, <strong>GPIO RX</strong></td><td>La seriale e i pin usati: UART0 o UART2 (la UART1 è del modem e non si può scegliere). HAT per Raspberry con la seriale sul connettore: TX 43, RX 44. Modulo L76K dello shield LilyGO: TX 42, RX 39.</td></tr>
   <tr><td><strong>Baud rate</strong></td><td>La velocità della seriale. Il Quectel LC29H esce di fabbrica a 460800. Con <em>Automatico</em> è solo la prima velocità provata.</td></tr>
 </table>
 

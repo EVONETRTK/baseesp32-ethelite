@@ -203,6 +203,21 @@ PROVA(numero_sms_con_piu_solo_iniziale)
     VERIFICA(!sms_number_ok("+39 351"));
 }
 
+// Revisione del 23/10/2026: una chiave del server VPN non valida passava e
+// faceva aggiungere due volte l'interfaccia WireGuard a lwIP (crash a ogni
+// avvio). Chiavi d'esempio inventate, non di un server vero.
+PROVA(chiave_vpn_controllata)
+{
+    VERIFICA(wg_key_ok(""));                                             // VPN non configurata
+    VERIFICA(wg_key_ok("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="));
+    VERIFICA(wg_key_ok("q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c="));
+    VERIFICA(!wg_key_ok("q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c"));   // manca '='
+    VERIFICA(!wg_key_ok("q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c= ")); // spazio in fondo
+    VERIFICA(!wg_key_ok("q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1=="));  // 31 byte
+    VERIFICA(!wg_key_ok("q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1d="));  // bit di troppo nell'ultimo
+    VERIFICA(!wg_key_ok("q1w2e3r4t5y6u7i8o9p0a1s2-3f4g5h6j7k8l9z0x1c="));  // carattere non base64
+}
+
 // Trovato dal fuzzing (bersaglio web_ui): con un buffer di uscita di un solo
 // byte, un "+" iniziale viene scritto senza controllare lo spazio e poi il
 // terminatore finisce un byte oltre (web_ui.c, clean_phone_number: il ramo
@@ -236,6 +251,7 @@ int main(void)
     ESEGUI(numero_whatsapp_troppo_lungo_rifiutato_senza_sforare);
     ESEGUI(solo_caratteri_ammessi);
     ESEGUI(numero_sms_con_piu_solo_iniziale);
+    ESEGUI(chiave_vpn_controllata);
     ESEGUI(numero_con_buffer_di_un_byte);
     return prove_fine();
 }

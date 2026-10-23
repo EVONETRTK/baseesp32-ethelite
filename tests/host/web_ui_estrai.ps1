@@ -67,5 +67,6 @@ function New-WebUiEstratto {
     $txt += Get-Blocco $righe '^static bool clean_phone_number\(' "clean_phone_number"
     $txt += Get-Blocco $righe '^static bool only_chars\(' "only_chars"
     $txt += Get-Blocco $righe '^static bool sms_number_ok\(' "sms_number_ok"
+    $txt += Get-Blocco $righe '^static bool wg_key_ok\(' "wg_key_ok"
     Set-Content -Path (Join-Path $Out "web_ui_estratto.c") -Value $txt -Encoding UTF8
 }

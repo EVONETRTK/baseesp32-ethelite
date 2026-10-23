@@ -57,6 +57,9 @@ const char *ota_update_rollback_note(void);
 // l'aggiornamento automatico non la reinstalla in ciclo.
 void ota_update_note_trying(const char *version);
 bool ota_update_version_rejected(const char *version);
+// Immagine nuova scritta e impostata per l'avvio (ogni percorso): annota in
+// NVS se la rete c'era e azzera il ricordo dell'ultimo annullamento.
+void ota_update_note_installed(void);
 
 // Confronto versioni "MAJOR.MINOR.PATCH": >0 se a>b, <0 se a<b, 0 se
 // uguali. Ignora eventuali suffissi non numerici dopo il PATCH.

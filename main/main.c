@@ -137,6 +137,13 @@ static void fw_archive_save_current_task(void *arg)
     // coincideva esattamente con gli errori I2C verso il ricevitore u-blox
     // all'avvio (visto sul dispositivo, 1.19.68).
     vTaskDelay(pdMS_TO_TICKS(30000));
+    // Solo una versione confermata: archiviata ancora in prova, una versione
+    // poi annullata poteva prendere il posto dell'ultima buona tra le due
+    // tenute sulla microSD (revisione del 23/10/2026). Se viene annullata il
+    // riavvio arriva prima e qui non si archivia niente.
+    while (ota_update_is_pending()) {
+        vTaskDelay(pdMS_TO_TICKS(30000));
+    }
     fw_archive_save_current();
     ESP_LOGI(TAG, "Archivio firmware: stack libero minimo %u byte", (unsigned) uxTaskGetStackHighWaterMark(NULL));
     vTaskDelete(NULL);

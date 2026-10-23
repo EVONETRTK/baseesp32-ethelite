@@ -461,8 +461,10 @@ bool cellular_link_init(void)
     ESP_ERROR_CHECK(esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_event, NULL));
     esp_modem_set_error_cb(s_dce, on_terminal_error);
 
-    s_init_tried = true;
+    // Prima s_inited: chi vede s_init_tried senza s_inited rifarebbe
+    // l'inizializzazione (seconda esp_modem_new_dev sulla stessa seriale).
     s_inited = true;
+    s_init_tried = true;
     return true;
 }
 

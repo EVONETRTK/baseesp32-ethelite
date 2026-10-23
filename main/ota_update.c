@@ -7,6 +7,7 @@
 
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "nvs.h"
 #include "freertos/FreeRTOS.h"
 
 static const char *TAG = "ota_update";
@@ -136,6 +137,7 @@ static esp_err_t ota_update_apply_locked(ota_read_fn_t read_cb, void *ctx)
     }
 
     ESP_LOGI(TAG, "Immagine (%u byte) scritta e impostata come avvio successivo", (unsigned) total);
+    ota_update_note_installed();
     return ESP_OK;
 }
 
@@ -164,6 +166,14 @@ void ota_update_mark_valid(void)
     if (esp_ota_get_state_partition(running, &state) == ESP_OK && state == ESP_OTA_IMG_PENDING_VERIFY) {
         esp_ota_mark_app_valid_cancel_rollback();
         ESP_LOGI(TAG, "Immagine corrente confermata valida (rollback automatico disattivato per questo avvio)");
+        // Aggiornamento riuscito: l'annotazione della versione in prova non
+        // deve finire su un annullamento futuro di un'altra installazione.
+        nvs_handle_t h;
+        if (nvs_open("otaroll", NVS_READWRITE, &h) == ESP_OK) {
+            nvs_erase_key(h, "try");
+            nvs_commit(h);
+            nvs_close(h);
+        }
     }
 }
 
@@ -233,9 +243,37 @@ void ota_update_confirm_tick(void)
     s_rtc_net_up = net_now;
 }
 
+// Chiamata appena un'immagine nuova e' scritta e impostata per l'avvio (da
+// ogni percorso: pannello, microSD, archivio, online, automatico). Annota
+// nella NVS se la rete c'era: la memoria RTC qui sopra si sposta quando una
+// versione cambia le variabili RTC (anche di altri file), e allora il ritorno
+// alla versione precedente di un firmware senza rete non scattava. Toglie
+// anche il ricordo dell'ultimo annullamento: un nuovo annullamento della
+// stessa immagine va registrato (revisione del 23/10/2026).
+void ota_update_note_installed(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("otaroll", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "netb", net_any_up() ? 1 : 0);
+        nvs_erase_key(h, "seen");
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
 void ota_update_start_confirm(void)
 {
     s_net_before = s_rtc_net_magic == NET_RTC_MAGIC && s_rtc_net_up;
+    nvs_handle_t h;
+    if (nvs_open("otaroll", NVS_READWRITE, &h) == ESP_OK) {
+        uint8_t netb = 0;
+        if (nvs_get_u8(h, "netb", &netb) == ESP_OK) {
+            s_net_before = s_net_before || netb == 1;
+            nvs_erase_key(h, "netb");
+            nvs_commit(h);
+        }
+        nvs_close(h);
+    }
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t state;
     if (esp_ota_get_state_partition(running, &state) != ESP_OK || state != ESP_OTA_IMG_PENDING_VERIFY) {
@@ -282,11 +320,25 @@ void ota_update_check_rollback(void)
                  desc.date);
         ESP_LOGE(TAG, "Aggiornamento annullato: %s", s_rollback_note);
         nvs_set_str(h, "seen", key);
-        // La versione che si stava installando (ota_update_note_trying) e'
-        // quella annullata: l'aggiornamento automatico la salta.
+        // La versione annullata: quella scritta nell'immagine (PROJECT_VER =
+        // FIRMWARE_VERSION dalla 1.35.14), qualunque sia stato il modo di
+        // installarla. Prima solo l'annotazione dell'aggiornamento automatico
+        // (ota_update_note_trying): una release difettosa installata a mano
+        // e annullata veniva poi reinstallata dall'automatico all'infinito,
+        // perche' il secondo annullamento della stessa immagine sembrava gia'
+        // visto (revisione del 23/10/2026). Immagini precedenti: annotazione.
         char trying[24] = "";
-        len = sizeof(trying);
-        if (nvs_get_str(h, "try", trying, &len) == ESP_OK && trying[0]) {
+        int a, b, c;
+        char extra;
+        if (sscanf(desc.version, "%d.%d.%d%c", &a, &b, &c, &extra) == 3) {
+            strlcpy(trying, desc.version, sizeof(trying));
+        } else {
+            len = sizeof(trying);
+            if (nvs_get_str(h, "try", trying, &len) != ESP_OK) {
+                trying[0] = '\0';
+            }
+        }
+        if (trying[0]) {
             nvs_set_str(h, "bad", trying);
             ESP_LOGE(TAG, "Versione %s annullata: l'aggiornamento automatico la salta fino a una versione piu' nuova",
                      trying);

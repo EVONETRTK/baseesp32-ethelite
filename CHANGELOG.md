@@ -8,6 +8,54 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.15
+
+Caccia agli errori su tutto il firmware (23/10/2026): quattro revisioni indipendenti (rete e modem, correzioni NTRIP, aggiornamenti e memoria, ricevitore GNSS e pannello). Ogni segnalazione e' stata verificata sul codice prima di correggerla, e le correzioni sono state ricontrollate da una quinta revisione. La 1.35.14 e' stata solo provata sulla base di prova.
+
+**Crash e cicli di riavvio:**
+- **Ricevitore in I2C**: il buffer verso il ricevitore era scritto da piu' task insieme (RTCM del rover, comandi UBX, reset del controllo di sicurezza). Lo stream buffer di FreeRTOS ammette un solo scrittore: dati mescolati e, a buffer pieno, un configASSERT, cioe' un crash proprio nel reset del ricevitore muto. Ora c'e' un mutex (gnss_io.c).
+- **Ricevitore sulla UART1, quella del modem**: esp_modem, senza eccezioni C++, va in abort() se trova la seriale occupata, con crash a ogni avvio. Ora la UART1 e' rifiutata dal pannello e alla lettura delle impostazioni, ed e' tolta dal menu. Anche la velocita' della seriale e' controllata: ammesso da 4800 a 921600.
+- **Chiave del server VPN sbagliata**: l'interfaccia WireGuard restava aggiunta a lwIP senza peer, e al tentativo dopo veniva aggiunta di nuovo, con un LWIP_ASSERT e un crash a ogni avvio. Ora viene tolta (components/esp_wireguard) e la chiave e' controllata nel pannello (44 caratteri base64 con "=", nuova prova chiave_vpn_controllata).
+
+**Aggiornamenti:**
+- **Release difettosa reinstallata all'infinito**: una versione installata a mano e annullata dal bootloader veniva poi reinstallata dall'aggiornamento automatico in ciclo, ~2,3 MB ogni volta. Ora la versione dell'immagine e' FIRMWARE_VERSION (PROJECT_VER in CMakeLists.txt) e quella annullata si legge dall'immagine stessa, qualunque sia stato il modo di installarla. Ogni installazione azzera il ricordo dell'ultimo annullamento, e la conferma toglie la versione annotata.
+- **Ritorno alla versione precedente di un firmware senza rete**: "la rete c'era prima dell'aggiornamento" stava solo in memoria RTC, che si sposta quando una versione cambia le sue variabili. Allora il ritorno non scattava e una versione che rompe la rete veniva confermata. Ora l'informazione e' annotata in NVS al momento dell'installazione.
+- **Aggiornamento online**: si annulla se il file scaricato non e' una versione piu' nuova di quella in funzione. Manifesto e binario sono due file, e con un binario vecchio allegato per errore il ricevitore lo reinstallava a ogni controllo.
+- **Archivio sulla microSD**: la versione in funzione si archivia solo dopo la conferma. Prima una versione poi annullata poteva prendere il posto dell'ultima buona.
+
+**Licenza:**
+- La partizione della licenza illeggibile non viene piu' cancellata da sola: dentro ci sono la chiave del ricevitore e la licenza firmata, che per i ricevitori attivati dopo la 1.31 non hanno altra copia. Per quell'avvio si usa la NVS principale.
+
+**Correzioni e caster:**
+- **Cambi dal pannello applicati subito**: caster, porta, mountpoint, password o utente cambiati valevano solo alla caduta successiva, che con un flusso sano non arriva mai. Una base poteva continuare per giorni verso il caster vecchio. Ora base e rover si ricollegano subito. Sul rover con la scelta automatica attiva la mountpoint la gestisce come prima la scelta automatica.
+- **Rover con il caster che accetta e chiude, o con una base muta**: si ricollegava ogni 15-35 s, migliaia di volte al giorno sulla SIM. Ora l'attesa cresce fino a 2 minuti, come gia' per la base. I cambi di base voluti dalla scelta automatica restano a 15 s.
+- Scelta automatica spenta dal pannello: il rover passa subito alla mountpoint del campo, se e' diversa da quella in uso.
+
+**Avvisi:**
+- **"Caster ripristinato" mancante**: dopo il riavvio di sicurezza (caster giu' da 30 minuti) non arrivava mai, e il cliente pensava la base ancora ferma. Ora il ricordo dell'avviso mandato sopravvive al riavvio software.
+- **Piano dati della SIM**: l'avviso dell'80% si ripeteva a ogni riavvio dello stesso mese. Ora il mese avvisato e' in NVS.
+
+**Rete e modem:**
+- **"Connetti" a un WiFi dal pannello mentre la base e' sul 4G**: lo stato diventava WiFi mentre il traffico passava ancora dalla SIM, e il conto dei dati della SIM si fermava. Ora lo stato lo decide il gestore della rete.
+- I riavvii del modem tentati durante l'avvio, con il modem non ancora pronto, consumavano il turno di 10 minuti senza riavviare niente.
+- Ordine dei flag di inizializzazione del modem: chiusa una piccola finestra in cui un altro task poteva rifare l'inizializzazione.
+
+**Pannello:**
+- La password del caster o dell'email salvata non viene piu' mandata a un server diverso da quello salvato con le prove del pannello: per provare un altro server va scritta.
+- Indirizzo I2C del display limitato a 8-119 e diverso da 66 (0x42, il ricevitore u-blox). Oltre 127 l'indirizzo veniva troncato e il display scriveva sul ricevitore. Un valore sbagliato gia' salvato torna al predefinito all'avvio; dal pannello e' rifiutato con un messaggio.
+
+**Da sapere per l'aggiornamento alla 1.35.15**: per questo solo passaggio, se la nuova versione non trovasse la rete, il ritorno automatico alla precedente dopo 60 minuti potrebbe non scattare. La 1.35.13 non annota ancora la rete in NVS, e le variabili RTC cambiano. Dalle versioni successive vale l'annotazione in NVS. Il ritorno per crash o blocco non dipende da questo e funziona sempre.
+
+**Segnalati e non corretti in questa versione** (rischio basso, o servono decisioni o modifiche lato server):
+- salvando un caster o un server email diverso con la password lasciata vuota, la password salvata va al server nuovo: per le prove del pannello ora serve scriverla, per il salvataggio va deciso;
+- un orologio sbagliato nel futuro, salvato una volta, puo' far risultare scadute le funzioni a tempo della licenza;
+- l'esportazione della configurazione contiene le chiavi;
+- l'importazione non rifa' tutti i controlli del salvataggio;
+- un comando AT puo' entrare nel flusso PPP senza CMUX (SIM868);
+- la misura della base ripete se il salvataggio finale fallisce.
+
+Manuale aggiornato: Scheda Posizione (UART1 del modem).
+
 ## 1.35.13
 
 Correzioni da una revisione indipendente del codice della 1.35.8-1.35.11, e da una seconda revisione delle correzioni (23/10/2026). **La 1.35.11 va sostituita.** La 1.35.12 e' stata solo provata sulla base di prova: il suo contenuto e' compreso qui sotto.
