@@ -2239,7 +2239,7 @@ async function loadStatusOnce() {
         ethEl.style.color = '';
       }
     }
-    document.getElementById('st-ntrip-host').textContent = s.ntrip_host ? (s.ntrip_host + ':' + s.ntrip_port + '/' + ((s.active_device_mode === 'rover' ? s.rover_mountpoint : s.ntrip_mountpoint) || '')) : '-';
+    document.getElementById('st-ntrip-host').textContent = s.ntrip_host ? (s.ntrip_host + ':' + s.ntrip_port + '/' + ((s.active_device_mode === 'rover' ? roverMountInUse(s) : s.ntrip_mountpoint) || '')) : '-';
     const sdEl = document.getElementById('st-sd');
     if (!s.sd_checked) {
       sdEl.textContent = '⬜ non ancora controllata';
@@ -4677,13 +4677,20 @@ function basePositionState(s) {
   return 'bad';
 }
 let lastCardsHtml = '';
+// Mountpoint a cui il rover e' collegato davvero: con la scelta automatica
+// della base e' quella scelta (rover_base_in_use, da /api/signals), non
+// quella salvata nelle impostazioni, che resta solo la base iniziale.
+function roverMountInUse(s) {
+  return (lastSignals && lastSignals.rover_base_in_use) || s.rover_mountpoint;
+}
+
 function updateSummaryCards(s) {
   const box = document.getElementById('summary-cards');
   if (!box) return;
   const cards = [];
   // Caster
   if (s.ntrip_connected) {
-    const mp = activeDeviceMode === 'rover' ? s.rover_mountpoint : s.ntrip_mountpoint;
+    const mp = activeDeviceMode === 'rover' ? roverMountInUse(s) : s.ntrip_mountpoint;
     cards.push(sumCard('c', '📡 Caster', 'ok', 'Collegato', mp ? '/' + mp : '', 'page-status'));
   } else {
     cards.push(sumCard('c', '📡 Caster', 'bad', 'Scollegato', String(s.ntrip_last_error || '').slice(0, 60), 'page-gnss'));

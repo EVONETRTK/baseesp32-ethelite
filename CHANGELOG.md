@@ -8,6 +8,10 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.9
+
+- **Rover con la scelta automatica della base**: il riquadro Caster del riepilogo e la riga "Caster NTRIP configurato" della scheda Stato mostravano la mountpoint salvata nelle impostazioni (la base iniziale) invece di quella a cui il rover era collegato davvero. Esempio: collegato ad AGRI_MSM, la scheda Stato diceva un'altra base. Ora mostrano la base in uso (rover_base_in_use di /api/signals), come gia' facevano il riquadro sotto la casella e il display. Stesso errore corretto nello stato inviato al server remoto (remote_status.c). Manuale (Scheda Stato) aggiornato.
+
 ## 1.35.8
 
 - **Trovata davvero la causa del disturbo sulla seriale del modem** (1.35.5-1.35.7). La HAT dello ZED-F9P e' progettata per il Raspberry Pi e porta sul pin fisico 38 l'uscita RTK_STAT dello ZED. Questa uscita lampeggia a 1 Hz (500 ms bassa, 500 ms alta) quando il ricevitore usa le correzioni senza fix: RTK float o DGPS. Sulla T-ETH-Elite il pin 38 e' IO4, cioe' la linea dei dati dal modem all'ESP32: in rover, in float, ogni fronte diventava un "Rx Break" e il 4G si bloccava. In RTK fisso RTK_STAT resta bassa e la linea resterebbe ferma. Le prove sulla base di prova del 23/10/2026:

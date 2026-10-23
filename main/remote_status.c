@@ -8,6 +8,7 @@
 #include "time_sync.h"
 #include "version.h"
 #include "eth_link.h"
+#include "ntrip_rover_client.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -53,7 +54,13 @@ static char *build_json(const app_settings_t *cfg)
     ntrip_conn_status_t nt = status_ntrip_get();
     cJSON_AddBoolToObject(r, "caster_connected", nt.connected);
     cJSON_AddStringToObject(r, "caster_last_error", nt.last_error);
-    cJSON_AddStringToObject(r, "mountpoint", status_get_active_rover() ? cfg->rover_mountpoint : cfg->ntrip_mountpoint);
+    // Rover: la base in uso (con la scelta automatica non e' quella salvata).
+    ntrip_rover_auto_status_t ab = { 0 };
+    if (status_get_active_rover()) {
+        ntrip_rover_client_auto_status(&ab);
+    }
+    cJSON_AddStringToObject(r, "mountpoint", !status_get_active_rover() ? cfg->ntrip_mountpoint
+                                             : (ab.mountpoint[0] ? ab.mountpoint : cfg->rover_mountpoint));
 
     base_monitor_status_t bm = base_monitor_get_status();
     cJSON_AddNumberToObject(r, "position_age_s", bm.last_position_us > 0
