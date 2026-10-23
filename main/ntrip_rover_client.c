@@ -847,13 +847,17 @@ static bool auto_check(int64_t now)
         return false; // senza posizione resta la base iniziale
     }
     if (!s_auto.first) {
-        if (s_auto.last_check_us != 0 && now - s_auto.last_check_us < (int64_t) BASE_AUTO_CHECK_S * 1000000) {
+        // Base in uso esclusa perche' muta: si riprova a ogni giro (il fix
+        // puo' restare float per un po' con le ultime correzioni), non dopo
+        // 10 minuti.
+        bool banned = base_auto_banned(s_auto.bans, s_auto.current, now);
+        if (!banned && s_auto.last_check_us != 0 && now - s_auto.last_check_us < (int64_t) BASE_AUTO_CHECK_S * 1000000) {
             return false; // tabella letta da meno di 10 minuti
         }
         // In RTK o senza RTK da poco: niente cambio possibile, inutile
         // scaricare la tabella (traffico sulla SIM).
         if (s_auto.quality == GNSS_FIX_RTK_FIXED || s_auto.quality == GNSS_FIX_RTK_FLOAT ||
-            now - s_auto.last_rtk_us < (int64_t) BASE_AUTO_NO_RTK_S * 1000000) {
+            (!banned && now - s_auto.last_rtk_us < (int64_t) BASE_AUTO_NO_RTK_S * 1000000)) {
             return false;
         }
     }
@@ -899,8 +903,9 @@ static bool auto_check(int64_t now)
             ESP_LOGI(TAG, "Base automatica: %s -> %s (%.1f km, prima %.1f km)", s_auto.current, r.mountpoint,
                      r.nearest_km, r.current_km);
         } else {
-            ESP_LOGI(TAG, "Base automatica: %s -> %s (%.1f km; base precedente senza coordinate in tabella)",
-                     s_auto.current, r.mountpoint, r.nearest_km);
+            ESP_LOGI(TAG, "Base automatica: %s -> %s (%.1f km; base precedente %s)", s_auto.current, r.mountpoint,
+                     r.nearest_km, base_auto_banned(s_auto.bans, s_auto.current, now) ? "esclusa perche' muta"
+                                                                                     : "senza coordinate in tabella");
         }
         strlcpy(s_auto.current, r.mountpoint, sizeof(s_auto.current));
         auto_publish(true, &list[r.nearest]);
@@ -1039,19 +1044,32 @@ void ntrip_rover_client_task(void *arg)
         set_active_sock(-1);
         net_close_now(sock);
 
-        // Base scelta in automatico che accetta il collegamento ma non manda
-        // niente (spenta ma ancora in tabella): esclusa per un'ora e ripiego
-        // sulla base iniziale. La base iniziale non si esclude mai: e' la
-        // scelta dell'utente e il ripiego.
-        if (got_data || !s_auto.enabled || strcmp(s_auto.current, s_auto.fallback) == 0) {
+        // Base che accetta il collegamento ma non manda niente (spenta ma
+        // ancora in tabella): esclusa per un'ora (base_auto.c), anche se e'
+        // la base iniziale. Poi base iniziale, o la piu' vicina delle altre
+        // se la muta e' proprio la base iniziale. Con la scelta automatica
+        // spenta il rover resta sulla base impostata.
+        if (!s_auto.enabled) {
             s_auto.silent = 0;
-        } else if (++s_auto.silent >= BASE_AUTO_SILENT_SESSIONS) {
-            ESP_LOGW(TAG, "Base automatica: %s non manda dati (%d collegamenti), esclusa per %d min, ripiego su %s",
-                     s_auto.current, s_auto.silent, BASE_AUTO_BAN_S / 60, s_auto.fallback);
-            base_auto_ban_add(s_auto.bans, s_auto.current, esp_timer_get_time());
-            strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
-            s_auto.silent = 0;
-            auto_publish(false, NULL);
+        } else {
+            switch (base_auto_silent_session(s_auto.bans, &s_auto.silent, got_data, s_auto.current,
+                                             s_auto.fallback, esp_timer_get_time())) {
+            case BASE_AUTO_SILENT_FALLBACK:
+                ESP_LOGW(TAG, "Base automatica: %s non manda dati (%d collegamenti), esclusa per %d min, ripiego su %s",
+                         s_auto.current, BASE_AUTO_SILENT_SESSIONS, BASE_AUTO_BAN_S / 60, s_auto.fallback);
+                strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
+                auto_publish(false, NULL);
+                break;
+            case BASE_AUTO_SILENT_RECHOOSE:
+                ESP_LOGW(TAG, "Base automatica: %s non manda dati (%d collegamenti), esclusa per %d min, "
+                              "scelta della piu' vicina tra le altre",
+                         s_auto.current, BASE_AUTO_SILENT_SESSIONS, BASE_AUTO_BAN_S / 60);
+                s_auto.first = true; // tabella riletta subito al prossimo giro
+                s_auto.last_check_us = 0;
+                break;
+            default:
+                break;
+            }
         }
         // 2s era troppo poco: il caster rileva una connessione precedente
         // interrotta bruscamente solo dopo il proprio keepalive TCP (decine

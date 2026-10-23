@@ -88,6 +88,20 @@ typedef struct {
 void base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us);
 bool base_auto_banned(const base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us);
 
+// Fine di un collegamento con la scelta automatica attiva: conta i
+// collegamenti di fila senza un byte (*silent) e, al BASE_AUTO_SILENT_SESSIONS,
+// esclude la base in uso, anche se e' la base iniziale (fallback). Prima la
+// base iniziale non si escludeva mai: se era lei la muta il rover ci tornava
+// per sempre (collaudo del 23/10/2026, AGRI_MSM4 muta a 0,4 km).
+typedef enum {
+    BASE_AUTO_SILENT_KEEP,     // dati arrivati, o non ancora abbastanza collegamenti muti
+    BASE_AUTO_SILENT_FALLBACK, // esclusa: tornare alla base iniziale
+    BASE_AUTO_SILENT_RECHOOSE, // esclusa, e la base iniziale e' lei o e' esclusa: rifare la scelta tra le altre
+} base_auto_silent_t;
+
+base_auto_silent_t base_auto_silent_session(base_auto_ban_t bans[BASE_AUTO_BANS], int *silent, bool got_data,
+                                            const char *current, const char *fallback, int64_t now_us);
+
 // Come base_auto_choose, ma le basi escluse (bans, puo' essere NULL) non
 // sono candidate; se e' esclusa quella in uso si sceglie la piu' vicina
 // delle altre senza attese ne' isteresi (mai in RTK).

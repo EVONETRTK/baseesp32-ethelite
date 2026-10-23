@@ -8,6 +8,10 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.11
+
+- **Rover sempre scollegato dal caster con la base di partenza muta**. Collaudo del 23/10/2026: AGRI_MSM4, la base di partenza e anche la piu' vicina (0,4 km), era nella tabella del caster ma non mandava dati. Ogni 35 s il rover si collegava, restava 20 s senza un byte, chiudeva per timeout ("errno 11") e ripartiva, per sempre e senza correzioni. Collegato a puglia, attraverso lo stesso 4G, le correzioni arrivavano subito. Le basi mute venivano gia' escluse per un'ora (1.35.3), ma **mai la base di partenza**. Ora, con la scelta automatica attiva, si esclude anche lei (base_auto_silent_session in base_auto.c, nuova prova base_iniziale_muta_esclusa): si torna alla base di partenza se e' un'altra e funziona, altrimenti si rifa' subito la scelta tra le altre. Finche' la base in uso e' esclusa la tabella si ricontrolla a ogni giro e non dopo 10 minuti, perche' il fix puo' restare float per un po' con le ultime correzioni; il cambio resta vietato in RTK. Con la scelta automatica spenta il rover resta sulla base impostata. Manuale aggiornato: Scheda Posizione e correzioni.
+
 ## 1.35.9
 
 - **Rover con la scelta automatica della base**: il riquadro Caster del riepilogo e la riga "Caster NTRIP configurato" della scheda Stato mostravano la mountpoint salvata nelle impostazioni (la base iniziale) invece di quella a cui il rover era collegato davvero. Esempio: collegato ad AGRI_MSM, la scheda Stato diceva un'altra base. Ora mostrano la base in uso (rover_base_in_use di /api/signals), come gia' facevano il riquadro sotto la casella e il display. Stesso errore corretto nello stato inviato al server remoto (remote_status.c). Manuale (Scheda Stato) aggiornato.

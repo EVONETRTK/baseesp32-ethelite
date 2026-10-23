@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.35.9"
+#define FIRMWARE_VERSION "1.35.11"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Rover con la scelta automatica della base: la scheda Stato mostra la base in uso, non quella salvata."
+#define FIRMWARE_RELEASE_NOTES "Rover: se la base di partenza e' muta (nessuna correzione) si passa alla piu' vicina tra le altre invece di ricollegarsi per sempre."

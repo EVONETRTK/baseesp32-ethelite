@@ -60,6 +60,24 @@ void base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, i
     bans[slot].until_us = now_us + (int64_t) BASE_AUTO_BAN_S * 1000000;
 }
 
+base_auto_silent_t base_auto_silent_session(base_auto_ban_t bans[BASE_AUTO_BANS], int *silent, bool got_data,
+                                            const char *current, const char *fallback, int64_t now_us)
+{
+    if (got_data) {
+        *silent = 0;
+        return BASE_AUTO_SILENT_KEEP;
+    }
+    if (++*silent < BASE_AUTO_SILENT_SESSIONS) {
+        return BASE_AUTO_SILENT_KEEP;
+    }
+    *silent = 0;
+    base_auto_ban_add(bans, current, now_us);
+    if (strncmp(current, fallback, BASE_AUTO_NAME_LEN) != 0 && !base_auto_banned(bans, fallback, now_us)) {
+        return BASE_AUTO_SILENT_FALLBACK;
+    }
+    return BASE_AUTO_SILENT_RECHOOSE;
+}
+
 bool base_auto_banned(const base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us)
 {
     if (!bans || !name) {
