@@ -8,6 +8,26 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.23
+
+Altre prove di guasti simulati sulla base di prova (24/10/2026), con revisione indipendente. La 1.35.22 e' stata solo provata sulla base di prova.
+
+- **Base di partenza inesistente o rifiutata** (nome scritto male nel pannello, mountpoint chiusa), con la scelta automatica attiva. Il rover restava senza correzioni fino al controllo dei 10 minuti, per due motivi:
+  - la base di partenza rifiutata dal caster non veniva mai esclusa. Ora si esclude anche lei e si sceglie subito un'altra base;
+  - la prima scelta all'avvio era bloccata da "rover in RTK", ma quel float veniva dalle correzioni di prima del riavvio. Ora il divieto di cambiare base in RTK vale solo se la base in uso ha davvero mandato correzioni (got_from).
+
+  Provato: correzioni da puglia 77 s dopo l'avvio, prima fino a 10 minuti.
+- **401 (utente o password non accettati)** ora conta come rifiuto per l'account, come 429 e 402: nessuna base esclusa, solo attese crescenti. Con l'esclusione introdotta sopra, una password sbagliata avrebbe fatto escludere le basi una dopo l'altra, con un download della tabella e un accesso sbagliato ogni 2 minuti per sempre (trovato dalla revisione prima dell'installazione). Prova aggiornata in test_ntrip_reply.c.
+- Pannello: un JSON che non e' un oggetto (array, numero) veniva accettato con "ok" e provocava un salvataggio in flash inutile. Ora 400.
+- **Guasti simulati e superati**, senza modifiche:
+  - porta del caster sbagliata: tentativi via via piu' radi, ripresa in 1 s;
+  - scelta automatica spenta su una base muta: il rover resta dove l'ha messo l'utente, tentativi via via piu' radi;
+  - pannello maltrattato: JSON malformato, tipi sbagliati, campo lunghissimo, corpo da 200 KB, senza password, password sbagliata, origine estranea, 6 salvataggi insieme. Tutto rifiutato o gestito, impostazioni intatte;
+  - aggiornamento con un file spazzatura: rifiutato al primo controllo;
+  - aggiornamento interrotto a meta': annullato, la base resta sulla versione in funzione e il successivo va a buon fine.
+- Noto e non corretto: quando la base rifiuta un aggiornamento o un corpo troppo grande chiude il collegamento mentre il browser sta ancora inviando, e il pannello mostra un errore generico invece del messaggio.
+- **Correzione al manuale e al CHANGELOG della 1.35.21**: la caduta del WiFi con l'antenna LTE coperta e' stata vista una volta e **non si e' ripetuta** nella seconda prova. La prima volta girava la 1.35.19, con l'errore nel controllo del WiFi. Non e' dimostrato che il modem disturbi il WiFi; il consiglio di montare l'antenna LTE lontana dalla scheda resta una buona regola.
+
 ## 1.35.21
 
 Prove sul campo del 24/10/2026 sulla base di prova (rover, 4G con WiFi di riserva), con correzioni ricontrollate da una revisione indipendente. Le 1.35.18-1.35.20 sono state solo provate sulla base di prova; la 1.35.19 aveva un errore di memoria nella prova del router, corretto qui.

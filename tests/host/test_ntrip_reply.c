@@ -7,7 +7,7 @@
 // rifiuto passeggero, non deve escludere la base.
 PROVA(rifiuti_che_escludono_la_base)
 {
-    VERIFICA(ntrip_reply_refuses_mountpoint("HTTP/1.1 401 Unauthorized"));
+    VERIFICA(!ntrip_reply_refuses_mountpoint("HTTP/1.1 401 Unauthorized")); // account, non base
     VERIFICA(ntrip_reply_refuses_mountpoint("HTTP/1.0 403 Forbidden"));
     VERIFICA(ntrip_reply_refuses_mountpoint("HTTP/1.1 404 Not Found"));
     VERIFICA(ntrip_reply_refuses_mountpoint("SOURCETABLE 200 OK"));
@@ -28,7 +28,9 @@ PROVA(rifiuti_per_l_account)
     VERIFICA(ntrip_reply_account_level("HTTP/1.1 429 Too Many Requests"));
     VERIFICA(ntrip_reply_account_level("HTTP/1.1 402 Payment Required"));
     VERIFICA(!ntrip_reply_account_level("HTTP/1.1 503 Service Unavailable"));
-    VERIFICA(!ntrip_reply_account_level("HTTP/1.1 401 Unauthorized"));
+    // Password sbagliata: vale per tutte le basi, nessuna esclusione (revisione
+    // del 24/10/2026: escludeva le basi una dopo l'altra per sempre).
+    VERIFICA(ntrip_reply_account_level("HTTP/1.1 401 Unauthorized"));
     VERIFICA(!ntrip_reply_account_level(""));
     // Nomina la mountpoint ma e' un rifiuto per l'account: il rover controlla
     // prima questo e la base non viene esclusa.

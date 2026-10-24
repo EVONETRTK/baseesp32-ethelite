@@ -759,9 +759,20 @@ typedef struct {
     int quality;              // ultima qualita' della GGA (-1 nessun dato recente)
     base_auto_silent_ctr_t silent; // collegamenti di fila a current senza un byte
     base_auto_ban_t bans[BASE_AUTO_BANS]; // basi mute, escluse per un'ora
+    char got_from[33];        // ultima base che ha mandato correzioni (vuoto all'avvio)
 } rover_auto_t;
 
 static rover_auto_t s_auto = { .first = true, .quality = -1 };
+
+// Il fix RTK viene dalla base in uso? Solo se quella base ha mandato
+// correzioni: dopo un riavvio lo ZED resta in float con quelle di prima, e
+// il divieto di cambiare base "in RTK" bloccava la prima scelta anche con la
+// base in uso inesistente o muta (prova del 24/10/2026: rover senza
+// correzioni fino al controllo dei 10 minuti).
+static bool auto_current_delivered(void)
+{
+    return s_auto.got_from[0] != '\0' && strcmp(s_auto.got_from, s_auto.current) == 0;
+}
 
 static struct {
     bool enabled;
@@ -895,8 +906,9 @@ static bool auto_check(int64_t now)
         }
         // In RTK o senza RTK da poco: niente cambio possibile, inutile
         // scaricare la tabella (traffico sulla SIM).
-        if (s_auto.quality == GNSS_FIX_RTK_FIXED || s_auto.quality == GNSS_FIX_RTK_FLOAT ||
-            now - s_auto.last_rtk_us < (int64_t) BASE_AUTO_NO_RTK_S * 1000000) {
+        if (auto_current_delivered() &&
+            (s_auto.quality == GNSS_FIX_RTK_FIXED || s_auto.quality == GNSS_FIX_RTK_FLOAT ||
+             now - s_auto.last_rtk_us < (int64_t) BASE_AUTO_NO_RTK_S * 1000000)) {
             return false;
         }
     }
@@ -937,9 +949,12 @@ static bool auto_check(int64_t now)
         return false;
     }
 
-    uint32_t no_rtk_s = (uint32_t) ((now - s_auto.last_rtk_us) / 1000000);
+    // RTK che non viene dalla base in uso: come senza RTK (vedi sopra).
+    bool delivered = auto_current_delivered();
+    uint32_t no_rtk_s = delivered ? (uint32_t) ((now - s_auto.last_rtk_us) / 1000000) : UINT32_MAX;
     base_auto_result_t r = base_auto_choose_ex(list, n, s_auto.have_pos, s_auto.lat_deg, s_auto.lon_deg,
-                                               s_auto.current, s_auto.quality, no_rtk_s, first, s_auto.bans, now);
+                                               s_auto.current, delivered ? s_auto.quality : -1, no_rtk_s, first,
+                                               s_auto.bans, now);
     // Base in uso esclusa ma il fix e' ancora float con le ultime correzioni:
     // nuovo controllo tra un minuto invece che tra 10.
     if (!r.change && r.reason == BASE_AUTO_KEEP_RTK && base_auto_banned(s_auto.bans, s_auto.current, now)) {
@@ -1052,15 +1067,19 @@ void ntrip_rover_client_task(void *arg)
             if (give_up) {
                 rej_count = 0;
             }
-            if (s_auto.enabled && give_up && strcmp(s_auto.current, s_auto.fallback) != 0) {
+            // Anche la base di partenza, se rifiutata (nome sbagliato nel
+            // pannello, mountpoint chiusa): prima si riprovava solo lei fino al
+            // controllo dei 10 minuti (prova del 24/10/2026).
+            if (s_auto.enabled && give_up) {
                 base_auto_ban_add(s_auto.bans, s_auto.current, esp_timer_get_time());
-                if (!base_auto_banned(s_auto.bans, s_auto.fallback, esp_timer_get_time())) {
+                if (strcmp(s_auto.current, s_auto.fallback) != 0 &&
+                    !base_auto_banned(s_auto.bans, s_auto.fallback, esp_timer_get_time())) {
                     ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per 60 min, ripiego su %s",
                              s_auto.current, s_auto.fallback);
                     strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
                 } else {
-                    ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per 60 min; la base iniziale "
-                                  "e' esclusa anche lei: scelta tra le altre", s_auto.current);
+                    ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per 60 min; scelta tra le altre "
+                                  "(la base iniziale e' esclusa o e' lei)", s_auto.current);
                     s_auto.first = true;
                     s_auto.last_check_us = 0;
                 }
@@ -1097,6 +1116,9 @@ void ntrip_rover_client_task(void *arg)
         set_active_sock(sock);
         rej_count = 0; // collegamento riuscito: "3 di fila" riparte
         bool got_data = extra_len > 0;
+        if (got_data) {
+            strlcpy(s_auto.got_from, s_auto.current, sizeof(s_auto.got_from));
+        }
         bool cfg_changed = false;
         bool base_switched = false; // cambio di base voluto (scelta automatica): niente attesa crescente
         int64_t session_start_us = esp_timer_get_time();
@@ -1105,6 +1127,9 @@ void ntrip_rover_client_task(void *arg)
             sys_stats_heartbeat(HB_NTRIP);
             int n = recv(sock, net_buf, sizeof(net_buf), 0);
             if (n > 0) {
+                if (!got_data) {
+                    strlcpy(s_auto.got_from, s_auto.current, sizeof(s_auto.got_from));
+                }
                 got_data = true;
                 feed_rtcm(net_buf, n);
             } else if (n == 0) {
@@ -1151,6 +1176,11 @@ void ntrip_rover_client_task(void *arg)
             }
         }
 
+        // Base che in questa sessione non ha mandato niente: non conta piu'
+        // come "ha mandato correzioni" (auto_current_delivered).
+        if (!got_data && strcmp(s_auto.got_from, s_auto.current) == 0) {
+            s_auto.got_from[0] = 0;
+        }
         // Prima si toglie il socket a ntrip_rover_client_forward_gga() (che
         // invia tenendo il mutex), poi lo si chiude: cosi' un GGA non puo'
         // partire su un numero di socket gia' chiuso e magari riusato da

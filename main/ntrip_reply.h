@@ -34,9 +34,8 @@ static inline const char *ntrip_explain_reply(const char *resp, bool as_source)
     return NULL;
 }
 
-// Rifiuto che riguarda la mountpoint per questo account (401 utente o
-// password, 403 accesso negato, 404 o tabella delle sorgenti = mountpoint
-// inesistente): solo questo esclude per un'ora una base scelta in automatico
+// Rifiuto che riguarda la mountpoint (403 accesso negato, 404 o tabella delle
+// sorgenti = mountpoint inesistente, "Bad Mountpoint"): solo questo esclude per un'ora una base scelta in automatico
 // (ntrip_rover_client.c). "Troppe sessioni contemporanee" (429: la sessione
 // di prima di un riavvio ancora aperta sul caster), abbonamento scaduto (402)
 // e altro non dipendono dalla base: escluderla lasciava il rover su una base
@@ -47,7 +46,7 @@ static inline bool ntrip_reply_refuses_mountpoint(const char *resp)
         return true;
     }
     const char *sp = strchr(resp, ' ');
-    if (sp && (strncmp(sp + 1, "401", 3) == 0 || strncmp(sp + 1, "403", 3) == 0 || strncmp(sp + 1, "404", 3) == 0)) {
+    if (sp && (strncmp(sp + 1, "403", 3) == 0 || strncmp(sp + 1, "404", 3) == 0)) {
         return true;
     }
     // NTRIP 1: "ERROR - Bad Mountpoint" e simili (maiuscole o no).
@@ -66,10 +65,13 @@ static inline bool ntrip_reply_refuses_mountpoint(const char *resp)
     return false;
 }
 
-// Rifiuto che dipende dall'account e non dalla base (429 troppe sessioni,
-// 402 abbonamento): mai contato contro la base scelta.
+// Rifiuto che dipende dall'account e non dalla base (401 utente o password,
+// 429 troppe sessioni, 402 abbonamento): mai contato contro la base scelta.
+// 401 qui e non tra i rifiuti della mountpoint: con una password sbagliata il
+// rover escludeva le basi una dopo l'altra, con un download della tabella e un
+// accesso sbagliato ogni 2 minuti per sempre (revisione del 24/10/2026).
 static inline bool ntrip_reply_account_level(const char *resp)
 {
     const char *sp = strchr(resp, ' ');
-    return sp && (strncmp(sp + 1, "429", 3) == 0 || strncmp(sp + 1, "402", 3) == 0);
+    return sp && (strncmp(sp + 1, "401", 3) == 0 || strncmp(sp + 1, "429", 3) == 0 || strncmp(sp + 1, "402", 3) == 0);
 }

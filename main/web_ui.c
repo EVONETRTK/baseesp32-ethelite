@@ -1865,7 +1865,10 @@ static esp_err_t settings_post_handler(httpd_req_t *req)
 
     cJSON *root = cJSON_Parse(buf);
     free(buf);
-    if (!root) {
+    // Solo un oggetto: un array o un numero passavano con "ok" e provocavano
+    // un salvataggio in flash senza cambiare niente (prova del 24/10/2026).
+    if (!root || !cJSON_IsObject(root)) {
+        cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON non valido");
         return ESP_FAIL;
     }
