@@ -5,6 +5,7 @@
 #include "net_util.h"
 #include "sys_stats.h"
 #include "esp_timer.h"
+#include "esp_system.h"
 #include "rtcm3_stats.h"
 #include "data_usage.h"
 #include "ntrip_reply.h"
@@ -152,6 +153,8 @@ static bool reply_is_ok(const char *resp)
            strncmp(resp, "HTTP/1.0 200", 12) == 0;
 }
 
+
+
 static void apply_data_socket_options(int sock)
 {
     // Timeout di ricezione sul socket dati: senza, se la connessione si
@@ -181,10 +184,13 @@ static void apply_data_socket_options(int sock)
 // NTRIP 2.0/HTTP ("HTTP/1.1 200 OK") - va verificato quale usa realmente
 // il caster EVONETRTK. I dati RTCM arrivati insieme alla risposta finiscono
 // in extra (da girare al ricevitore come il resto del flusso).
-// Socket collegato, oppure NTRIP_CONNECT_FAILED (rete, DNS, nessuna
-// risposta) o NTRIP_CONNECT_REFUSED (il caster ha risposto e rifiutato).
-#define NTRIP_CONNECT_FAILED  (-1)
-#define NTRIP_CONNECT_REFUSED (-2)
+// Socket collegato, oppure NTRIP_CONNECT_FAILED (rete, DNS, o rifiuto per
+// l'account: troppe sessioni, abbonamento), NTRIP_CONNECT_REFUSED (il caster
+// ha rifiutato la mountpoint) o NTRIP_CONNECT_REJECTED (caster raggiunto ma
+// risposta d'errore o nessuna risposta: 5xx, chiusura subito).
+#define NTRIP_CONNECT_FAILED   (-1)
+#define NTRIP_CONNECT_REFUSED  (-2)
+#define NTRIP_CONNECT_REJECTED (-3)
 static int ntrip_rover_connect(const app_settings_t *settings, uint8_t *extra, size_t extra_size, size_t *extra_len)
 {
     *extra_len = 0;
@@ -249,7 +255,7 @@ static int ntrip_rover_connect(const app_settings_t *settings, uint8_t *extra, s
         ESP_LOGE(TAG, "Nessuna risposta dal caster");
         net_close_now(sock);
         status_ntrip_note_disconnected("Nessuna risposta dal caster");
-        return -1;
+        return NTRIP_CONNECT_REJECTED;
     }
     if (r < 0) {
         net_close_now(sock);
@@ -269,7 +275,10 @@ static int ntrip_rover_connect(const app_settings_t *settings, uint8_t *extra, s
         snprintf(msg, sizeof(msg), "Caster ha rifiutato: %.150s", why ? why : resp);
         ESP_LOGE(TAG, "%s", msg);
         status_ntrip_note_disconnected(msg);
-        return NTRIP_CONNECT_REFUSED;
+        // Prima i rifiuti per l'account (429, 402): anche se il testo nomina la
+        // mountpoint, non escludono la base.
+        return ntrip_reply_account_level(resp) ? NTRIP_CONNECT_FAILED
+               : (ntrip_reply_refuses_mountpoint(resp) ? NTRIP_CONNECT_REFUSED : NTRIP_CONNECT_REJECTED);
     }
 
     ESP_LOGI(TAG, "Rover connesso al caster %s:%d mountpoint /%s",
@@ -567,6 +576,29 @@ static void set_active_sock(int sock)
     s_last_gga_us = 0; // nuovo collegamento: il primo GGA parte subito
     s_sock = sock;
     xSemaphoreGive(s_sock_mutex);
+}
+
+// Chiamata da esp_restart(), come quella della base (ntrip_client.c): chiude
+// il collegamento al caster con un reset, prima dello stop di WiFi e 4G.
+// Senza, il caster teneva aperta la sessione di prima del riavvio e
+// rifiutava il rover per "troppe sessioni contemporanee per questo
+// abbonamento" (prova di riavvii ravvicinati del 24/10/2026).
+static void ntrip_rover_client_shutdown(void)
+{
+    if (!s_sock_mutex || xSemaphoreTake(s_sock_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        return;
+    }
+    int sock = s_sock;
+    s_sock = -1; // niente piu' GGA su questo socket
+    xSemaphoreGive(s_sock_mutex);
+    if (sock >= 0) {
+        // Chiusura segnalata al caster senza liberare il numero del socket:
+        // lo chiude il task del rover quando la recv() fallisce (prima lo
+        // chiudevano tutti e due, e nei 150 ms quel numero poteva gia'
+        // essere di un altro socket).
+        shutdown(sock, SHUT_RDWR);
+        vTaskDelay(pdMS_TO_TICKS(150));
+    }
 }
 
 // --- Verifica della base (base_check.c) -----------------------------------
@@ -941,6 +973,11 @@ static bool auto_check(int64_t now)
 // Copia delle impostazioni del task: statica, non sullo stack (oltre 2 KB).
 static app_settings_t s_task_cfg;
 
+// Risposte d'errore di fila dalla stessa base scelta in automatico (vedi il
+// ripiego dopo un collegamento fallito): azzerate da un collegamento riuscito.
+static char rej_name[BASE_AUTO_NAME_LEN];
+static int rej_count;
+
 // Caster, porta, utente o password (e mountpoint, con la scelta automatica
 // spenta) diversi da quelli della sessione aperta: prima valevano solo alla
 // prossima caduta, che con un flusso sano non arriva mai (revisione del
@@ -974,6 +1011,7 @@ void ntrip_rover_client_task(void *arg)
         s_chk_mutex = xSemaphoreCreateMutex();
         rtcm3_1005_init();
     }
+    esp_register_shutdown_handler(ntrip_rover_client_shutdown);
 
     while (1) {
         sys_stats_heartbeat(HB_NTRIP);
@@ -997,21 +1035,35 @@ void ntrip_rover_client_task(void *arg)
         size_t extra_len = 0;
         int sock = ntrip_rover_connect(&s_task_cfg, net_buf, sizeof(net_buf), &extra_len);
         if (sock < 0) {
-            if (s_auto.enabled && strcmp(s_auto.current, s_auto.fallback) != 0) {
-                // La base scelta non risponde o rifiuta: ritorno alla base
-                // iniziale. Se il caster ha risposto e rifiutato (la tabella
-                // elenca anche mountpoint non concessi all'account) la base
-                // e' esclusa per un'ora, cosi' il controllo successivo non la
-                // riprova: un caster vero puo' bloccare chi sbaglia l'accesso
-                // di continuo. Un errore di rete (DNS, WiFi caduto, 4G che
-                // cambia cella) non esclude niente.
-                bool refused = sock == NTRIP_CONNECT_REFUSED;
-                ESP_LOGW(TAG, "Base automatica: collegamento a %s %s, ripiego su %s", s_auto.current,
-                         refused ? "rifiutato dal caster, esclusa per 60 min" : "fallito (rete)", s_auto.fallback);
-                if (refused) {
-                    base_auto_ban_add(s_auto.bans, s_auto.current, esp_timer_get_time());
+            // Solo se il caster ha rifiutato la mountpoint (la tabella elenca
+            // anche mountpoint non concessi all'account): esclusa per un'ora
+            // e altra base. Un errore di rete o un rifiuto passeggero non
+            // cambiano base: prima si tornava alla base iniziale anche se era
+            // gia' esclusa perche' muta, e li' il rover restava fino a 10
+            // minuti senza correzioni (prova del 24/10/2026).
+            // Risposte d'errore ripetute (5xx, chiusura subito) da una base scelta
+            // in automatico: dopo 3 di fila come un rifiuto. Prima il rover
+            // poteva restarci per sempre, scelta di nuovo a ogni controllo.
+            if (strncmp(rej_name, s_auto.current, sizeof(rej_name)) != 0) {
+                strlcpy(rej_name, s_auto.current, sizeof(rej_name));
+                rej_count = 0;
+            }
+            bool give_up = sock == NTRIP_CONNECT_REFUSED || (sock == NTRIP_CONNECT_REJECTED && ++rej_count >= 3);
+            if (give_up) {
+                rej_count = 0;
+            }
+            if (s_auto.enabled && give_up && strcmp(s_auto.current, s_auto.fallback) != 0) {
+                base_auto_ban_add(s_auto.bans, s_auto.current, esp_timer_get_time());
+                if (!base_auto_banned(s_auto.bans, s_auto.fallback, esp_timer_get_time())) {
+                    ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per 60 min, ripiego su %s",
+                             s_auto.current, s_auto.fallback);
+                    strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
+                } else {
+                    ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per 60 min; la base iniziale "
+                                  "e' esclusa anche lei: scelta tra le altre", s_auto.current);
+                    s_auto.first = true;
+                    s_auto.last_check_us = 0;
                 }
-                strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
                 auto_publish(false, NULL);
             }
             // Attesa crescente (5, 10, 20... fino a 120 s): con password o
@@ -1043,6 +1095,7 @@ void ntrip_rover_client_task(void *arg)
         }
 
         set_active_sock(sock);
+        rej_count = 0; // collegamento riuscito: "3 di fila" riparte
         bool got_data = extra_len > 0;
         bool cfg_changed = false;
         bool base_switched = false; // cambio di base voluto (scelta automatica): niente attesa crescente

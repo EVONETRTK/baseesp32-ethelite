@@ -26,6 +26,7 @@ static int g_aperti;
 int socket(int domain, int type, int protocol) { (void) domain; (void) type; (void) protocol; g_aperti++; return 7; }
 int connect(int s, const struct sockaddr *addr, socklen_t len) { (void) s; (void) addr; (void) len; return 0; }
 int setsockopt(int s, int level, int name, const void *val, socklen_t len) { (void) s; (void) level; (void) name; (void) val; (void) len; return 0; }
+int shutdown(int s, int how) { (void) s; (void) how; return 0; }
 int getsockopt(int s, int level, int name, void *val, socklen_t *len)
 {
     (void) s; (void) level; (void) name; (void) len;

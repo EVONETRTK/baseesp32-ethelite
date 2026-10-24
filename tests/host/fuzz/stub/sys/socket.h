@@ -25,3 +25,5 @@ int setsockopt(int s, int level, int name, const void *val, socklen_t len);
 int getsockopt(int s, int level, int name, void *val, socklen_t *len);
 int send(int s, const void *data, size_t len, int flags);
 int recv(int s, void *mem, size_t len, int flags);
+#define SHUT_RDWR 2
+int shutdown(int s, int how);

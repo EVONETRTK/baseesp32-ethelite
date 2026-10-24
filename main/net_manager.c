@@ -306,6 +306,64 @@ static void net_manager_task(void *arg)
         settings_peek(peek_network_mode, &settings.network_mode);
         int64_t now_us = esp_timer_get_time();
 
+        // WiFi di riserva collegato ma inutilizzabile: con il 4G in uso nessuno
+        // lo controllava, e nella prova sul campo del 24/10/2026 il pannello e'
+        // rimasto irraggiungibile dalla rete locale per 2 ore e mezza (fino al
+        // 75% di pacchetti persi, e il router che lo scollegava ogni 10 minuti).
+        // Ogni 2 minuti 8 ping al router dal WiFi: un controllo e' "cattivo" se
+        // ne torna meno della meta', o se dal controllo prima il WiFi e' caduto.
+        // Dopo 3 controlli cattivi (non per forza di fila: si azzera solo con
+        // uno buono) la radio si spegne e si riaccende. Solo se il router ha
+        // risposto almeno una volta da questo avvio (router che non rispondono
+        // mai al ping), mai con qualcuno collegato alla rete di setup, e con
+        // attese crescenti: 10 minuti, poi 20, 40... fino a 6 ore. Con il WiFi
+        // in uso lo copre gia' il controllo di Internet (net_check).
+        {
+            static int64_t gw_next_us;
+            static int64_t gw_restart_us;
+            static int64_t gw_wait_us = 10LL * 60 * 1000000;
+            static int gw_bad;
+            static uint32_t gw_disc;
+            bool backup = active != LINK_WIFI && settings.network_mode != NETWORK_MODE_CELLULAR_ONLY &&
+                          settings.network_mode != NETWORK_MODE_ETHERNET_ONLY;
+            if (!backup || web_ui_wifi_test_in_progress()) {
+                gw_bad = 0;
+                gw_disc = wifi_link_sta_disconnects();
+            } else if (now_us >= gw_next_us) {
+                gw_next_us = now_us + 2LL * 60 * 1000000;
+                uint32_t disc = wifi_link_sta_disconnects();
+                // Caduto e ricollegato dal controllo prima (il sintomo sul campo);
+                // un WiFi che resta giu' (router spento) non conta.
+                bool fell = disc != gw_disc && wifi_link_is_connected();
+                gw_disc = disc;
+                int pct = wifi_link_is_connected() ? wifi_link_gateway_reply_pct() : -1;
+                if (pct >= 50 && !fell) {
+                    gw_bad = 0;
+                    gw_wait_us = 10LL * 60 * 1000000;
+                } else if (pct >= 0 || fell) {
+                    gw_bad++;
+                    ESP_LOGW(TAG, "WiFi di riserva: router %d%% dei ping%s (controllo cattivo %d/3)", pct < 0 ? 0 : pct,
+                             fell ? ", WiFi caduto dal controllo prima" : "", gw_bad);
+                }
+                now_us = esp_timer_get_time();
+                if (gw_bad >= 3 && wifi_link_gateway_ever_ok() && wifi_link_ap_clients() == 0 &&
+                    (gw_restart_us == 0 || now_us - gw_restart_us > gw_wait_us)) {
+                    if (gw_restart_us != 0) {
+                        gw_wait_us = gw_wait_us * 2 > 6LL * 3600 * 1000000 ? 6LL * 3600 * 1000000 : gw_wait_us * 2;
+                    }
+                    ESP_LOGW(TAG, "WiFi di riserva inutilizzabile: spengo e riaccendo la radio (prossimo non prima di %lld min)",
+                             (long long) (gw_wait_us / 60000000));
+                    gw_bad = 0;
+                    gw_restart_us = now_us;
+                    sys_stats_heartbeat(HB_NET);
+                    wifi_link_restart_radio();
+                    cf_wifi_retry_us = 0; // "4G con WiFi di riserva": ricollegamento subito
+                    gw_disc = wifi_link_sta_disconnects();
+                    now_us = esp_timer_get_time();
+                }
+            }
+        }
+
         // Modem muto da 10 minuti con il 4G non in uso e WiFi o cavo
         // funzionanti: prima il recupero partiva solo da un collegamento 4G
         // fallito, e in "WiFi + cellulare" un modem spento restava spento per

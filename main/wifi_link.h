@@ -42,6 +42,17 @@ void wifi_link_disconnect(void);
 
 bool wifi_link_is_connected(void);
 
+// Percentuale di ping al router tornati sul WiFi (0-100), -1 se non c'e'
+// niente da misurare o la misura non e' riuscita. Blocca fino a ~10 s.
+int wifi_link_gateway_reply_pct(void);
+// Cadute della STA da questo avvio (anche quelle decise dal router).
+uint32_t wifi_link_sta_disconnects(void);
+// Il router ha risposto almeno una volta da questo avvio (router che non
+// rispondono mai al ping: niente riavvii della radio).
+bool wifi_link_gateway_ever_ok(void);
+// Spegne e riaccende la radio WiFi; la STA la ricollega net_manager.
+void wifi_link_restart_radio(void);
+
 // Dispositivi collegati in questo momento alla rete di setup (AP).
 int wifi_link_ap_clients(void);
 

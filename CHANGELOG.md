@@ -8,6 +8,24 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.21
+
+Prove sul campo del 24/10/2026 sulla base di prova (rover, 4G con WiFi di riserva), con correzioni ricontrollate da una revisione indipendente. Le 1.35.18-1.35.20 sono state solo provate sulla base di prova; la 1.35.19 aveva un errore di memoria nella prova del router, corretto qui.
+
+- **Riavvii ravvicinati**: dopo un riavvio il caster rifiutava il rover per "troppe sessioni contemporanee per questo abbonamento", perche' la sessione di prima restava aperta. La base chiudeva gia' il suo collegamento prima di riavviarsi, il rover no. Ora anche il rover lo chiude (gestore di spegnimento: shutdown del socket, che poi chiude il suo task). Provato: caster in 3 s dopo tre riavvii di fila, prima 20 s.
+- **Rover e rete che cade**: un errore di rete o un rifiuto passeggero facevano tornare il rover alla base di partenza, anche se era esclusa perche' muta. Li' restava fino a 10 minuti senza correzioni. Ora un errore di rete non cambia base. Provato: caster irraggiungibile per 1,5 minuti, il rover resta su puglia e si ricollega in 2 s.
+- **Quali rifiuti escludono una base scelta in automatico** (ntrip_reply.h, prove in test_ntrip_reply.c):
+  - escludono per un'ora: 401, 403, 404, tabella delle sorgenti, "Bad Mountpoint" (NTRIP 1);
+  - non escludono mai, perche' dipendono dall'account: 429 troppe sessioni, 402 abbonamento;
+  - altre risposte d'errore (5xx) o nessuna risposta: dopo 3 di fila sulla stessa base, come un rifiuto. Il conto riparte dopo un collegamento riuscito.
+- **WiFi di riserva collegato ma inutilizzabile**. In una prova, dopo un avvio con la corrente a scatti, il WiFi e' rimasto 2 ore e mezza "collegato" ma senza traffico: fino al 75% dei pacchetti persi, driver senza buffer ("m f null"), e il router lo scollegava ogni 10 minuti. La base intanto lavorava sul 4G, ma il pannello non si apriva dalla rete locale. Non si e' ripetuto in altre quattro prove. Con l'antenna LTE coperta di stagnola il WiFi e' caduto, mentre 4G e correzioni continuavano: il modem, con poco segnale, trasmette al massimo in banda 7 (2,6 GHz) accanto al WiFi. Ora, con il WiFi di riserva collegato:
+  - ogni 2 minuti 8 ping al router dal WiFi (wifi_link_gateway_reply_pct, contesto statico: nella 1.35.19 era sullo stack e veniva scritto dopo il ritorno);
+  - un controllo e' cattivo se tornano meno della meta' dei ping, o se il WiFi e' caduto e si e' ricollegato dal controllo prima;
+  - dopo 3 controlli cattivi la radio WiFi si spegne e si riaccende. Solo se il router ha risposto almeno una volta da questo avvio (router che non rispondono al ping), mai con qualcuno sulla rete di setup, e con attese crescenti da 10 minuti a 6 ore.
+- Manuale aggiornato:
+  - Hardware e installazione della base: antenna LTE ad almeno 30-50 cm dalla scheda;
+  - Problemi tecnici: WiFi che non funziona con la base sul 4G.
+
 ## 1.35.17
 
 La 1.35.16 e' stata solo provata sulla base di prova; queste correzioni vengono anche dalla sua revisione indipendente.

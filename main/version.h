@@ -5,10 +5,10 @@
 // corrispondente in CHANGELOG.md. Mostrata nella UI web (scheda Stato) e
 // loggata all'avvio - indipendente dalla versione ESP-IDF/git-describe
 // che compare comunque nel log di boot.
-#define FIRMWARE_VERSION "1.35.17"
+#define FIRMWARE_VERSION "1.35.21"
 
 // Riassunto breve di questa versione (stessa frase della riga corrispondente
 // in CHANGELOG.md, accorciata) - mostrato nella pagina Firmware cosi' chi
 // aggiorna sa cosa cambia senza dover andare su GitHub. Da aggiornare ad
 // ogni bump di FIRMWARE_VERSION assieme al changelog.
-#define FIRMWARE_RELEASE_NOTES "Prova di velocita' della connessione nella scheda SIM; 4G subito dopo un riavvio; survey-in che si chiude anche con segnali deboli."
+#define FIRMWARE_RELEASE_NOTES "Prove sul campo: ripresa piu' rapida dopo i riavvii, rover che resta sulla base buona, WiFi di riserva controllato e riavviato se non funziona."

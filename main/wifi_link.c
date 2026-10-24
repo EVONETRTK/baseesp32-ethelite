@@ -14,6 +14,7 @@
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_event.h"
+#include "ping/ping_sock.h"
 
 static const char *TAG = "wifi_link";
 
@@ -40,6 +41,12 @@ static SemaphoreHandle_t s_wifi_mutex;
 // Dispositivi collegati alla rete di setup (AP): senza nessuno, le frasi NMEA
 // in UDP non si trasmettono anche li' (nmea_udp_broadcast.c).
 static volatile int s_ap_clients;
+static volatile uint32_t s_sta_disconnects; // cadute della STA da questo avvio
+
+uint32_t wifi_link_sta_disconnects(void)
+{
+    return s_sta_disconnects;
+}
 
 int wifi_link_ap_clients(void)
 {
@@ -52,6 +59,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         wifi_event_sta_disconnected_t *disc = (wifi_event_sta_disconnected_t *) event_data;
         ESP_LOGW(TAG, "STA disconnessa, motivo=%d", disc ? disc->reason : -1);
+        if (s_connected) {
+            s_sta_disconnects++; // solo cadute da collegato, non tentativi falliti
+        }
         s_connected = false;
         xEventGroupClearBits(s_events, WIFI_CONNECTED_BIT);
         // Il ritentativo e' compito di net_manager_task (poll ogni 3s +
@@ -236,14 +246,123 @@ void wifi_link_disconnect(void)
     // Sotto lo stesso lock dei tentativi di connessione: prima net_manager
     // poteva scollegare la STA nel mezzo di un "Connetti" dal pannello.
     xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
+    s_connected = false; // prima: la caduta voluta non conta come guasto
     esp_wifi_disconnect();
-    s_connected = false;
     xSemaphoreGive(s_wifi_mutex);
 }
 
 bool wifi_link_is_connected(void)
 {
     return s_connected;
+}
+
+// --- WiFi collegato ma inutilizzabile ---------------------------------------
+// Prova sul campo del 24/10/2026: dopo un avvio con l'alimentazione a scatti
+// il WiFi restava "collegato" ma perdeva fino al 75% dei pacchetti (driver
+// senza buffer, "m f null"; il router lo scollegava ogni 10 minuti e lui si
+// ricollegava subito) per 2 ore e mezza, finche' un riavvio non l'ha
+// sistemato. Con il 4G in uso nessuno se ne accorgeva: pannello irraggiungibile
+// dalla rete locale. Controllo: quanti ping al router (gateway) tornano sul WiFi.
+
+#define GW_PINGS 8
+
+// Contesto statico, mai liberato: con esp_ping la sessione finisce in modo
+// asincrono e i callback arrivano anche dopo l'attesa qui sotto. Un contesto
+// sullo stack (prima versione, mai pubblicata) veniva scritto dopo il ritorno
+// della funzione. Una sola sessione alla volta (s_gw.busy).
+static struct {
+    SemaphoreHandle_t done;
+    volatile int ok;
+    volatile bool busy;
+    bool ever_ok; // il router ha risposto almeno una volta da questo avvio
+} s_gw;
+
+static void gw_ping_success(esp_ping_handle_t h, void *arg)
+{
+    (void) h;
+    (void) arg;
+    s_gw.ok++;
+}
+
+static void gw_ping_end(esp_ping_handle_t h, void *arg)
+{
+    (void) arg;
+    esp_ping_delete_session(h);
+    xSemaphoreGive(s_gw.done); // prima del busy: chi parte dopo trova il segnale da scartare
+    s_gw.busy = false;
+}
+
+int wifi_link_gateway_reply_pct(void)
+{
+    if (!s_inited || !s_connected || !s_sta_netif) {
+        return -1; // niente da misurare
+    }
+    if (s_gw.busy) {
+        ESP_LOGW(TAG, "Prova del router saltata: la precedente non e' ancora finita");
+        return -1;
+    }
+    esp_netif_ip_info_t ip;
+    if (esp_netif_get_ip_info(s_sta_netif, &ip) != ESP_OK || ip.gw.addr == 0) {
+        return -1;
+    }
+    if (!s_gw.done) {
+        s_gw.done = xSemaphoreCreateBinary();
+        if (!s_gw.done) {
+            return -1;
+        }
+    }
+    xSemaphoreTake(s_gw.done, 0); // un segnale rimasto da una sessione scaduta
+    esp_ping_config_t cfg = ESP_PING_DEFAULT_CONFIG();
+    cfg.target_addr.type = IPADDR_TYPE_V4;
+    cfg.target_addr.u_addr.ip4.addr = ip.gw.addr;
+    cfg.count = GW_PINGS;
+    cfg.interval_ms = 200;
+    cfg.timeout_ms = 800;
+    cfg.task_stack_size = 2560;
+    cfg.interface = esp_netif_get_netif_impl_index(s_sta_netif); // proprio dal WiFi, non dal 4G
+    esp_ping_callbacks_t cbs = { .cb_args = NULL, .on_ping_success = gw_ping_success, .on_ping_end = gw_ping_end };
+    esp_ping_handle_t h = NULL;
+    s_gw.ok = 0;
+    if (esp_ping_new_session(&cfg, &cbs, &h) != ESP_OK) {
+        return -1;
+    }
+    s_gw.busy = true;
+    esp_ping_start(h);
+    // ~8 ping in ~2-8 s. Se non finisce in 10 s non si aspetta oltre: la
+    // sessione si chiude da sola (gw_ping_end) e fino ad allora nessuna nuova.
+    if (xSemaphoreTake(s_gw.done, pdMS_TO_TICKS(10000)) != pdTRUE) {
+        return -1;
+    }
+    int pct = s_gw.ok * 100 / GW_PINGS;
+    if (pct > 0) {
+        s_gw.ever_ok = true;
+    }
+    return pct;
+}
+
+bool wifi_link_gateway_ever_ok(void)
+{
+    return s_gw.ever_ok;
+}
+
+void wifi_link_restart_radio(void)
+{
+    if (!s_inited) {
+        return;
+    }
+    xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
+    ESP_LOGW(TAG, "Radio WiFi spenta e riaccesa (collegata ma inutilizzabile)");
+    s_connected = false; // prima: la caduta voluta non conta come guasto
+    esp_wifi_disconnect();
+    xEventGroupClearBits(s_events, WIFI_CONNECTED_BIT);
+    // Nessun ricalcolo della calibrazione: a meta' accensione l'ESP-IDF non
+    // ricalibra la radio (solo una volta per avvio). Serve il riavvio del
+    // driver: buffer, associazione, stato della radio.
+    esp_wifi_stop();
+    esp_wifi_start();
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    xSemaphoreGive(s_wifi_mutex);
+    // La STA la ricollega net_manager, come dopo ogni caduta.
 }
 
 esp_netif_t *wifi_link_get_sta_netif(void)

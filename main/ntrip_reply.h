@@ -33,3 +33,43 @@ static inline const char *ntrip_explain_reply(const char *resp, bool as_source)
     }
     return NULL;
 }
+
+// Rifiuto che riguarda la mountpoint per questo account (401 utente o
+// password, 403 accesso negato, 404 o tabella delle sorgenti = mountpoint
+// inesistente): solo questo esclude per un'ora una base scelta in automatico
+// (ntrip_rover_client.c). "Troppe sessioni contemporanee" (429: la sessione
+// di prima di un riavvio ancora aperta sul caster), abbonamento scaduto (402)
+// e altro non dipendono dalla base: escluderla lasciava il rover su una base
+// peggiore (prova del 24/10/2026). resp = prima riga della risposta.
+static inline bool ntrip_reply_refuses_mountpoint(const char *resp)
+{
+    if (strncmp(resp, "SOURCETABLE", 11) == 0) {
+        return true;
+    }
+    const char *sp = strchr(resp, ' ');
+    if (sp && (strncmp(sp + 1, "401", 3) == 0 || strncmp(sp + 1, "403", 3) == 0 || strncmp(sp + 1, "404", 3) == 0)) {
+        return true;
+    }
+    // NTRIP 1: "ERROR - Bad Mountpoint" e simili (maiuscole o no).
+    for (const char *p = resp; *p; p++) {
+        static const char *const w[] = { "mountpoint", "mount point" };
+        for (int k = 0; k < 2; k++) {
+            size_t i = 0;
+            while (w[k][i] && p[i] && (p[i] | 0x20) == w[k][i]) {
+                i++;
+            }
+            if (w[k][i] == '\0') {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Rifiuto che dipende dall'account e non dalla base (429 troppe sessioni,
+// 402 abbonamento): mai contato contro la base scelta.
+static inline bool ntrip_reply_account_level(const char *resp)
+{
+    const char *sp = strchr(resp, ' ');
+    return sp && (strncmp(sp + 1, "429", 3) == 0 || strncmp(sp + 1, "402", 3) == 0);
+}
