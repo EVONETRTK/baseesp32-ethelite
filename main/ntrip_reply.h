@@ -35,7 +35,7 @@ static inline const char *ntrip_explain_reply(const char *resp, bool as_source)
 }
 
 // Rifiuto che riguarda la mountpoint (403 accesso negato, 404 o tabella delle
-// sorgenti = mountpoint inesistente, "Bad Mountpoint"): solo questo esclude per un'ora una base scelta in automatico
+// sorgenti = mountpoint inesistente, "Bad Mountpoint"): solo questo esclude per 1-4 ore una base scelta in automatico
 // (ntrip_rover_client.c). "Troppe sessioni contemporanee" (429: la sessione
 // di prima di un riavvio ancora aperta sul caster), abbonamento scaduto (402)
 // e altro non dipendono dalla base: escluderla lasciava il rover su una base

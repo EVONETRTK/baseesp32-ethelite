@@ -75,22 +75,36 @@ base_auto_result_t base_auto_choose(const base_auto_entry_t *list, size_t count,
 // il rover restava per sempre sulla base piu' vicina senza correzioni anche
 // con la base iniziale funzionante (collaudo del 22/10/2026).
 #define BASE_AUTO_SILENT_SESSIONS 2     // collegamenti di fila senza un byte
-#define BASE_AUTO_BAN_S           3600  // esclusione di un'ora, poi si riprova
+#define BASE_AUTO_BAN_S           3600  // prima esclusione: un'ora, poi si riprova
+#define BASE_AUTO_BAN_MAX_S       14400 // esclusioni di fila: 1 h, 2 h, poi sempre 4 h
 #define BASE_AUTO_BANS            8     // basi mute e mountpoint rifiutati
 
 typedef struct {
     char name[BASE_AUTO_NAME_LEN];
     int64_t until_us; // 0 = posto libero
+    int strikes;      // esclusioni di fila senza dati in mezzo (durata crescente)
 } base_auto_ban_t;
 
-// Esclude name fino a now_us + BASE_AUTO_BAN_S (rinnova se gia' escluso;
-// a elenco pieno sostituisce l'esclusione che scade prima).
-void base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us);
+// Esclude name fino a now_us + durata. La durata raddoppia a ogni esclusione
+// di fila della stessa base (1 h, 2 h, 4 h, poi sempre 4 h): una base spenta
+// per giorni faceva perdere ~90 s di correzioni ogni ora (prova di 24 ore del
+// 24-25/10/2026, AGRI_MSM4). Il conto si tiene anche a esclusione scaduta,
+// purche' scaduta da meno di BASE_AUTO_BAN_MAX_S (il nuovo tentativo arriva
+// entro il controllo successivo), e riparte da 1 h con base_auto_ban_forgive.
+// A elenco pieno sostituisce la voce che scade prima. Ritorna la durata in s.
+int base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us);
 bool base_auto_banned(const base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us);
+// La base ha mandato dati: non e' piu' esclusa e la prossima esclusione torna
+// di un'ora. Va chiamata con la base da cui sono arrivati i dati (al primo
+// byte), non con s_auto.current: un cambio di base la sovrascrive prima della
+// fine della sessione (revisione della 1.35.24).
+void base_auto_ban_forgive(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name);
+// Secondi di esclusione rimasti (0 se non esclusa), per il log.
+int base_auto_ban_left_s(const base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us);
 
 // Fine di un collegamento con la scelta automatica attiva: conta i
 // collegamenti di fila senza un byte alla stessa base (il conto riparte
-// quando cambia la base) e, al BASE_AUTO_SILENT_SESSIONS, esclude la base in
+// quando cambia la base; con dati arrivati anche le esclusioni di fila) e, al BASE_AUTO_SILENT_SESSIONS, esclude la base in
 // uso, anche se e' la base iniziale (fallback). Prima la base iniziale non si
 // escludeva mai: se era lei la muta il rover ci tornava per sempre (collaudo
 // del 23/10/2026, AGRI_MSM4 muta a 0,4 km).

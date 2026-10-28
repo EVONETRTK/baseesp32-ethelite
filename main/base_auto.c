@@ -41,23 +41,84 @@ static void set_name(char *dst, const char *src)
     dst[n] = '\0';
 }
 
-void base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us)
+static int find_ban(const base_auto_ban_t bans[BASE_AUTO_BANS], const char *name)
+{
+    for (int i = 0; i < BASE_AUTO_BANS; i++) {
+        if (bans[i].until_us != 0 && strncmp(bans[i].name, name, BASE_AUTO_NAME_LEN) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int base_auto_ban_add(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us)
 {
     if (!bans || !name || !name[0]) {
-        return;
+        return 0;
     }
-    int slot = 0;
-    for (int i = 0; i < BASE_AUTO_BANS; i++) {
-        if (bans[i].until_us > now_us && strncmp(bans[i].name, name, BASE_AUTO_NAME_LEN) == 0) {
-            slot = i; // gia' esclusa: si rinnova
-            break;
+    // strikes = esclusioni gia' fatte di fila; la durata e' 1 h << strikes.
+    // Una base ancora esclusa (rinnovo: nessuna alternativa, o rifiuti di
+    // fila senza altre basi) non e' stata riprovata dopo la scadenza: stessa
+    // durata e stesso conto, altrimenti arrivava a 4 h in pochi minuti
+    // (revisione della 1.35.24). Si sale solo se l'esclusione era scaduta.
+    int strikes = 0;
+    bool renew = false;
+    int slot = find_ban(bans, name);
+    if (slot >= 0) {
+        if (bans[slot].until_us > now_us) {
+            renew = true;
+            strikes = bans[slot].strikes > 0 ? bans[slot].strikes - 1 : 0;
+        } else if (bans[slot].until_us > now_us - (int64_t) BASE_AUTO_BAN_MAX_S * 1000000) {
+            strikes = bans[slot].strikes; // scaduta da poco e di nuovo muta: si sale
         }
-        if (bans[i].until_us < bans[slot].until_us) {
-            slot = i; // libero o scaduto (o quello che scade prima)
+    } else {
+        slot = 0;
+        for (int i = 1; i < BASE_AUTO_BANS; i++) {
+            if (bans[i].until_us < bans[slot].until_us) {
+                slot = i; // libero o scaduto (o quello che scade prima)
+            }
         }
+    }
+    if (strikes < 0) {
+        strikes = 0;
+    }
+    int64_t s = BASE_AUTO_BAN_S;
+    for (int k = 0; k < strikes && s < BASE_AUTO_BAN_MAX_S; k++) {
+        s *= 2;
+    }
+    if (s > BASE_AUTO_BAN_MAX_S) {
+        s = BASE_AUTO_BAN_MAX_S;
     }
     set_name(bans[slot].name, name);
-    bans[slot].until_us = now_us + (int64_t) BASE_AUTO_BAN_S * 1000000;
+    bans[slot].until_us = now_us + s * 1000000;
+    // rinnovo: conto invariato (strikes era stato ridotto di uno sopra)
+    bans[slot].strikes = (renew || strikes < 100) ? strikes + 1 : strikes;
+    return (int) s;
+}
+
+void base_auto_ban_forgive(base_auto_ban_t bans[BASE_AUTO_BANS], const char *name)
+{
+    if (!bans || !name) {
+        return;
+    }
+    int i = find_ban(bans, name);
+    if (i >= 0) {
+        bans[i].until_us = 0; // posto libero: niente esclusione e conto a zero
+        bans[i].strikes = 0;
+        bans[i].name[0] = '\0';
+    }
+}
+
+int base_auto_ban_left_s(const base_auto_ban_t bans[BASE_AUTO_BANS], const char *name, int64_t now_us)
+{
+    if (!bans || !name) {
+        return 0;
+    }
+    int i = find_ban(bans, name);
+    if (i < 0 || bans[i].until_us <= now_us) {
+        return 0;
+    }
+    return (int) ((bans[i].until_us - now_us + 999999) / 1000000);
 }
 
 base_auto_silent_t base_auto_silent_session(base_auto_ban_t bans[BASE_AUTO_BANS], base_auto_silent_ctr_t *ctr,
@@ -69,6 +130,7 @@ base_auto_silent_t base_auto_silent_session(base_auto_ban_t bans[BASE_AUTO_BANS]
     }
     if (got_data) {
         ctr->count = 0;
+        base_auto_ban_forgive(bans, current);
         return BASE_AUTO_SILENT_KEEP;
     }
     if (++ctr->count < BASE_AUTO_SILENT_SESSIONS) {

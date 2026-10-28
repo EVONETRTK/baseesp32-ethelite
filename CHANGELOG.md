@@ -8,6 +8,12 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.24
+
+- **Base muta per giorni** (scelta automatica della base): dopo un'esclusione scaduta il rover riprovava la base ogni ora e ogni volta perdeva circa 90 s di correzioni (due collegamenti a vuoto). Nella prova di 24 ore del 24-25/10/2026 AGRI_MSM4, spenta, e' stata riprovata 9 volte. Ora le esclusioni di fila della stessa base durano 1 h, 2 h, poi sempre 4 h; appena la base manda dati si riparte da un'ora. Il conto si dimentica se l'esclusione e' scaduta da piu' di 4 ore. Vale anche per le basi rifiutate dal caster. Il log indica la durata vera. Prove delle durate in test_base_auto.c; la parte del rover (a quale base va il conto dopo un cambio di base) non ha prove sul PC: controllata da due revisioni e da verificare sulla base di prova.
+- Trovato dalla revisione prima dell'installazione: dopo un cambio di base i dati della vecchia base venivano registrati sotto il nome della nuova, e la base muta ripartiva sempre da un'ora. Ora il conto va alla base a cui il rover era collegato; una base che manda il primo dato non e' piu' esclusa. Un rinnovo a esclusione in corso (unica base, rifiuti di fila) non allunga la durata. Le sessioni chiuse apposta (cambio di base, impostazioni) non contano come mute.
+- Manuale: scheda Posizione, base che non manda correzioni.
+
 ## 1.35.23
 
 Altre prove di guasti simulati sulla base di prova (24/10/2026), con revisione indipendente. La 1.35.22 e' stata solo provata sulla base di prova.

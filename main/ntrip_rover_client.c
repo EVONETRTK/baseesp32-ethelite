@@ -758,7 +758,7 @@ typedef struct {
     double lat_deg, lon_deg;
     int quality;              // ultima qualita' della GGA (-1 nessun dato recente)
     base_auto_silent_ctr_t silent; // collegamenti di fila a current senza un byte
-    base_auto_ban_t bans[BASE_AUTO_BANS]; // basi mute, escluse per un'ora
+    base_auto_ban_t bans[BASE_AUTO_BANS]; // basi mute o rifiutate, escluse per 1-4 ore
     char got_from[33];        // ultima base che ha mandato correzioni (vuoto all'avvio)
 } rover_auto_t;
 
@@ -1051,7 +1051,7 @@ void ntrip_rover_client_task(void *arg)
         int sock = ntrip_rover_connect(&s_task_cfg, net_buf, sizeof(net_buf), &extra_len);
         if (sock < 0) {
             // Solo se il caster ha rifiutato la mountpoint (la tabella elenca
-            // anche mountpoint non concessi all'account): esclusa per un'ora
+            // anche mountpoint non concessi all'account): esclusa per 1-4 ore
             // e altra base. Un errore di rete o un rifiuto passeggero non
             // cambiano base: prima si tornava alla base iniziale anche se era
             // gia' esclusa perche' muta, e li' il rover restava fino a 10
@@ -1071,15 +1071,15 @@ void ntrip_rover_client_task(void *arg)
             // pannello, mountpoint chiusa): prima si riprovava solo lei fino al
             // controllo dei 10 minuti (prova del 24/10/2026).
             if (s_auto.enabled && give_up) {
-                base_auto_ban_add(s_auto.bans, s_auto.current, esp_timer_get_time());
+                int ban_min = base_auto_ban_add(s_auto.bans, s_auto.current, esp_timer_get_time()) / 60;
                 if (strcmp(s_auto.current, s_auto.fallback) != 0 &&
                     !base_auto_banned(s_auto.bans, s_auto.fallback, esp_timer_get_time())) {
-                    ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per 60 min, ripiego su %s",
-                             s_auto.current, s_auto.fallback);
+                    ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per %d min, ripiego su %s",
+                             s_auto.current, ban_min, s_auto.fallback);
                     strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
                 } else {
-                    ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per 60 min; scelta tra le altre "
-                                  "(la base iniziale e' esclusa o e' lei)", s_auto.current);
+                    ESP_LOGW(TAG, "Base automatica: %s rifiutata dal caster, esclusa per %d min; scelta tra le altre "
+                                  "(la base iniziale e' esclusa o e' lei)", s_auto.current, ban_min);
                     s_auto.first = true;
                     s_auto.last_check_us = 0;
                 }
@@ -1115,9 +1115,15 @@ void ntrip_rover_client_task(void *arg)
 
         set_active_sock(sock);
         rej_count = 0; // collegamento riuscito: "3 di fila" riparte
+        // Base di questa sessione: un cambio di base (auto_check) scrive la
+        // nuova in s_auto.current prima di uscire dal giro, e i conti di fine
+        // sessione vanno alla base da cui si e' ricevuto (o no).
+        char sess_base[sizeof(s_auto.current)];
+        strlcpy(sess_base, s_auto.current, sizeof(sess_base));
         bool got_data = extra_len > 0;
         if (got_data) {
-            strlcpy(s_auto.got_from, s_auto.current, sizeof(s_auto.got_from));
+            strlcpy(s_auto.got_from, sess_base, sizeof(s_auto.got_from));
+            base_auto_ban_forgive(s_auto.bans, sess_base);
         }
         bool cfg_changed = false;
         bool base_switched = false; // cambio di base voluto (scelta automatica): niente attesa crescente
@@ -1128,7 +1134,8 @@ void ntrip_rover_client_task(void *arg)
             int n = recv(sock, net_buf, sizeof(net_buf), 0);
             if (n > 0) {
                 if (!got_data) {
-                    strlcpy(s_auto.got_from, s_auto.current, sizeof(s_auto.got_from));
+                    strlcpy(s_auto.got_from, sess_base, sizeof(s_auto.got_from));
+                    base_auto_ban_forgive(s_auto.bans, sess_base); // manda dati: subito di nuovo utilizzabile
                 }
                 got_data = true;
                 feed_rtcm(net_buf, n);
@@ -1178,7 +1185,7 @@ void ntrip_rover_client_task(void *arg)
 
         // Base che in questa sessione non ha mandato niente: non conta piu'
         // come "ha mandato correzioni" (auto_current_delivered).
-        if (!got_data && strcmp(s_auto.got_from, s_auto.current) == 0) {
+        if (!got_data && strcmp(s_auto.got_from, sess_base) == 0) {
             s_auto.got_from[0] = 0;
         }
         // Prima si toglie il socket a ntrip_rover_client_forward_gga() (che
@@ -1189,18 +1196,21 @@ void ntrip_rover_client_task(void *arg)
         net_close_now(sock);
 
         // Base che accetta il collegamento ma non manda niente (spenta ma
-        // ancora in tabella): esclusa per un'ora (base_auto.c), anche se e'
-        // la base iniziale. Poi base iniziale, o la piu' vicina delle altre
+        // ancora in tabella): esclusa per 1 h, 2 h, poi 4 h se resta muta
+        // (base_auto.c), anche se e' la base iniziale. Poi base iniziale, o la piu' vicina delle altre
         // se la muta e' proprio la base iniziale. Con la scelta automatica
         // spenta il rover resta sulla base impostata.
-        if (!s_auto.enabled) {
+        // Sessione chiusa apposta (cambio di base o impostazioni): non dice
+        // niente sul silenzio della base, non si conta.
+        if (!s_auto.enabled || base_switched || cfg_changed) {
             s_auto.silent.count = 0;
         } else {
-            switch (base_auto_silent_session(s_auto.bans, &s_auto.silent, got_data, s_auto.current,
+            switch (base_auto_silent_session(s_auto.bans, &s_auto.silent, got_data, sess_base,
                                              s_auto.fallback, esp_timer_get_time())) {
             case BASE_AUTO_SILENT_FALLBACK:
                 ESP_LOGW(TAG, "Base automatica: %s non manda dati (%d collegamenti), esclusa per %d min, ripiego su %s",
-                         s_auto.current, BASE_AUTO_SILENT_SESSIONS, BASE_AUTO_BAN_S / 60, s_auto.fallback);
+                         s_auto.current, BASE_AUTO_SILENT_SESSIONS,
+                         base_auto_ban_left_s(s_auto.bans, s_auto.current, esp_timer_get_time()) / 60, s_auto.fallback);
                 strlcpy(s_auto.current, s_auto.fallback, sizeof(s_auto.current));
                 auto_publish(false, NULL);
                 base_switched = true;
@@ -1208,7 +1218,8 @@ void ntrip_rover_client_task(void *arg)
             case BASE_AUTO_SILENT_RECHOOSE:
                 ESP_LOGW(TAG, "Base automatica: %s non manda dati (%d collegamenti), esclusa per %d min, "
                               "scelta della piu' vicina tra le altre",
-                         s_auto.current, BASE_AUTO_SILENT_SESSIONS, BASE_AUTO_BAN_S / 60);
+                         s_auto.current, BASE_AUTO_SILENT_SESSIONS,
+                         base_auto_ban_left_s(s_auto.bans, s_auto.current, esp_timer_get_time()) / 60);
                 s_auto.first = true; // tabella riletta subito, una volta
                 s_auto.last_check_us = 0;
                 base_switched = true;

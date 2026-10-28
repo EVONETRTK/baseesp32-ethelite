@@ -333,10 +333,76 @@ PROVA(base_muta_conto_per_base_e_rinnovo)
     (void) base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", t + 70 * S);
     VERIFICA_INT(base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", t + 105 * S), BASE_AUTO_SILENT_RENEWED);
     VERIFICA(base_auto_banned(bans, "SOLA", t + 105 * S + (int64_t) (BASE_AUTO_BAN_S - 10) * S));
-    // Esclusione scaduta: di nuovo una scelta (al massimo una volta l'ora).
+    // Rinnovo a esclusione in corso (mai riprovata dopo la scadenza): sempre un'ora.
+    VERIFICA_INT(base_auto_ban_left_s(bans, "SOLA", t + 105 * S), BASE_AUTO_BAN_S);
     int64_t dopo = t + 105 * S + (int64_t) BASE_AUTO_BAN_S * S + S;
     (void) base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", dopo);
     VERIFICA_INT(base_auto_silent_session(bans, &c, false, "SOLA", "SOLA", dopo + 35 * S), BASE_AUTO_SILENT_RECHOOSE);
+}
+
+// Prova di 24 ore del 24-25/10/2026: AGRI_MSM4 spenta per giorni, ripresa
+// ogni ora con ~90 s senza correzioni ogni volta. Ora 1 h, 2 h, poi 4 h.
+PROVA(base_sempre_muta_esclusa_sempre_piu_a_lungo)
+{
+    const int64_t S = 1000000;
+    base_auto_ban_t bans[BASE_AUTO_BANS];
+    memset(bans, 0, sizeof(bans));
+    base_auto_silent_ctr_t c;
+    memset(&c, 0, sizeof(c));
+    int64_t t = 1000 * S;
+    const int attese[] = { 3600, 7200, 14400, 14400 };
+    for (int i = 0; i < 4; i++) {
+        (void) base_auto_silent_session(bans, &c, false, "AGRI_MSM4", "puglia", t);
+        VERIFICA_INT(base_auto_silent_session(bans, &c, false, "AGRI_MSM4", "puglia", t + 35 * S),
+                     BASE_AUTO_SILENT_FALLBACK);
+        VERIFICA_INT(base_auto_ban_left_s(bans, "AGRI_MSM4", t + 35 * S), attese[i]);
+        VERIFICA(base_auto_banned(bans, "AGRI_MSM4", t + 35 * S + (int64_t) (attese[i] - 1) * S));
+        // ripresa 10 minuti dopo la scadenza (controllo della tabella)
+        t += 35 * S + (int64_t) attese[i] * S + 600 * S;
+        VERIFICA(!base_auto_banned(bans, "AGRI_MSM4", t));
+    }
+    // Torna a mandare dati: la prossima esclusione e' di nuovo di un'ora.
+    VERIFICA_INT(base_auto_silent_session(bans, &c, true, "AGRI_MSM4", "puglia", t), BASE_AUTO_SILENT_KEEP);
+    t += 3 * 3600 * S;
+    (void) base_auto_silent_session(bans, &c, false, "AGRI_MSM4", "puglia", t);
+    (void) base_auto_silent_session(bans, &c, false, "AGRI_MSM4", "puglia", t + 35 * S);
+    VERIFICA_INT(base_auto_ban_left_s(bans, "AGRI_MSM4", t + 35 * S), 3600);
+
+    // Esclusione scaduta da piu' di 4 ore (rover spostato e tornato): si riparte da un'ora.
+    memset(bans, 0, sizeof(bans));
+    VERIFICA_INT(base_auto_ban_add(bans, "LONTANA", t), 3600);
+    VERIFICA_INT(base_auto_ban_add(bans, "LONTANA", t + 3601 * S), 7200);
+    VERIFICA_INT(base_auto_ban_add(bans, "LONTANA", t + 3601 * S + (int64_t) (7200 + 14401) * S), 3600);
+    // Rifiuti di fila (404 ripetuti) crescono allo stesso modo; altre basi indipendenti.
+    VERIFICA_INT(base_auto_ban_add(bans, "CHIUSA", t), 3600);
+    VERIFICA_INT(base_auto_ban_add(bans, "CHIUSA", t + 10 * S), 3600);   // ancora esclusa: rinnovo
+    VERIFICA_INT(base_auto_ban_add(bans, "CHIUSA", t + 3700 * S), 7200); // scaduta e rifiutata di nuovo
+    VERIFICA_INT(base_auto_ban_add(bans, "ALTRA", t + 10 * S), 3600);
+    VERIFICA_INT(base_auto_ban_left_s(bans, "NESSUNA", t), 0);
+    base_auto_ban_forgive(bans, "CHIUSA");
+    VERIFICA_INT(base_auto_ban_add(bans, "CHIUSA", t + 3800 * S), 3600);
+    base_auto_ban_forgive(NULL, "X");
+    base_auto_ban_forgive(bans, NULL);
+    VERIFICA_INT(base_auto_ban_left_s(NULL, "X", t), 0);
+
+    // Revisione della 1.35.24: rinnovi a esclusione in corso (unica base muta,
+    // rifiuti di fila senza alternative) non fanno salire la durata.
+    memset(bans, 0, sizeof(bans));
+    VERIFICA_INT(base_auto_ban_add(bans, "UNICA", t), 3600);
+    for (int i = 1; i <= 10; i++) {
+        VERIFICA_INT(base_auto_ban_add(bans, "UNICA", t + i * 120 * S), 3600);
+    }
+    // scaduta e di nuovo muta: si sale; rinnovi durante le 2 ore restano 2 ore
+    int64_t t2 = t + 1200 * S + 3601 * S;
+    VERIFICA_INT(base_auto_ban_add(bans, "UNICA", t2), 7200);
+    VERIFICA_INT(base_auto_ban_add(bans, "UNICA", t2 + 120 * S), 7200);
+    VERIFICA_INT(base_auto_ban_add(bans, "UNICA", t2 + 120 * S + 7201 * S), 14400);
+    VERIFICA_INT(base_auto_ban_add(bans, "UNICA", t2 + 240 * S + 7201 * S), 14400);
+    // Dati arrivati da una base esclusa (era l'unica, il rover e' rimasto li'):
+    // non e' piu' esclusa, e la prossima esclusione e' di un'ora.
+    base_auto_ban_forgive(bans, "UNICA");
+    VERIFICA(!base_auto_banned(bans, "UNICA", t2 + 300 * S + 7201 * S));
+    VERIFICA_INT(base_auto_ban_add(bans, "UNICA", t2 + 400 * S + 7201 * S), 3600);
 }
 
 PROVA(elenco_delle_escluse_pieno)
@@ -378,6 +444,7 @@ int main(void)
     ESEGUI(base_muta_esclusa_per_un_ora);
     ESEGUI(base_iniziale_muta_esclusa);
     ESEGUI(base_muta_conto_per_base_e_rinnovo);
+    ESEGUI(base_sempre_muta_esclusa_sempre_piu_a_lungo);
     ESEGUI(elenco_delle_escluse_pieno);
     return prove_fine();
 }
