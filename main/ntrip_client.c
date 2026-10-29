@@ -158,21 +158,23 @@ static volatile int s_active_sock = -1;
 
 static void close_active_sock(int sock)
 {
-    if (s_active_sock == sock) {
-        s_active_sock = -1;
-        net_close_now(sock);
-    }
+    s_active_sock = -1;
+    net_close_now(sock);
 }
 
 // Chiamata da esp_restart(). I gestori di spegnimento girano in ordine
 // inverso di registrazione, quindi questo parte prima dello stop del
-// WiFi/Ethernet (registrati all'avvio della rete, prima di questo task):
-// il reset della connessione (SO_LINGER 0) fa in tempo a uscire.
+// WiFi/Ethernet (registrati all'avvio della rete, prima di questo task).
+// Solo shutdown(), come il rover (ntrip_rover_client.c): la chiusura arriva
+// al caster, ma il numero del socket lo libera il task della base quando
+// l'invio fallisce. Prima lo chiudevano tutti e due, e nei 150 ms quel
+// numero poteva gia' essere di un altro collegamento (revisione del
+// 29/10/2026).
 static void ntrip_client_shutdown(void)
 {
     int sock = s_active_sock;
     if (sock >= 0) {
-        close_active_sock(sock);
+        shutdown(sock, SHUT_RDWR);
         vTaskDelay(pdMS_TO_TICKS(150));
     }
 }
@@ -260,15 +262,23 @@ void ntrip_client_task(void *arg)
             }
         }
         app_settings_t settings = settings_get();
+        // Rete letta PRIMA del collegamento: un cambio durante DNS e
+        // handshake lascerebbe il socket sulla rete vecchia senza notarlo.
+        int route = net_route_id();
         int sock = ntrip_connect_and_handshake(&settings);
         if (sock < 0) {
-            // Impostazioni corrette durante l'attesa: si riprova subito.
+            // Impostazioni corrette, o rete cambiata (4G morto e WiFi di
+            // riserva appena attivo), durante l'attesa: si riprova subito.
+            // Prima fino a 60 s senza correzioni con il WiFi gia' pronto. Un
+            // momento senza rete (0, riselezione) non conta: azzerava
+            // l'attesa crescente contro i rifiuti del caster.
             uint32_t gen = settings_generation();
             bool changed = false;
             for (uint32_t waited = 0; waited < retry_ms && !changed; waited += 1000) {
                 discard_for_ms(rtcm_stream, buf, sizeof(buf), 1000);
                 sys_stats_heartbeat(HB_NTRIP);
-                changed = settings_generation() != gen;
+                int r = net_route_id();
+                changed = settings_generation() != gen || (r != 0 && r != route);
             }
             retry_ms = changed ? 5000 : ((retry_ms * 2 > 60000) ? 60000 : retry_ms * 2);
             continue;
@@ -283,6 +293,15 @@ void ntrip_client_task(void *arg)
         bool caster_changed = false;
         while (1) {
             sys_stats_heartbeat(HB_NTRIP);
+            // Rete attiva cambiata (4G tornato dopo una caduta, WiFi o cavo):
+            // collegamento rifatto sulla rete nuova (net_route_id).
+            int r = net_route_id();
+            if (r != 0 && r != route) {
+                ESP_LOGI(TAG, "Rete attiva cambiata: nuovo collegamento al caster sulla rete nuova");
+                status_ntrip_note_disconnected("Rete cambiata: nuovo collegamento");
+                caster_changed = true;
+                break;
+            }
             if (settings_generation() != gen) {
                 gen = settings_generation();
                 caster_cmp_t cmp = { .session = &settings, .changed = false };
@@ -309,7 +328,7 @@ void ntrip_client_task(void *arg)
         }
         close_active_sock(sock);
         if (caster_changed) {
-            retry_ms = 5000; // nuovo caster: subito, senza attese crescenti
+            retry_ms = 5000; // nuovo caster o rete nuova: subito, senza attese crescenti
             discard_for_ms(rtcm_stream, buf, sizeof(buf), 2000);
         } else if (esp_timer_get_time() - session_start_us >= 60LL * 1000000) {
             // Sessione durata: caduta normale, si riprova quasi subito.

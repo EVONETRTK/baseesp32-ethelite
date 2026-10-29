@@ -83,6 +83,24 @@ static inline bool net_any_up(void)
     return status_get_net() != NET_STATUS_NONE || eth_link_is_connected();
 }
 
+// Rete da cui escono i collegamenti nuovi: 0 nessuna (o solo cavo), 1 WiFi,
+// 2 cellulare (NET_STATUS_*). Il cavo non conta: con un cavo inserito un
+// momento senza rete (riselezione) faceva due ricollegamenti, il primo su un
+// cavo magari senza Internet (revisione della 1.35.25). Un collegamento TCP
+// gia' aperto resta invece
+// sulla rete da cui e' partito (lwIP sceglie l'uscita dall'indirizzo
+// sorgente): dopo una caduta del 4G il collegamento al caster rifatto sul
+// WiFi di riserva restava li' per ore anche con il 4G tornato (registro del
+// rover del 24-25/10/2026: dalle 17:32 alle 19:53). I client NTRIP lo
+// leggono prima di collegarsi e, se poi cambia verso una rete (non 0), si
+// ricollegano. Il 4G diventa la rete attiva solo dopo aver dimostrato di
+// portare a Internet (net_manager.c), altrimenti una SIM senza credito
+// faceva lasciare un WiFi funzionante.
+static inline int net_route_id(void)
+{
+    return (int) status_get_net();
+}
+
 // Aspetta che ci sia una rete attiva (WiFi o cellulare con IP, oppure
 // Ethernet), al massimo timeout_ms. Usata dai client NTRIP prima di ogni
 // tentativo: all'avvio il primo partiva prima del WiFi e falliva sempre con

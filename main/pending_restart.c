@@ -28,6 +28,11 @@ typedef struct {
     uint8_t oled_i2c_addr;
     oled_controller_t oled_controller;
     bool oled_flip_h, oled_flip_v;
+    // Messaggi RTCM della base: il ricevitore si imposta solo all'avvio
+    // (gnss_driver_configure). Prima un cambio dal pannello diceva "Salvato"
+    // e la base continuava con i messaggi di prima fino a un riavvio
+    // qualsiasi (revisione del 29/10/2026).
+    bool rtcm[14];
 } restart_fields_t;
 
 static restart_fields_t s_boot;
@@ -67,6 +72,11 @@ static void pick(const app_settings_t *s, restart_fields_t *o)
     o->oled_controller = s->oled_controller;
     o->oled_flip_h = s->oled_flip_h;
     o->oled_flip_v = s->oled_flip_v;
+    const bool rtcm[14] = { s->rtcm_1005_enable, s->rtcm_1007_enable, s->rtcm_1008_enable, s->rtcm_1230_enable,
+                            s->rtcm_1019_enable, s->rtcm_1020_enable, s->rtcm_1074_enable, s->rtcm_1077_enable,
+                            s->rtcm_1084_enable, s->rtcm_1087_enable, s->rtcm_1094_enable, s->rtcm_1097_enable,
+                            s->rtcm_1124_enable, s->rtcm_1127_enable };
+    memcpy(o->rtcm, rtcm, sizeof(o->rtcm));
 }
 
 void pending_restart_snapshot(const app_settings_t *s)
@@ -116,6 +126,7 @@ void pending_restart_describe(const app_settings_t *s, char *out, size_t out_siz
         n.comnav_imu_axes != b->comnav_imu_axes) {
         add(out, out_size, "IMU e doppia antenna (K922)");
     }
+    if (memcmp(n.rtcm, b->rtcm, sizeof(n.rtcm)) != 0) add(out, out_size, "messaggi RTCM della base");
     if (n.rover_has_fallback != b->rover_has_fallback) add(out, out_size, "riserva Galileo HAS");
     if (n.nmea_rate_hz != b->nmea_rate_hz) add(out, out_size, "posizioni al secondo");
     if (n.ble_nmea_enable != b->ble_nmea_enable) add(out, out_size, "uscita Bluetooth");

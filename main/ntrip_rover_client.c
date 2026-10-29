@@ -1048,6 +1048,8 @@ void ntrip_rover_client_task(void *arg)
             auto_publish(false, NULL);
         }
         size_t extra_len = 0;
+        // Rete letta prima del collegamento (vedi net_route_id).
+        int sess_route = net_route_id();
         int sock = ntrip_rover_connect(&s_task_cfg, net_buf, sizeof(net_buf), &extra_len);
         if (sock < 0) {
             // Solo se il caster ha rifiutato la mountpoint (la tabella elenca
@@ -1092,12 +1094,15 @@ void ntrip_rover_client_task(void *arg)
             // Impostazioni corrette dal pannello durante l'attesa: si riprova
             // subito (prima si aspettava fino a 2 minuti anche dopo aver
             // rimesso la password giusta, collaudo del 06/10/2026).
+            // Anche la rete cambiata (4G morto, WiFi di riserva attivo) fa
+            // riprovare subito, come per la base (ntrip_client.c).
             uint32_t gen = settings_generation();
             bool changed = false;
             for (uint32_t waited = 0; waited < s_retry_ms && !changed; waited += 1000) {
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 sys_stats_heartbeat(HB_NTRIP);
-                changed = settings_generation() != gen;
+                int r = net_route_id();
+                changed = settings_generation() != gen || (r != 0 && r != sess_route);
             }
             s_retry_ms = changed ? 5000 : (s_retry_ms * 2 > 120000 ? 120000 : s_retry_ms * 2);
             continue;
@@ -1126,6 +1131,7 @@ void ntrip_rover_client_task(void *arg)
             base_auto_ban_forgive(s_auto.bans, sess_base);
         }
         bool cfg_changed = false;
+        bool net_changed = false; // rete attiva cambiata: collegamento da rifare (net_route_id)
         bool base_switched = false; // cambio di base voluto (scelta automatica): niente attesa crescente
         int64_t session_start_us = esp_timer_get_time();
 
@@ -1169,6 +1175,13 @@ void ntrip_rover_client_task(void *arg)
                     break;
                 }
             }
+            int route_now = net_route_id();
+            if (route_now != 0 && route_now != sess_route) {
+                ESP_LOGI(TAG, "Rete attiva cambiata: nuovo collegamento al caster sulla rete nuova");
+                status_ntrip_note_disconnected("Rete cambiata: nuovo collegamento");
+                net_changed = true;
+                break;
+            }
             bool switch_base = false;
             if (s_auto.enabled) {
                 auto_sample(now);
@@ -1202,7 +1215,7 @@ void ntrip_rover_client_task(void *arg)
         // spenta il rover resta sulla base impostata.
         // Sessione chiusa apposta (cambio di base o impostazioni): non dice
         // niente sul silenzio della base, non si conta.
-        if (!s_auto.enabled || base_switched || cfg_changed) {
+        if (!s_auto.enabled || base_switched || cfg_changed || net_changed) {
             s_auto.silent.count = 0;
         } else {
             switch (base_auto_silent_session(s_auto.bans, &s_auto.silent, got_data, sess_base,
@@ -1243,9 +1256,9 @@ void ntrip_rover_client_task(void *arg)
         // 2 minuti. Prima 15 s fissi: migliaia di collegamenti al giorno sulla
         // SIM, e un caster puo' bloccare l'account (revisione del 23/10/2026).
         uint32_t wait_ms = 15000;
-        if (cfg_changed) {
+        if (cfg_changed || net_changed) {
             s_retry_ms = 5000;
-            wait_ms = 3000; // impostazioni nuove: subito
+            wait_ms = 3000; // impostazioni o rete nuove: subito
         } else if (base_switched) {
             s_retry_ms = 5000; // base nuova: si riparte da capo, 15 s come prima
         } else if (!got_data || esp_timer_get_time() - session_start_us < 60LL * 1000000) {
@@ -1255,7 +1268,10 @@ void ntrip_rover_client_task(void *arg)
             s_retry_ms = 5000; // sessione buona
         }
         uint32_t gen = settings_generation();
-        for (uint32_t waited = 0; waited < wait_ms && settings_generation() == gen; waited += 1000) {
+        int route = net_route_id();
+        for (uint32_t waited = 0; waited < wait_ms && settings_generation() == gen &&
+                                  (net_route_id() == 0 || net_route_id() == route);
+             waited += 1000) {
             vTaskDelay(pdMS_TO_TICKS(1000));
             sys_stats_heartbeat(HB_NTRIP);
         }

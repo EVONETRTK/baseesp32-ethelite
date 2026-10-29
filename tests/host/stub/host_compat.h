@@ -23,6 +23,16 @@ static inline size_t host_strlcpy(char *dst, const char *src, size_t size)
 }
 #define strlcpy host_strlcpy
 
+static inline size_t host_strlcat(char *dst, const char *src, size_t size)
+{
+    size_t d = strnlen(dst, size);
+    if (d == size) {
+        return size + strlen(src);
+    }
+    return d + host_strlcpy(dst + d, src, size - d);
+}
+#define strlcat host_strlcat
+
 static inline struct tm *host_gmtime_r(const time_t *t, struct tm *out)
 {
     return gmtime_s(out, t) == 0 ? out : NULL;

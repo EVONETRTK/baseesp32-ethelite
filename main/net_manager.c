@@ -450,7 +450,26 @@ static void net_manager_task(void *arg)
                     cf_cell_retry_us = esp_timer_get_time() + CF_CELL_BOOT_RETRY_US;
                 } else if (esp_timer_get_time() >= cf_cell_retry_us) {
                     ESP_LOGI(TAG, "4G con WiFi di riserva: collego il 4G");
-                    if (cellular_link_connect()) {
+                    bool cell_ok = cellular_link_connect();
+                    // Con un WiFi che funziona il 4G deve prima dimostrare di
+                    // portare a Internet (prova sul percorso predefinito, che
+                    // con il PPP su e' il 4G): una SIM senza credito prende
+                    // l'IP ma non passa niente. Dalla 1.35.25 il passaggio al
+                    // 4G rifa' il collegamento al caster, e senza questa prova
+                    // si lasciava il WiFi buono per il 4G morto ogni 2 minuti,
+                    // ~5 minuti su 7 senza correzioni (revisione della
+                    // 1.35.25). Ora si resta sul WiFi e il 4G si riprova con
+                    // le attese crescenti di un collegamento fallito.
+                    if (cell_ok && wifi_link_is_connected() && !cf_wifi_dead) {
+                        sys_stats_heartbeat(HB_NET); // la prova puo' durare fino a ~20 s
+                        if (!internet_probe()) {
+                            ESP_LOGW(TAG, "4G collegato ma senza Internet (SIM senza credito o senza traffico?): "
+                                          "resto sul WiFi");
+                            cellular_link_disconnect();
+                            cell_ok = false;
+                        }
+                    }
+                    if (cell_ok) {
                         cell_fail = 0;
                         cf_keep_check = false;
                         cf_wifi_dead = false;

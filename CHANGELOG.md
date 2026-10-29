@@ -8,6 +8,22 @@ Versionamento semantico (MAJOR.MINOR.PATCH). Vedi `main/version.h` per la versio
 
 Fino alla 1.19.137 il PATCH e' salito anche per funzioni nuove (VPN, ora dai satelliti, dati grezzi); la regola vale dalla versione successiva.
 
+## 1.35.25
+
+Dalla revisione della parte base del 29/10/2026 (tre revisioni indipendenti: rete, posizione, impostazione del ricevitore). Qui solo le correzioni su rete e impostazione; le altre nella prossima versione.
+
+- **Collegamento al caster rimasto sul WiFi di riserva per ore dopo una caduta del 4G** (base e rover). lwIP fa uscire un collegamento gia' aperto dalla rete da cui e' partito: rifatto sul WiFi durante la caduta, restava li' anche con il 4G tornato, finche' non cadeva da solo. Nel registro del rover del 24-25/10/2026 dalle 17:32 alle 19:53, e ancora dopo le cadute delle 22:44, 02:46 e 05:48. Con un WiFi di riserva debole le correzioni andavano a singhiozzo per ore con il 4G buono; il traffico sul WiFi veniva contato come traffico SIM; un 4G tornato senza traffico non si notava. Ora, se la rete attiva cambia (net_route_id), il collegamento al caster si chiude e si rifa' sulla rete nuova in pochi secondi. Anche l'attesa tra un tentativo fallito e l'altro (fino a 60 s per la base, 120 s per il rover) finisce subito quando cambia la rete.
+- **u-blox, base: gruppi di impostazioni senza risposta dal ricevitore all'avvio** (errori sul bus I2C nei primi secondi) restavano persi fino al riavvio successivo. Un TMODE perso = base senza 1005, correzioni inutilizzabili dai rover, senza riavvio automatico perche' l'RTCM arriva comunque. Ora vengono rimandati ogni minuto finche' il ricevitore risponde (svin_poll_task).
+- **Messaggi RTCM cambiati dal pannello**: il ricevitore li riceve solo all'avvio, ma il pannello diceva "Salvato" senza chiedere il riavvio, e la base continuava con i messaggi di prima. Ora il pulsante chiede il riavvio e la barra "Riavvia" li elenca (pending_restart.c, prova in test_pending_restart.c).
+- **Riavvio della base**: il gestore di spegnimento chiudeva il socket del caster da un altro task mentre la base poteva usarlo; nei 150 ms prima del riavvio quel numero poteva gia' essere di un altro collegamento. Ora solo shutdown(), come il rover dalla 1.35.21.
+- Trovato dalla revisione prima dell'installazione, corretto qui:
+  - con "4G con WiFi di riserva" e una SIM senza credito (IP preso, niente traffico) il ricollegamento al cambio di rete faceva lasciare il WiFi buono per il 4G morto ogni 2 minuti, circa 5 minuti su 7 senza correzioni. Ora, con il WiFi funzionante, il 4G diventa la rete attiva solo dopo una prova di collegamento a Internet sul 4G; se fallisce si resta sul WiFi e il 4G si riprova con attese crescenti (2, 4, 8... 30 minuti);
+  - la rete si legge prima del collegamento al caster, non dopo (un cambio durante l'handshake passava inosservato); un momento senza rete non azzera l'attesa crescente contro i rifiuti; il cavo Ethernet non conta come rete a parte;
+  - u-blox: posto per tutti i gruppi della base (fino a 7 con uno X20P via I2C), il TMODE del survey-in non si rimanda se NAV-SVIN mostra un survey-in partito dopo l'invio (ricomincerebbe; uno vecchio, di prima del riavvio dell'ESP32, non conta: seconda revisione), i segnali dello X20P non si rimandano (riavviano il motore GNSS), al massimo 10 tentativi per gruppo.
+- Prove sul PC: strlcat negli strumenti per Windows (host_compat.h).
+- Noto, per la prossima versione: dopo una prova del 4G fallita il PPP lascia vuoti i DNS del WiFi fino al rinnovo DHCP (resta 8.8.8.8); una rete di casa che blocca 8.8.8.8 non risolverebbe il nome del caster. Gia' cosi' prima a ogni caduta del 4G.
+- Manuale: scheda Posizione, messaggi RTCM validi dopo il riavvio.
+
 ## 1.35.24
 
 - **Base muta per giorni** (scelta automatica della base): dopo un'esclusione scaduta il rover riprovava la base ogni ora e ogni volta perdeva circa 90 s di correzioni (due collegamenti a vuoto). Nella prova di 24 ore del 24-25/10/2026 AGRI_MSM4, spenta, e' stata riprovata 9 volte. Ora le esclusioni di fila della stessa base durano 1 h, 2 h, poi sempre 4 h; appena la base manda dati si riparte da un'ora. Il conto si dimentica se l'esclusione e' scaduta da piu' di 4 ore. Vale anche per le basi rifiutate dal caster. Il log indica la durata vera. Prove delle durate in test_base_auto.c; la parte del rover (a quale base va il conto dopo un cambio di base) non ha prove sul PC: controllata da due revisioni e da verificare sulla base di prova.

@@ -189,6 +189,94 @@ static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
                                    const ubx_cfg_kv32_t *kvs, size_t n);
 static void svin_poll_task(void *arg);
 
+// Gruppi della configurazione della base rimasti senza nessuna risposta dal
+// ricevitore (ne' ACK ne' NAK, dopo i 3 tentativi di ubx_valset): con il
+// ricevitore via I2C i primi secondi dopo un riavvio dell'ESP32 possono dare
+// errori sul bus. Prima restavano persi fino al riavvio successivo: un TMODE
+// perso = base senza 1005 (la sua posizione), correzioni inutilizzabili dai
+// rover, e nessun riavvio automatico perche' l'RTCM arriva comunque
+// (revisione del 29/10/2026). Li rimanda svin_poll_task ogni minuto finche'
+// il ricevitore risponde. Copiati qui: le chiavi sono sullo stack di chi
+// configura.
+// Limiti (revisione della 1.35.25): posto per tutti i gruppi della base
+// (fino a 7 con uno X20P via I2C, il TMODE per ultimo), al massimo 10
+// tentativi per gruppo (un ricevitore che applica senza mai rispondere non
+// riceve lo stesso gruppo ogni minuto per sempre). I segnali dello X20P non
+// si rimandano: riavviano il motore GNSS del ricevitore.
+#define UBX_PENDING_MAX   8
+#define UBX_PENDING_KEYS  12
+#define UBX_PENDING_TRIES 10
+typedef struct {
+    char name[32];
+    uint8_t n;
+    uint8_t tries;
+    bool svin; // TMODE del survey-in: non si rimanda se il survey-in e' gia' partito
+    int64_t added_us;
+    ubx_cfg_kv32_t kv[UBX_PENDING_KEYS];
+} ubx_pending_t;
+static ubx_pending_t s_pending[UBX_PENDING_MAX];
+static int s_pending_n;
+static bool s_record_unanswered; // solo durante la configurazione della base
+
+static void pending_add(const char *name, const ubx_cfg_kv32_t *kvs, size_t n)
+{
+    if (s_pending_n >= UBX_PENDING_MAX || n > UBX_PENDING_KEYS) {
+        ESP_LOGE(TAG, "[%s] senza risposta e non ripetibile (troppi gruppi o chiavi): vale al prossimo avvio", name);
+        return;
+    }
+    ubx_pending_t *p = &s_pending[s_pending_n++];
+    strlcpy(p->name, name, sizeof(p->name));
+    p->n = (uint8_t) n;
+    p->tries = 0;
+    p->svin = strcmp(name, "TMODE (survey-in)") == 0;
+    p->added_us = esp_timer_get_time();
+    memcpy(p->kv, kvs, n * sizeof(kvs[0]));
+    ESP_LOGW(TAG, "[%s] senza risposta: lo rimando ogni minuto finche' il ricevitore risponde", name);
+}
+
+// Un nuovo tentativo per ogni gruppo in attesa, nell'ordine della
+// configurazione. Toglie quelli con una risposta (ACK, o NAK: in quel caso
+// chiave per chiave come al primo invio).
+static void pending_retry(uart_port_t uart_num)
+{
+    int keep = 0;
+    svin_status_t sv = status_svin_get();
+    for (int i = 0; i < s_pending_n; i++) {
+        ubx_pending_t *p = &s_pending[i];
+        // Survey-in in corso e partito dopo l'invio (NAV-SVIN, durata non
+        // piu' lunga del tempo trascorso): il TMODE e' arrivato, la risposta
+        // si era persa. Rimandarlo ricomincerebbe il survey-in. Un survey-in
+        // finito o piu' vecchio puo' essere quello di prima del riavvio
+        // dell'ESP32 (il ricevitore resta acceso): in quel caso si rimanda,
+        // altrimenti i parametri nuovi andavano persi senza avviso
+        // (seconda revisione della 1.35.25).
+        int64_t since_s = (esp_timer_get_time() - p->added_us) / 1000000;
+        if (p->svin && sv.have && sv.active && (int64_t) sv.duration_s <= since_s) {
+            ESP_LOGI(TAG, "[%s] applicato (survey-in in corso da %u s): niente nuovo invio", p->name,
+                     (unsigned) sv.duration_s);
+            continue;
+        }
+        if (p->tries >= UBX_PENDING_TRIES) {
+            ESP_LOGE(TAG, "[%s] ancora senza risposta dopo %d tentativi: lascio stare fino al prossimo avvio",
+                     p->name, UBX_PENDING_TRIES);
+            continue;
+        }
+        p->tries++;
+        ubx_valset(uart_num, p->name, p->kv, p->n);
+        if (s_last_ack) {
+            ESP_LOGW(TAG, "[%s] applicato al nuovo tentativo", p->name);
+        } else if (s_last_nak) {
+            ubx_valset_group(uart_num, p->name, p->kv, p->n);
+        } else {
+            if (keep != i) {
+                s_pending[keep] = *p;
+            }
+            keep++;
+        }
+    }
+    s_pending_n = keep;
+}
+
 // Modello del ricevitore (UBX-MON-VER, letto in modo asincrono da
 // gnss_ubx_ack.c): serve a sapere se e' uno ZED-X20P prima di configurarlo.
 // Via I2C, con lo ZED rimasto acceso durante il riavvio dell'ESP32, la prima
@@ -290,6 +378,7 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
 
     app_settings_t s; // riempita senza copie temporanee (vedi settings_get_into)
     settings_get_into(&s);
+    s_record_unanswered = true; // gruppi senza risposta: ripetuti da svin_poll_task
 
     if (s.rtcm_1007_enable || s.rtcm_1008_enable || s.rtcm_1019_enable || s.rtcm_1020_enable) {
         ESP_LOGW(TAG, "1007/1008/1019/1020 richiesti nelle impostazioni ma non supportati da u-blox in uscita: ignorati");
@@ -297,7 +386,9 @@ esp_err_t gnss_ubx_configure_base(uart_port_t uart_num)
 
     wait_model(uart_num);
     if (model_is_x20()) {
+        s_record_unanswered = false; // da non rimandare: riavvia il motore GNSS
         configure_x20p_signals(uart_num);
+        s_record_unanswered = true;
     }
 
     // Ogni chiave CFG-MSGOUT esiste per porta, in ordine I2C, UART1, UART2,
@@ -422,6 +513,12 @@ static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
     esp_err_t err = ubx_valset(uart_num, group_name, kvs, n);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "[%s] invio fallito verso il ricevitore", group_name);
+    }
+    if (s_record_unanswered && !s_last_ack && !s_last_nak) {
+        pending_add(group_name, kvs, n);
+        return err;
+    }
+    if (err != ESP_OK) {
         return err;
     }
     // Gruppo rifiutato: una chiave che questo modulo non conosce (per
@@ -453,6 +550,9 @@ static esp_err_t ubx_valset_group(uart_port_t uart_num, const char *group_name,
 static void svin_poll_task(void *arg)
 {
     uart_port_t uart_num = (uart_port_t) (intptr_t) arg;
+    // Configurazione finita: da qui in poi i gruppi senza risposta (anche
+    // quelli rimandati da pending_retry) non si aggiungono alla lista.
+    s_record_unanswered = false;
     bool logged_valid = false;
     int64_t last_log_us = 0;
     int loop_count = 0;
@@ -488,6 +588,10 @@ static void svin_poll_task(void *arg)
                     ubx_valset_group(uart_num, "SURVEY-IN allargato", kv_acc, 1);
                 }
             }
+        }
+        // Configurazione della base rimasta senza risposta: di nuovo, ogni minuto.
+        if (s_pending_n > 0 && loop_count % 6 == 5) {
+            pending_retry(uart_num);
         }
         // Ogni minuto anche UBX-MON-SYS: temperatura e stato del ricevitore
         // (lo ZED-F9P HPG 1.51 risponde, verificato il 03/10/2026).
